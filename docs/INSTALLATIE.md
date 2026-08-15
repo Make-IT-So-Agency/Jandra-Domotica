@@ -1,5 +1,33 @@
 # Installatie
 
+## De snelle weg: laat het script het doen
+
+Er is een script dat bijna alles voor je regelt: de geheime sleutels, de
+tabellen in Supabase, het Vercel-project met alle omgevingsvariabelen, en de
+eerste uitrol.
+
+```bash
+git clone https://github.com/janfestjens/Jandra---Domotica.git
+cd Jandra---Domotica
+bash scripts/installeer.sh
+```
+
+Het script vraagt je onderweg om aan te melden bij Vercel (in je browser) en om
+drie dingen uit Supabase over te nemen. Op het einde toont het je app-adres en
+de API-sleutel voor Home Assistant.
+
+Wat het script **niet** kan: het Google-luik voor het inloggen. Dat is klikwerk
+in de Google Cloud Console dat op jouw account moet gebeuren. Het script zegt
+op het einde precies wat je waar moet invullen, met de juiste adressen erbij —
+dat is stap 3 hieronder.
+
+Loopt er iets mis, of doe je het liever stap voor stap? Volg dan gewoon de
+handleiding hieronder; die komt op hetzelfde neer.
+
+---
+
+## De handmatige weg
+
 Eenmalig werk. Reken op een uurtje. Je hebt vier dingen nodig, in deze
 volgorde:
 

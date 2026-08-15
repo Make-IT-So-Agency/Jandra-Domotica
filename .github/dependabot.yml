@@ -1,0 +1,24 @@
+version: 2
+
+# Houdt de afhankelijkheden vanzelf bij. De CI draait mee op elk voorstel, dus
+# een update die iets breekt, kleurt rood voor je hem samenvoegt.
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # Alles in één voorstel in plaats van vijf losse: minder klikwerk, en de
+      # CI zegt evengoed of het geheel nog werkt.
+      alles:
+        patterns: ["*"]
+    commit-message:
+      prefix: "Werk afhankelijkheden bij"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Werk GitHub Actions bij"

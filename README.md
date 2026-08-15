@@ -1,5 +1,8 @@
 # Laadkosten
 
+[![CI](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/ci.yml/badge.svg)](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/ci.yml)
+[![Validatie](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/validatie.yml/badge.svg)](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/validatie.yml)
+
 Overzicht en rapportage van de laadkosten van thuisladen, per vennootschap.
 
 Home Assistant leest de laadsessies uit evcc en stuurt ze naar een webapp op
@@ -30,9 +33,18 @@ Openen, kiezen, downloaden. Zie [docs/GEBRUIK.md](docs/GEBRUIK.md) — dat is
 
 ## Installeren
 
-Eenmalig werk, verdeeld over vier plekken (Supabase, Vercel, Google, Home
-Assistant). Volg [docs/INSTALLATIE.md](docs/INSTALLATIE.md) van boven naar
-beneden; elke stap staat er klik voor klik in.
+Eenmalig werk. Het snelst gaat het met het installatiescript:
+
+```bash
+bash scripts/installeer.sh
+```
+
+Dat regelt de sleutels, de databank, de hosting en de uitrol. Enkel het
+Google-luik voor het inloggen blijft klikwerk in je eigen account; het script
+zegt op het einde precies wat je waar moet invullen.
+
+Liever stap voor stap, of loopt er iets mis? Zie
+[docs/INSTALLATIE.md](docs/INSTALLATIE.md).
 
 ## Wat waar staat
 

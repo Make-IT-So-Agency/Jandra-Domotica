@@ -180,6 +180,41 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | `web/lib/pdf.tsx` / `web/lib/excel.ts` | De documenten renderen |
 | `web/app/api/ingest/route.ts` | Waar Home Assistant zijn data aflevert |
 
+## De pijplijn
+
+`.github/workflows/ci.yml` draait bij elke push en elke pull request:
+
+| Taak | Wat het bewaakt |
+| --- | --- |
+| Home Assistant-integratie | de tests op de sessieomzetting, en of elk JSON-bestand nog leesbaar is |
+| Webapp | typecontrole, alle tests, en of de app nog te bouwen is |
+| Databankschema | het schema tegen een echte Postgres, twee keer na elkaar |
+| Geen sleutels in de code | geen `.env`-bestanden, geen vastgelegde tokens |
+
+Die derde taak verdient toelichting: het schema wordt twee keer uitgevoerd. De
+installatiegids belooft dat je de scripts gerust mag herhalen, en dit bewaakt
+dat die belofte klopt.
+
+`validatie.yml` draait `hassfest` en de HACS-actie, ook wekelijks op maandag.
+Die regels wijzigen buiten ons om; zo merk je een probleem vóór je het nodig
+hebt in plaats van erna.
+
+Dependabot stelt maandelijks één gebundeld voorstel voor de npm-pakketten en
+één voor de GitHub-acties. De CI draait mee op elk voorstel, dus een update die
+iets breekt, kleurt rood voor je hem samenvoegt.
+
+## Het installatiescript
+
+`scripts/installeer.sh` doet de installatie op wat handwerk in de Google Cloud
+Console na. Het is bewust herhaalbaar: omgevingsvariabelen worden eerst
+verwijderd en dan opnieuw gezet, en de SQL-scripts zijn idempotent.
+
+`scripts/voer-sql-uit.mjs` voert de SQL uit tegen Supabase. Het haalt de
+Postgres-bibliotheek bij de eerste keer zelf op naar een tijdelijke map, zodat
+er niets vooraf geïnstalleerd hoeft te zijn en de afhankelijkheden van de app
+ongemoeid blijven. Voor een databank op je eigen machine wordt de versleuteling
+overgeslagen, voor Supabase niet.
+
 ## Tests
 
 ```bash

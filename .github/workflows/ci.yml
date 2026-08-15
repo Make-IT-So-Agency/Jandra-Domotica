@@ -1,0 +1,159 @@
+name: CI
+
+# Draait bij elke push en bij elke pull request. Zolang dit groen staat, is de
+# app te bouwen en kloppen de berekeningen nog.
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+# Een nieuwe push op dezelfde tak maakt de vorige draaibeurt overbodig.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integratie:
+    name: Home Assistant-integratie
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Testgereedschap installeren
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Tests draaien
+        run: python -m pytest tests/ -v
+
+      - name: JSON-bestanden controleren
+        # Een tikfout in manifest.json of een vertaling maakt de integratie
+        # onlaadbaar in Home Assistant, en dat merk je anders pas daar.
+        run: |
+          for bestand in custom_components/laadkosten/*.json \
+                         custom_components/laadkosten/translations/*.json \
+                         hacs.json; do
+            python -c "import json,sys; json.load(open(sys.argv[1]))" "$bestand"
+            echo "in orde: $bestand"
+          done
+
+  webapp:
+    name: Webapp
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Afhankelijkheden installeren
+        run: npm ci
+
+      - name: Typecontrole
+        run: npm run typecheck
+
+      - name: Tests draaien
+        run: npm test
+
+      - name: Build
+        # De build heeft de omgevingsvariabelen nodig om te kunnen starten,
+        # maar praat hier met niemand: dit zijn bewust nepwaarden.
+        env:
+          SUPABASE_URL: https://voorbeeld.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: bouwcontrole
+          AUTH_SECRET: bouwcontrole-bouwcontrole-bouwcontrole
+          AUTH_GOOGLE_ID: bouwcontrole
+          AUTH_GOOGLE_SECRET: bouwcontrole
+          INGEST_API_KEY: bouwcontrole
+          CRON_SECRET: bouwcontrole
+        run: npm run build
+
+  databank:
+    name: Databankschema
+    runs-on: ubuntu-latest
+
+    # Een echte Postgres, zodat een tikfout in het schema hier opvalt en niet
+    # pas wanneer je het in Supabase plakt.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: proef
+          POSTGRES_DB: laadkosten
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Schema uitvoeren
+        run: |
+          node scripts/voer-sql-uit.mjs \
+            "postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable" \
+            web/supabase/schema.sql web/supabase/migratie-01-gebruikers.sql
+
+      - name: Opnieuw uitvoeren moet even goed gaan
+        # De installatiegids zegt dat je de scripts gerust mag herhalen; dit
+        # bewaakt dat die belofte klopt.
+        run: |
+          node scripts/voer-sql-uit.mjs \
+            "postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable" \
+            web/supabase/schema.sql web/supabase/migratie-01-gebruikers.sql
+
+      - name: Controleren dat alle tabellen er staan
+        env:
+          PGPASSWORD: proef
+        run: |
+          ontbreekt=0
+          for tabel in companies loadpoints sessions tariffs meter_readings \
+                       reports app_settings app_users ingest_log; do
+            if psql -h 127.0.0.1 -U postgres -d laadkosten -tAc \
+                 "select to_regclass('public.$tabel');" | grep -q "^$tabel$"; then
+              echo "aanwezig: $tabel"
+            else
+              echo "::error::tabel $tabel ontbreekt"
+              ontbreekt=1
+            fi
+          done
+          exit $ontbreekt
+
+  geheimen:
+    name: Geen sleutels in de code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zoeken naar per ongeluk vastgelegde sleutels
+        # Goedkope vangnetcontrole: een echte Supabase-sleutel is een JWT die
+        # met eyJ begint, en .env-bestanden horen hier nooit in te zitten.
+        run: |
+          if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v '\.example$'; then
+            echo "::error::Er staat een .env-bestand in de repository."
+            exit 1
+          fi
+          if git grep -nI -E 'eyJ[A-Za-z0-9_-]{20,}\.' -- . ':!*.md' ':!*.lock' ':!package-lock.json'; then
+            echo "::error::Dit lijkt op een echte sleutel in de code."
+            exit 1
+          fi
+          echo "Niets verdachts gevonden."

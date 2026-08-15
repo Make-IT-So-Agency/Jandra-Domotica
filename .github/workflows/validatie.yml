@@ -1,0 +1,35 @@
+name: Validatie van de integratie
+
+# Controleert of de integratie nog voldoet aan de regels van Home Assistant en
+# HACS. Die regels wijzigen buiten ons om, vandaar ook de wekelijkse beurt:
+# zo merk je een probleem voor je het nodig hebt in plaats van erna.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hassfest:
+    name: Home Assistant (hassfest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # "brands" geldt enkel voor integraties die in de standaardlijst van
+          # HACS willen; deze installeer je als eigen repository.
+          ignore: brands
