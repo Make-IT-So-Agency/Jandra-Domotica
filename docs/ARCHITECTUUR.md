@@ -110,6 +110,48 @@ Een sessie die nog loopt komt binnen met `is_complete = false` en wordt wel
 getoond maar niet doorgerekend. Zodra ze afgerond is, wordt dezelfde rij
 bijgewerkt.
 
+## Keuzes rond toegang
+
+### De rol wordt bij elke paginaweergave opgezocht
+
+Het zou goedkoper zijn om de rol in het aanmeldkoekje te stoppen, maar dan
+werkt het intrekken van iemands toegang pas nadat die persoon zich opnieuw
+aanmeldt. Nu kost het één databankvraag per pagina en is een wijziging meteen
+van kracht.
+
+### De middleware weet enkel óf je aangemeld bent
+
+`middleware.ts` draait op de edge-omgeving en mag niet aan de databank. Daarom
+is de aanmeldconfiguratie gesplitst: `auth.config.ts` bevat het edge-veilige
+deel, `auth.ts` voegt daar de databankcontrole aan toe voor de Node-omgeving.
+De middleware stuurt enkel niet-aangemelde bezoekers naar het inlogscherm; het
+échte rechtenwerk gebeurt op elke pagina en in elke serveractie apart.
+
+Dat betekent ook: elke serveractie doet zijn eigen controle. Een verborgen knop
+is geen beveiliging.
+
+### TOEGELATEN_EMAILS is de noodingang
+
+Adressen in die omgevingsvariabele zijn altijd hoofdbeheerder, wat er ook in
+`app_users` staat. Ze kunnen via de app niet gedegradeerd of verwijderd worden.
+Zo kan een fout in de app of een verkeerde klik je nooit buitensluiten uit je
+eigen installatie, en geraakt de eerste gebruiker binnen bij een lege databank.
+
+### Filteren gebeurt in de databankvraag
+
+Wie geen hoofdbeheerder is, krijgt een `.in("company_id", ...)` mee in de vraag
+zelf, niet pas bij het tonen. Zo kan er geen rij van een andere vennootschap
+door een vergeten controle op het scherm belanden. De download-URL's van PDF en
+Excel controleren dat afzonderlijk, en geven 404 in plaats van 403 bij een
+rapport van iemand anders — zo valt er via die URL niet uit te vissen welke
+rapporten er bestaan.
+
+### Rapporten maken blijft bij de hoofdbeheerder
+
+Het rapport is de onkostennota van de begunstigde. Dat een vennootschap haar
+eigen claim tegen die persoon zou opmaken, klopt niet. Inkijken en downloaden
+mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
+
 ## Wat opzettelijk niet gebeurt
 
 - **Geen automatische e-mail.** De rapporten staan in de app; er is geen
@@ -128,6 +170,9 @@ bijgewerkt.
 | --- | --- |
 | `custom_components/laadkosten/session_mapper.py` | evcc-sessies omzetten; los te testen, geen HA-afhankelijkheid |
 | `custom_components/laadkosten/api.py` | Praten met evcc en met de app |
+| `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
+| `web/lib/toegang.ts` | De aangemelde gebruiker met zijn actuele rol |
+| `web/lib/gebruikers.ts` | Gebruikers lezen en schrijven in de databank |
 | `web/lib/billing.ts` | Kostenberekening en afronding |
 | `web/lib/periods.ts` | Maanden en kwartalen in Belgische tijd |
 | `web/lib/creg.ts` | Het tarief van een webpagina plukken |
@@ -139,7 +184,8 @@ bijgewerkt.
 
 ```bash
 python3 -m pytest tests/    # 20 tests op de sessieomzetting
-cd web && npm test          # 52 tests op berekening, periodes, tarieven, documenten
+cd web && npm test          # 76 tests op berekening, periodes, tarieven,
+                            # documenten en toegangsrechten
 ```
 
 De documenttests genereren een echte PDF en een echte Excel en lezen die weer

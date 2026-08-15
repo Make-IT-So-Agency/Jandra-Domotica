@@ -38,6 +38,10 @@ geeft, volstaat. Gebruik voor elk van de drie een *ander* resultaat.
 5. Open het bestand `web/supabase/schema.sql` uit deze repository, kopieer de
    **volledige** inhoud, plak die in het venster en klik **Run**.
    Onderaan hoort *Success. No rows returned* te verschijnen.
+
+   > Had je de databank al opgezet vóór het gebruikersbeheer bestond? Dan volstaat
+   > het om daarnaast ook `web/supabase/migratie-01-gebruikers.sql` te draaien.
+   > Allebei draaien kan geen kwaad: de scripts zijn herhaalbaar.
 6. Klik links op het tandwiel (**Project Settings**) en dan op **API**. Noteer:
    - **Project URL** → dit wordt `SUPABASE_URL`
    - onder *Project API keys* de sleutel **`service_role`** (klik op *Reveal*)
@@ -65,6 +69,11 @@ geeft, volstaat. Gebruik voor elk van de drie een *ander* resultaat.
    | `INGEST_API_KEY` | je tweede gegenereerde sleutel |
    | `CRON_SECRET` | je derde gegenereerde sleutel |
    | `TOEGELATEN_EMAILS` | jouw e-mailadres, bv. `jan@makeitso.be` |
+
+   > `TOEGELATEN_EMAILS` is je noodingang. Wie hierin staat is **altijd**
+   > hoofdbeheerder en kan via de app nooit buitengesloten worden. Alle andere
+   > gebruikers voeg je later toe in de app zelf, bij **Gebruikers**. Zet hier
+   > dus enkel je eigen adres in; meerdere adressen mogen, met komma's ertussen.
 
    `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` en `AUTH_URL` vul je in stap 3 aan.
 
@@ -156,6 +165,8 @@ Ga naar je app en werk het lijstje op het beginscherm af:
 4. **Tarieven** — klik bij het huidige kwartaal op **Automatisch zoeken**,
    kijk het gevonden bedrag na en klik **Bevestigen**. Vindt de app niets? Vul
    het dan zelf in onderaan die pagina.
+5. **Gebruikers** — optioneel: geef de andere vennootschap toegang. Zie
+   [docs/GEBRUIK.md](GEBRUIK.md#iemand-toegang-geven) voor wat elke rol mag.
 
 Zodra het beginscherm meldt dat alles klaarstaat, kan je je eerste rapport
 maken.
@@ -175,8 +186,16 @@ ingevuld. Let op onzichtbare spaties bij het plakken. Heb je de waarde bij
 Vercel aangepast? Dan moet je opnieuw implementeren voor die actief wordt.
 
 **Inloggen mislukt met "toegang geweigerd"**
-Je adres staat niet in `TOEGELATEN_EMAILS`, of het staat er anders geschreven.
+Het adres staat niet in `TOEGELATEN_EMAILS` én is ook niet toegevoegd bij
+**Gebruikers** in de app. Let op dat iemand zich aanmeldt met precies het adres
+dat je hebt ingevuld: het Google-account moet hetzelfde adres hebben.
 Hoofdletters maken niet uit, spaties wel.
+
+**Je hebt jezelf per ongeluk gedegradeerd**
+Dat kan niet als je adres in `TOEGELATEN_EMAILS` staat: dat blijft altijd
+hoofdbeheerder, wat er ook in de databank staat. Is dat toch gebeurd bij een
+ander adres, zet dat adres dan tijdelijk bij `TOEGELATEN_EMAILS` en implementeer
+opnieuw.
 
 **De app toont "De databank is niet bereikbaar"**
 `SUPABASE_URL` of `SUPABASE_SERVICE_ROLE_KEY` klopt niet, of het SQL-script uit

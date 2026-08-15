@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { vereistAangemeld } from "@/auth";
+import { vereistHoofdbeheerder } from "@/lib/toegang";
 import { leesInstellingen } from "@/lib/settings";
 import { bevestigTarief, bewaarTarief, probeerAutomatischTarief } from "@/lib/tariffs";
 
@@ -14,7 +14,7 @@ function terug(soort: "goed" | "fout" | "info", melding: string): never {
 }
 
 export async function haalTariefAutomatischOp(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const jaar = Number(formulier.get("jaar"));
   const kwartaal = Number(formulier.get("kwartaal"));
@@ -41,7 +41,7 @@ export async function haalTariefAutomatischOp(formulier: FormData): Promise<void
 }
 
 export async function bevestigTariefActie(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const id = String(formulier.get("id") ?? "");
   if (!id) terug("fout", "Onbekend tarief.");
@@ -55,7 +55,7 @@ export async function bevestigTariefActie(formulier: FormData): Promise<void> {
 }
 
 export async function bewaarHandmatigTarief(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const jaar = Number(formulier.get("jaar"));
   const kwartaal = Number(formulier.get("kwartaal"));

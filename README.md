@@ -19,6 +19,9 @@ staven.
 - **Btw apart**, en **meterstanden** als controlegetal naast de optelling van
   de sessies.
 - **Maand of kwartaal**, op afroep of automatisch bij het einde van de periode.
+- **Toegang per vennootschap.** Elke vennootschap kan haar eigen mensen en
+  boekhouder uitnodigen, en ziet daarbij enkel haar eigen cijfers. Jij houdt
+  het overzicht over alles.
 
 ## Wat je maandelijks moet doen
 

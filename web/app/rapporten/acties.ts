@@ -3,18 +3,26 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { vereistAangemeld } from "@/auth";
 import { bereidRapportVoor, bewaarRapport } from "@/lib/reports";
+import { magVennootschapZien } from "@/lib/rollen";
 import { db } from "@/lib/supabase";
+import { vereistRapportenrechten } from "@/lib/toegang";
 
 import { periodeUitFormulier } from "./periode";
 
 export async function maakRapport(formulier: FormData): Promise<void> {
-  const door = await vereistAangemeld();
+  const ik = await vereistRapportenrechten();
+  const door = ik.email;
 
   const vennootschapId = String(formulier.get("vennootschap") ?? "");
   if (!vennootschapId) {
     redirect("/rapporten?soort=fout&melding=Kies+eerst+een+vennootschap.");
+  }
+  if (!magVennootschapZien(ik, vennootschapId)) {
+    redirect(
+      "/rapporten?soort=fout&melding=" +
+        encodeURIComponent("Je hebt geen toegang tot deze vennootschap."),
+    );
   }
 
   let referentie: string;
@@ -45,7 +53,7 @@ export async function maakRapport(formulier: FormData): Promise<void> {
 }
 
 export async function verwijderRapport(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistRapportenrechten();
 
   const id = String(formulier.get("id") ?? "");
   if (!id) return;

@@ -1,10 +1,17 @@
 import Link from "next/link";
 
 import { datumTijd, kwh } from "@/lib/format";
-import { kwartaalPeriode, kwartaalVan, maandPeriode, lokaleOnderdelen } from "@/lib/periods";
+import { kwartaalPeriode, kwartaalVan, lokaleOnderdelen, maandPeriode } from "@/lib/periods";
+import {
+  isHoofdbeheerder,
+  magInstellingenBeheren,
+  zichtbareVennootschappen,
+  type Gebruiker,
+} from "@/lib/rollen";
 import { leesInstellingen } from "@/lib/settings";
 import { db } from "@/lib/supabase";
 import { leesTarieven } from "@/lib/tariffs";
+import { vereistGebruiker } from "@/lib/toegang";
 import type { Laadpaal, Laadsessie, Vennootschap } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,69 +20,114 @@ interface Overzicht {
   laatsteSynchronisatie: string | null;
   sessiesDezeMaand: Laadsessie[];
   laatsteSessies: Laadsessie[];
-  laadpalen: Laadpaal[];
+  eigenLaadpalen: Laadpaal[];
   vennootschappen: Vennootschap[];
   nietGekoppeld: string[];
   tariefOntbreekt: string | null;
   tariefOnbevestigd: string | null;
 }
 
-async function haalOverzicht(): Promise<Overzicht> {
+async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
   const nu = new Date();
   const { jaar, maand } = lokaleOnderdelen(nu);
   const maandPeriodeNu = maandPeriode(jaar, maand);
   const supabase = db();
+  const beperking = zichtbareVennootschappen(gebruiker);
 
-  const [logResultaat, maandResultaat, recentResultaat, palenResultaat, vennResultaat] =
-    await Promise.all([
-      supabase
-        .from("ingest_log")
-        .select("received_at")
-        .is("error", null)
-        .order("received_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("sessions")
-        .select("*")
-        .gte("finished_at", maandPeriodeNu.vanaf.toISOString())
-        .lt("finished_at", maandPeriodeNu.tot.toISOString()),
-      supabase
-        .from("sessions")
-        .select("*")
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .limit(15),
-      supabase.from("loadpoints").select("*").order("name"),
-      supabase.from("companies").select("*").order("name"),
-    ]);
+  const [logResultaat, palenResultaat, vennResultaat] = await Promise.all([
+    supabase
+      .from("ingest_log")
+      .select("received_at")
+      .is("error", null)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("loadpoints").select("*").order("name"),
+    supabase.from("companies").select("*").order("name"),
+  ]);
 
-  const laadpalen = (palenResultaat.data ?? []) as Laadpaal[];
-  const instellingen = await leesInstellingen();
+  const alleLaadpalen = (palenResultaat.data ?? []) as Laadpaal[];
+  const eigenLaadpalen =
+    beperking === null
+      ? alleLaadpalen
+      : alleLaadpalen.filter(
+          (laadpaal) => laadpaal.company_id && beperking.includes(laadpaal.company_id),
+        );
 
-  const { jaar: kJaar, kwartaal } = kwartaalVan(nu);
-  const kwartaalStart = kwartaalPeriode(kJaar, kwartaal).start;
-  const tarieven = await leesTarieven(instellingen.regio);
-  const huidigTarief = tarieven.find((tarief) => tarief.period_start === kwartaalStart);
+  // Sessies filteren op de laadpalen die deze gebruiker mag zien. Bij een
+  // hoofdbeheerder blijft de vraag onbeperkt.
+  const eigenNamen = eigenLaadpalen.map((laadpaal) => laadpaal.name);
+
+  let maandVraag = supabase
+    .from("sessions")
+    .select("*")
+    .gte("finished_at", maandPeriodeNu.vanaf.toISOString())
+    .lt("finished_at", maandPeriodeNu.tot.toISOString());
+  let recentVraag = supabase
+    .from("sessions")
+    .select("*")
+    .order("started_at", { ascending: false, nullsFirst: false })
+    .limit(15);
+
+  if (beperking !== null) {
+    if (eigenNamen.length === 0) {
+      return {
+        laatsteSynchronisatie: logResultaat.data?.received_at ?? null,
+        sessiesDezeMaand: [],
+        laatsteSessies: [],
+        eigenLaadpalen: [],
+        vennootschappen: [],
+        nietGekoppeld: [],
+        tariefOntbreekt: null,
+        tariefOnbevestigd: null,
+      };
+    }
+    maandVraag = maandVraag.in("loadpoint_name", eigenNamen);
+    recentVraag = recentVraag.in("loadpoint_name", eigenNamen);
+  }
+
+  const [maandResultaat, recentResultaat] = await Promise.all([maandVraag, recentVraag]);
+
+  const vennootschappen = ((vennResultaat.data ?? []) as Vennootschap[]).filter(
+    (vennootschap) => beperking === null || beperking.includes(vennootschap.id),
+  );
+
+  // Tariefmeldingen zijn enkel zinvol voor wie ze kan oplossen.
+  let tariefOntbreekt: string | null = null;
+  let tariefOnbevestigd: string | null = null;
+
+  if (magInstellingenBeheren(gebruiker)) {
+    const instellingen = await leesInstellingen();
+    const { jaar: kJaar, kwartaal } = kwartaalVan(nu);
+    const kwartaalStart = kwartaalPeriode(kJaar, kwartaal).start;
+    const tarieven = await leesTarieven(instellingen.regio);
+    const huidigTarief = tarieven.find((tarief) => tarief.period_start === kwartaalStart);
+
+    tariefOntbreekt = huidigTarief ? null : `Q${kwartaal} ${kJaar}`;
+    tariefOnbevestigd =
+      huidigTarief && !huidigTarief.confirmed_at ? `Q${kwartaal} ${kJaar}` : null;
+  }
 
   return {
     laatsteSynchronisatie: logResultaat.data?.received_at ?? null,
     sessiesDezeMaand: (maandResultaat.data ?? []) as Laadsessie[],
     laatsteSessies: (recentResultaat.data ?? []) as Laadsessie[],
-    laadpalen,
-    vennootschappen: (vennResultaat.data ?? []) as Vennootschap[],
-    nietGekoppeld: laadpalen
+    eigenLaadpalen,
+    vennootschappen,
+    nietGekoppeld: alleLaadpalen
       .filter((laadpaal) => !laadpaal.company_id)
       .map((laadpaal) => laadpaal.name),
-    tariefOntbreekt: huidigTarief ? null : `Q${kwartaal} ${kJaar}`,
-    tariefOnbevestigd:
-      huidigTarief && !huidigTarief.confirmed_at ? `Q${kwartaal} ${kJaar}` : null,
+    tariefOntbreekt,
+    tariefOnbevestigd,
   };
 }
 
 export default async function Overzichtspagina() {
+  const ik = await vereistGebruiker();
+
   let overzicht: Overzicht;
   try {
-    overzicht = await haalOverzicht();
+    overzicht = await haalOverzicht(ik);
   } catch (fout) {
     return (
       <>
@@ -88,86 +140,107 @@ export default async function Overzichtspagina() {
     );
   }
 
+  const beheerder = magInstellingenBeheren(ik);
   const kwhDezeMaand = overzicht.sessiesDezeMaand
     .filter((sessie) => sessie.is_complete)
     .reduce((som, sessie) => som + Number(sessie.energy_kwh ?? 0), 0);
 
   const takenTeDoen: Array<{ tekst: string; link: string; knop: string }> = [];
 
-  if (overzicht.vennootschappen.length === 0) {
-    takenTeDoen.push({
-      tekst: "Er zijn nog geen vennootschappen ingevuld.",
-      link: "/vennootschappen",
-      knop: "Vennootschap toevoegen",
-    });
+  if (beheerder) {
+    if (overzicht.vennootschappen.length === 0) {
+      takenTeDoen.push({
+        tekst: "Er zijn nog geen vennootschappen ingevuld.",
+        link: "/vennootschappen",
+        knop: "Vennootschap toevoegen",
+      });
+    }
+    if (overzicht.nietGekoppeld.length > 0) {
+      takenTeDoen.push({
+        tekst: `Nog niet gekoppeld aan een vennootschap: ${overzicht.nietGekoppeld.join(", ")}.`,
+        link: "/laadpalen",
+        knop: "Laadpalen koppelen",
+      });
+    }
+    if (overzicht.tariefOntbreekt) {
+      takenTeDoen.push({
+        tekst: `Het tarief voor ${overzicht.tariefOntbreekt} is nog niet ingevuld.`,
+        link: "/tarieven",
+        knop: "Tarief regelen",
+      });
+    }
+    if (overzicht.tariefOnbevestigd) {
+      takenTeDoen.push({
+        tekst: `Het tarief voor ${overzicht.tariefOnbevestigd} is automatisch gevonden en wacht op je bevestiging.`,
+        link: "/tarieven",
+        knop: "Nakijken en bevestigen",
+      });
+    }
+    if (overzicht.laatsteSynchronisatie === null) {
+      takenTeDoen.push({
+        tekst:
+          "Er is nog nooit data binnengekomen uit Home Assistant. Controleer de HACS-integratie.",
+        link: "/instellingen",
+        knop: "Koppeling nakijken",
+      });
+    }
   }
-  if (overzicht.nietGekoppeld.length > 0) {
-    takenTeDoen.push({
-      tekst: `Nog niet gekoppeld aan een vennootschap: ${overzicht.nietGekoppeld.join(", ")}.`,
-      link: "/laadpalen",
-      knop: "Laadpalen koppelen",
-    });
-  }
-  if (overzicht.tariefOntbreekt) {
-    takenTeDoen.push({
-      tekst: `Het tarief voor ${overzicht.tariefOntbreekt} is nog niet ingevuld.`,
-      link: "/tarieven",
-      knop: "Tarief regelen",
-    });
-  }
-  if (overzicht.tariefOnbevestigd) {
-    takenTeDoen.push({
-      tekst: `Het tarief voor ${overzicht.tariefOnbevestigd} is automatisch gevonden en wacht op je bevestiging.`,
-      link: "/tarieven",
-      knop: "Nakijken en bevestigen",
-    });
-  }
-  if (overzicht.laatsteSynchronisatie === null) {
-    takenTeDoen.push({
-      tekst:
-        "Er is nog nooit data binnengekomen uit Home Assistant. Controleer de HACS-integratie.",
-      link: "/instellingen",
-      knop: "Koppeling nakijken",
-    });
-  }
+
+  const eigenaarschap =
+    isHoofdbeheerder(ik) || overzicht.vennootschappen.length === 0
+      ? null
+      : overzicht.vennootschappen[0].name;
 
   return (
     <>
       <h1>Overzicht</h1>
       <p className="inleiding">
-        Alle laadsessies die evcc kent, klaar om per vennootschap door te rekenen.
+        {eigenaarschap
+          ? `De laadsessies op de laadpalen van ${eigenaarschap}.`
+          : "Alle laadsessies die evcc kent, klaar om per vennootschap door te rekenen."}
       </p>
 
-      {takenTeDoen.length > 0 ? (
+      {beheerder ? (
+        takenTeDoen.length > 0 ? (
+          <div className="melding let-op">
+            <p>
+              <strong>Nog te doen voor je een rapport kan maken</strong>
+            </p>
+            <ul>
+              {takenTeDoen.map((taak) => (
+                <li key={taak.link + taak.tekst}>
+                  {taak.tekst} <Link href={taak.link}>{taak.knop}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="melding goed">
+            Alles staat klaar. Je kan meteen een rapport maken bij{" "}
+            <Link href="/rapporten">Rapporten</Link>.
+          </div>
+        )
+      ) : null}
+
+      {!beheerder && overzicht.eigenLaadpalen.length === 0 ? (
         <div className="melding let-op">
-          <p>
-            <strong>Nog te doen voor je een rapport kan maken</strong>
-          </p>
-          <ul>
-            {takenTeDoen.map((taak) => (
-              <li key={taak.link + taak.tekst}>
-                {taak.tekst} <Link href={taak.link}>{taak.knop}</Link>
-              </li>
-            ))}
-          </ul>
+          Er is nog geen laadpaal aan je vennootschap gekoppeld, dus er valt hier nog niets
+          te zien. Vraag dat aan de hoofdbeheerder.
         </div>
-      ) : (
-        <div className="melding goed">
-          Alles staat klaar. Je kan meteen een rapport maken bij{" "}
-          <Link href="/rapporten">Rapporten</Link>.
-        </div>
-      )}
+      ) : null}
 
       <div className="tegels">
-        <div className="tegel">
-          <div className="label">Laatste synchronisatie</div>
-          <div className="waarde" style={{ fontSize: 17 }}>
-            {overzicht.laatsteSynchronisatie
-              ? datumTijd(overzicht.laatsteSynchronisatie)
-              : "nog nooit"}
+        {beheerder ? (
+          <div className="tegel">
+            <div className="label">Laatste synchronisatie</div>
+            <div className="waarde" style={{ fontSize: 17 }}>
+              {overzicht.laatsteSynchronisatie
+                ? datumTijd(overzicht.laatsteSynchronisatie)
+                : "nog nooit"}
+            </div>
+            <div className="bij">vanuit Home Assistant</div>
           </div>
-          <div className="bij">vanuit Home Assistant</div>
-        </div>
+        ) : null}
         <div className="tegel">
           <div className="label">Deze maand geladen</div>
           <div className="waarde">{kwh(kwhDezeMaand)}</div>
@@ -177,26 +250,31 @@ export default async function Overzichtspagina() {
         </div>
         <div className="tegel">
           <div className="label">Laadpalen</div>
-          <div className="waarde">{overzicht.laadpalen.length}</div>
+          <div className="waarde">{overzicht.eigenLaadpalen.length}</div>
           <div className="bij">
-            {overzicht.nietGekoppeld.length === 0
-              ? "allemaal gekoppeld"
-              : `${overzicht.nietGekoppeld.length} nog te koppelen`}
+            {!beheerder
+              ? "van jouw vennootschap"
+              : overzicht.nietGekoppeld.length === 0
+                ? "allemaal gekoppeld"
+                : `${overzicht.nietGekoppeld.length} nog te koppelen`}
           </div>
         </div>
-        <div className="tegel">
-          <div className="label">Vennootschappen</div>
-          <div className="waarde">{overzicht.vennootschappen.length}</div>
-          <div className="bij">die kosten terugbetalen</div>
-        </div>
+        {beheerder ? (
+          <div className="tegel">
+            <div className="label">Vennootschappen</div>
+            <div className="waarde">{overzicht.vennootschappen.length}</div>
+            <div className="bij">die kosten terugbetalen</div>
+          </div>
+        ) : null}
       </div>
 
       <h2>Laatste laadsessies</h2>
       {overzicht.laatsteSessies.length === 0 ? (
         <div className="kaart">
           <p className="leeg">
-            Nog geen sessies ontvangen. Druk in Home Assistant op de knop
-            &laquo;Nu synchroniseren&raquo;.
+            {beheerder
+              ? "Nog geen sessies ontvangen. Druk in Home Assistant op de knop «Nu synchroniseren»."
+              : "Nog geen sessies op jullie laadpalen."}
           </p>
         </div>
       ) : (

@@ -3,7 +3,13 @@ import Link from "next/link";
 import { datum, datumTijd, euro, kwh, tariefPerKwh } from "@/lib/format";
 import { lokaleOnderdelen } from "@/lib/periods";
 import { bereidRapportVoor, type RapportVoorbereiding } from "@/lib/reports";
+import {
+  magRapportenMaken,
+  magVennootschapZien,
+  zichtbareVennootschappen,
+} from "@/lib/rollen";
 import { db } from "@/lib/supabase";
+import { vereistGebruiker } from "@/lib/toegang";
 import type { Vennootschap } from "@/lib/types";
 
 import { maakRapport, verwijderRapport } from "./acties";
@@ -43,20 +49,41 @@ export default async function Rapportenpagina({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  const ik = await vereistGebruiker();
   const params = await searchParams;
   const nu = new Date();
   const vandaag = lokaleOnderdelen(nu);
 
-  const [vennResultaat, archiefResultaat] = await Promise.all([
-    db().from("companies").select("*").eq("is_active", true).order("name"),
-    db()
-      .from("reports")
-      .select(
-        "id, reference, period_start, period_end, session_count, total_kwh, total_incl_vat, generated_at, companies(name)",
-      )
-      .order("generated_at", { ascending: false })
-      .limit(50),
-  ]);
+  const magMaken = magRapportenMaken(ik);
+  const beperking = zichtbareVennootschappen(ik);
+
+  let vennQuery = db().from("companies").select("*").eq("is_active", true).order("name");
+  let archiefQuery = db()
+    .from("reports")
+    .select(
+      "id, reference, period_start, period_end, session_count, total_kwh, total_incl_vat, generated_at, companies(name)",
+    )
+    .order("generated_at", { ascending: false })
+    .limit(50);
+
+  // Wie geen hoofdbeheerder is, ziet enkel de eigen vennootschap. De filtering
+  // gebeurt in de databankvraag zelf, niet pas bij het tonen.
+  if (beperking !== null) {
+    if (beperking.length === 0) {
+      return (
+        <>
+          <h1>Rapporten</h1>
+          <div className="melding let-op">
+            Je bent nog aan geen vennootschap gekoppeld. Vraag dat aan de hoofdbeheerder.
+          </div>
+        </>
+      );
+    }
+    vennQuery = vennQuery.in("id", beperking);
+    archiefQuery = archiefQuery.in("company_id", beperking);
+  }
+
+  const [vennResultaat, archiefResultaat] = await Promise.all([vennQuery, archiefQuery]);
 
   const vennootschappen = (vennResultaat.data ?? []) as Vennootschap[];
   const archief = (archiefResultaat.data ?? []) as unknown as BewaardRapportRij[];
@@ -64,23 +91,26 @@ export default async function Rapportenpagina({
   const gekozenVennootschap = params.vennootschap ?? "";
   const periodesoort = params.periodesoort ?? "month";
 
-  // Voorbeeld tonen zodra er een vennootschap gekozen is.
   let voorbeeld: RapportVoorbereiding | null = null;
   let voorbeeldFout: string | null = null;
 
-  if (gekozenVennootschap) {
-    try {
-      const periode = periodeUitFormulier({
-        soort: periodesoort,
-        jaar: params.jaar ?? String(vandaag.jaar),
-        maand: params.maand ?? String(vandaag.maand),
-        kwartaal: params.kwartaal ?? String(Math.floor((vandaag.maand - 1) / 3) + 1),
-        van: params.van ?? "",
-        tot: params.tot ?? "",
-      });
-      voorbeeld = await bereidRapportVoor(gekozenVennootschap, periode);
-    } catch (fout) {
-      voorbeeldFout = fout instanceof Error ? fout.message : "Voorbeeld maken mislukt.";
+  if (magMaken && gekozenVennootschap) {
+    if (!magVennootschapZien(ik, gekozenVennootschap)) {
+      voorbeeldFout = "Je hebt geen toegang tot deze vennootschap.";
+    } else {
+      try {
+        const periode = periodeUitFormulier({
+          soort: periodesoort,
+          jaar: params.jaar ?? String(vandaag.jaar),
+          maand: params.maand ?? String(vandaag.maand),
+          kwartaal: params.kwartaal ?? String(Math.floor((vandaag.maand - 1) / 3) + 1),
+          van: params.van ?? "",
+          tot: params.tot ?? "",
+        });
+        voorbeeld = await bereidRapportVoor(gekozenVennootschap, periode);
+      } catch (fout) {
+        voorbeeldFout = fout instanceof Error ? fout.message : "Voorbeeld maken mislukt.";
+      }
     }
   }
 
@@ -88,8 +118,9 @@ export default async function Rapportenpagina({
     <>
       <h1>Rapporten</h1>
       <p className="inleiding">
-        Kies een vennootschap en een periode. Je ziet meteen wat er doorgerekend wordt; pas
-        als je op bewaren klikt, wordt het rapport definitief vastgelegd met PDF en Excel.
+        {magMaken
+          ? "Kies een vennootschap en een periode. Je ziet meteen wat er doorgerekend wordt; pas als je op bewaren klikt, wordt het rapport definitief vastgelegd met PDF en Excel."
+          : "De rapporten van je vennootschap, met de PDF en de Excel om te downloaden. Nieuwe rapporten worden door de hoofdbeheerder opgemaakt."}
       </p>
 
       {params.melding ? (
@@ -102,96 +133,102 @@ export default async function Rapportenpagina({
         </div>
       ) : null}
 
-      {vennootschappen.length === 0 ? (
+      {magMaken && vennootschappen.length === 0 ? (
         <div className="melding let-op">
           Voeg eerst een vennootschap toe bij{" "}
           <Link href="/vennootschappen">Vennootschappen</Link>.
         </div>
       ) : null}
 
-      {/* Een gewoon GET-formulier: de keuze staat in het adres, dus je kan een
-          voorbeeld gerust delen of opslaan als favoriet. */}
-      <form method="get" className="kaart">
-        <div className="veldenrij">
-          <div>
-            <label htmlFor="vennootschap">Vennootschap</label>
-            <select id="vennootschap" name="vennootschap" defaultValue={gekozenVennootschap}>
-              <option value="">— kies —</option>
-              {vennootschappen.map((vennootschap) => (
-                <option key={vennootschap.id} value={vennootschap.id}>
-                  {vennootschap.name}
-                </option>
-              ))}
-            </select>
+      {magMaken ? (
+        /* Een gewoon GET-formulier: de keuze staat in het adres, dus je kan een
+           voorbeeld gerust delen of opslaan als favoriet. */
+        <form method="get" className="kaart">
+          <div className="veldenrij">
+            <div>
+              <label htmlFor="vennootschap">Vennootschap</label>
+              <select
+                id="vennootschap"
+                name="vennootschap"
+                defaultValue={gekozenVennootschap}
+              >
+                <option value="">— kies —</option>
+                {vennootschappen.map((vennootschap) => (
+                  <option key={vennootschap.id} value={vennootschap.id}>
+                    {vennootschap.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="periodesoort">Periode</label>
+              <select id="periodesoort" name="periodesoort" defaultValue={periodesoort}>
+                <option value="month">Maand</option>
+                <option value="quarter">Kwartaal</option>
+                <option value="vrij">Zelf kiezen</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="jaar">Jaar</label>
+              <input
+                id="jaar"
+                name="jaar"
+                type="number"
+                min={2020}
+                max={2100}
+                defaultValue={params.jaar ?? vandaag.jaar}
+              />
+            </div>
+            <div>
+              <label htmlFor="maand">Maand</label>
+              <select id="maand" name="maand" defaultValue={params.maand ?? vandaag.maand}>
+                {MAANDEN.map((naam, index) => (
+                  <option key={naam} value={index + 1}>
+                    {naam}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="kwartaal">Kwartaal</label>
+              <select
+                id="kwartaal"
+                name="kwartaal"
+                defaultValue={params.kwartaal ?? Math.floor((vandaag.maand - 1) / 3) + 1}
+              >
+                {[1, 2, 3, 4].map((nummer) => (
+                  <option key={nummer} value={nummer}>
+                    Q{nummer}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label htmlFor="periodesoort">Periode</label>
-            <select id="periodesoort" name="periodesoort" defaultValue={periodesoort}>
-              <option value="month">Maand</option>
-              <option value="quarter">Kwartaal</option>
-              <option value="vrij">Zelf kiezen</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="jaar">Jaar</label>
-            <input
-              id="jaar"
-              name="jaar"
-              type="number"
-              min={2020}
-              max={2100}
-              defaultValue={params.jaar ?? vandaag.jaar}
-            />
-          </div>
-          <div>
-            <label htmlFor="maand">Maand</label>
-            <select id="maand" name="maand" defaultValue={params.maand ?? vandaag.maand}>
-              {MAANDEN.map((naam, index) => (
-                <option key={naam} value={index + 1}>
-                  {naam}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="kwartaal">Kwartaal</label>
-            <select
-              id="kwartaal"
-              name="kwartaal"
-              defaultValue={params.kwartaal ?? Math.floor((vandaag.maand - 1) / 3) + 1}
-            >
-              {[1, 2, 3, 4].map((nummer) => (
-                <option key={nummer} value={nummer}>
-                  Q{nummer}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
 
-        <div className="veldenrij">
-          <div>
-            <label htmlFor="van">Zelf gekozen: van</label>
-            <input id="van" name="van" type="date" defaultValue={params.van ?? ""} />
+          <div className="veldenrij">
+            <div>
+              <label htmlFor="van">Zelf gekozen: van</label>
+              <input id="van" name="van" type="date" defaultValue={params.van ?? ""} />
+            </div>
+            <div>
+              <label htmlFor="tot">tot en met</label>
+              <input id="tot" name="tot" type="date" defaultValue={params.tot ?? ""} />
+            </div>
           </div>
-          <div>
-            <label htmlFor="tot">tot en met</label>
-            <input id="tot" name="tot" type="date" defaultValue={params.tot ?? ""} />
-          </div>
-        </div>
 
-        <p className="hulp" style={{ marginBottom: 12 }}>
-          De velden Maand, Kwartaal en de vrije datums worden enkel gebruikt door de
-          periodesoort die je hierboven kiest.
-        </p>
-        <button type="submit">Voorbeeld tonen</button>
-      </form>
+          <p className="hulp" style={{ marginBottom: 12 }}>
+            De velden Maand, Kwartaal en de vrije datums worden enkel gebruikt door de
+            periodesoort die je hierboven kiest.
+          </p>
+          <button type="submit">Voorbeeld tonen</button>
+        </form>
+      ) : null}
 
       {voorbeeldFout ? <div className="melding fout">{voorbeeldFout}</div> : null}
 
       {voorbeeld ? <Voorbeeld voorbereiding={voorbeeld} params={params} /> : null}
 
-      <hr className="scheiding" />
+      {magMaken ? <hr className="scheiding" /> : null}
 
       <h2>Bewaarde rapporten</h2>
       {archief.length === 0 ? (
@@ -210,7 +247,7 @@ export default async function Rapportenpagina({
                 <th className="getal">kWh</th>
                 <th className="getal">Totaal</th>
                 <th>Downloaden</th>
-                <th />
+                {magMaken ? <th /> : null}
               </tr>
             </thead>
             <tbody>
@@ -237,14 +274,16 @@ export default async function Rapportenpagina({
                       </a>
                     </div>
                   </td>
-                  <td>
-                    <form action={verwijderRapport}>
-                      <input type="hidden" name="id" value={rapport.id} />
-                      <button className="gevaar" type="submit">
-                        Verwijderen
-                      </button>
-                    </form>
-                  </td>
+                  {magMaken ? (
+                    <td>
+                      <form action={verwijderRapport}>
+                        <input type="hidden" name="id" value={rapport.id} />
+                        <button className="gevaar" type="submit">
+                          Verwijderen
+                        </button>
+                      </form>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

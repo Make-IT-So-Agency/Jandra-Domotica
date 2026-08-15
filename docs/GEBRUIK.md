@@ -67,6 +67,54 @@ meekeek. Het rapport blijft gewoon bruikbaar; het is een signaal, geen fout.
 Klik erop om te zien waarom. Doorgaans gaat het om een sessie die nog liep op
 het moment van synchroniseren, of eentje zonder geregistreerd verbruik.
 
+## Iemand toegang geven
+
+Ga naar **Gebruikers**, vul een e-mailadres in, kies een rol en klik **Toegang
+geven**. Er vertrekt geen uitnodigingsmail: die persoon surft gewoon naar de
+app en meldt zich aan met Google op datzelfde adres. Laat hen dus weten dat het
+klaarstaat.
+
+Belangrijk: het moet het adres van hun **Google-account** zijn. Werkt de
+boekhouder met `info@kantoor.be` maar logt hij in met `piet@kantoor.be`, dan
+geraakt hij er niet in.
+
+### De drie rollen
+
+| Rol | Ziet | Mag |
+| --- | --- | --- |
+| **Hoofdbeheerder** | alle vennootschappen | alles: laadpalen, tarieven, instellingen, rapporten maken en gebruikers beheren |
+| **Beheerder van de vennootschap** | enkel de eigen vennootschap | de rapporten en sessies bekijken, en zelf mensen uitnodigen voor die vennootschap |
+| **Kijker** | enkel de eigen vennootschap | de rapporten en sessies bekijken en downloaden |
+
+Zo geef je de andere vennootschap één beheerder, en die zet er zelf zijn
+boekhouder bij zonder dat jij daaraan te pas komt.
+
+### Wat zij niet kunnen
+
+- Elkaars vennootschap zien. Ook niet via een rechtstreekse link naar een PDF:
+  dat geeft gewoon "bestaat niet".
+- Tarieven, laadpalen of instellingen wijzigen.
+- Rapporten aanmaken of verwijderen. Dat blijft bij jou, want het rapport is
+  jouw onkostennota.
+- Zichzelf of iemand anders tot hoofdbeheerder promoveren.
+
+### Iemand over alle vennootschappen heen laten kijken
+
+Geef die persoon de rol **Hoofdbeheerder**. Dat is meteen ook volledige
+toegang, inclusief tarieven en instellingen — er is geen tussenvorm die overal
+meekijkt maar niets mag wijzigen.
+
+### Toegang intrekken
+
+Klik bij die persoon op **Toegang intrekken**. Dat werkt onmiddellijk: de rol
+wordt bij elke paginaweergave opnieuw opgezocht, dus iemand die op dat moment
+aangemeld is, vliegt er bij zijn volgende klik uit.
+
+Twee dingen kunnen niet, met opzet: jezelf verwijderen, en de laatste
+hoofdbeheerder wegnemen. Je adres uit `TOEGELATEN_EMAILS` staat sowieso vast en
+kan enkel bij je hosting gewijzigd worden — dat is de sleutel onder de
+deurmat voor als er iets misloopt.
+
 ## Een rapport verwijderen
 
 Kan, met de knop **Verwijderen** in de lijst. Doe dat enkel bij een vergissing:

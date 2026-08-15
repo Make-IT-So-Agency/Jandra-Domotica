@@ -4,6 +4,9 @@ import { db } from "@/lib/supabase";
 import type { Laadpaal, Vennootschap } from "@/lib/types";
 
 import { bewaarKoppelingen } from "./acties";
+import { GeenToegang } from "@/components/geen-toegang";
+import { magInstellingenBeheren } from "@/lib/rollen";
+import { vereistGebruiker } from "@/lib/toegang";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +17,9 @@ const REGIOS = [
 ];
 
 export default async function Laadpalenpagina() {
+  const ik = await vereistGebruiker();
+  if (!magInstellingenBeheren(ik)) return <GeenToegang wat="Laadpalen koppelen" />;
+
   const [palenResultaat, vennResultaat] = await Promise.all([
     db().from("loadpoints").select("*").order("name"),
     db().from("companies").select("*").order("name"),

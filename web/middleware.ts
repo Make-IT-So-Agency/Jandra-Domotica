@@ -1,4 +1,10 @@
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
+
+import { authConfig } from "./auth.config";
+
+// Bewust de lichte configuratie zonder databanktoegang: de middleware draait
+// op de edge-omgeving en controleert alleen of iemand aangemeld is.
+const { auth } = NextAuth(authConfig);
 
 /**
  * Schermt de hele app af. De koppeling met Home Assistant (/api/ingest) en de

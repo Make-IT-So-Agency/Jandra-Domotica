@@ -2,10 +2,16 @@ import { db } from "@/lib/supabase";
 import type { Vennootschap } from "@/lib/types";
 
 import { bewerkVennootschap, verwijderVennootschap, voegVennootschapToe } from "./acties";
+import { GeenToegang } from "@/components/geen-toegang";
+import { magInstellingenBeheren } from "@/lib/rollen";
+import { vereistGebruiker } from "@/lib/toegang";
 
 export const dynamic = "force-dynamic";
 
 export default async function Vennootschappenpagina() {
+  const ik = await vereistGebruiker();
+  if (!magInstellingenBeheren(ik)) return <GeenToegang wat="Vennootschappen beheren" />;
+
   const { data, error } = await db().from("companies").select("*").order("name");
 
   if (error) {

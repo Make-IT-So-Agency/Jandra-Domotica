@@ -143,6 +143,41 @@ create table if not exists app_settings (
 );
 
 -- ---------------------------------------------------------------------------
+-- Gebruikers en hun rol.
+--
+-- hoofdbeheerder          ziet en beheert alles, over de vennootschappen heen
+-- vennootschapsbeheerder  ziet enkel de eigen vennootschap en nodigt daar zelf
+--                         mensen voor uit
+-- kijker                  ziet enkel de eigen vennootschap, wijzigt niets
+-- ---------------------------------------------------------------------------
+create table if not exists app_users (
+  id            uuid primary key default gen_random_uuid(),
+  email         text        not null,
+  name          text,
+  role          text        not null default 'kijker',
+  company_id    uuid        references companies (id) on delete cascade,
+  invited_by    text,
+  invited_at    timestamptz not null default now(),
+  last_login_at timestamptz,
+  is_active     boolean     not null default true,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+
+  constraint app_users_role_check
+    check (role in ('hoofdbeheerder', 'vennootschapsbeheerder', 'kijker')),
+
+  -- Een hoofdbeheerder kijkt over alle vennootschappen heen en hangt dus aan
+  -- geen enkele. Wie dat niet is, hoort altijd bij precies één vennootschap.
+  constraint app_users_company_check check (
+    (role = 'hoofdbeheerder' and company_id is null)
+    or (role <> 'hoofdbeheerder' and company_id is not null)
+  )
+);
+
+create unique index if not exists app_users_email_key on app_users (lower(email));
+create index if not exists app_users_company_idx on app_users (company_id);
+
+-- ---------------------------------------------------------------------------
 -- Logboek van binnenkomende synchronisaties, handig bij het zoeken naar een
 -- ontbrekende sessie.
 -- ---------------------------------------------------------------------------
@@ -174,7 +209,7 @@ do $$
 declare
   target text;
 begin
-  foreach target in array array['companies', 'loadpoints', 'sessions', 'tariffs']
+  foreach target in array array['companies', 'loadpoints', 'sessions', 'tariffs', 'app_users']
   loop
     execute format('drop trigger if exists %I_set_updated_at on %I', target, target);
     execute format(
@@ -195,7 +230,7 @@ declare
 begin
   foreach target in array array[
     'companies', 'loadpoints', 'sessions', 'tariffs',
-    'meter_readings', 'reports', 'app_settings', 'ingest_log'
+    'meter_readings', 'reports', 'app_settings', 'ingest_log', 'app_users'
   ]
   loop
     execute format('alter table %I enable row level security', target);

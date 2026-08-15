@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { vereistAangemeld } from "@/auth";
+import { vereistHoofdbeheerder } from "@/lib/toegang";
 import { db } from "@/lib/supabase";
 
 /**
@@ -10,7 +10,7 @@ import { db } from "@/lib/supabase";
  * zodat je in één keer kan opslaan in plaats van paal per paal.
  */
 export async function bewaarKoppelingen(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const ids = formulier.getAll("laadpaal_id").map(String);
   const supabase = db();

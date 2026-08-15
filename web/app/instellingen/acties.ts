@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { vereistAangemeld } from "@/auth";
+import { vereistHoofdbeheerder } from "@/lib/toegang";
 import { bewaarInstellingen, leesInstellingen } from "@/lib/settings";
 
 export async function bewaarInstellingenActie(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const huidig = await leesInstellingen();
   const tekst = (naam: string): string => String(formulier.get(naam) ?? "").trim();

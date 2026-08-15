@@ -3,6 +3,9 @@ import { leesInstellingen } from "@/lib/settings";
 import { db } from "@/lib/supabase";
 
 import { bewaarInstellingenActie } from "./acties";
+import { GeenToegang } from "@/components/geen-toegang";
+import { magInstellingenBeheren } from "@/lib/rollen";
+import { vereistGebruiker } from "@/lib/toegang";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +14,9 @@ export default async function Instellingenpagina({
 }: {
   searchParams: Promise<{ melding?: string; soort?: string }>;
 }) {
+  const ik = await vereistGebruiker();
+  if (!magInstellingenBeheren(ik)) return <GeenToegang wat="De instellingen" />;
+
   const { melding, soort } = await searchParams;
   const instellingen = await leesInstellingen();
 

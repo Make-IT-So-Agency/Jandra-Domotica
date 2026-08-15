@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { vereistAangemeld } from "@/auth";
+import { vereistHoofdbeheerder } from "@/lib/toegang";
 import { db } from "@/lib/supabase";
 
 function tekst(waarde: FormDataEntryValue | null): string | null {
@@ -11,7 +11,7 @@ function tekst(waarde: FormDataEntryValue | null): string | null {
 }
 
 export async function voegVennootschapToe(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const naam = tekst(formulier.get("naam"));
   if (!naam) throw new Error("Vul een naam in.");
@@ -36,7 +36,7 @@ export async function voegVennootschapToe(formulier: FormData): Promise<void> {
 }
 
 export async function bewerkVennootschap(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const id = String(formulier.get("id") ?? "");
   const naam = tekst(formulier.get("naam"));
@@ -59,7 +59,7 @@ export async function bewerkVennootschap(formulier: FormData): Promise<void> {
 }
 
 export async function verwijderVennootschap(formulier: FormData): Promise<void> {
-  await vereistAangemeld();
+  await vereistHoofdbeheerder();
 
   const id = String(formulier.get("id") ?? "");
   if (!id) return;
