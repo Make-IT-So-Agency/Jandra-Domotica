@@ -37,6 +37,12 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Het menu plakt bovenaan op een telefoon; zonder deze marge scrolt de
+     browser een element er precies achter wanneer je ernaartoe springt. */
+  scroll-padding-top: 60px;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -88,13 +94,13 @@ a {
   color: var(--tekst);
 }
 
-.balk nav {
+.hoofdmenu {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.balk nav a {
+.hoofdmenu a {
   padding: 6px 10px;
   border-radius: var(--radius);
   text-decoration: none;
@@ -102,14 +108,20 @@ a {
   font-size: 14px;
 }
 
-.balk nav a:hover {
+.hoofdmenu a:hover {
   background: var(--accent-zacht);
 }
 
-.balk nav a[aria-current="page"] {
+.hoofdmenu a[aria-current="page"] {
   background: var(--accent-zacht);
   color: var(--accent);
   font-weight: 600;
+}
+
+/* Het tweede menu voor smalle schermen staat standaard uit; de mediaquery
+   onderaan zet het aan en het brede menu uit. */
+.mobielmenu {
+  display: none;
 }
 
 .balk .rechts {
@@ -439,35 +451,50 @@ button.gevaar {
     gap: 8px 12px;
   }
 
-  .balk nav {
-    order: 3;
-    width: 100%;
-    /* Eén strook die je opzij schuift; wrappen zou de balk te hoog maken. */
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-
-  .balk nav::-webkit-scrollbar {
+  /* De kop met je adres en de afmeldknop mag wegscrollen; het menu niet. */
+  .menu-breed {
     display: none;
   }
 
-  /* De rechterrand vervaagt zodat zichtbaar is dat er nog meer staat. */
-  .balk nav {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-
-  .balk nav a {
-    white-space: nowrap;
-    padding: 8px 12px;
+  .balk {
+    margin-bottom: 0;
   }
 
   .balk .rechts {
     margin-left: auto;
     font-size: 12px;
+  }
+
+  .mobielmenu {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--vlak);
+    border-bottom: 1px solid var(--lijn);
+    margin-bottom: 22px;
+  }
+
+  .mobielmenu .hoofdmenu {
+    /* Eén strook die je opzij schuift; wrappen zou de balk te hoog maken. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 6px max(12px, env(safe-area-inset-left)) 6px
+      max(12px, env(safe-area-inset-right));
+    /* De rechterrand vervaagt zodat zichtbaar is dat er nog meer staat. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+
+  .mobielmenu .hoofdmenu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobielmenu .hoofdmenu a {
+    white-space: nowrap;
+    padding: 9px 13px;
   }
 
   /* --- Aanraakvlakken --------------------------------------------------- */

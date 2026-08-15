@@ -12,7 +12,7 @@ export function Navigatie({ paginas }: { paginas: Paginalink[] }) {
   const huidig = usePathname();
 
   return (
-    <nav>
+    <nav className="hoofdmenu" aria-label="Hoofdmenu">
       {paginas.map((pagina) => (
         <Link
           key={pagina.pad}
