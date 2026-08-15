@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Charging cost reporting",
+        "description": "Enter the address of evcc and of your reporting app. You will find the API key in the app under Settings.",
+        "data": {
+          "evcc_url": "evcc address",
+          "app_url": "Reporting app address",
+          "api_key": "API key"
+        },
+        "data_description": {
+          "evcc_url": "For example http://homeassistant.local:7070",
+          "app_url": "For example https://laadkosten.yourdomain.com",
+          "api_key": "Copy it from the app; keep it secret."
+        }
+      },
+      "reauth_confirm": {
+        "title": "A new API key is required",
+        "description": "The app no longer accepts the current key. Copy a new key from the app under Settings.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "evcc_unreachable": "evcc does not answer at this address. Check that evcc is running and the address is correct.",
+      "app_unreachable": "The reporting app does not answer at this address.",
+      "invalid_auth": "The app rejects this API key.",
+      "invalid_url": "This is not a valid address."
+    },
+    "abort": {
+      "already_configured": "This reporting app has already been added.",
+      "reauth_successful": "The new key works."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "data": {
+          "scan_minutes": "Sync frequency (minutes)",
+          "history_days": "Days of history to send"
+        },
+        "data_description": {
+          "scan_minutes": "Every 30 minutes is more than enough for a monthly report.",
+          "history_days": "0 means everything evcc knows. Useful for the first sync."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_sync": { "name": "Last sync" },
+      "sessions_sent": { "name": "Sessions sent" },
+      "sessions_complete": { "name": "Completed sessions" }
+    },
+    "button": {
+      "sync_now": { "name": "Sync now" }
+    }
+  }
+}

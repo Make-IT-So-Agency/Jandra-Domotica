@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Laadkosten rapportage",
+        "description": "Vul het adres van evcc in en het adres van je rapportage-app. De API-sleutel vind je in de app onder Instellingen.",
+        "data": {
+          "evcc_url": "Adres van evcc",
+          "app_url": "Adres van de rapportage-app",
+          "api_key": "API-sleutel"
+        },
+        "data_description": {
+          "evcc_url": "Bijvoorbeeld http://homeassistant.local:7070",
+          "app_url": "Bijvoorbeeld https://laadkosten.jouwdomein.be",
+          "api_key": "Kopieer deze uit de app; hij blijft geheim."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nieuwe API-sleutel nodig",
+        "description": "De app aanvaardt de huidige sleutel niet meer. Kopieer een nieuwe sleutel uit de app onder Instellingen.",
+        "data": {
+          "api_key": "API-sleutel"
+        }
+      }
+    },
+    "error": {
+      "evcc_unreachable": "evcc antwoordt niet op dit adres. Controleer of evcc draait en of het adres klopt.",
+      "app_unreachable": "De rapportage-app antwoordt niet op dit adres.",
+      "invalid_auth": "De app weigert deze API-sleutel.",
+      "invalid_url": "Dit is geen geldig adres."
+    },
+    "abort": {
+      "already_configured": "Deze rapportage-app is al toegevoegd.",
+      "reauth_successful": "De nieuwe sleutel werkt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Instellingen",
+        "data": {
+          "scan_minutes": "Hoe vaak synchroniseren (minuten)",
+          "history_days": "Hoeveel dagen geschiedenis meesturen"
+        },
+        "data_description": {
+          "scan_minutes": "Elke 30 minuten is ruim voldoende voor een maandrapport.",
+          "history_days": "0 betekent: alles wat evcc kent. Handig bij de eerste synchronisatie."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_sync": { "name": "Laatste synchronisatie" },
+      "sessions_sent": { "name": "Verstuurde sessies" },
+      "sessions_complete": { "name": "Afgeronde sessies" }
+    },
+    "button": {
+      "sync_now": { "name": "Nu synchroniseren" }
+    }
+  }
+}

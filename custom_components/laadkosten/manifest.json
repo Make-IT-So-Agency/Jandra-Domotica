@@ -1,0 +1,13 @@
+{
+  "domain": "laadkosten",
+  "name": "Laadkosten rapportage",
+  "codeowners": ["@janfestjens"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/janfestjens/Jandra---Domotica",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/janfestjens/Jandra---Domotica/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

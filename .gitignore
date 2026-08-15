@@ -1,0 +1,28 @@
+# Afhankelijkheden
+node_modules/
+
+# Build-uitvoer van Next.js
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Omgevingsvariabelen: hier staan sleutels in, die horen niet in git
+.env
+.env.local
+.env*.local
+
+# Vercel
+.vercel/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Besturingssysteem en editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
