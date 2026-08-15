@@ -77,11 +77,11 @@ export default async function Laadpalenpagina() {
               <tbody>
                 {laadpalen.map((laadpaal) => (
                   <tr key={laadpaal.id}>
-                    <td>
+                    <td data-label="Naam in evcc">
                       <input type="hidden" name="laadpaal_id" value={laadpaal.id} />
                       <strong>{laadpaal.name}</strong>
                     </td>
-                    <td>
+                    <td data-label="Naam op het rapport">
                       <input
                         name={`naam-${laadpaal.id}`}
                         defaultValue={laadpaal.display_name ?? ""}
@@ -89,7 +89,7 @@ export default async function Laadpalenpagina() {
                         aria-label={`Weergavenaam voor ${laadpaal.name}`}
                       />
                     </td>
-                    <td>
+                    <td data-label="Vennootschap">
                       <select
                         name={`vennootschap-${laadpaal.id}`}
                         defaultValue={laadpaal.company_id ?? ""}
@@ -103,7 +103,7 @@ export default async function Laadpalenpagina() {
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td data-label="Gewest">
                       <select
                         name={`regio-${laadpaal.id}`}
                         defaultValue={laadpaal.region}

@@ -145,9 +145,9 @@ export default async function Instellingenpagina({
               <tbody>
                 {(laatste ?? []).map((rij) => (
                   <tr key={String(rij.received_at)}>
-                    <td>{datumTijd(String(rij.received_at))}</td>
-                    <td className="getal">{rij.session_count}</td>
-                    <td>
+                    <td data-label="Wanneer">{datumTijd(String(rij.received_at))}</td>
+                    <td data-label="Sessies" className="getal">{rij.session_count}</td>
+                    <td data-label="Resultaat">
                       {rij.error ? (
                         <span className="label-vlag let-op">{rij.error}</span>
                       ) : (

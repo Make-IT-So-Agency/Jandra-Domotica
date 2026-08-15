@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { signOut } from "@/auth";
@@ -12,6 +12,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Laadkosten",
   description: "Overzicht en rapportage van laadkosten per vennootschap",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Geen maximumschaal: inzoomen moet mogelijk blijven voor wie dat nodig heeft.
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

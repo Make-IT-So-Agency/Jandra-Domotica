@@ -20,6 +20,17 @@ kennis nodig.
 De PDF is het stuk dat je bij je onkostennota voegt. De Excel is handig als je
 boekhouder met de cijfers wil rekenen.
 
+## Op je telefoon
+
+Werkt gewoon in je browser; er is geen app te installeren. Op een smal scherm
+wordt elke tabelrij een kaartje met de kolomnaam ernaast, want een tabel met
+acht kolommen valt op een telefoon niet te lezen — ook niet met zijwaarts
+schuiven.
+
+Zet het adres op je beginscherm (in Safari via Deel → Zet op beginscherm, in
+Chrome via de drie puntjes → Toevoegen aan startscherm) en het opent als een
+gewone app.
+
 ## Eén keer per kwartaal: het tarief bevestigen
 
 Het maximumbedrag per kWh wijzigt elk kwartaal. De app zoekt het elke dag

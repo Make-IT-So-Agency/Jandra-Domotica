@@ -293,16 +293,16 @@ export default async function Overzichtspagina() {
             <tbody>
               {overzicht.laatsteSessies.map((sessie) => (
                 <tr key={sessie.id}>
-                  <td>{datumTijd(sessie.started_at)}</td>
-                  <td>{sessie.loadpoint_name ?? "—"}</td>
-                  <td>{sessie.vehicle ?? "—"}</td>
-                  <td className="getal">{kwh(sessie.energy_kwh)}</td>
-                  <td className="getal">
+                  <td data-label="Gestart">{datumTijd(sessie.started_at)}</td>
+                  <td data-label="Laadpaal">{sessie.loadpoint_name ?? "—"}</td>
+                  <td data-label="Voertuig">{sessie.vehicle ?? "—"}</td>
+                  <td data-label="kWh" className="getal">{kwh(sessie.energy_kwh)}</td>
+                  <td data-label="Zon" className="getal">
                     {sessie.solar_percentage === null
                       ? "—"
                       : `${Math.round(Number(sessie.solar_percentage))} %`}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span
                       className={`label-vlag ${sessie.is_complete ? "goed" : "let-op"}`}
                     >

@@ -84,7 +84,7 @@ export default async function Tarievenpagina({
 
               return (
                 <tr key={periode.start}>
-                  <td>
+                  <td data-label="Kwartaal">
                     <strong>
                       Q{kwartaal} {jaar}
                     </strong>
@@ -94,27 +94,27 @@ export default async function Tarievenpagina({
                       </span>
                     ) : null}
                   </td>
-                  <td>
+                  <td data-label="Periode">
                     {datum(periode.start)} – {datum(periode.eind)}
                   </td>
-                  <td className="getal">
+                  <td data-label="Tarief" className="getal">
                     {tarief ? tariefPerKwh(Number(tarief.eur_per_kwh)) : "—"}
                   </td>
-                  <td>
+                  <td data-label="Btw">
                     {tarief
                       ? `${procent(Number(tarief.vat_rate))} ${
                           tarief.includes_vat ? "inbegrepen" : "erbij"
                         }`
                       : "—"}
                   </td>
-                  <td>
+                  <td data-label="Herkomst">
                     {tarief
                       ? tarief.source === "auto"
                         ? "automatisch"
                         : "handmatig"
                       : "—"}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     {!tarief ? (
                       <span className="label-vlag let-op">ontbreekt</span>
                     ) : tarief.confirmed_at ? (
@@ -123,7 +123,7 @@ export default async function Tarievenpagina({
                       <span className="label-vlag let-op">nakijken</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Actie">
                     {!tarief ? (
                       <form action={haalTariefAutomatischOp}>
                         <input type="hidden" name="jaar" value={jaar} />

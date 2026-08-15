@@ -54,7 +54,14 @@ a {
 .omhulsel {
   max-width: 1100px;
   margin: 0 auto;
+  /* min-width: 0 hoort erbij zodra hier een brede tabel in staat: zonder dat
+     neemt de container de min-content van die tabel over en scrolt de hele
+     pagina zijwaarts in plaats van enkel de tabel. */
+  min-width: 0;
   padding: 0 20px 64px;
+  /* Ruimte vrijhouden voor de afgeronde hoeken van een telefoonscherm. */
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
 }
 
 /* --- Navigatie ---------------------------------------------------------- */
@@ -141,7 +148,7 @@ h2 {
 
 .tegels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 14px;
   margin-bottom: 28px;
 }
@@ -253,7 +260,7 @@ textarea:focus {
 
 .veldenrij {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 14px;
   align-items: end;
   margin-bottom: 14px;
@@ -402,4 +409,211 @@ button.gevaar {
   border: 1px solid var(--lijn);
   border-radius: var(--radius);
   padding: 32px;
+}
+
+/* =========================================================================
+   Op een telefoon
+   =========================================================================
+   Een tabel met acht kolommen valt op een telefoon niet te lezen, ook niet
+   met zijwaarts scrollen. Onder de 680 px wordt elke rij daarom een kaartje
+   met de kolomnaam ernaast. Die naam komt uit het data-label op elke cel.
+   ========================================================================= */
+
+@media (max-width: 680px) {
+  body {
+    /* 16px voorkomt dat iOS inzoomt zodra je een veld aantikt. */
+    font-size: 16px;
+  }
+
+  .omhulsel {
+    padding-bottom: 48px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  /* --- Balk bovenaan ---------------------------------------------------- */
+  .balk-binnen {
+    padding: 10px 16px;
+    gap: 8px 12px;
+  }
+
+  .balk nav {
+    order: 3;
+    width: 100%;
+    /* Eén strook die je opzij schuift; wrappen zou de balk te hoog maken. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .balk nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* De rechterrand vervaagt zodat zichtbaar is dat er nog meer staat. */
+  .balk nav {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+
+  .balk nav a {
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+
+  .balk .rechts {
+    margin-left: auto;
+    font-size: 12px;
+  }
+
+  /* --- Aanraakvlakken --------------------------------------------------- */
+  button,
+  .knop {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .knoppenrij {
+    gap: 10px;
+  }
+
+  .knoppenrij > * {
+    flex: 1 1 auto;
+  }
+
+  /* --- Tabellen worden kaartjes ----------------------------------------- */
+  .tabel-omhulsel {
+    border: none;
+    border-radius: 0;
+    overflow-x: visible;
+  }
+
+  .tabel-omhulsel table,
+  .tabel-omhulsel tbody,
+  .tabel-omhulsel tfoot,
+  .tabel-omhulsel tr,
+  .tabel-omhulsel td {
+    display: block;
+    width: 100%;
+  }
+
+  /* De koprij is overbodig zodra elke cel zijn eigen label draagt. */
+  .tabel-omhulsel thead {
+    display: none;
+  }
+
+  .tabel-omhulsel tr {
+    border: 1px solid var(--lijn);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--achtergrond);
+  }
+
+  .tabel-omhulsel td {
+    border: none;
+    padding: 4px 0;
+    white-space: normal;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px 14px;
+    text-align: right;
+  }
+
+  /* Een cel die meer bevat dan één waarde — een toelichting eronder, of een
+     heel formulier — krijgt die inhoud op een eigen regel in plaats van
+     samengeperst naast het label. */
+  .tabel-omhulsel td > div,
+  .tabel-omhulsel td > form {
+    flex: 1 1 100%;
+    text-align: right;
+  }
+
+  .tabel-omhulsel td > form .knoppenrij {
+    justify-content: stretch;
+  }
+
+  .tabel-omhulsel td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--zacht);
+  }
+
+  /* Een cel zonder label vult de volle breedte: knoppenrijen en dergelijke. */
+  .tabel-omhulsel td:not([data-label])::before {
+    content: none;
+  }
+
+  .tabel-omhulsel td:not([data-label]) {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+
+  .tabel-omhulsel td.getal {
+    text-align: right;
+  }
+
+  .tabel-omhulsel tfoot tr {
+    border-width: 2px;
+    border-color: var(--tekst);
+    background: var(--vlak);
+  }
+
+  .tabel-omhulsel tfoot td {
+    border-top: none;
+    background: transparent;
+  }
+
+  /* Een lege cel in een kaartje is enkel ruis. */
+  .tabel-omhulsel td:empty {
+    display: none;
+  }
+
+  /* --- Formulieren ------------------------------------------------------ */
+  .veldenrij {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .veldenrij > div[style*="grid-column"] {
+    grid-column: auto !important;
+  }
+
+  .tegels {
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    gap: 10px;
+  }
+
+  .tegel .waarde {
+    font-size: 19px;
+  }
+
+  .kaart {
+    padding: 14px;
+  }
+}
+
+/* Heel smalle toestellen: tegels onder elkaar. */
+@media (max-width: 380px) {
+  .tegels {
+    grid-template-columns: 1fr;
+  }
 }

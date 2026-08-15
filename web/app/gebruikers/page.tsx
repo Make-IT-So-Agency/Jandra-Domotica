@@ -86,7 +86,7 @@ export default async function Gebruikerspagina({
 
                 return (
                   <tr key={gebruiker.id}>
-                    <td>
+                    <td data-label="Persoon">
                       <strong>{gebruiker.naam ?? gebruiker.email}</strong>
                       {gebruiker.naam ? <div className="hulp">{gebruiker.email}</div> : null}
                       {benIkDit ? (
@@ -95,23 +95,23 @@ export default async function Gebruikerspagina({
                         </span>
                       ) : null}
                     </td>
-                    <td>
+                    <td data-label="Rol">
                       {ROLNAMEN[gebruiker.rol]}
                       {gebruiker.vasteBeheerder ? (
                         <div className="hulp">vast ingesteld op de server</div>
                       ) : null}
                     </td>
-                    <td>
+                    <td data-label="Vennootschap">
                       {gebruiker.rol === "hoofdbeheerder"
                         ? "alle vennootschappen"
                         : (gebruiker.vennootschap_naam ?? "—")}
                     </td>
-                    <td>
+                    <td data-label="Laatst aangemeld">
                       {gebruiker.laatste_aanmelding
                         ? datumTijd(gebruiker.laatste_aanmelding)
                         : "nog nooit"}
                     </td>
-                    <td>
+                    <td data-label="Wijzigen">
                       {!beheerbaar.toegestaan ? (
                         <span className="hulp">{beheerbaar.reden}</span>
                       ) : gebruiker.vasteBeheerder ? (

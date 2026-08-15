@@ -253,18 +253,18 @@ export default async function Rapportenpagina({
             <tbody>
               {archief.map((rapport) => (
                 <tr key={rapport.id}>
-                  <td>
+                  <td data-label="Referentie">
                     <strong>{rapport.reference}</strong>
                     <div className="hulp">{datumTijd(rapport.generated_at)}</div>
                   </td>
-                  <td>{rapport.companies?.name ?? "—"}</td>
-                  <td>
+                  <td data-label="Vennootschap">{rapport.companies?.name ?? "—"}</td>
+                  <td data-label="Periode">
                     {datum(rapport.period_start)} – {datum(rapport.period_end)}
                   </td>
-                  <td className="getal">{rapport.session_count}</td>
-                  <td className="getal">{kwh(rapport.total_kwh)}</td>
-                  <td className="getal">{euro(rapport.total_incl_vat)}</td>
-                  <td>
+                  <td data-label="Sessies" className="getal">{rapport.session_count}</td>
+                  <td data-label="kWh" className="getal">{kwh(rapport.total_kwh)}</td>
+                  <td data-label="Totaal" className="getal">{euro(rapport.total_incl_vat)}</td>
+                  <td data-label="Downloaden">
                     <div className="knoppenrij">
                       <a className="knop stil" href={`/api/rapporten/${rapport.id}/pdf`}>
                         PDF
@@ -373,25 +373,33 @@ function Voorbeeld({
             <tbody>
               {voorbereiding.regels.map((regel) => (
                 <tr key={regel.sessie_id}>
-                  <td>{datumTijd(regel.gestart)}</td>
-                  <td>{regel.laadpaal}</td>
-                  <td>{regel.voertuig ?? "—"}</td>
-                  <td className="getal">{kwh(regel.kwh)}</td>
-                  <td className="getal">{tariefPerKwh(regel.tarief_per_kwh)}</td>
-                  <td className="getal">{euro(regel.bedrag_excl_btw)}</td>
-                  <td className="getal">{euro(regel.btw_bedrag)}</td>
-                  <td className="getal">{euro(regel.bedrag_incl_btw)}</td>
+                  <td data-label="Gestart">{datumTijd(regel.gestart)}</td>
+                  <td data-label="Laadpaal">{regel.laadpaal}</td>
+                  <td data-label="Voertuig">{regel.voertuig ?? "—"}</td>
+                  <td data-label="kWh" className="getal">{kwh(regel.kwh)}</td>
+                  <td data-label="Tarief" className="getal">{tariefPerKwh(regel.tarief_per_kwh)}</td>
+                  <td data-label="Excl. btw" className="getal">{euro(regel.bedrag_excl_btw)}</td>
+                  <td data-label="Btw" className="getal">{euro(regel.btw_bedrag)}</td>
+                  <td data-label="Incl. btw" className="getal">{euro(regel.bedrag_incl_btw)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
                 <td colSpan={3}>Totaal</td>
-                <td className="getal">{kwh(voorbereiding.totalen.kwh)}</td>
+                <td data-label="kWh" className="getal">
+                  {kwh(voorbereiding.totalen.kwh)}
+                </td>
                 <td />
-                <td className="getal">{euro(voorbereiding.totalen.excl_btw)}</td>
-                <td className="getal">{euro(voorbereiding.totalen.btw)}</td>
-                <td className="getal">{euro(voorbereiding.totalen.incl_btw)}</td>
+                <td data-label="Excl. btw" className="getal">
+                  {euro(voorbereiding.totalen.excl_btw)}
+                </td>
+                <td data-label="Btw" className="getal">
+                  {euro(voorbereiding.totalen.btw)}
+                </td>
+                <td data-label="Incl. btw" className="getal">
+                  {euro(voorbereiding.totalen.incl_btw)}
+                </td>
               </tr>
             </tfoot>
           </table>
@@ -431,12 +439,12 @@ function Voorbeeld({
               <tbody>
                 {voorbereiding.meterstanden.map((stand) => (
                   <tr key={stand.laadpaal}>
-                    <td>{stand.laadpaal}</td>
-                    <td className="getal">{kwh(stand.begin_kwh)}</td>
-                    <td className="getal">{kwh(stand.eind_kwh)}</td>
-                    <td className="getal">{kwh(stand.verschil_kwh)}</td>
-                    <td className="getal">{kwh(stand.sessies_kwh)}</td>
-                    <td className="getal">{kwh(stand.afwijking_kwh)}</td>
+                    <td data-label="Laadpaal">{stand.laadpaal}</td>
+                    <td data-label="Begin" className="getal">{kwh(stand.begin_kwh)}</td>
+                    <td data-label="Einde" className="getal">{kwh(stand.eind_kwh)}</td>
+                    <td data-label="Verschil" className="getal">{kwh(stand.verschil_kwh)}</td>
+                    <td data-label="Som sessies" className="getal">{kwh(stand.sessies_kwh)}</td>
+                    <td data-label="Afwijking" className="getal">{kwh(stand.afwijking_kwh)}</td>
                   </tr>
                 ))}
               </tbody>
