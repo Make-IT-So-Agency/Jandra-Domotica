@@ -58,6 +58,8 @@ Liever stap voor stap, of loopt er iets mis? Zie
 ## Voor wie later aan de code komt
 
 - Achtergrond en keuzes: [docs/ARCHITECTUUR.md](docs/ARCHITECTUUR.md)
+- Toegang instellen zodat er zo weinig mogelijk handwerk overblijft:
+  [docs/AUTONOMIE.md](docs/AUTONOMIE.md)
 - Tests draaien:
   ```bash
   python3 -m pytest tests/          # de Home Assistant-integratie
