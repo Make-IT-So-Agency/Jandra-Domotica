@@ -1,12 +1,12 @@
--- 0001 · Basisschema voor de laadkostenrapportage.
+-- Basisschema voor de laadkostenrapportage.
 --
--- Wordt toegepast door scripts/migreer.mjs, dat bijhoudt welke migraties al
--- gedraaid zijn. Pas een reeds toegepaste migratie nooit achteraf aan: zet de
--- wijziging in een nieuw genummerd bestand. Het script weigert anders te
--- draaien, want dan bevat de databank iets anders dan de repository beweert.
+-- Wordt toegepast door `supabase db push` vanuit de workflow
+-- Databankmigraties. Pas een migratie die al gedraaid heeft nooit achteraf
+-- aan: zet de wijziging in een nieuw bestand met een latere tijdstempel.
 --
 -- Huisregel: elke migratie is idempotent (create ... if not exists, drop
--- trigger if exists). Twee keer draaien mag nooit iets kapotmaken.
+-- trigger if exists). Twee keer draaien mag nooit iets kapotmaken. De CI
+-- bewaakt dat.
 --
 -- Toegang: de webapp praat met Supabase via de service-role sleutel, die
 -- server-side blijft. Row Level Security staat daarom aan zonder policies,

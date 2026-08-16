@@ -1,0 +1,11 @@
+# Minimale configuratie voor de Supabase CLI.
+#
+# De CLI heeft dit bestand nodig om de map als project te herkennen. Er draait
+# hier geen lokale Supabase-omgeving; migraties worden vanuit GitHub Actions
+# tegen het echte project gezet, en in CI getest tegen een lege PostgreSQL.
+project_id = "laadkosten"
+
+[db]
+# Zelfde grote versie als Supabase draait, zodat de migratietest in CI
+# hetzelfde gedrag vertoont als productie.
+major_version = 15

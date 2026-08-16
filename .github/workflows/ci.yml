@@ -84,70 +84,17 @@ jobs:
   databank:
     name: Databankschema
     runs-on: ubuntu-latest
-
-    # Een echte Postgres, zodat een tikfout in het schema hier opvalt en niet
-    # pas wanneer je het in Supabase plakt.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: proef
-          POSTGRES_DB: laadkosten
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Migraties toepassen
-        env:
-          DATABASE_URL: postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable
-        run: node scripts/migreer.mjs
-
-      - name: Opnieuw draaien moet niets meer te doen hebben
-        env:
-          DATABASE_URL: postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable
-        run: |
-          uitvoer=$(node scripts/migreer.mjs)
-          echo "$uitvoer"
-          echo "$uitvoer" | grep -q "Niets te doen" \
-            || { echo "::error::De tweede beurt wilde opnieuw migreren."; exit 1; }
-
-      - name: Elke migratie moet ook los herhaalbaar zijn
-        # Huisregel uit de migratiebestanden: twee keer draaien mag nooit iets
-        # kapotmaken. Dat bewaken we hier in plaats van erop te vertrouwen.
-        env:
-          PGPASSWORD: proef
-        run: |
-          for bestand in infra/migrations/*.sql; do
-            psql -h 127.0.0.1 -U postgres -d laadkosten -v ON_ERROR_STOP=1 -q -f "$bestand"
-            echo "opnieuw toepasbaar: $bestand"
-          done
-
-      - name: Controleren dat alle tabellen er staan
-        env:
-          PGPASSWORD: proef
-        run: |
-          ontbreekt=0
-          for tabel in companies loadpoints sessions tariffs meter_readings \
-                       reports app_settings app_users ingest_log; do
-            if psql -h 127.0.0.1 -U postgres -d laadkosten -tAc \
-                 "select to_regclass('public.$tabel');" | grep -q "^$tabel$"; then
-              echo "aanwezig: $tabel"
-            else
-              echo "::error::tabel $tabel ontbreekt"
-              ontbreekt=1
-            fi
-          done
-          exit $ontbreekt
+      - name: Migraties tegen een lege Postgres
+        # De runner heeft PostgreSQL al staan; het script zet zijn eigen
+        # tijdelijke server op met enkel een unix-socket. Geen service-container
+        # nodig, dus deze job loopt naast de andere in plaats van erachter.
+        #
+        # Het script draait alle migraties twee keer: een migratie die niet
+        # herhaalbaar is, valt hier door de mand en niet pas op productie.
+        run: scripts/test-migraties.sh
 
   geheimen:
     name: Geen sleutels in de code

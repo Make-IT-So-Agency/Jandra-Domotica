@@ -1,0 +1,105 @@
+name: SQL uitvoeren
+
+# Draait een SQL-bestand uit scripts/sql/ tegen de databank, via de Supabase
+# Management API. Die werkt over HTTPS, zodat er geen rauwe Postgres-verbinding
+# nodig is.
+#
+# Het bestand moet via een pull request in de repository staan. Zo is er altijd
+# een spoor van wat er gedraaid heeft en wanneer, en is er iets om naar terug te
+# kijken als een cijfer achteraf niet blijkt te kloppen.
+on:
+  workflow_dispatch:
+    inputs:
+      bestand:
+        description: "Pad, bv. scripts/sql/inspecteer-sessies.sql"
+        required: true
+        type: string
+      alleen_lezen:
+        description: "In een read-only transactie draaien"
+        type: boolean
+        default: true
+
+concurrency:
+  group: sql-uitvoeren
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  uitvoeren:
+    name: Bestand uitvoeren
+    runs-on: ubuntu-latest
+    environment: productie
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controleer de instellingen van deze omgeving
+        env:
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          ontbreekt=0
+          [ -n "$REF" ]   || { echo "Ontbreekt: variable SUPABASE_PROJECT_REF"; ontbreekt=1; }
+          [ -n "$TOKEN" ] || { echo "Ontbreekt: secret SUPABASE_ACCESS_TOKEN"; ontbreekt=1; }
+          if [ "$ontbreekt" = "1" ]; then
+            echo "::error::De GitHub-omgeving 'productie' is niet volledig ingesteld."
+            exit 1
+          fi
+
+      - name: Controleer dat het bestand bestaat en binnen scripts/sql/ valt
+        env:
+          BESTAND: ${{ inputs.bestand }}
+        run: |
+          case "$BESTAND" in
+            scripts/sql/*.sql) ;;
+            *) echo "::error::Alleen bestanden onder scripts/sql/ met de extensie .sql zijn toegelaten."; exit 1 ;;
+          esac
+          case "$BESTAND" in
+            *..*) echo "::error::Een pad met .. erin is niet toegelaten."; exit 1 ;;
+          esac
+          [ -f "$BESTAND" ] || { echo "::error::$BESTAND bestaat niet in deze branch."; exit 1; }
+          echo "Uit te voeren: $BESTAND ($(wc -l < "$BESTAND") regels)"
+
+      - name: Uitvoeren
+        env:
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          BESTAND: ${{ inputs.bestand }}
+          ALLEEN_LEZEN: ${{ inputs.alleen_lezen }}
+        run: |
+          set -euo pipefail
+
+          # De read-only transactie is een extra slot bovenop de eis dat het
+          # bestand via een pull request binnenkomt; die tweede is de eigenlijke
+          # waarborg. Weigert Postgres de schrijfopdracht, dan zie je dat aan de
+          # foutmelding in het antwoord hieronder.
+          if [ "$ALLEEN_LEZEN" = "true" ]; then
+            { echo "begin transaction read only;"; cat "$BESTAND"; echo; echo "rollback;"; } > /tmp/vraag.sql
+          else
+            echo "::warning::Dit bestand mag schrijven. Zorg dat blijvende wijzigingen als migratie in supabase/migrations/ staan, niet hier."
+            cp "$BESTAND" /tmp/vraag.sql
+          fi
+
+          nettolading="$(jq -Rs '{query: .}' < /tmp/vraag.sql)"
+
+          antwoord="$(mktemp)"
+          status="$(curl -sS -o "$antwoord" -w '%{http_code}' \
+            -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary "$nettolading")"
+
+          echo "HTTP $status"
+          {
+            echo "### $BESTAND"
+            echo ""
+            echo '```json'
+            jq '.' < "$antwoord" 2>/dev/null || cat "$antwoord"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" -ge 400 ]; then
+            echo "::error::De databank gaf een fout terug. Zie het antwoord hierboven."
+            exit 1
+          fi

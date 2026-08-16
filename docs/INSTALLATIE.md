@@ -8,9 +8,10 @@ Wat er in code staat:
 
 | Bestand | Wat het beschrijft |
 | --- | --- |
-| `infra/migrations/*.sql` | De tabellen in de databank, genummerd en in volgorde |
+| `supabase/migrations/*.sql` | De tabellen in de databank, in volgorde van tijdstempel |
 | `infra/vercel-omgeving.json` | Welke omgevingsvariabelen het Vercel-project hoort te hebben |
-| `.github/workflows/infra.yml` | Migreren, instellen en uitrollen, in die volgorde |
+| `.github/workflows/migraties.yml` | De migraties toepassen met de Supabase CLI |
+| `.github/workflows/productie-uitrollen.yml` | Omgevingsvariabelen gelijkzetten en uitrollen |
 
 Wat niet in code staat, omdat het eenmalig is en niet herhaald wordt: het
 aanmaken van de accounts zelf, en het Google-luik voor het inloggen.
@@ -23,15 +24,13 @@ aanmaken van de accounts zelf, en het Google-luik voor het inloggen.
    **New project**. Kies een naam, een databankwachtwoord (bewaar het) en als
    regio **Frankfurt** of **Ireland**.
 2. Wacht tot het project klaar is, ongeveer twee minuten.
-3. Ga naar **Project Settings → Database → Connection string → URI** en kopieer
-   die string. Vervang `[YOUR-PASSWORD]` door je databankwachtwoord.
-   Dit wordt straks het secret `DATABASE_URL`.
+3. Noteer de **project-ref**: dat is het stukje uit de URL van je project,
+   `https://<project-ref>.supabase.co`.
 4. Ga naar **Project Settings → API** en noteer:
    - de **Project URL** → wordt `SUPABASE_URL`
    - de **`service_role`** sleutel (klik *Reveal*) → wordt `SUPABASE_SERVICE_ROLE_KEY`
-
-> Staan er tekens als `@` of `#` in je wachtwoord, dan moeten die in de
-> connectiestring gecodeerd zijn: `@` wordt `%40`, `#` wordt `%23`.
+5. Maak een access token: klik rechtsboven op je profiel → **Access Tokens** →
+   *Generate new token*. Daarmee kan de Supabase CLI vanuit GitHub migreren.
 
 ## 2. Vercel
 
@@ -63,13 +62,18 @@ Bewaar de `INGEST_API_KEY` apart: die vul je straks in Home Assistant in.
 
 ## 4. Alles in GitHub zetten
 
-Repository → **Settings → Secrets and variables → Actions**.
+Maak eerst de omgeving aan: repository → **Settings → Environments → New
+environment**, naam exact `productie`. De workflows verwijzen daarnaar, en zo
+kan je er later een goedkeuringsstap voor zetten.
 
-Op het tabblad **Secrets** (*New repository secret*):
+Zet in díe omgeving (**Environment secrets** en **Environment variables**):
+
+**Secrets:**
 
 | Naam | Waarde |
 | --- | --- |
-| `DATABASE_URL` | de connectiestring uit stap 1 |
+| `SUPABASE_ACCESS_TOKEN` | het access token uit stap 1 |
+| `SUPABASE_DB_PASSWORD` | het databankwachtwoord uit stap 1 |
 | `SUPABASE_URL` | de Project URL uit stap 1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | de service_role sleutel uit stap 1 |
 | `VERCEL_TOKEN` | het token uit stap 2 |
@@ -78,29 +82,34 @@ Op het tabblad **Secrets** (*New repository secret*):
 | `CRON_SECRET` | de derde sleutel uit stap 3 |
 | `TOEGELATEN_EMAILS` | jouw e-mailadres |
 
-Op het tabblad **Variables** (*New repository variable*):
+**Variables:**
 
 | Naam | Waarde |
 | --- | --- |
+| `SUPABASE_PROJECT_REF` | de project-ref uit stap 1 |
 | `VERCEL_PROJECT_ID` | de Project ID uit stap 2 |
 | `VERCEL_ORG_ID` | de Team ID uit stap 2 |
 
 `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` en `AUTH_URL` volgen in stap 6. De
 workflow slaat ze zolang over en zegt dat erbij.
 
-> Waarom die twee ID's variabelen zijn en geen secrets: het zijn
-> verwijzingen, geen geheimen. Zo blijft in de logboeken zichtbaar naar welk
-> project er uitgerold is.
+> Waarom die drie ID's variabelen zijn en geen secrets: het zijn verwijzingen,
+> geen geheimen. Zo blijft in de logboeken zichtbaar naar welk project er
+> uitgerold is.
 
 ## 5. Voor het eerst toepassen
 
-Ga naar het tabblad **Actions → Infrastructuur toepassen → Run workflow**.
+Twee workflows, in deze volgorde.
 
-Zet **Alleen tonen** eerst op *true*. Je krijgt dan te zien welke migraties er
-zouden draaien en welke variabelen gezet zouden worden, zonder dat er iets
-wijzigt. Klopt het, draai hem dan opnieuw met *false*.
+1. **Actions → Databankmigraties → Run workflow**. Typ `productie` bij
+   bevestiging. De workflow toont eerst met een droogloop wat er zou gebeuren en
+   past het daarna toe.
+2. **Actions → Productie uitrollen → Run workflow**. Zet **Alleen tonen** eerst
+   op *true* om te zien welke variabelen gezet zouden worden; klopt het, draai
+   hem dan opnieuw met *false*.
 
-Onderaan de samenvatting staat het adres waar je app nu draait. Noteer het.
+Onderaan de samenvatting van die tweede staat het adres waar je app nu draait.
+Noteer het.
 
 ## 6. Google-login aanzetten
 
@@ -128,7 +137,7 @@ te maken.
    | `AUTH_GOOGLE_SECRET` | het clientgeheim |
    | `AUTH_URL` | je app-adres, zonder schuine streep op het einde |
 
-6. Draai **Infrastructuur toepassen** opnieuw.
+6. Draai **Productie uitrollen** opnieuw.
 
 Ga naar je app-adres. Je hoort te kunnen inloggen met Google.
 
@@ -159,11 +168,14 @@ invullen, de laadpalen eraan koppelen, en het kwartaaltarief bevestigen.
 
 | Wat | Hoe |
 | --- | --- |
-| Code aanpassen | Commit naar `main`. De workflow migreert en rolt uit. |
-| Kolom toevoegen | Nieuw bestand `infra/migrations/0002_naam.sql`. Nooit een bestaande migratie aanpassen. |
-| Omgevingsvariabele erbij | Toevoegen aan `infra/vercel-omgeving.json` én als secret in GitHub. |
-| Sleutel vervangen | Secret in GitHub bijwerken en de workflow handmatig starten. |
-| Iets nakijken in de databank | **Actions → Databank bevragen**. Alleen lezen. |
+| Code aanpassen | Commit naar `main`. **Productie uitrollen** doet de rest. |
+| Kolom toevoegen | Nieuw bestand in `supabase/migrations/` met een latere tijdstempel. Nooit een bestaande migratie aanpassen. |
+| Omgevingsvariabele erbij | Toevoegen aan `infra/vercel-omgeving.json` én als secret in de omgeving `productie`. |
+| Sleutel vervangen | Secret bijwerken en **Productie uitrollen** handmatig starten. |
+| Iets nakijken in de databank | **Actions → SQL uitvoeren** met een bestand uit `scripts/sql/`. Standaard alleen lezen. |
+
+Raakt een wijziging zowel de databank als de code, lees dan eerst
+[UITROL.md](UITROL.md): de volgorde maakt uit.
 
 ## Als er iets misloopt
 
@@ -171,14 +183,13 @@ invullen, de laadpalen eraan koppelen, en het kwartaaltarief bevestigen.
 De workflow zegt precies welke naam ontbreekt, en of het een secret of een
 variabele moet zijn.
 
-**"Deze migraties zijn na het toepassen nog gewijzigd"**
-Er is een migratiebestand aangepast dat al gedraaid heeft. De databank bevat dan
-iets anders dan de repository beweert. Zet de wijziging in een nieuw genummerd
-bestand en laat het oude met rust.
+**De migratieworkflow klaagt over een verschil met de databank**
+Er is een migratiebestand aangepast dat al gedraaid heeft. Zet de wijziging in
+een nieuw bestand met een latere tijdstempel en laat het oude met rust.
 
 **Verbinden met de databank mislukt**
-Meestal het wachtwoord in `DATABASE_URL`. Controleer of tekens als `@` en `#`
-gecodeerd zijn.
+Meestal `SUPABASE_DB_PASSWORD` of `SUPABASE_PROJECT_REF`. Let erop dat die in de
+omgeving `productie` staan en niet als gewone repository-secret.
 
 **Inloggen mislukt met "toegang geweigerd"**
 Het adres staat niet in `TOEGELATEN_EMAILS` en is ook niet toegevoegd bij

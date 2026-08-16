@@ -34,9 +34,9 @@ Openen, kiezen, downloaden. Zie [docs/GEBRUIK.md](docs/GEBRUIK.md) — dat is
 ## Installeren
 
 De draaiende omgeving staat beschreven in deze repository en wordt toegepast
-door GitHub Actions. Je maakt eenmalig de accounts aan, zet de secrets klaar, en
-start de workflow **Infrastructuur toepassen** — die migreert de databank, zet
-de omgevingsvariabelen en rolt uit.
+door GitHub Actions. Je maakt eenmalig de accounts aan, zet de secrets klaar in
+de omgeving `productie`, en start twee workflows: **Databankmigraties** en
+**Productie uitrollen**.
 
 Stap voor stap in [docs/INSTALLATIE.md](docs/INSTALLATIE.md). Reken op een
 uurtje, waarvan het Google-luik voor het inloggen het enige echte klikwerk is.
@@ -47,13 +47,15 @@ uurtje, waarvan het Google-luik voor het inloggen het enige echte klikwerk is.
 | --- | --- |
 | `custom_components/laadkosten/` | De Home Assistant-integratie (installeren via HACS) |
 | `web/` | De webapp voor Vercel |
-| `infra/` | De databankmigraties en de gedeclareerde omgevingsvariabelen |
-| `scripts/` | Migreren, variabelen gelijkzetten, de databank bevragen |
+| `supabase/migrations/` | Het databankschema, in volgorde van tijdstempel |
+| `infra/vercel-omgeving.json` | Welke omgevingsvariabelen het Vercel-project hoort te hebben |
+| `scripts/` | Migraties testen, variabelen gelijkzetten, vragen aan de databank |
 | `docs/` | Installatiegids, maandelijkse routine en achtergrond |
 
 ## Voor wie later aan de code komt
 
 - Achtergrond en keuzes: [docs/ARCHITECTUUR.md](docs/ARCHITECTUUR.md)
+- Uitrollen, en waarom de volgorde uitmaakt: [docs/UITROL.md](docs/UITROL.md)
 - Toegang instellen zodat er zo weinig mogelijk handwerk overblijft:
   [docs/AUTONOMIE.md](docs/AUTONOMIE.md)
 - Tests draaien:

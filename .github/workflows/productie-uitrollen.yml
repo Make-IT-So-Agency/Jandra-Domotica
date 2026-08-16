@@ -1,32 +1,32 @@
-name: Infrastructuur toepassen
+name: Productie uitrollen
 
-# Brengt de draaiende omgeving in lijn met wat er in deze repository staat:
-# eerst de databankmigraties, dan de omgevingsvariabelen, dan uitrollen.
+# Zet de omgevingsvariabelen van Vercel gelijk met infra/vercel-omgeving.json en
+# rolt daarna uit.
 #
-# Die volgorde is niet willekeurig. Een nieuwe kolom moet bestaan vóór de code
-# die hem gebruikt live gaat, anders draait de app even tegen een schema dat ze
-# niet kent.
+# Migraties zitten bewust in een aparte workflow. Bij een push naar main lopen
+# de twee naast elkaar en staat niet vast wie eerst klaar is; wanneer de
+# volgorde uitmaakt, splits je de wijziging over twee commits. Zie
+# docs/UITROL.md.
 on:
   push:
     branches: ["main"]
   workflow_dispatch:
     inputs:
       alleen_tonen:
-        description: "Alleen tonen wat er zou gebeuren, niets wijzigen"
+        description: "Alleen tonen wat er zou wijzigen, niets doen"
         type: boolean
         default: false
 
-# Twee keer tegelijk migreren of uitrollen loopt gegarandeerd mis.
 concurrency:
-  group: infra
+  group: uitrollen-productie
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  toepassen:
-    name: Migreren, instellen en uitrollen
+  uitrollen:
+    name: Instellen en uitrollen
     runs-on: ubuntu-latest
     environment: productie
     steps:
@@ -38,33 +38,19 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Controleren of alles klaarstaat
-        # Meteen zeggen wát er ontbreekt is een stuk nuttiger dan halverwege
-        # vastlopen op een leeg token.
+      - name: Controleer de instellingen van deze omgeving
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
-          ontbreekt=""
-          [ -n "$DATABASE_URL" ]      || ontbreekt="$ontbreekt DATABASE_URL(secret)"
-          [ -n "$VERCEL_TOKEN" ]      || ontbreekt="$ontbreekt VERCEL_TOKEN(secret)"
-          [ -n "$VERCEL_PROJECT_ID" ] || ontbreekt="$ontbreekt VERCEL_PROJECT_ID(variable)"
-          if [ -n "$ontbreekt" ]; then
-            echo "::error::Nog in te stellen bij Settings → Secrets and variables → Actions:$ontbreekt"
+          ontbreekt=0
+          [ -n "$VERCEL_TOKEN" ]      || { echo "Ontbreekt: secret VERCEL_TOKEN"; ontbreekt=1; }
+          [ -n "$VERCEL_PROJECT_ID" ] || { echo "Ontbreekt: variable VERCEL_PROJECT_ID"; ontbreekt=1; }
+          if [ "$ontbreekt" = "1" ]; then
+            echo "::error::De GitHub-omgeving 'productie' is niet volledig ingesteld. Ga naar Settings → Environments → productie."
             exit 1
           fi
-          echo "Alles aanwezig."
-
-      - name: Databankmigraties
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ "${{ inputs.alleen_tonen }}" = "true" ]; then
-            node scripts/migreer.mjs --droogloop
-          else
-            node scripts/migreer.mjs
-          fi
+          echo "Alle instellingen aanwezig."
 
       - name: Omgevingsvariabelen gelijkzetten
         env:

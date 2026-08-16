@@ -1,0 +1,89 @@
+name: Databankmigraties
+
+# Zet de migraties uit supabase/migrations/ op de productiedatabank.
+#
+# Dit vervangt het handmatig plakken van SQL in de Supabase SQL Editor. De
+# Supabase CLI maakt een rechtstreekse Postgres-verbinding; dat kan vanuit een
+# Claude Code-sessie niet, maar hier wel.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "supabase/migrations/**"
+  # Ook met de hand te starten, bijvoorbeeld om een migratie vóór de code uit te
+  # rollen. Dat is nodig zodra nieuwe code iets gebruikt dat de migratie
+  # aanmaakt: ging main als eerste, dan rolt de code uit terwijl de kolom er nog
+  # niet is. Verwijderingen gaan net omgekeerd — zie docs/UITROL.md.
+  workflow_dispatch:
+    inputs:
+      bevestiging:
+        description: "Typ 'productie' om te bevestigen"
+        required: true
+        default: ""
+        type: string
+
+concurrency:
+  # Twee migratieruns tegelijk op dezelfde databank is vragen om problemen.
+  group: migraties-productie
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migreren:
+    name: Migraties toepassen
+    runs-on: ubuntu-latest
+    environment: productie
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bevestiging bij een handmatige start
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          BEVESTIGING: ${{ inputs.bevestiging }}
+        run: |
+          if [ "$BEVESTIGING" != "productie" ]; then
+            echo "::error::Deze run raakt de productiedatabank. Vul 'bevestiging' met exact 'productie'."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Controleer de instellingen van deze omgeving
+        # Zonder deze controle faalt de CLI met 'required flag(s) "project-ref"
+        # not set', wat niet verraadt dat de GitHub-omgeving leeg is.
+        env:
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          WACHTWOORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          ontbreekt=0
+          [ -n "$REF" ]        || { echo "Ontbreekt: variable SUPABASE_PROJECT_REF"; ontbreekt=1; }
+          [ -n "$WACHTWOORD" ] || { echo "Ontbreekt: secret SUPABASE_DB_PASSWORD"; ontbreekt=1; }
+          [ -n "$TOKEN" ]      || { echo "Ontbreekt: secret SUPABASE_ACCESS_TOKEN"; ontbreekt=1; }
+          if [ "$ontbreekt" = "1" ]; then
+            echo "::error::De GitHub-omgeving 'productie' is niet volledig ingesteld. Ga naar Settings → Environments → productie en vul de ontbrekende waarden aan. Let op het verschil tussen een environment secret en een environment variable."
+            exit 1
+          fi
+          echo "Alle instellingen aanwezig."
+
+      - name: Koppelen aan het project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link \
+            --project-ref "${{ vars.SUPABASE_PROJECT_REF }}" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Tonen wat er zou gebeuren
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase db push --dry-run
+
+      - name: Toepassen
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase db push

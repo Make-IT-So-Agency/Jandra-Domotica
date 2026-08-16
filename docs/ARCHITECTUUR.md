@@ -170,8 +170,9 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | --- | --- |
 | `custom_components/laadkosten/session_mapper.py` | evcc-sessies omzetten; los te testen, geen HA-afhankelijkheid |
 | `custom_components/laadkosten/api.py` | Praten met evcc en met de app |
-| `infra/migrations/` | Het databankschema, genummerd en in volgorde |
-| `scripts/migreer.mjs` | Past de migraties toe en bewaakt afwijkingen |
+| `supabase/migrations/` | Het databankschema, in volgorde van tijdstempel |
+| `scripts/test-migraties.sh` | Draait de migraties tweemaal tegen een lege Postgres |
+| `scripts/sql/` | Vragen aan de databank, via de workflow SQL uitvoeren |
 | `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
 | `web/lib/toegang.ts` | De aangemelde gebruiker met zijn actuele rol |
 | `web/lib/gebruikers.ts` | Gebruikers lezen en schrijven in de databank |
@@ -211,29 +212,36 @@ De draaiende omgeving staat beschreven in `infra/` en wordt toegepast door
 `.github/workflows/infra.yml`. De geheimen staan bij GitHub, niet in de
 repository en niet op iemands laptop.
 
-### Waarom de volgorde vastligt
+### Migreren en uitrollen zijn twee workflows
 
-De workflow migreert, zet dan de omgevingsvariabelen, en rolt pas daarna uit.
-Een nieuwe kolom moet bestaan vóór de code die hem gebruikt live gaat, anders
-draait de app even tegen een schema dat ze niet kent. Daarom ook één
-`concurrency`-groep: twee keer tegelijk migreren loopt gegarandeerd mis.
+Bij een push naar `main` lopen ze naast elkaar en staat niet vast wie eerst
+klaar is. Dat is met opzet zo gelaten in plaats van er één keten van te maken,
+want de juiste volgorde hangt af van wat de wijziging doet: bij een toevoeging
+moet de migratie eerst, bij een verwijdering juist de code. Eén vaste volgorde
+zou in het tweede geval fout zijn.
+
+Maakt de volgorde uit, dan splits je de wijziging over twee commits en start je
+de eerste met de hand. Zie [UITROL.md](UITROL.md).
+
+Elke workflow heeft een eigen `concurrency`-groep: twee keer tegelijk migreren
+of uitrollen loopt gegarandeerd mis.
 
 ### Migraties
 
-Genummerde bestanden in `infra/migrations/`, toegepast door
-`scripts/migreer.mjs`. Dat houdt in de tabel `schema_migraties` bij wat gedraaid
-heeft, met een vingerafdruk van de inhoud.
+Bestanden met een tijdstempel in `supabase/migrations/`, toegepast met
+`supabase db push` vanuit de workflow **Databankmigraties**. Dat is de
+standaardwerkwijze van de Supabase CLI; het zusterproject Cadanza doet het
+net zo, zodat wie aan allebei werkt niet twee gewoontes hoeft te onthouden.
 
-Wijzigt een reeds toegepast bestand achteraf, dan stopt het script. De databank
-bevat dan iets anders dan de repository beweert, en dat wil je weten in plaats
-van stilzwijgend overslaan. Zet zo'n wijziging in een nieuw genummerd bestand.
+De CLI houdt zelf bij welke migraties al gedraaid zijn. Pas een reeds toegepaste
+migratie daarom nooit achteraf aan — zet de wijziging in een nieuw bestand met
+een latere tijdstempel.
 
-Elke migratie draait in een transactie: loopt ze halverwege vast, dan blijft de
-databank achter zoals ze was. En elke migratie is idempotent, zodat handmatig
-plakken in de SQL-editor van Supabase geen schade aanricht. De CI bewaakt allebei.
-
-`--markeer-als-toegepast` bestaat voor het geval je een migratie al met de hand
-gedraaid hebt: die telt hem mee zonder hem uit te voeren.
+Huisregel: elke migratie is idempotent. `scripts/test-migraties.sh` bewaakt dat
+door in CI alle migraties twee keer na elkaar tegen een lege PostgreSQL te
+draaien. Dat script zet zijn eigen tijdelijke server op met enkel een
+unix-socket, dus er is geen service-container nodig en de job loopt naast de
+andere in plaats van erachter.
 
 ### Omgevingsvariabelen
 
@@ -251,14 +259,21 @@ hebt toegevoegd, is een verrassing te veel.
 
 ### De databank bevragen
 
-`scripts/vraag.mjs`, via de workflow **Databank bevragen**. Alleen lezen, maar
-afgedwongen door Postgres zelf: de vraag draait in een read-only transactie.
-Dat houdt ook stand bij een `delete` verstopt in een CTE of achter een tweede
-statement — een controle op de tekst van de vraag zou dat niet doen.
+De workflow **SQL uitvoeren** draait een bestand uit `scripts/sql/` via de
+Management API van Supabase, die over HTTPS werkt en dus geen rauwe
+Postgres-verbinding nodig heeft.
 
-De reden dat dit bestaat: met de geheimen enkel bij GitHub kan niemand meer
-even in de databank kijken. Dat is precies wat je nodig hebt bij een vraag als
-"waarom telt die sessie van 14 juli niet mee".
+Waarom een bestand uit de repository en niet een vrij invoerveld: zo staat in de
+geschiedenis wat er gedraaid heeft en wanneer. Blijkt een cijfer achteraf niet
+te kloppen, dan valt er iets na te kijken.
+
+Daarbovenop staat de schakelaar **alleen lezen** standaard aan, die de inhoud in
+een read-only transactie verpakt. Dat is een extra slot, geen vervanging van de
+eerste eis: de eigenlijke waarborg is dat het bestand via een pull request
+binnenkomt.
+
+`scripts/sql/inspecteer-sessies.sql` is de nuttigste van het stel — die zet per
+sessie in een kolom waarom ze niet meetelt.
 
 ### Uitrollen
 
@@ -269,9 +284,10 @@ verrassingen over wat er nu eigenlijk live staat.
 ## Tests
 
 ```bash
-python3 -m pytest tests/    # 20 tests op de sessieomzetting
-cd web && npm test          # 76 tests op berekening, periodes, tarieven,
-                            # documenten en toegangsrechten
+python3 -m pytest tests/     # 20 tests op de sessieomzetting
+cd web && npm test           # 76 tests op berekening, periodes, tarieven,
+                             # documenten en toegangsrechten
+scripts/test-migraties.sh    # alle migraties tweemaal tegen een lege Postgres
 ```
 
 De documenttests genereren een echte PDF en een echte Excel en lezen die weer
