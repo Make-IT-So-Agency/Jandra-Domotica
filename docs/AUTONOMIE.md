@@ -32,13 +32,26 @@ toe:
 
 Zonder die toegang zijn de tokens wel zichtbaar maar onbruikbaar.
 
-## 3. GitHub Actions-secrets
+## 3. GitHub Actions-secrets — voorlopig niet
 
-Repository → Settings → Secrets and variables → Actions. Zet daar dezelfde
-drie Vercel-waarden neer: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+Op het eerste gezicht lijkt het veiliger om de tokens enkel bij GitHub te zetten:
+dan blijven ze achter een muur, wordt er alleen een workflow gestart, en maskeert
+GitHub ze in de logs. Dat klopt ook — maar het werkt enkel voor taken die je
+vooraf hebt vastgelegd.
 
-Daarmee kan werk in een workflow gezet worden dat ook draait wanneer er geen
-sessie openstaat: automatisch uitrollen na een merge, of een geplande taak.
+Vandaag heeft geen enkele workflow in `.github/workflows/` een secret nodig, en
+uitrollen gebeurt door Vercel zelf zodra het project aan de repository gekoppeld
+is. Zet je de tokens er nu bij, dan liggen ze daar ongebruikt.
+
+Voeg pas een secret toe op het moment dat er een workflow is die hem nodig heeft,
+en dan enkel díe ene. Realistische gevallen: migraties automatisch toepassen bij
+een merge naar main, of een geplande taak die meer moet doen dan de Vercel-cron
+aankan.
+
+Wat je níet moet doen is een algemene "voer deze SQL uit"-workflow maken om
+databankwerk zonder token te kunnen doen. Dat is onveiliger dan het token
+gewoon vasthouden: iedereen met schrijfrechten op de repository kan zo'n
+workflow afvuren.
 
 ---
 
@@ -61,6 +74,11 @@ omleidings-URL voor je klaar.
 
 ## Over veiligheid
 
+- Een token in de omgevingsvariabelen komt terecht in de container waarin er
+  voor je gewerkt wordt. Dat is de prijs voor werk dat niet vooraf vastligt —
+  een migratie draaien, uitzoeken waarom een bedrag niet klopt. De manier om
+  dat risico klein te houden is een korte vervaldatum, niet het token elders
+  parkeren.
 - Een Vercel-token geeft **volledige toegang tot je Vercel-account**, niet
   enkel tot dit project. Geef het een vervaldatum, bijvoorbeeld 90 dagen.
 - Hetzelfde geldt voor het Supabase-token.
