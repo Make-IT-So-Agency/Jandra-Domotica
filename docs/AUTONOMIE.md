@@ -4,89 +4,75 @@ Wat je één keer instelt zodat er in een volgende sessie zo weinig mogelijk aan
 jou gevraagd moet worden. Ook nuttig wanneer een token vervalt en je even niet
 meer weet welke er ook alweer nodig waren.
 
-## 1. Omgevingsvariabelen in Claude Code
+De opzet: **alle geheimen staan bij GitHub, en het werk gebeurt via de
+repository.** Wijzigingen worden gecommit, de workflow past ze toe. Zo staat er
+nergens een token op een laptop of in een gesprek, en laat elke wijziging een
+spoor na in de geschiedenis van de repository en in de logboeken van Actions.
 
-Ga naar [claude.ai/code](https://claude.ai/code) → je omgeving →
-**Environment variables**. Die blijven bewaard over sessies heen, dus je hoeft
-nooit een sleutel in een gesprek te plakken.
+## 1. Secrets en variabelen in GitHub
 
-| Variabele | Waar je die vindt |
-| --- | --- |
-| `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) |
-| `VERCEL_ORG_ID` | in `web/.vercel/project.json`, na het koppelen |
-| `VERCEL_PROJECT_ID` | idem |
-| `SUPABASE_ACCESS_TOKEN` | [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens) |
-| `SUPABASE_PROJECT_REF` | het stukje uit je project-URL: `https://<dit>.supabase.co` |
-| `SUPABASE_DB_PASSWORD` | het wachtwoord dat je koos bij het aanmaken van het project |
+Repository → **Settings → Secrets and variables → Actions**. De volledige lijst
+met waar je elke waarde vindt, staat in [INSTALLATIE.md](INSTALLATIE.md); dit is
+de samenvatting.
 
-Die namen zijn niet vrij gekozen: de Vercel-CLI en de Supabase-CLI lezen ze
-vanzelf uit. Er valt dus verder niets te configureren.
+**Secrets** — geheim, worden gemaskeerd in de logboeken:
 
-## 2. Netwerktoegang
+`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_TOKEN`,
+`AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_URL`,
+`TOEGELATEN_EMAILS`, `INGEST_API_KEY`, `CRON_SECRET`
 
-De omgeving heeft een netwerkpolicy. Staat die op beperkt, laat dan minstens
-toe:
+**Variables** — verwijzingen, geen geheimen:
 
-- `vercel.com` en `api.vercel.com`
-- `supabase.com` en `*.supabase.co`
+`VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`
 
-Zonder die toegang zijn de tokens wel zichtbaar maar onbruikbaar.
+Zet ze bij een *environment* met de naam `productie` of gewoon op de repository
+zelf. De workflows verwachten `environment: productie`; maak die aan onder
+**Settings → Environments** als je er later een goedkeuringsstap voor wil.
 
-## 3. GitHub Actions-secrets — voorlopig niet
+## 2. Wat daarmee mogelijk wordt
 
-Op het eerste gezicht lijkt het veiliger om de tokens enkel bij GitHub te zetten:
-dan blijven ze achter een muur, wordt er alleen een workflow gestart, en maskeert
-GitHub ze in de logs. Dat klopt ook — maar het werkt enkel voor taken die je
-vooraf hebt vastgelegd.
+Zonder dat jij nog iets hoeft in te vullen:
 
-Vandaag heeft geen enkele workflow in `.github/workflows/` een secret nodig, en
-uitrollen gebeurt door Vercel zelf zodra het project aan de repository gekoppeld
-is. Zet je de tokens er nu bij, dan liggen ze daar ongebruikt.
+- code wijzigen, committen, en de workflow rolt het uit
+- een kolom toevoegen via een nieuwe migratie
+- een omgevingsvariabele toevoegen of vervangen
+- terugrollen naar een vorige versie
+- in de databank kijken via **Actions → Databank bevragen** (alleen lezen)
+- de logboeken lezen wanneer iets faalt
 
-Voeg pas een secret toe op het moment dat er een workflow is die hem nodig heeft,
-en dan enkel díe ene. Realistische gevallen: migraties automatisch toepassen bij
-een merge naar main, of een geplande taak die meer moet doen dan de Vercel-cron
-aankan.
+## 3. Wat handwerk blijft
 
-Wat je níet moet doen is een algemene "voer deze SQL uit"-workflow maken om
-databankwerk zonder token te kunnen doen. Dat is onveiliger dan het token
-gewoon vasthouden: iedereen met schrijfrechten op de repository kan zo'n
-workflow afvuren.
+- **Het OAuth-scherm in de Google Cloud Console.** Er bestaat geen API om
+  inloggegevens voor consumenten aan te maken.
+- **De HACS-integratie in Home Assistant** installeren en instellen.
+- **Het kwartaaltarief bevestigen.** Dat is opzet, geen beperking: zie
+  [ARCHITECTUUR.md](ARCHITECTUUR.md).
+- **Accounts en projecten aanmaken** bij Supabase en Vercel. Dat gebeurt één
+  keer en wordt nooit herhaald, dus het loont niet om er code voor te schrijven.
 
----
+## 4. Wat je bewust niet moet doen
 
-## Wat daarmee mogelijk wordt
+**Geen algemene "voer deze SQL uit"-workflow.** De verleiding is groot, want dan
+kan er ook geschreven worden zonder token buiten GitHub. Maar zo'n workflow kan
+door iedereen met schrijfrechten op de repository afgevuurd worden, en dat is
+onveiliger dan het token gewoon vasthouden. Schrijven hoort via een migratie te
+gaan, zodat het in de geschiedenis staat.
 
-- uitrollen naar Vercel, en terugrollen naar een vorige versie
-- omgevingsvariabelen zetten en wijzigen
-- bouwlogs lezen wanneer iets faalt
-- migraties op de databank draaien
-- data nakijken wanneer een cijfer niet klopt
-- de volledige installatie uitvoeren, van leeg project tot draaiende app
-
-## Wat hoe dan ook handwerk blijft
-
-Het OAuth-scherm in de Google Cloud Console. Er bestaat geen API om
-inloggegevens voor consumenten aan te maken, dus dat zijn en blijven een paar
-minuten klikken in je eigen Google-account. Zie stap 3 van
-[INSTALLATIE.md](INSTALLATIE.md); het installatiescript zet de juiste
-omleidings-URL voor je klaar.
+**Geen secrets in de Claude Code-omgeving zetten** zolang deze opzet volstaat.
+Alles wat nodig is, kan via de repository en de workflows.
 
 ## Over veiligheid
 
-- Een token in de omgevingsvariabelen komt terecht in de container waarin er
-  voor je gewerkt wordt. Dat is de prijs voor werk dat niet vooraf vastligt —
-  een migratie draaien, uitzoeken waarom een bedrag niet klopt. De manier om
-  dat risico klein te houden is een korte vervaldatum, niet het token elders
-  parkeren.
-- Een Vercel-token geeft **volledige toegang tot je Vercel-account**, niet
-  enkel tot dit project. Geef het een vervaldatum, bijvoorbeeld 90 dagen.
-- Hetzelfde geldt voor het Supabase-token.
-- Zet ze in de omgevingsvariabelen, niet in een gesprek: daar blijven ze
-  anders in de geschiedenis staan.
-- Vermoed je dat een token gelekt is? Trek het in bij de aanbieder en maak een
-  nieuw aan. De app zelf hoeft daar niets van te merken; enkel deze
-  omgevingsvariabelen en de GitHub-secrets moeten dan bijgewerkt worden.
-- De sleutels van de app zelf — `INGEST_API_KEY`, `AUTH_SECRET`, `CRON_SECRET`
-  en de Supabase `service_role` — staan enkel bij Vercel. Die horen hier niet
-  bij en moeten nergens anders bewaard worden.
+- Een Vercel-token geeft **volledige toegang tot je Vercel-account**, niet enkel
+  tot dit project. Geef het een vervaldatum, bijvoorbeeld 90 dagen.
+- `DATABASE_URL` bevat je databankwachtwoord. Wie schrijfrechten op de
+  repository heeft, kan er via een migratie mee doen wat hij wil. Hou de lijst
+  met medewerkers kort.
+- Vermoed je dat een secret gelekt is? Trek hem in bij de aanbieder, maak een
+  nieuwe aan, werk hem bij in GitHub en start de workflow opnieuw. De app zelf
+  hoeft daar niets van te merken.
+- De sleutels die de app zelf gebruikt — `INGEST_API_KEY`, `AUTH_SECRET`,
+  `CRON_SECRET` en de Supabase `service_role` — staan bij GitHub en worden van
+  daaruit naar Vercel gezet. Vercel is dus geen tweede bron van waarheid: pas
+  ze altijd in GitHub aan, nooit rechtstreeks in het Vercel-scherm, anders
+  overschrijft de volgende workflow je wijziging.

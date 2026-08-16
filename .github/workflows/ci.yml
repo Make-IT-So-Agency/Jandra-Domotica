@@ -107,19 +107,30 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Schema uitvoeren
-        run: |
-          node scripts/voer-sql-uit.mjs \
-            "postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable" \
-            web/supabase/schema.sql web/supabase/migratie-01-gebruikers.sql
+      - name: Migraties toepassen
+        env:
+          DATABASE_URL: postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable
+        run: node scripts/migreer.mjs
 
-      - name: Opnieuw uitvoeren moet even goed gaan
-        # De installatiegids zegt dat je de scripts gerust mag herhalen; dit
-        # bewaakt dat die belofte klopt.
+      - name: Opnieuw draaien moet niets meer te doen hebben
+        env:
+          DATABASE_URL: postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable
         run: |
-          node scripts/voer-sql-uit.mjs \
-            "postgresql://postgres:proef@127.0.0.1:5432/laadkosten?sslmode=disable" \
-            web/supabase/schema.sql web/supabase/migratie-01-gebruikers.sql
+          uitvoer=$(node scripts/migreer.mjs)
+          echo "$uitvoer"
+          echo "$uitvoer" | grep -q "Niets te doen" \
+            || { echo "::error::De tweede beurt wilde opnieuw migreren."; exit 1; }
+
+      - name: Elke migratie moet ook los herhaalbaar zijn
+        # Huisregel uit de migratiebestanden: twee keer draaien mag nooit iets
+        # kapotmaken. Dat bewaken we hier in plaats van erop te vertrouwen.
+        env:
+          PGPASSWORD: proef
+        run: |
+          for bestand in infra/migrations/*.sql; do
+            psql -h 127.0.0.1 -U postgres -d laadkosten -v ON_ERROR_STOP=1 -q -f "$bestand"
+            echo "opnieuw toepasbaar: $bestand"
+          done
 
       - name: Controleren dat alle tabellen er staan
         env:

@@ -1,7 +1,12 @@
--- Databankschema voor de laadkostenrapportage.
+-- 0001 · Basisschema voor de laadkostenrapportage.
 --
--- Plak dit één keer volledig in de SQL Editor van Supabase en klik "Run".
--- Het script mag je gerust opnieuw draaien: alles is idempotent.
+-- Wordt toegepast door scripts/migreer.mjs, dat bijhoudt welke migraties al
+-- gedraaid zijn. Pas een reeds toegepaste migratie nooit achteraf aan: zet de
+-- wijziging in een nieuw genummerd bestand. Het script weigert anders te
+-- draaien, want dan bevat de databank iets anders dan de repository beweert.
+--
+-- Huisregel: elke migratie is idempotent (create ... if not exists, drop
+-- trigger if exists). Twee keer draaien mag nooit iets kapotmaken.
 --
 -- Toegang: de webapp praat met Supabase via de service-role sleutel, die
 -- server-side blijft. Row Level Security staat daarom aan zonder policies,

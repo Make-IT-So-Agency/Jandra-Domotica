@@ -1,0 +1,107 @@
+name: Infrastructuur toepassen
+
+# Brengt de draaiende omgeving in lijn met wat er in deze repository staat:
+# eerst de databankmigraties, dan de omgevingsvariabelen, dan uitrollen.
+#
+# Die volgorde is niet willekeurig. Een nieuwe kolom moet bestaan vóór de code
+# die hem gebruikt live gaat, anders draait de app even tegen een schema dat ze
+# niet kent.
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      alleen_tonen:
+        description: "Alleen tonen wat er zou gebeuren, niets wijzigen"
+        type: boolean
+        default: false
+
+# Twee keer tegelijk migreren of uitrollen loopt gegarandeerd mis.
+concurrency:
+  group: infra
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  toepassen:
+    name: Migreren, instellen en uitrollen
+    runs-on: ubuntu-latest
+    environment: productie
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Controleren of alles klaarstaat
+        # Meteen zeggen wát er ontbreekt is een stuk nuttiger dan halverwege
+        # vastlopen op een leeg token.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          ontbreekt=""
+          [ -n "$DATABASE_URL" ]      || ontbreekt="$ontbreekt DATABASE_URL(secret)"
+          [ -n "$VERCEL_TOKEN" ]      || ontbreekt="$ontbreekt VERCEL_TOKEN(secret)"
+          [ -n "$VERCEL_PROJECT_ID" ] || ontbreekt="$ontbreekt VERCEL_PROJECT_ID(variable)"
+          if [ -n "$ontbreekt" ]; then
+            echo "::error::Nog in te stellen bij Settings → Secrets and variables → Actions:$ontbreekt"
+            exit 1
+          fi
+          echo "Alles aanwezig."
+
+      - name: Databankmigraties
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ "${{ inputs.alleen_tonen }}" = "true" ]; then
+            node scripts/migreer.mjs --droogloop
+          else
+            node scripts/migreer.mjs
+          fi
+
+      - name: Omgevingsvariabelen gelijkzetten
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          # De waarden zelf. Het script leest ze per naam uit de omgeving, dus
+          # deze lijst hoort gelijk te lopen met infra/vercel-omgeving.json.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          TOEGELATEN_EMAILS: ${{ secrets.TOEGELATEN_EMAILS }}
+          INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ "${{ inputs.alleen_tonen }}" = "true" ]; then
+            node scripts/zet-vercel-omgeving.mjs --droogloop
+          else
+            node scripts/zet-vercel-omgeving.mjs
+          fi
+
+      - name: Uitrollen naar Vercel
+        if: ${{ inputs.alleen_tonen != true }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        run: |
+          npx -y vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx -y vercel@latest build --prod --token="$VERCEL_TOKEN"
+          adres=$(npx -y vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "Uitgerold naar $adres"
+          {
+            echo "### Uitgerold"
+            echo ""
+            echo "$adres"
+          } >> "$GITHUB_STEP_SUMMARY"

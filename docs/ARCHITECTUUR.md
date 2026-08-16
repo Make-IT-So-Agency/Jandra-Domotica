@@ -170,6 +170,8 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | --- | --- |
 | `custom_components/laadkosten/session_mapper.py` | evcc-sessies omzetten; los te testen, geen HA-afhankelijkheid |
 | `custom_components/laadkosten/api.py` | Praten met evcc en met de app |
+| `infra/migrations/` | Het databankschema, genummerd en in volgorde |
+| `scripts/migreer.mjs` | Past de migraties toe en bewaakt afwijkingen |
 | `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
 | `web/lib/toegang.ts` | De aangemelde gebruiker met zijn actuele rol |
 | `web/lib/gebruikers.ts` | Gebruikers lezen en schrijven in de databank |
@@ -203,17 +205,66 @@ Dependabot stelt maandelijks één gebundeld voorstel voor de npm-pakketten en
 één voor de GitHub-acties. De CI draait mee op elk voorstel, dus een update die
 iets breekt, kleurt rood voor je hem samenvoegt.
 
-## Het installatiescript
+## Infrastructuur als code
 
-`scripts/installeer.sh` doet de installatie op wat handwerk in de Google Cloud
-Console na. Het is bewust herhaalbaar: omgevingsvariabelen worden eerst
-verwijderd en dan opnieuw gezet, en de SQL-scripts zijn idempotent.
+De draaiende omgeving staat beschreven in `infra/` en wordt toegepast door
+`.github/workflows/infra.yml`. De geheimen staan bij GitHub, niet in de
+repository en niet op iemands laptop.
 
-`scripts/voer-sql-uit.mjs` voert de SQL uit tegen Supabase. Het haalt de
-Postgres-bibliotheek bij de eerste keer zelf op naar een tijdelijke map, zodat
-er niets vooraf geïnstalleerd hoeft te zijn en de afhankelijkheden van de app
-ongemoeid blijven. Voor een databank op je eigen machine wordt de versleuteling
-overgeslagen, voor Supabase niet.
+### Waarom de volgorde vastligt
+
+De workflow migreert, zet dan de omgevingsvariabelen, en rolt pas daarna uit.
+Een nieuwe kolom moet bestaan vóór de code die hem gebruikt live gaat, anders
+draait de app even tegen een schema dat ze niet kent. Daarom ook één
+`concurrency`-groep: twee keer tegelijk migreren loopt gegarandeerd mis.
+
+### Migraties
+
+Genummerde bestanden in `infra/migrations/`, toegepast door
+`scripts/migreer.mjs`. Dat houdt in de tabel `schema_migraties` bij wat gedraaid
+heeft, met een vingerafdruk van de inhoud.
+
+Wijzigt een reeds toegepast bestand achteraf, dan stopt het script. De databank
+bevat dan iets anders dan de repository beweert, en dat wil je weten in plaats
+van stilzwijgend overslaan. Zet zo'n wijziging in een nieuw genummerd bestand.
+
+Elke migratie draait in een transactie: loopt ze halverwege vast, dan blijft de
+databank achter zoals ze was. En elke migratie is idempotent, zodat handmatig
+plakken in de SQL-editor van Supabase geen schade aanricht. De CI bewaakt allebei.
+
+`--markeer-als-toegepast` bestaat voor het geval je een migratie al met de hand
+gedraaid hebt: die telt hem mee zonder hem uit te voeren.
+
+### Omgevingsvariabelen
+
+`infra/vercel-omgeving.json` declareert wélke variabelen bestaan en voor welke
+omgevingen, niet wat ze bevatten. De waarden komen uit GitHub Actions-secrets
+met dezelfde naam. `scripts/zet-vercel-omgeving.mjs` zet Vercel daarmee gelijk.
+
+Ontbreekt een secret, dan wordt die variabele overgeslagen met een melding in
+plaats van een fout. Bij de eerste opzet bestaan de Google-gegevens nog niet, en
+de rest moet dan wel al gezet kunnen worden.
+
+Variabelen die bij Vercel staan maar nergens gedeclareerd zijn, worden gemeld
+maar niet verwijderd. Automatisch opruimen van iets wat je misschien met opzet
+hebt toegevoegd, is een verrassing te veel.
+
+### De databank bevragen
+
+`scripts/vraag.mjs`, via de workflow **Databank bevragen**. Alleen lezen, maar
+afgedwongen door Postgres zelf: de vraag draait in een read-only transactie.
+Dat houdt ook stand bij een `delete` verstopt in een CTE of achter een tweede
+statement — een controle op de tekst van de vraag zou dat niet doen.
+
+De reden dat dit bestaat: met de geheimen enkel bij GitHub kan niemand meer
+even in de databank kijken. Dat is precies wat je nodig hebt bij een vraag als
+"waarom telt die sessie van 14 juli niet mee".
+
+### Uitrollen
+
+Gebeurt vanuit de workflow, niet via de Git-integratie van Vercel. Koppel de
+repository daar dus niet: twee systemen die allebei deployen, geeft
+verrassingen over wat er nu eigenlijk live staat.
 
 ## Tests
 

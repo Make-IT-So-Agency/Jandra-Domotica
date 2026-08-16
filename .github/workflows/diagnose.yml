@@ -1,0 +1,64 @@
+name: Databank bevragen
+
+# Voor vragen als "waarom telt die sessie van 14 juli niet mee". Zo hoeft het
+# databankwachtwoord nergens buiten GitHub te bestaan.
+#
+# Alleen lezen. Dat wordt afgedwongen door Postgres zelf — de vraag draait in
+# een read-only transactie — en niet door de tekst van de vraag te bekijken,
+# want dat is altijd te omzeilen.
+on:
+  workflow_dispatch:
+    inputs:
+      vraag:
+        description: "De SQL-vraag (alleen lezen)"
+        required: true
+        type: string
+
+concurrency:
+  group: diagnose-${{ github.actor }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bevragen:
+    name: Vraag stellen
+    runs-on: ubuntu-latest
+    environment: productie
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Vraag uitvoeren
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VRAAG: ${{ inputs.vraag }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL ontbreekt bij de secrets."
+            exit 1
+          fi
+          # Via een omgevingsvariabele in plaats van rechtstreeks in de
+          # opdrachtregel: zo kan geen enkel teken uit de vraag door de shell
+          # geïnterpreteerd worden.
+          {
+            echo '### Vraag'
+            echo ''
+            echo '```sql'
+            echo "$VRAAG"
+            echo '```'
+            echo ''
+            echo '### Antwoord'
+            echo ''
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          node scripts/vraag.mjs "$VRAAG" | tee -a "$GITHUB_STEP_SUMMARY"
+          uitkomst=${PIPESTATUS[0]}
+
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          exit $uitkomst

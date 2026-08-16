@@ -33,18 +33,13 @@ Openen, kiezen, downloaden. Zie [docs/GEBRUIK.md](docs/GEBRUIK.md) — dat is
 
 ## Installeren
 
-Eenmalig werk. Het snelst gaat het met het installatiescript:
+De draaiende omgeving staat beschreven in deze repository en wordt toegepast
+door GitHub Actions. Je maakt eenmalig de accounts aan, zet de secrets klaar, en
+start de workflow **Infrastructuur toepassen** — die migreert de databank, zet
+de omgevingsvariabelen en rolt uit.
 
-```bash
-bash scripts/installeer.sh
-```
-
-Dat regelt de sleutels, de databank, de hosting en de uitrol. Enkel het
-Google-luik voor het inloggen blijft klikwerk in je eigen account; het script
-zegt op het einde precies wat je waar moet invullen.
-
-Liever stap voor stap, of loopt er iets mis? Zie
-[docs/INSTALLATIE.md](docs/INSTALLATIE.md).
+Stap voor stap in [docs/INSTALLATIE.md](docs/INSTALLATIE.md). Reken op een
+uurtje, waarvan het Google-luik voor het inloggen het enige echte klikwerk is.
 
 ## Wat waar staat
 
@@ -52,7 +47,8 @@ Liever stap voor stap, of loopt er iets mis? Zie
 | --- | --- |
 | `custom_components/laadkosten/` | De Home Assistant-integratie (installeren via HACS) |
 | `web/` | De webapp voor Vercel |
-| `web/supabase/schema.sql` | De databanktabellen, één keer uit te voeren |
+| `infra/` | De databankmigraties en de gedeclareerde omgevingsvariabelen |
+| `scripts/` | Migreren, variabelen gelijkzetten, de databank bevragen |
 | `docs/` | Installatiegids, maandelijkse routine en achtergrond |
 
 ## Voor wie later aan de code komt

@@ -1,0 +1,72 @@
+{
+  "$uitleg": [
+    "Welke omgevingsvariabelen het Vercel-project hoort te hebben.",
+    "scripts/zet-vercel-omgeving.mjs zet Vercel hiermee gelijk.",
+    "",
+    "geheim: de waarde komt uit een GitHub Actions-secret met dezelfde naam en",
+    "staat dus nergens in deze repository. Ontbreekt zo'n secret, dan slaat het",
+    "script die variabele over en zegt dat erbij.",
+    "",
+    "waarde: staat hier gewoon in, want het is geen geheim.",
+    "",
+    "afgeleid: wordt tijdens het uitrollen bepaald (bijvoorbeeld het adres van",
+    "de app zelf) en meegegeven door de workflow."
+  ],
+
+  "variabelen": [
+    {
+      "naam": "SUPABASE_URL",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Project-URL van Supabase, bijvoorbeeld https://xxxx.supabase.co"
+    },
+    {
+      "naam": "SUPABASE_SERVICE_ROLE_KEY",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Omzeilt Row Level Security; blijft server-side."
+    },
+    {
+      "naam": "AUTH_SECRET",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Ondertekent het aanmeldkoekje. openssl rand -base64 32"
+    },
+    {
+      "naam": "AUTH_GOOGLE_ID",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Client-ID uit de Google Cloud Console."
+    },
+    {
+      "naam": "AUTH_GOOGLE_SECRET",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Clientgeheim uit de Google Cloud Console."
+    },
+    {
+      "naam": "AUTH_URL",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Het adres van de app, zonder schuine streep op het einde."
+    },
+    {
+      "naam": "TOEGELATEN_EMAILS",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Adressen die altijd hoofdbeheerder zijn. De noodingang."
+    },
+    {
+      "naam": "INGEST_API_KEY",
+      "herkomst": "geheim",
+      "omgevingen": ["production", "preview", "development"],
+      "toelichting": "Waarmee Home Assistant de sessies aflevert. openssl rand -hex 32"
+    },
+    {
+      "naam": "CRON_SECRET",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Beveiligt de geplande taken van Vercel. openssl rand -hex 32"
+    }
+  ]
+}
