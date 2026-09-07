@@ -49,6 +49,14 @@ STEP_USER_SCHEMA = vol.Schema(
     }
 )
 
+# De voorbeeldadressen onder de invulvelden. Ze staan hier en niet in de
+# vertaalbestanden omdat Home Assistant geen URL's in vertaalteksten toelaat;
+# de teksten verwijzen ernaar met {evcc_voorbeeld} en {app_voorbeeld}.
+STEP_USER_VOORBEELDEN = {
+    "evcc_voorbeeld": DEFAULT_EVCC_URL,
+    "app_voorbeeld": "https://laadkosten.jouwdomein.be",
+}
+
 
 async def _validate(hass, data: Mapping[str, Any]) -> dict[str, str]:
     """Test beide verbindingen. Geeft een dict met foutmeldingen per veld."""
@@ -113,6 +121,7 @@ class LaadkostenConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=self.add_suggested_values_to_schema(
                 STEP_USER_SCHEMA, user_input or {}
             ),
+            description_placeholders=STEP_USER_VOORBEELDEN,
             errors=errors,
         )
 

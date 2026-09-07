@@ -10,8 +10,8 @@
           "api_key": "API key"
         },
         "data_description": {
-          "evcc_url": "For example http://homeassistant.local:7070",
-          "app_url": "For example https://laadkosten.yourdomain.com",
+          "evcc_url": "For example {evcc_voorbeeld}",
+          "app_url": "For example {app_voorbeeld}",
           "api_key": "Copy it from the app; keep it secret."
         }
       },
