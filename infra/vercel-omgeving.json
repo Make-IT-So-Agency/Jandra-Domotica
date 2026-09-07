@@ -21,9 +21,14 @@
       "",
       "rootDirectory: waar de app in deze repository staat. Zonder dit bouwt",
       "Vercel de repo-root, vindt daar geen app, en publiceert een lege uitrol.",
-      "Die slaagt gewoon, maar antwoordt daarna overal met 404."
+      "Die slaagt gewoon, maar antwoordt daarna overal met 404.",
+      "",
+      "framework: een leeg Vercel-project heeft er geen. Vercel behandelt de",
+      "build dan als een statische site en zoekt een map public/, die Next.js",
+      "niet maakt. De uitrol breekt af op 'No Output Directory named public'."
     ],
-    "rootDirectory": "web"
+    "rootDirectory": "web",
+    "framework": "nextjs"
   },
 
   "variabelen": [
