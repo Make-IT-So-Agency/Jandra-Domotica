@@ -4,10 +4,10 @@
   "codeowners": ["@janfestjens"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/janfestjens/Jandra---Domotica",
+  "documentation": "https://github.com/Make-IT-So-Agency/Jandra-Domotica",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/janfestjens/Jandra---Domotica/issues",
+  "issue_tracker": "https://github.com/Make-IT-So-Agency/Jandra-Domotica/issues",
   "requirements": [],
   "version": "1.0.0"
 }

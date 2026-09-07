@@ -1,7 +1,7 @@
 # Laadkosten
 
-[![CI](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/ci.yml/badge.svg)](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/ci.yml)
-[![Validatie](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/validatie.yml/badge.svg)](https://github.com/janfestjens/Jandra---Domotica/actions/workflows/validatie.yml)
+[![CI](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/ci.yml/badge.svg)](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/ci.yml)
+[![Validatie](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/validatie.yml/badge.svg)](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/validatie.yml)
 
 Overzicht en rapportage van de laadkosten van thuisladen, per vennootschap.
 
