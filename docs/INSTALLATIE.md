@@ -156,32 +156,97 @@ Noteer het.
 ## 6. Google-login aanzetten
 
 Dit blijft handwerk: er bestaat geen API om inloggegevens voor consumenten aan
-te maken.
+te maken. Reken op een kwartier.
 
-1. Ga naar [console.cloud.google.com](https://console.cloud.google.com) en maak
-   een project aan.
-2. **API's en services → OAuth-toestemmingsscherm** → Extern → vul een app-naam
-   in en je eigen e-mailadres. Staat de app op *Testen*? Voeg jezelf toe bij
-   **Testgebruikers**.
-3. **API's en services → Inloggegevens → Inloggegevens maken →
-   OAuth-client-ID → Webtoepassing**.
-4. Bij **Geautoriseerde omleidings-URI's** plak je exact:
+### Een apart project
 
-   ```
-   https://JOUW-APP-ADRES/api/auth/callback/google
-   ```
+Maak hiervoor een **nieuw** Google Cloud-project, ook al heb je er al een.
 
-5. Zet de drie ontbrekende secrets in GitHub:
+> Waarom: een project heeft één toestemmingsscherm, gedeeld door alle clients
+> erin. Hang je Laadkosten aan een bestaand project, dan staat de naam van deze
+> app straks boven de toestemmingsvraag van dat andere project.
 
-   | Naam | Waarde |
-   | --- | --- |
-   | `AUTH_GOOGLE_ID` | het client-ID |
-   | `AUTH_GOOGLE_SECRET` | het clientgeheim |
-   | `AUTH_URL` | je app-adres, zonder schuine streep op het einde |
+[console.cloud.google.com](https://console.cloud.google.com) → projectkiezer
+bovenaan → **Nieuw project** → naam `Laadkosten` → Maken. Controleer daarna dat
+de projectkiezer echt `Laadkosten` toont. Daar loopt het het vaakst mis.
 
-6. Draai **Productie uitrollen** opnieuw.
+### Toestemmingsscherm
 
-Ga naar je app-adres. Je hoort te kunnen inloggen met Google.
+Het onderdeel heet tegenwoordig **Google Auth Platform**. De oude weg via
+*API's en services → OAuth-toestemmingsscherm* komt op dezelfde plek uit.
+
+Ga naar **console.cloud.google.com/auth/branding**:
+
+| Veld | Waarde |
+| --- | --- |
+| App name | `Laadkosten` |
+| User support email | jouw adres |
+| Developer contact information | jouw adres |
+
+De velden onder *App domain* en *Authorized domains* laat je leeg. Die heb je
+alleen nodig om te publiceren, en dat ga je niet doen.
+
+### Wie er mag aanmelden
+
+Ga naar **console.cloud.google.com/auth/audience** en kies:
+
+- **Internal** — beschikbaar als je op Google Workspace zit. Iedereen met een
+  account van je organisatie kan aanmelden, en je houdt geen lijst bij.
+- **Testing** — laat de status op *Testing* staan en zet de adressen die mogen
+  aanmelden bij **Test users**. Nodig zodra iemand van buiten je organisatie
+  erin moet.
+
+> Publiceren hoeft niet, en kost meer dan het opbrengt: Google vraagt er een
+> homepage en een privacyverklaring op een geregistreerd domein voor. Het levert
+> ook niets op, want wie binnen mag beslist de app zelf. `web/auth.ts` weigert
+> elk adres dat niet in `TOEGELATEN_EMAILS` staat of als gebruiker is toegevoegd,
+> ook met een geldig Google-account. Google laat iemand hooguit tot de voordeur.
+
+Dat je app op *Testing* staat, merkt een gebruiker aan één scherm dat zegt dat
+Google de app niet geverifieerd heeft. Doorklikken en klaar.
+
+### De client
+
+Ga naar **console.cloud.google.com/auth/clients** → **Create client**.
+
+| Veld | Waarde |
+| --- | --- |
+| Application type | `Web application` |
+| Name | `Laadkosten webapp` |
+| Authorised redirect URIs | `https://JOUW-APP-ADRES/api/auth/callback/google` |
+
+*Authorised JavaScript origins* laat je leeg; deze app gebruikt ze niet.
+
+Het adres is dat uit stap 5, exact overgenomen: met `https://` en zonder schuine
+streep erachter. Na *Create* verschijnt een venster met het **Client ID** en het
+**Client secret**. Neem allebei over — het geheim vind je later alleen nog terug
+via de clientpagina.
+
+### In GitHub zetten
+
+**Settings → Environments → productie → Environment secrets**:
+
+| Naam | Waarde |
+| --- | --- |
+| `AUTH_GOOGLE_ID` | het Client ID |
+| `AUTH_GOOGLE_SECRET` | het Client secret |
+| `AUTH_URL` | je app-adres, zonder schuine streep op het einde |
+
+`AUTH_URL` is hier een secret en geen variable. Een adres is geen geheim, maar
+zo is het bedraad: zet hem bij de secrets, anders vindt de workflow hem niet.
+
+Draai daarna **Actions → Productie uitrollen → Run workflow** opnieuw.
+
+### Controleren
+
+Ga naar je app-adres en meld je aan. Strandt het, dan zegt de plek waar het
+strandt wat eraan scheelt:
+
+| Waar het strandt | Wat eraan scheelt |
+| --- | --- |
+| Google weigert je voor je terug bent in de app | Je account staat niet bij *Test users*, of je koos *Internal* en meldt je aan met een account van buiten je organisatie |
+| `Error 400: redirect_uri_mismatch` | De omleidings-URI van de client komt niet exact overeen met `AUTH_URL` plus `/api/auth/callback/google` |
+| Je komt terug in de app en krijgt "geen toegang" | Google was in orde, maar je adres staat niet in `TOEGELATEN_EMAILS` |
 
 ## 7. Home Assistant koppelen
 
