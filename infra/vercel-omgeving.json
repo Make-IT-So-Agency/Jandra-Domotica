@@ -1,6 +1,7 @@
 {
   "$uitleg": [
-    "Welke omgevingsvariabelen het Vercel-project hoort te hebben.",
+    "Hoe het Vercel-project hoort te staan: eerst de instellingen van het",
+    "project zelf, daarna de omgevingsvariabelen.",
     "scripts/zet-vercel-omgeving.mjs zet Vercel hiermee gelijk.",
     "",
     "geheim: de waarde komt uit een GitHub Actions-secret met dezelfde naam en",
@@ -12,6 +13,18 @@
     "afgeleid: wordt tijdens het uitrollen bepaald (bijvoorbeeld het adres van",
     "de app zelf) en meegegeven door de workflow."
   ],
+
+  "projectinstellingen": {
+    "$uitleg": [
+      "Instellingen van het project zelf, geen variabelen. Ze worden bij elke",
+      "uitrol gelijkgezet, zodat niemand ze met de hand hoeft te onthouden.",
+      "",
+      "rootDirectory: waar de app in deze repository staat. Zonder dit bouwt",
+      "Vercel de repo-root, vindt daar geen app, en publiceert een lege uitrol.",
+      "Die slaagt gewoon, maar antwoordt daarna overal met 404."
+    ],
+    "rootDirectory": "web"
+  },
 
   "variabelen": [
     {

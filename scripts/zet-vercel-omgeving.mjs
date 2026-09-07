@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Zet de omgevingsvariabelen van het Vercel-project gelijk met wat
- * infra/vercel-omgeving.json declareert.
+ * Zet de instellingen en de omgevingsvariabelen van het Vercel-project gelijk
+ * met wat infra/vercel-omgeving.json declareert.
  *
  *   VERCEL_TOKEN=... VERCEL_PROJECT_ID=... node scripts/zet-vercel-omgeving.mjs
  *   ... node scripts/zet-vercel-omgeving.mjs --droogloop
@@ -64,6 +64,37 @@ async function vercel(pad, opties = {}) {
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
+
+// De instellingen van het project zelf. Deze gaan vóór de variabelen, want de
+// uitrol die hierna volgt leest ze meteen mee met `vercel pull`.
+const instellingen = Object.entries(manifest.projectinstellingen ?? {}).filter(
+  ([sleutel]) => !sleutel.startsWith("$"),
+);
+
+if (instellingen.length > 0) {
+  console.log("Projectinstellingen:");
+  const huidig = await vercel(`/v9/projects/${project}${teamDeel}`);
+  const afwijkend = instellingen.filter(([sleutel, waarde]) => huidig[sleutel] !== waarde);
+
+  if (afwijkend.length === 0) {
+    console.log("  staan al goed");
+  } else if (droogloop) {
+    for (const [sleutel, waarde] of afwijkend) {
+      console.log(
+        `  ${sleutel}: zou van ${JSON.stringify(huidig[sleutel])} naar ${JSON.stringify(waarde)} gaan`,
+      );
+    }
+  } else {
+    await vercel(`/v9/projects/${project}${teamDeel}`, {
+      method: "PATCH",
+      body: JSON.stringify(Object.fromEntries(afwijkend)),
+    });
+    for (const [sleutel, waarde] of afwijkend) {
+      console.log(`  ${sleutel}: gezet op ${JSON.stringify(waarde)}`);
+    }
+  }
+  console.log("\nOmgevingsvariabelen:");
+}
 
 const bestaande = (await vercel(`/v9/projects/${project}/env${teamDeel}`)).envs ?? [];
 const perNaam = new Map();

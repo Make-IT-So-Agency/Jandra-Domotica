@@ -51,7 +51,7 @@ je boekhouding.
 | --- | --- | --- |
 | **CI** | elke push en pull request | tests, typecontrole, build, migraties tegen een lege Postgres |
 | **Databankmigraties** | push naar `main` die `supabase/migrations/` raakt, of met de hand | `supabase db push`, met een droogloop ervoor |
-| **Productie uitrollen** | push naar `main`, of met de hand | omgevingsvariabelen gelijkzetten, dan bouwen en uitrollen |
+| **Productie uitrollen** | push naar `main`, of met de hand | projectinstellingen en omgevingsvariabelen gelijkzetten, dan bouwen en uitrollen |
 | **SQL uitvoeren** | met de hand | een bestand uit `scripts/sql/` draaien, standaard alleen lezen |
 | **Validatie van de integratie** | push naar `main`, en wekelijks | hassfest en de HACS-actie |
 

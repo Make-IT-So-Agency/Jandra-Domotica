@@ -1,7 +1,7 @@
 name: Productie uitrollen
 
-# Zet de omgevingsvariabelen van Vercel gelijk met infra/vercel-omgeving.json en
-# rolt daarna uit.
+# Zet het Vercel-project gelijk met infra/vercel-omgeving.json — zowel de
+# instellingen van het project als de omgevingsvariabelen — en rolt daarna uit.
 #
 # Migraties zitten bewust in een aparte workflow. Bij een push naar main lopen
 # de twee naast elkaar en staat niet vast wie eerst klaar is; wanneer de
@@ -52,7 +52,7 @@ jobs:
           fi
           echo "Alle instellingen aanwezig."
 
-      - name: Omgevingsvariabelen gelijkzetten
+      - name: Vercel-project gelijkzetten
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}

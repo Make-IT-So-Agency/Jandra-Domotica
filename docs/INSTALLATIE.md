@@ -11,7 +11,7 @@ Wat er in code staat:
 | `supabase/migrations/*.sql` | De tabellen in de databank, in volgorde van tijdstempel |
 | `infra/vercel-omgeving.json` | Welke omgevingsvariabelen het Vercel-project hoort te hebben |
 | `.github/workflows/migraties.yml` | De migraties toepassen met de Supabase CLI |
-| `.github/workflows/productie-uitrollen.yml` | Omgevingsvariabelen gelijkzetten en uitrollen |
+| `.github/workflows/productie-uitrollen.yml` | Vercel-project gelijkzetten en uitrollen |
 
 Wat niet in code staat, omdat het eenmalig is en niet herhaald wordt: het
 aanmaken van de accounts zelf, en het Google-luik voor het inloggen.
@@ -37,16 +37,19 @@ aanmaken van de accounts zelf, en het Google-luik voor het inloggen.
 1. Ga naar [vercel.com](https://vercel.com) en maak een account.
 2. Maak een **leeg project** aan: *Add New → Project → Create a new project*
    zonder repository te koppelen.
-3. Ga in dat project naar **Settings → General** en zet **Root Directory** op
-   `web`.
-4. Noteer op diezelfde pagina de **Project ID**. Onder **Settings → General**
-   van je account of team vind je de **Team ID** (of je gebruikers-ID als je
-   geen team hebt).
-5. Maak een token: **Settings → Tokens → Create**, vervaldatum 90 dagen.
+3. Noteer bij **Settings → General** de **Project ID**. Onder **Settings →
+   General** van je account of team vind je de **Team ID** (of je gebruikers-ID
+   als je geen team hebt).
+4. Maak een token: **Settings → Tokens → Create**, vervaldatum 90 dagen.
 
 > Koppel de repository bewust **niet** aan Vercel. Het uitrollen gebeurt vanuit
 > de workflow, zodat er één plek is die bepaalt wat er live staat. Twee systemen
 > die allebei deployen leidt tot verrassingen.
+>
+> **Root Directory** hoef je niet zelf te zetten. Die staat in
+> `infra/vercel-omgeving.json` en wordt bij elke uitrol gelijkgezet. Staat hij
+> verkeerd, dan bouwt Vercel de repo-root, vindt daar geen app, en publiceert
+> een lege uitrol die gewoon slaagt maar overal 404 antwoordt.
 
 ## 3. Drie willekeurige sleutels maken
 
