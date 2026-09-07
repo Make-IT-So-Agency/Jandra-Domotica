@@ -48,50 +48,89 @@ aanmaken van de accounts zelf, en het Google-luik voor het inloggen.
 > de workflow, zodat er één plek is die bepaalt wat er live staat. Twee systemen
 > die allebei deployen leidt tot verrassingen.
 
-## 3. Sleutels aanmaken
+## 3. Drie willekeurige sleutels maken
 
-Drie geheimen die de app zelf gebruikt. Voer uit in een terminal:
+Deze haal je nergens op: je laat je computer drie willekeurige reeksen tekens
+genereren. Ze hebben geen betekenis, ze moeten alleen lang en onvoorspelbaar
+zijn.
+
+**Op een Mac** — open **Terminal** (Cmd+Space, typ "terminal") en plak:
 
 ```bash
-openssl rand -base64 32   # wordt AUTH_SECRET
-openssl rand -hex 32      # wordt INGEST_API_KEY
-openssl rand -hex 32      # wordt CRON_SECRET
+for i in 1 2 3; do openssl rand -hex 32; done
 ```
 
-Bewaar de `INGEST_API_KEY` apart: die vul je straks in Home Assistant in.
+**Op Windows** — open **PowerShell** (Start, typ "powershell") en plak:
+
+```powershell
+1..3 | % {
+  $b = New-Object byte[] 32
+  [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+  ($b | % { $_.ToString("x2") }) -join ""
+}
+```
+
+Niet `Get-Random` gebruiken: die is bedoeld voor dobbelstenen, niet voor
+sleutels. Bovenstaande gebruikt de generator van Windows zelf.
+
+Je krijgt drie regels van 64 tekens, ongeveer zo:
+
+```
+3f8a1c9e04b7d2650fa38e17cb94d0a25e6f7381bc4029da5187ef3c6b0a94d1
+b71e05c8f394a2d6018be7f52a9c3d40817ef6b902c5da3e64f18a70bd259ce3
+9c04e7b1a58d3f26074c9eb238a15d60f7382bce019a4d5f68e7c02b91a3d485
+```
+
+Bewaar ze met een label erbij:
+
+| Regel | Wordt | Ook nodig voor |
+| --- | --- | --- |
+| 1e | `AUTH_SECRET` | — |
+| 2e | `INGEST_API_KEY` | **ook in Home Assistant, stap 7** |
+| 3e | `CRON_SECRET` | — |
+
+Geen terminal bij de hand? Elke wachtwoordgenerator werkt ook, zolang je drie
+verschillende reeksen van minstens 40 tekens neemt.
 
 ## 4. Alles in GitHub zetten
 
-Maak eerst de omgeving aan: repository → **Settings → Environments → New
-environment**, naam exact `productie`. De workflows verwijzen daarnaar, en zo
-kan je er later een goedkeuringsstap voor zetten.
+Maak eerst de omgeving aan. In je repository: **Settings** (tabblad bovenaan) →
+**Environments** (linkermenu) → **New environment** → naam exact `productie` →
+**Configure environment**.
 
-Zet in díe omgeving (**Environment secrets** en **Environment variables**):
+Op die pagina staan twee blokken: **Environment secrets** en **Environment
+variables**. Gebruik díe, en niet de gewone repository-secrets — de workflows
+kijken in deze omgeving.
 
-**Secrets:**
+### Environment secrets
 
-| Naam | Waarde |
-| --- | --- |
-| `SUPABASE_ACCESS_TOKEN` | het access token uit stap 1 |
-| `SUPABASE_DB_PASSWORD` | het databankwachtwoord uit stap 1 |
-| `SUPABASE_URL` | de Project URL uit stap 1 |
-| `SUPABASE_SERVICE_ROLE_KEY` | de service_role sleutel uit stap 1 |
-| `VERCEL_TOKEN` | het token uit stap 2 |
-| `AUTH_SECRET` | de eerste sleutel uit stap 3 |
-| `INGEST_API_KEY` | de tweede sleutel uit stap 3 |
-| `CRON_SECRET` | de derde sleutel uit stap 3 |
-| `TOEGELATEN_EMAILS` | jouw e-mailadres |
+Knop *Add environment secret*, één per rij.
 
-**Variables:**
+| Naam | Wat je invult | Waar je het vindt | Ziet uit als |
+| --- | --- | --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | je Supabase access token | supabase.com → profielicoon rechtsboven → Access Tokens | `sbp_a1b2c3...` |
+| `SUPABASE_DB_PASSWORD` | het databankwachtwoord dat **jij** koos | uit je eigen notities van stap 1 | wat je zelf koos |
+| `SUPABASE_URL` | de Project URL | Supabase → Project Settings → API → *Project URL* | `https://abcdefgh.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | de service_role sleutel | Supabase → Project Settings → API → onder *Project API keys*, rij `service_role`, klik **Reveal** | lange reeks, begint met `eyJ` of `sb_secret_` |
+| `VERCEL_TOKEN` | je Vercel token | vercel.com → Settings → Tokens → Create | `vercel_a1b2c3...` |
+| `AUTH_SECRET` | **1e regel** uit stap 3 | je notities | 64 tekens |
+| `INGEST_API_KEY` | **2e regel** uit stap 3 | je notities | 64 tekens |
+| `CRON_SECRET` | **3e regel** uit stap 3 | je notities | 64 tekens |
+| `TOEGELATEN_EMAILS` | je eigen e-mailadres | — | `jan@makeitso.be` |
 
-| Naam | Waarde |
-| --- | --- |
-| `SUPABASE_PROJECT_REF` | de project-ref uit stap 1 |
-| `VERCEL_PROJECT_ID` | de Project ID uit stap 2 |
-| `VERCEL_ORG_ID` | de Team ID uit stap 2 |
+### Environment variables
 
-`AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` en `AUTH_URL` volgen in stap 6. De
-workflow slaat ze zolang over en zegt dat erbij.
+Knop *Add environment variable*.
+
+| Naam | Wat je invult | Waar je het vindt | Ziet uit als |
+| --- | --- | --- | --- |
+| `SUPABASE_PROJECT_REF` | het middenstuk van je Project URL | uit `https://abcdefgh.supabase.co` neem je `abcdefgh` | 20 kleine letters |
+| `VERCEL_PROJECT_ID` | de Project ID | Vercel → je project → Settings → General, onderaan | `prj_a1b2c3...` |
+| `VERCEL_ORG_ID` | de Team ID | Vercel → Settings van je **account of team**, niet van het project → General | `team_a1b2...`, of je gebruikers-ID |
+
+`AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` en `AUTH_URL` laat je nog leeg. Die
+kunnen pas in stap 6, want daarvoor moet je eerst het adres van je app kennen.
+De workflow slaat ze zolang over en zegt dat in de uitvoer.
 
 > Waarom die drie ID's variabelen zijn en geen secrets: het zijn verwijzingen,
 > geen geheimen. Zo blijft in de logboeken zichtbaar naar welk project er
