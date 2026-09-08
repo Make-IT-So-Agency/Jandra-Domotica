@@ -179,7 +179,7 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | `web/lib/gebruikers.ts` | Gebruikers lezen en schrijven in de databank |
 | `web/lib/billing.ts` | Kostenberekening en afronding |
 | `web/lib/periods.ts` | Maanden en kwartalen in Belgische tijd |
-| `web/lib/creg.ts` | Het tarief van een webpagina plukken |
+| `web/lib/creg.ts` | Het kwartaaltarief uit het CSV-bestand van CREG lezen; op een gewone webpagina terugvallen op raden in de tekst |
 | `web/lib/reports.ts` | Een rapport samenstellen en bewaren |
 | `web/lib/pdf.tsx` / `web/lib/excel.ts` | De documenten renderen |
 | `web/app/api/ingest/route.ts` | Waar Home Assistant zijn data aflevert |

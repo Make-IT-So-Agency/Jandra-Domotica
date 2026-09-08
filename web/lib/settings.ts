@@ -14,10 +14,11 @@ export const STANDAARD_INSTELLINGEN: Instellingen = {
     btw_nummer: "",
   },
   regio: "vlaanderen",
-  // Startpunt voor de automatische tariefophaling. Aanpasbaar in de app, want
-  // de overheid verhuist zo'n pagina wel eens.
-  tarief_bron_url:
-    "https://financien.belgium.be/nl/ondernemingen/personeel_en_loon/voordelen_van_alle_aard/elektriciteit-laadpaal",
+  // Het CSV-bestand achter de CREG-tabel met de maximumtarieven. Aanpasbaar in
+  // de app: verhuist het bestand, dan zet je hier een ander adres. Wijst dit
+  // naar een gewone webpagina, dan zoekt de app het bedrag in de tekst -- dat
+  // lukt minder vaak, en de bron van de FOD staat achter een botcontrole.
+  tarief_bron_url: "https://www.creg.be/sites/default/files/assets/Prices/CREG_Tariff_EV.csv",
 };
 
 export async function leesInstellingen(): Promise<Instellingen> {

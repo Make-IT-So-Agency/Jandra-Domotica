@@ -62,6 +62,89 @@ function naarGetal(tekst: string): number | null {
   return Number.isFinite(waarde) ? waarde : null;
 }
 
+/** Hoe de gewesten in de kopregel van het CREG-bestand heten. */
+const REGIO_CSV_WOORD: Record<Regio, string> = {
+  vlaanderen: "flanders",
+  brussel: "brussels",
+  wallonie: "wallonia",
+};
+
+export interface CsvResultaat {
+  /** Null als het bestand klopt maar dit kwartaal er nog niet in staat. */
+  kandidaat: TariefKandidaat | null;
+  /** De rij waar het bedrag hoort te staan, om dat te kunnen melden. */
+  gezocht: { jaar: number; maand: number };
+}
+
+/**
+ * De rij waaruit het kwartaalbedrag komt.
+ *
+ * CREG vult de kolom "Average 3 months (M-2 to M-4)" enkel in op de eerste
+ * maand van een kwartaal, en dat gemiddelde geldt voor het kwartaal dáárna.
+ * Nagegaan tegen de tabel op de CREG-pagina zelf: rij 2026;4 geeft 32,22 en dat
+ * noemt CREG Q3/2026; rij 2026;7 geeft 32,25 voor Q4/2026; rij 2024;10 geeft
+ * 28,22 voor Q1/2025.
+ */
+function bronrij(jaar: number, kwartaal: number): { jaar: number; maand: number } {
+  const vorige = kwartaal === 1 ? 4 : kwartaal - 1;
+  return {
+    jaar: kwartaal === 1 ? jaar - 1 : jaar,
+    maand: (vorige - 1) * 3 + 1,
+  };
+}
+
+/**
+ * Leest het kwartaalbedrag uit het CSV-bestand dat CREG publiceert.
+ *
+ * Geeft null als dit geen CREG-bestand blijkt; dan valt de aanroeper terug op
+ * het raden in gewone tekst. Dat onderscheid is opzettelijk: een verkeerd
+ * gelezen bestand is erger dan een eerlijke "niet gevonden".
+ */
+export function leesCregCsv(
+  csv: string,
+  regio: Regio,
+  periode: { jaar: number; kwartaal: number },
+): CsvResultaat | null {
+  // Het bestand begint met een byte order mark.
+  const regels = csv.replace(/^﻿/, "").split(/\r?\n/).filter((r) => r.trim() !== "");
+  if (regels.length < 2) return null;
+
+  const koppen = regels[0].split(";").map((k) => k.trim().toLowerCase());
+  if (!koppen[0]?.startsWith("year") || !koppen[1]?.startsWith("month")) return null;
+
+  const woord = REGIO_CSV_WOORD[regio];
+  const kolom = koppen.findIndex((kop) => kop.includes(woord) && kop.includes("average"));
+  if (kolom === -1) return null;
+
+  const gezocht = bronrij(periode.jaar, periode.kwartaal);
+
+  for (const regel of regels.slice(1)) {
+    const velden = regel.split(";").map((v) => v.trim());
+    if (Number(velden[0]) !== gezocht.jaar || Number(velden[1]) !== gezocht.maand) continue;
+
+    const cent = naarGetal(velden[kolom] ?? "");
+    if (cent === null) break;
+
+    const bedrag = cent / 100;
+    if (bedrag < MIN_EUR_PER_KWH || bedrag > MAX_EUR_PER_KWH) break;
+
+    return {
+      gezocht,
+      kandidaat: {
+        eur_per_kwh: Math.round(bedrag * 100000) / 100000,
+        fragment:
+          `CREG-bestand, rij ${gezocht.jaar}-${String(gezocht.maand).padStart(2, "0")}, ` +
+          `kolom "${regels[0].split(";")[kolom]?.trim()}": ${velden[kolom]} c€/kWh`,
+        // Jaar, maand en gewest komen alle drie uit het bestand zelf; hier valt
+        // niets te raden, dus dit is de hoogste zekerheid die we uitdrukken.
+        score: 3,
+      },
+    };
+  }
+
+  return { kandidaat: null, gezocht };
+}
+
 /**
  * Zoek bedragen per kWh in de tekst en beoordeel hoe waarschijnlijk ze zijn.
  *
@@ -136,7 +219,7 @@ export async function haalTariefOp(
   kwartaalHint: { jaar: number; kwartaal: number },
   fetchImpl: typeof fetch = fetch,
 ): Promise<OphaalResultaat> {
-  let html: string;
+  let inhoud: string;
   try {
     const antwoord = await fetchImpl(bronUrl, {
       headers: { "User-Agent": "laadkosten-rapportage/1.0" },
@@ -152,7 +235,7 @@ export async function haalTariefOp(
         melding: `De bronpagina gaf statuscode ${antwoord.status}. Vul het tarief handmatig in.`,
       };
     }
-    html = await antwoord.text();
+    inhoud = await antwoord.text();
   } catch (fout) {
     return {
       gelukt: false,
@@ -164,7 +247,34 @@ export async function haalTariefOp(
     };
   }
 
-  const kandidaten = zoekTariefKandidaten(htmlNaarTekst(html), regio, kwartaalHint);
+  // Is dit het CSV-bestand van CREG, dan valt er niets te raden: jaar, maand en
+  // gewest staan er met naam in. Enkel als het dat níet is, vallen we terug op
+  // het zoeken in gewone tekst.
+  const csv = leesCregCsv(inhoud, regio, kwartaalHint);
+  if (csv) {
+    if (csv.kandidaat) {
+      return {
+        gelukt: true,
+        kandidaten: [csv.kandidaat],
+        bron_url: bronUrl,
+        melding:
+          "Bedrag uit het CREG-bestand, voor dit gewest en dit kwartaal. " +
+          "Kijk het even na en bevestig.",
+      };
+    }
+    const maand = `${csv.gezocht.jaar}-${String(csv.gezocht.maand).padStart(2, "0")}`;
+    return {
+      gelukt: false,
+      kandidaten: [],
+      bron_url: bronUrl,
+      melding:
+        `Het CREG-bestand heeft nog geen cijfer voor dit kwartaal; dat hoort in de rij ${maand} ` +
+        "te komen. CREG publiceert het bij de start van het vorige kwartaal. " +
+        "Vul het tarief handmatig in.",
+    };
+  }
+
+  const kandidaten = zoekTariefKandidaten(htmlNaarTekst(inhoud), regio, kwartaalHint);
   if (kandidaten.length === 0) {
     return {
       gelukt: false,

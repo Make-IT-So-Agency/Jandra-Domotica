@@ -92,15 +92,17 @@ export default async function Instellingenpagina({
             <p className="hulp">Bepaalt welk maximumtarief van toepassing is.</p>
           </div>
           <div style={{ gridColumn: "span 2" }}>
-            <label htmlFor="tarief_bron_url">Bronpagina voor het automatische tarief</label>
+            <label htmlFor="tarief_bron_url">Bron voor het automatische tarief</label>
             <input
               id="tarief_bron_url"
               name="tarief_bron_url"
               defaultValue={instellingen.tarief_bron_url}
             />
             <p className="hulp">
-              De overheid publiceert dit cijfer als tekst op een webpagina, niet als
-              gegevensbron. Verhuist die pagina, dan pas je hier het adres aan.
+              Standaard het CSV-bestand van CREG: daarin staan jaar, maand en gewest met
+              naam, dus daar valt niets te raden. Verhuist het bestand, dan pas je hier
+              het adres aan. Zet je hier een gewone webpagina, dan zoekt de app het
+              bedrag in de tekst — dat lukt minder vaak.
             </p>
           </div>
         </div>
