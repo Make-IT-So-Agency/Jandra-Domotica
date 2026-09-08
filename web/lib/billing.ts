@@ -189,7 +189,6 @@ export function rekenSessiesDoor(
       sessie_id: sessie.id,
       external_id: sessie.external_id,
       laadpaal: laadpaal || "onbekend",
-      voertuig: sessie.vehicle,
       gestart: sessie.started_at,
       gestopt: sessie.finished_at,
       kwh,

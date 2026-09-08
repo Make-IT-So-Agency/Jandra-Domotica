@@ -24,7 +24,6 @@ const RAPPORT: RapportMomentopname = {
       sessie_id: "s1",
       external_id: "evcc:1",
       laadpaal: "Garage",
-      voertuig: "Auto",
       gestart: "2026-07-03T18:00:00Z",
       gestopt: "2026-07-03T22:30:00Z",
       kwh: 31.42,
@@ -38,7 +37,6 @@ const RAPPORT: RapportMomentopname = {
       sessie_id: "s2",
       external_id: "evcc:2",
       laadpaal: "Garage",
-      voertuig: null,
       gestart: "2026-07-11T19:00:00Z",
       gestopt: "2026-07-11T23:00:00Z",
       kwh: 18.5,
@@ -109,16 +107,23 @@ describe("maakRapportExcel", () => {
     ]);
 
     const sessies = werkmap.getWorksheet("Sessies")!;
-    // Kolomsleutels overleven het wegschrijven naar xlsx niet, dus tellen we
-    // hier op kolomnummer: 5 is kWh, 9 is het bedrag inclusief btw.
-    const KOLOM_KWH = 5;
-    const KOLOM_INCL = 9;
+
+    // Kolomsleutels overleven het wegschrijven naar xlsx niet, dus zoeken we de
+    // kolom op via haar kop. Op een vast kolomnummer rekenen brak deze test
+    // zodra er een kolom bij kwam of wegviel, en dat zei niets over de inhoud.
+    const koppen = (sessies.getRow(1).values as unknown[]).map((waarde) => String(waarde ?? ""));
+    const kolom = (naam: string) => {
+      const nummer = koppen.indexOf(naam);
+      expect(nummer, `kolom "${naam}" ontbreekt`).toBeGreaterThan(0);
+      return nummer;
+    };
+
+    expect(koppen).not.toContain("Voertuig");
 
     // Rij 1 is de kop, rij 2 en 3 de sessies, rij 4 het totaal.
     expect(sessies.rowCount).toBe(4);
-    expect(sessies.getRow(1).getCell(KOLOM_KWH).value).toBe("kWh");
-    expect(sessies.getRow(2).getCell(KOLOM_KWH).value).toBe(31.42);
-    expect(sessies.getRow(4).getCell(KOLOM_INCL).value).toBe(14.09);
+    expect(sessies.getRow(2).getCell(kolom("kWh")).value).toBe(31.42);
+    expect(sessies.getRow(4).getCell(kolom("Incl. btw")).value).toBe(14.09);
   }, 30000);
 
   it("laat het blad Meterstanden weg als er geen zijn", async () => {

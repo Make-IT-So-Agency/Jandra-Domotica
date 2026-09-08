@@ -58,7 +58,6 @@ export interface RapportRegel {
   sessie_id: string;
   external_id: string;
   laadpaal: string;
-  voertuig: string | null;
   gestart: string | null;
   gestopt: string | null;
   kwh: number;

@@ -108,13 +108,12 @@ const stijl = StyleSheet.create({
 
 // Kolombreedtes van de sessietabel, samen 100.
 const kolom = {
-  datum: { width: "17%" },
-  laadpaal: { width: "17%" },
-  voertuig: { width: "18%" },
-  kwh: { width: "11%", textAlign: "right" as const },
-  tarief: { width: "13%", textAlign: "right" as const },
-  excl: { width: "12%", textAlign: "right" as const },
-  btw: { width: "12%", textAlign: "right" as const },
+  datum: { width: "22%" },
+  laadpaal: { width: "24%" },
+  kwh: { width: "12%", textAlign: "right" as const },
+  tarief: { width: "14%", textAlign: "right" as const },
+  excl: { width: "14%", textAlign: "right" as const },
+  btw: { width: "14%", textAlign: "right" as const },
 };
 
 function Kop({ rapport, referentie }: { rapport: RapportMomentopname; referentie: string }) {
@@ -198,7 +197,6 @@ function Sessietabel({ rapport }: { rapport: RapportMomentopname }) {
       <View style={stijl.tabelKop} fixed>
         <Text style={[stijl.kopCel, kolom.datum]}>Gestart</Text>
         <Text style={[stijl.kopCel, kolom.laadpaal]}>Laadpaal</Text>
-        <Text style={[stijl.kopCel, kolom.voertuig]}>Voertuig</Text>
         <Text style={[stijl.kopCel, kolom.kwh]}>kWh</Text>
         <Text style={[stijl.kopCel, kolom.tarief]}>Tarief</Text>
         <Text style={[stijl.kopCel, kolom.excl]}>Excl. btw</Text>
@@ -209,7 +207,6 @@ function Sessietabel({ rapport }: { rapport: RapportMomentopname }) {
         <View key={regel.sessie_id} style={stijl.rij} wrap={false}>
           <Text style={kolom.datum}>{datumTijd(regel.gestart)}</Text>
           <Text style={kolom.laadpaal}>{regel.laadpaal}</Text>
-          <Text style={kolom.voertuig}>{regel.voertuig ?? "—"}</Text>
           <Text style={kolom.kwh}>
             {regel.kwh.toLocaleString("nl-BE", { maximumFractionDigits: 2 })}
           </Text>
@@ -222,7 +219,6 @@ function Sessietabel({ rapport }: { rapport: RapportMomentopname }) {
       <View style={stijl.totaalRij}>
         <Text style={[stijl.vet, kolom.datum]}>Totaal</Text>
         <Text style={kolom.laadpaal} />
-        <Text style={kolom.voertuig} />
         <Text style={[stijl.vet, kolom.kwh]}>
           {rapport.totalen.kwh.toLocaleString("nl-BE", { maximumFractionDigits: 2 })}
         </Text>

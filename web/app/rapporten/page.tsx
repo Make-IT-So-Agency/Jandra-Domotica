@@ -300,7 +300,6 @@ function Voorbeeld({
               <tr>
                 <th>Gestart</th>
                 <th>Laadpaal</th>
-                <th>Voertuig</th>
                 <th className="getal">kWh</th>
                 <th className="getal">Tarief</th>
                 <th className="getal">Excl. btw</th>
@@ -313,7 +312,6 @@ function Voorbeeld({
                 <tr key={regel.sessie_id}>
                   <td data-label="Gestart">{datumTijd(regel.gestart)}</td>
                   <td data-label="Laadpaal">{regel.laadpaal}</td>
-                  <td data-label="Voertuig">{regel.voertuig ?? "—"}</td>
                   <td data-label="kWh" className="getal">{kwh(regel.kwh)}</td>
                   <td data-label="Tarief" className="getal">{tariefPerKwh(regel.tarief_per_kwh)}</td>
                   <td data-label="Excl. btw" className="getal">{euro(regel.bedrag_excl_btw)}</td>

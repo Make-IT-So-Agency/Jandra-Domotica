@@ -297,7 +297,6 @@ export default async function Overzichtspagina() {
               <tr>
                 <th>Gestart</th>
                 <th>Laadpaal</th>
-                <th>Voertuig</th>
                 <th className="getal">kWh (net)</th>
                 <th className="getal">kWh (zon)</th>
                 <th className="getal">kWh (totaal)</th>
@@ -312,7 +311,6 @@ export default async function Overzichtspagina() {
                   <tr key={sessie.id}>
                     <td data-label="Gestart">{datumTijd(sessie.started_at)}</td>
                     <td data-label="Laadpaal">{sessie.loadpoint_name ?? "—"}</td>
-                    <td data-label="Voertuig">{sessie.vehicle ?? "—"}</td>
                     <td data-label="kWh (net)" className="getal">{kwh(deel.net)}</td>
                     <td data-label="kWh (zon)" className="getal">{kwh(deel.zon)}</td>
                     <td data-label="kWh (totaal)" className="getal">{kwh(deel.totaal)}</td>
