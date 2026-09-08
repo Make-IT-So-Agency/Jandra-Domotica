@@ -429,13 +429,8 @@ td.smal {
 /* Iconen in de tegels. De woorden zitten in title en aria-label, zodat het
    icoon de tekst vervangt en niet de betekenis. */
 .tegel-icoon {
-  margin-right: 5px;
+  /* De afstand tot het getal komt van de kolomruimte in het raster. */
   cursor: default;
-}
-
-.tegel-icoon.totaal {
-  color: var(--zacht);
-  font-weight: 600;
 }
 
 .tegel-icoon.net {
@@ -446,9 +441,21 @@ td.smal {
   color: var(--let-op);
 }
 
-.tegel-scheiding {
-  margin: 0 8px;
-  color: var(--lijn);
+/* De cijfers onder het totaal: elk op een eigen regel, met de iconen in een
+   eigen kolom zodat de getallen onder elkaar uitkomen. */
+.tegel-metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 6px;
+  row-gap: 2px;
+  align-items: baseline;
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+.tegel-metrics dd {
+  margin: 0;
 }
 
 .leeg {

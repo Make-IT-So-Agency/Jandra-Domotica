@@ -357,38 +357,6 @@ function Voorbeeld({
         </details>
       ) : null}
 
-      {voorbereiding.meterstanden.length > 0 ? (
-        <>
-          <h2>Meterstanden ter controle</h2>
-          <div className="tabel-omhulsel">
-            <table>
-              <thead>
-                <tr>
-                  <th>Laadpaal</th>
-                  <th className="getal">Begin</th>
-                  <th className="getal">Einde</th>
-                  <th className="getal">Verschil</th>
-                  <th className="getal">Som sessies</th>
-                  <th className="getal">Afwijking</th>
-                </tr>
-              </thead>
-              <tbody>
-                {voorbereiding.meterstanden.map((stand) => (
-                  <tr key={stand.laadpaal}>
-                    <td data-label="Laadpaal">{stand.laadpaal}</td>
-                    <td data-label="Begin" className="getal">{kwh(stand.begin_kwh)}</td>
-                    <td data-label="Einde" className="getal">{kwh(stand.eind_kwh)}</td>
-                    <td data-label="Verschil" className="getal">{kwh(stand.verschil_kwh)}</td>
-                    <td data-label="Som sessies" className="getal">{kwh(stand.sessies_kwh)}</td>
-                    <td data-label="Afwijking" className="getal">{kwh(stand.afwijking_kwh)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : null}
-
       {klaar ? (
         <form action={maakRapport} style={{ marginTop: 20 }}>
           <input type="hidden" name="vennootschap" value={voorbereiding.vennootschap.id} />
