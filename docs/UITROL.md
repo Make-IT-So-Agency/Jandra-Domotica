@@ -5,7 +5,7 @@
 ```
   wijziging in de repository
         │
-        ├─── CI: tests, typecontrole, build, migraties tegen een lege Postgres
+        ├─── CI: tests, typecontrole, build, migraties + conflictdoelen
         │        faalt dit, dan stopt het hier
         │
         └─── merge naar main
@@ -49,7 +49,7 @@ je boekhouding.
 
 | Workflow | Wanneer | Wat |
 | --- | --- | --- |
-| **CI** | elke push en pull request | tests, typecontrole, build, migraties tegen een lege Postgres |
+| **CI** | elke push en pull request | tests, typecontrole, build, migraties tegen een lege Postgres, conflictdoelen van de upserts |
 | **Databankmigraties** | push naar `main` die `supabase/migrations/` raakt, of met de hand | `supabase db push`, met een droogloop ervoor |
 | **Productie uitrollen** | push naar `main`, of met de hand | projectinstellingen en omgevingsvariabelen gelijkzetten, dan bouwen en uitrollen |
 | **SQL uitvoeren** | met de hand | een bestand uit `scripts/sql/` draaien, standaard alleen lezen |

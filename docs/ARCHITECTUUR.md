@@ -171,7 +171,8 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | `custom_components/laadkosten/session_mapper.py` | evcc-sessies omzetten; los te testen, geen HA-afhankelijkheid |
 | `custom_components/laadkosten/api.py` | Praten met evcc en met de app |
 | `supabase/migrations/` | Het databankschema, in volgorde van tijdstempel |
-| `scripts/test-migraties.sh` | Draait de migraties tweemaal tegen een lege Postgres |
+| `scripts/test-migraties.sh` | Draait de migraties tweemaal tegen een lege Postgres, en toetst de conflictdoelen |
+| `scripts/controleer-conflictdoelen.mjs` | Leest de `onConflict` uit de webapp en eist een unieke index op precies die kolommen |
 | `scripts/sql/` | Vragen aan de databank, via de workflow SQL uitvoeren |
 | `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
 | `web/lib/toegang.ts` | De aangemelde gebruiker met zijn actuele rol |
@@ -287,7 +288,7 @@ verrassingen over wat er nu eigenlijk live staat.
 python3 -m pytest tests/     # 20 tests op de sessieomzetting
 cd web && npm test           # 76 tests op berekening, periodes, tarieven,
                              # documenten en toegangsrechten
-scripts/test-migraties.sh    # alle migraties tweemaal tegen een lege Postgres
+scripts/test-migraties.sh    # alle migraties tweemaal tegen een lege Postgres, plus de conflictdoelen
 ```
 
 De documenttests genereren een echte PDF en een echte Excel en lezen die weer

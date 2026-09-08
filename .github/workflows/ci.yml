@@ -87,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Migraties tegen een lege Postgres
+      - name: Migraties en conflictdoelen tegen een lege Postgres
         # De runner heeft PostgreSQL al staan; het script zet zijn eigen
         # tijdelijke server op met enkel een unix-socket. Geen service-container
         # nodig, dus deze job loopt naast de andere in plaats van erachter.

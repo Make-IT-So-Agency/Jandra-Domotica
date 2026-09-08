@@ -106,4 +106,16 @@ for controle in "$(dirname "$MIGRATIES")/../scripts/sql"/test-*.sql; do
   psql -h "$SOCKET" -U postgres -d proef -v ON_ERROR_STOP=1 -f "$controle"
 done
 
+# De upserts in de webapp gebruiken ON CONFLICT. Postgres aanvaardt dat enkel
+# met een unieke index op precies die kolommen, en het verschil met een index op
+# een expressie is onzichtbaar tot een uitrol. Hier is het schema er net, dus
+# hier valt dat te toetsen.
+echo "Controleren of elke upsert een bruikbaar conflictdoel heeft…"
+HIER="$(cd "$(dirname "$0")" && pwd)"
+if command -v node >/dev/null; then
+  node "$HIER/controleer-conflictdoelen.mjs" "$SOCKET" proef || ontbreekt=1
+else
+  echo "  OVERGESLAGEN: node niet gevonden, deze controle draaide niet"
+fi
+
 exit $ontbreekt
