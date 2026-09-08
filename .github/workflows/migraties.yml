@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: productie
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bevestiging bij een handmatige start
         if: github.event_name == 'workflow_dispatch'
