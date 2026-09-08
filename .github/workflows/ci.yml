@@ -21,7 +21,7 @@ jobs:
     name: Home Assistant-integratie
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -85,7 +85,7 @@ jobs:
     name: Databankschema
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Migraties en conflictdoelen tegen een lege Postgres
         # De runner heeft PostgreSQL al staan; het script zet zijn eigen
@@ -100,7 +100,7 @@ jobs:
     name: Geen sleutels in de code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Zoeken naar per ongeluk vastgelegde sleutels
         # Goedkope vangnetcontrole: een echte Supabase-sleutel is een JWT die
