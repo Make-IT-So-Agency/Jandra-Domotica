@@ -15,6 +15,8 @@ import { leesTarieven } from "@/lib/tariffs";
 import { vereistGebruiker } from "@/lib/toegang";
 import type { Laadpaal, Laadsessie, Vennootschap } from "@/lib/types";
 
+import { VerdelingPerLaadpaal } from "./verdeling-laadpalen";
+
 export const dynamic = "force-dynamic";
 
 interface Overzicht {
@@ -256,20 +258,20 @@ export default async function Overzichtspagina() {
         <div className="tegel">
           <div className="label">Deze maand geladen</div>
           <div className="waarde">{kwh(maandVerdeling.totaal)}</div>
-          <dl className="tegel-metrics">
-            <dt className="tegel-icoon net" title="Van het net" aria-label="Van het net" role="img">
-              ⚡
-            </dt>
-            <dd>{kwh(maandVerdeling.net)}</dd>
+          <div className="tegel-onder">
+            <dl className="tegel-metrics">
+              <dt className="tegel-icoon net" title="Van het net" aria-label="Van het net" role="img">
+                ⚡
+              </dt>
+              <dd>{kwh(maandVerdeling.net)}</dd>
 
-            <dt className="tegel-icoon zon" title="Van de zon" aria-label="Van de zon" role="img">
-              ☀
-            </dt>
-            <dd>{kwh(maandVerdeling.zon)}</dd>
-
-            <dt aria-hidden="true" />
-            <dd>{afgerondDezeMaand.length} sessies</dd>
-          </dl>
+              <dt className="tegel-icoon zon" title="Van de zon" aria-label="Van de zon" role="img">
+                ☀
+              </dt>
+              <dd>{kwh(maandVerdeling.zon)}</dd>
+            </dl>
+            <div className="bij">{afgerondDezeMaand.length} sessies</div>
+          </div>
         </div>
         <div className="tegel">
           <div className="label">Laadpalen</div>
@@ -289,6 +291,7 @@ export default async function Overzichtspagina() {
             <div className="bij">die kosten terugbetalen</div>
           </div>
         ) : null}
+        <VerdelingPerLaadpaal sessies={overzicht.sessiesDezeMaand} />
       </div>
 
       <h2>Laatste laadsessies</h2>

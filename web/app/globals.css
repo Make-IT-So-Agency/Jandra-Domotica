@@ -458,6 +458,81 @@ td.smal {
   margin: 0;
 }
 
+/* Het aantal sessies staat naast de kWh-cijfers en niet eronder: het is een
+   ander soort getal en hoort niet in dezelfde kolom mee te tellen. */
+.tegel-onder {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tegel-onder .bij {
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* --- Verdeling per laadpaal ---------------------------------------------- */
+.tegel-breed {
+  grid-column: span 2;
+}
+
+@media (max-width: 700px) {
+  .tegel-breed {
+    grid-column: auto;
+  }
+}
+
+.verdeling-balk {
+  display: block;
+  width: 100%;
+  height: 10px;
+  margin: 10px 0 12px;
+}
+
+.verdeling-legende {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.verdeling-legende > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.verdeling-legende dt {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verdeling-legende dd {
+  margin: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.verdeling-stip {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: translateY(1px);
+}
+
+.verdeling-kwh {
+  margin-left: 8px;
+  color: var(--zacht);
+}
+
 .leeg {
   color: var(--zacht);
   padding: 24px;
