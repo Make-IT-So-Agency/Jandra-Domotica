@@ -250,6 +250,13 @@ strandt wat eraan scheelt:
 
 ## 7. Home Assistant koppelen
 
+> Hiervoor moet de repository **publiek** staan. HACS kan geen privérepository
+> uitlezen — het haalt uitsluitend publiek beschikbare informatie op, en meldt
+> zich bij GitHub aan met een token zonder scopes. Er is dus geen token dat je
+> daarvoor kan invullen. Wil je de repository privé houden, kopieer dan
+> `custom_components/laadkosten/` met de hand naar `config/custom_components/`
+> van je Home Assistant; dan werkt alles behalve het automatisch bijwerken.
+
 1. Open HACS → drie puntjes rechtsboven → **Custom repositories** → plak de URL
    van deze repository, type **Integration** → *Add*.
 2. Zoek **Laadkosten rapportage** en klik **Download**. Herstart Home Assistant.
