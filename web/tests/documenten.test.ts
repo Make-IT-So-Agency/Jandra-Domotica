@@ -100,11 +100,7 @@ describe("maakRapportExcel", () => {
     const werkmap = new ExcelJS.Workbook();
     await werkmap.xlsx.load(buffer as unknown as ArrayBuffer);
 
-    expect(werkmap.worksheets.map((blad) => blad.name)).toEqual([
-      "Samenvatting",
-      "Sessies",
-      "Meterstanden",
-    ]);
+    expect(werkmap.worksheets.map((blad) => blad.name)).toEqual(["Samenvatting", "Sessies"]);
 
     const sessies = werkmap.getWorksheet("Sessies")!;
 
@@ -126,12 +122,15 @@ describe("maakRapportExcel", () => {
     expect(sessies.getRow(4).getCell(kolom("Incl. btw")).value).toBe(14.09);
   }, 30000);
 
-  it("laat het blad Meterstanden weg als er geen zijn", async () => {
-    const buffer = await maakRapportExcel({ ...RAPPORT, meterstanden: [] }, "LK-2026-X-001");
+  it("zet de meterstanden nergens in de werkmap", async () => {
+    // Die zijn er wel -- RAPPORT bevat ze -- maar ze horen niet in een document
+    // dat naar de boekhouder gaat. Ze blijven een controle op het scherm.
+    const buffer = await maakRapportExcel(RAPPORT, "LK-2026-X-001");
 
     const werkmap = new ExcelJS.Workbook();
     await werkmap.xlsx.load(buffer as unknown as ArrayBuffer);
 
     expect(werkmap.getWorksheet("Meterstanden")).toBeUndefined();
+    expect(werkmap.worksheets).toHaveLength(2);
   }, 30000);
 });

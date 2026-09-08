@@ -21,7 +21,7 @@ function kopRij(werkblad: ExcelJS.Worksheet, rijnummer: number): void {
 
 /**
  * Maakt een werkmap met drie bladen: de samenvatting, alle sessies en de
- * meterstanden. Alle bedragen staan als echte getallen in de cellen, zodat de
+ * Alle bedragen staan als echte getallen in de cellen, zodat de
  * boekhouder er meteen mee kan rekenen.
  */
 export async function maakRapportExcel(
@@ -124,35 +124,7 @@ export async function maakRapportExcel(
   totaalRij.getCell("gestart").numFmt = "General";
 
   sessies.views = [{ state: "frozen", ySplit: 1 }];
-  sessies.autoFilter = { from: "A1", to: { row: 1, column: 10 } };
-
-  // --- Meterstanden -------------------------------------------------------
-  if (rapport.meterstanden.length > 0) {
-    const meters = werkmap.addWorksheet("Meterstanden");
-    meters.columns = [
-      { header: "Laadpaal", key: "laadpaal", width: 24 },
-      { header: "Stand begin", key: "begin", width: 16 },
-      { header: "Stand einde", key: "eind", width: 16 },
-      { header: "Verschil", key: "verschil", width: 14 },
-      { header: "Som van de sessies", key: "sessies", width: 20 },
-      { header: "Afwijking", key: "afwijking", width: 14 },
-    ];
-    kopRij(meters, 1);
-
-    for (const stand of rapport.meterstanden) {
-      meters.addRow({
-        laadpaal: stand.laadpaal,
-        begin: stand.begin_kwh,
-        eind: stand.eind_kwh,
-        verschil: stand.verschil_kwh,
-        sessies: stand.sessies_kwh,
-        afwijking: stand.afwijking_kwh,
-      });
-    }
-    for (const kolom of ["begin", "eind", "verschil", "sessies", "afwijking"]) {
-      meters.getColumn(kolom).numFmt = KWH;
-    }
-  }
+  sessies.autoFilter = { from: "A1", to: { row: 1, column: sessies.columnCount } };
 
   const buffer = await werkmap.xlsx.writeBuffer();
   return Buffer.from(buffer);

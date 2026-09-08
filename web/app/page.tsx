@@ -255,9 +255,22 @@ export default async function Overzichtspagina() {
         ) : null}
         <div className="tegel">
           <div className="label">Deze maand geladen</div>
-          <div className="waarde">{kwh(maandVerdeling.totaal)}</div>
+          <div className="waarde">
+            <span className="tegel-icoon totaal" title="Totaal" aria-label="Totaal" role="img">
+              Σ
+            </span>
+            {kwh(maandVerdeling.totaal)}
+          </div>
           <div className="bij">
-            net {kwh(maandVerdeling.net)} · zon {kwh(maandVerdeling.zon)}
+            <span className="tegel-icoon net" title="Van het net" aria-label="Van het net" role="img">
+              ⚡
+            </span>
+            {kwh(maandVerdeling.net)}
+            <span className="tegel-scheiding">·</span>
+            <span className="tegel-icoon zon" title="Van de zon" aria-label="Van de zon" role="img">
+              ☀
+            </span>
+            {kwh(maandVerdeling.zon)}
           </div>
           <div className="bij">{afgerondDezeMaand.length} sessies</div>
         </div>

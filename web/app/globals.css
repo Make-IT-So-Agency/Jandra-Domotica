@@ -426,6 +426,31 @@ td.smal {
   white-space: nowrap;
 }
 
+/* Iconen in de tegels. De woorden zitten in title en aria-label, zodat het
+   icoon de tekst vervangt en niet de betekenis. */
+.tegel-icoon {
+  margin-right: 5px;
+  cursor: default;
+}
+
+.tegel-icoon.totaal {
+  color: var(--zacht);
+  font-weight: 600;
+}
+
+.tegel-icoon.net {
+  color: var(--accent);
+}
+
+.tegel-icoon.zon {
+  color: var(--let-op);
+}
+
+.tegel-scheiding {
+  margin: 0 8px;
+  color: var(--lijn);
+}
+
 .leeg {
   color: var(--zacht);
   padding: 24px;

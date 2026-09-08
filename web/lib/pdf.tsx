@@ -230,44 +230,6 @@ function Sessietabel({ rapport }: { rapport: RapportMomentopname }) {
   );
 }
 
-function Meterstanden({ rapport }: { rapport: RapportMomentopname }) {
-  if (rapport.meterstanden.length === 0) return null;
-
-  return (
-    <View wrap={false}>
-      <Text style={stijl.sectie}>Meterstanden ter controle</Text>
-      <View style={stijl.tabelKop}>
-        <Text style={[stijl.kopCel, { width: "28%" }]}>Laadpaal</Text>
-        <Text style={[stijl.kopCel, { width: "18%", textAlign: "right" }]}>Begin</Text>
-        <Text style={[stijl.kopCel, { width: "18%", textAlign: "right" }]}>Einde</Text>
-        <Text style={[stijl.kopCel, { width: "18%", textAlign: "right" }]}>Verschil</Text>
-        <Text style={[stijl.kopCel, { width: "18%", textAlign: "right" }]}>Sessies</Text>
-      </View>
-      {rapport.meterstanden.map((stand) => (
-        <View key={stand.laadpaal} style={stijl.rij}>
-          <Text style={{ width: "28%" }}>{stand.laadpaal}</Text>
-          <Text style={{ width: "18%", textAlign: "right" }}>
-            {stand.begin_kwh?.toFixed(1) ?? "—"}
-          </Text>
-          <Text style={{ width: "18%", textAlign: "right" }}>
-            {stand.eind_kwh?.toFixed(1) ?? "—"}
-          </Text>
-          <Text style={{ width: "18%", textAlign: "right" }}>
-            {stand.verschil_kwh?.toFixed(1) ?? "—"}
-          </Text>
-          <Text style={{ width: "18%", textAlign: "right" }}>
-            {stand.sessies_kwh.toFixed(1)}
-          </Text>
-        </View>
-      ))}
-      <Text style={stijl.notitie}>
-        Het verschil tussen de meterstanden hoort ongeveer gelijk te zijn aan de optelling
-        van de sessies. Een groter verschil wijst meestal op laden buiten evcc om.
-      </Text>
-    </View>
-  );
-}
-
 function Verantwoording({ rapport }: { rapport: RapportMomentopname }) {
   return (
     <View wrap={false}>
@@ -304,8 +266,6 @@ export function RapportDocument({
         <Partijen rapport={rapport} />
         <Totalen rapport={rapport} />
         <Sessietabel rapport={rapport} />
-        <View style={{ height: 12 }} />
-        <Meterstanden rapport={rapport} />
         <View style={{ height: 12 }} />
         <Verantwoording rapport={rapport} />
 
