@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { afrondenCent, berekenSessieKost, rekenSessiesDoor, tariefVoorDatum } from "@/lib/billing";
+import {
+  afrondenCent,
+  berekenSessieKost,
+  rekenSessiesDoor,
+  tariefVoorDatum,
+  zonneKwh,
+} from "@/lib/billing";
 import type { Laadsessie, Tarief } from "@/lib/types";
 
 const TARIEF_Q1: Tarief = {
@@ -201,5 +207,39 @@ describe("rekenSessiesDoor", () => {
     );
 
     expect(resultaat.regels.map((regel) => regel.sessie_id)).toEqual(["vroeg", "laat"]);
+  });
+});
+
+describe("zonneKwh", () => {
+  it("rekent het percentage om naar kWh", () => {
+    expect(zonneKwh(100, 30)).toBe(30);
+    expect(zonneKwh(0.5, 90)).toBe(0.45);
+    expect(zonneKwh(13.1, 94)).toBe(12.314);
+  });
+
+  it("laat zien waarom een percentage alleen niet volstaat", () => {
+    // 90 % van een halve kWh is minder zon dan 30 % van honderd.
+    expect(zonneKwh(0.5, 90)).toBeLessThan(zonneKwh(100, 30) as number);
+  });
+
+  it("geeft nul bij nul procent", () => {
+    expect(zonneKwh(37.6, 0)).toBe(0);
+  });
+
+  it("geeft null zodra er iets ontbreekt", () => {
+    expect(zonneKwh(null, 50)).toBeNull();
+    expect(zonneKwh(10, null)).toBeNull();
+    expect(zonneKwh(undefined, undefined)).toBeNull();
+    expect(zonneKwh(Number.NaN, 50)).toBeNull();
+  });
+
+  it("verdraagt getallen die als tekst uit de databank komen", () => {
+    // Postgres numeric komt soms als string terug; dat mag hier niet stukgaan.
+    expect(zonneKwh("51.00" as unknown as number, "76" as unknown as number)).toBe(38.76);
+  });
+
+  it("rondt af op drie cijfers, zoals de kWh-kolommen", () => {
+    expect(zonneKwh(1.9, 90)).toBe(1.71);
+    expect(zonneKwh(98.6, 30)).toBe(29.58);
   });
 });

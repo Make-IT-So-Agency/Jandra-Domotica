@@ -16,6 +16,28 @@ export function afrondenCent(bedrag: number): number {
   return Math.round(gecorrigeerd) / 100;
 }
 
+/**
+ * Hoeveel van een sessie uit de zon kwam, in kWh.
+ *
+ * evcc houdt dat aandeel bij als percentage. Een percentage zegt weinig zonder
+ * de omvang erbij: 90 % van een halve kWh is minder zon dan 30 % van honderd.
+ * Geeft null zodra een van beide ontbreekt, want dan valt er niets te zeggen.
+ */
+export function zonneKwh(
+  energieKwh: number | null | undefined,
+  zonPercentage: number | null | undefined,
+): number | null {
+  if (energieKwh === null || energieKwh === undefined) return null;
+  if (zonPercentage === null || zonPercentage === undefined) return null;
+
+  const energie = Number(energieKwh);
+  const aandeel = Number(zonPercentage);
+  if (!Number.isFinite(energie) || !Number.isFinite(aandeel)) return null;
+
+  // Drie cijfers na de komma, net als de kWh-kolommen in de databank.
+  return Math.round((energie * aandeel) / 100 * 1000) / 1000;
+}
+
 export interface SessieKost {
   kwh: number;
   tarief_per_kwh: number;

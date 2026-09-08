@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { zonneKwh } from "@/lib/billing";
 import { datumTijd, kwh } from "@/lib/format";
 import { kwartaalPeriode, kwartaalVan, lokaleOnderdelen, maandPeriode } from "@/lib/periods";
 import {
@@ -287,6 +288,7 @@ export default async function Overzichtspagina() {
                 <th>Voertuig</th>
                 <th className="getal">kWh</th>
                 <th className="getal">Zon</th>
+                <th className="getal">Zon (kWh)</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -301,6 +303,9 @@ export default async function Overzichtspagina() {
                     {sessie.solar_percentage === null
                       ? "—"
                       : `${Math.round(Number(sessie.solar_percentage))} %`}
+                  </td>
+                  <td data-label="Zon (kWh)" className="getal">
+                    {kwh(zonneKwh(sessie.energy_kwh, sessie.solar_percentage))}
                   </td>
                   <td data-label="Status">
                     <span
