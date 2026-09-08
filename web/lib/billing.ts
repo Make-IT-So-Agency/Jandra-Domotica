@@ -38,6 +38,42 @@ export function zonneKwh(
   return Math.round((energie * aandeel) / 100 * 1000) / 1000;
 }
 
+export interface KwhVerdeling {
+  /** Van het net gehaald. */
+  net: number | null;
+  /** Van de eigen zonnepanelen. */
+  zon: number | null;
+  totaal: number | null;
+}
+
+/**
+ * Splits het verbruik van een sessie in net en zon.
+ *
+ * Het net wordt afgeleid en niet apart gemeten: het is wat overblijft. Daarom
+ * wordt zon eerst afgerond en het net daarna als verschil berekend, zodat de
+ * drie kolommen altijd exact optellen. Andersom -- allebei apart afronden --
+ * kan een kolom opleveren die er een honderdste naast zit.
+ */
+export function verdeelKwh(
+  energieKwh: number | null | undefined,
+  zonPercentage: number | null | undefined,
+): KwhVerdeling {
+  const energie = Number(energieKwh);
+  if (energieKwh === null || energieKwh === undefined || !Number.isFinite(energie)) {
+    return { net: null, zon: null, totaal: null };
+  }
+
+  const totaal = Math.round(energie * 1000) / 1000;
+  const zon = zonneKwh(energieKwh, zonPercentage);
+  if (zon === null) {
+    // Zonder percentage weten we niet wat er van het net kwam. Het totaal
+    // tonen we wel; gokken doen we niet.
+    return { net: null, zon: null, totaal };
+  }
+
+  return { net: Math.round((totaal - zon) * 1000) / 1000, zon, totaal };
+}
+
 export interface SessieKost {
   kwh: number;
   tarief_per_kwh: number;

@@ -5,6 +5,7 @@ import {
   berekenSessieKost,
   rekenSessiesDoor,
   tariefVoorDatum,
+  verdeelKwh,
   zonneKwh,
 } from "@/lib/billing";
 import type { Laadsessie, Tarief } from "@/lib/types";
@@ -241,5 +242,44 @@ describe("zonneKwh", () => {
   it("rondt af op drie cijfers, zoals de kWh-kolommen", () => {
     expect(zonneKwh(1.9, 90)).toBe(1.71);
     expect(zonneKwh(98.6, 30)).toBe(29.58);
+  });
+});
+
+describe("verdeelKwh", () => {
+  it("splitst in net en zon", () => {
+    // De sessie van 30/08 uit het overzicht: 51,00 kWh, 76 % zon.
+    expect(verdeelKwh(51, 76)).toEqual({ net: 12.24, zon: 38.76, totaal: 51 });
+  });
+
+  it("laat de drie kolommen exact optellen", () => {
+    for (const [energie, percentage] of [
+      [51, 76],
+      [1.9, 90],
+      [98.6, 30],
+      [13.1, 94],
+      [0.8, 68],
+      [37.6, 0],
+      [23.1, 46],
+    ] as const) {
+      const deel = verdeelKwh(energie, percentage);
+      expect(Number(((deel.net as number) + (deel.zon as number)).toFixed(3))).toBe(deel.totaal);
+    }
+  });
+
+  it("toont het totaal maar gokt het net niet zonder percentage", () => {
+    expect(verdeelKwh(51, null)).toEqual({ net: null, zon: null, totaal: 51 });
+  });
+
+  it("geeft alles leeg als het verbruik ontbreekt", () => {
+    expect(verdeelKwh(null, 76)).toEqual({ net: null, zon: null, totaal: null });
+    expect(verdeelKwh(undefined, undefined)).toEqual({ net: null, zon: null, totaal: null });
+  });
+
+  it("zet bij nul procent alles op het net", () => {
+    expect(verdeelKwh(37.6, 0)).toEqual({ net: 37.6, zon: 0, totaal: 37.6 });
+  });
+
+  it("zet bij honderd procent alles op de zon", () => {
+    expect(verdeelKwh(12.5, 100)).toEqual({ net: 0, zon: 12.5, totaal: 12.5 });
   });
 });

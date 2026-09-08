@@ -393,6 +393,39 @@ button.gevaar {
   color: var(--let-op);
 }
 
+/* Statusicoon: dezelfde kleuren als de labelvlag, maar het zegt hetzelfde in
+   één teken. De woorden blijven bestaan in title en aria-label, zodat de
+   betekenis niet aan de vorm hangt. */
+.vlag-icoon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+}
+
+.vlag-icoon.goed {
+  background: var(--goed-zacht);
+  color: var(--goed);
+}
+
+.vlag-icoon.let-op {
+  background: var(--let-op-zacht);
+  color: var(--let-op);
+}
+
+/* Een kolom die niet meer plaats hoeft dan haar inhoud. */
+th.smal,
+td.smal {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .leeg {
   color: var(--zacht);
   padding: 24px;

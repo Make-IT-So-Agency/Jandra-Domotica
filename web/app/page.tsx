@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { zonneKwh } from "@/lib/billing";
+import { verdeelKwh } from "@/lib/billing";
 import { datumTijd, kwh } from "@/lib/format";
 import { kwartaalPeriode, kwartaalVan, lokaleOnderdelen, maandPeriode } from "@/lib/periods";
 import {
@@ -142,9 +142,20 @@ export default async function Overzichtspagina() {
   }
 
   const beheerder = magInstellingenBeheren(ik);
-  const kwhDezeMaand = overzicht.sessiesDezeMaand
-    .filter((sessie) => sessie.is_complete)
-    .reduce((som, sessie) => som + Number(sessie.energy_kwh ?? 0), 0);
+  const afgerondDezeMaand = overzicht.sessiesDezeMaand.filter((sessie) => sessie.is_complete);
+  const maandVerdeling = afgerondDezeMaand.reduce(
+    (som, sessie) => {
+      const deel = verdeelKwh(sessie.energy_kwh, sessie.solar_percentage);
+      return {
+        totaal: som.totaal + (deel.totaal ?? 0),
+        zon: som.zon + (deel.zon ?? 0),
+        // Ontbreekt het zonpercentage, dan telt die sessie enkel in het totaal
+        // mee. Onbekend als "van het net" boeken zou het net te hoog zetten.
+        net: som.net + (deel.net ?? 0),
+      };
+    },
+    { totaal: 0, zon: 0, net: 0 },
+  );
 
   const takenTeDoen: Array<{ tekst: string; link: string; knop: string }> = [];
 
@@ -244,10 +255,11 @@ export default async function Overzichtspagina() {
         ) : null}
         <div className="tegel">
           <div className="label">Deze maand geladen</div>
-          <div className="waarde">{kwh(kwhDezeMaand)}</div>
+          <div className="waarde">{kwh(maandVerdeling.totaal)}</div>
           <div className="bij">
-            {overzicht.sessiesDezeMaand.filter((sessie) => sessie.is_complete).length} sessies
+            net {kwh(maandVerdeling.net)} · zon {kwh(maandVerdeling.zon)}
           </div>
+          <div className="bij">{afgerondDezeMaand.length} sessies</div>
         </div>
         <div className="tegel">
           <div className="label">Laadpalen</div>
@@ -286,36 +298,37 @@ export default async function Overzichtspagina() {
                 <th>Gestart</th>
                 <th>Laadpaal</th>
                 <th>Voertuig</th>
-                <th className="getal">kWh</th>
-                <th className="getal">Zon</th>
-                <th className="getal">Zon (kWh)</th>
-                <th>Status</th>
+                <th className="getal">kWh (net)</th>
+                <th className="getal">kWh (zon)</th>
+                <th className="getal">kWh (totaal)</th>
+                <th className="smal">Status</th>
               </tr>
             </thead>
             <tbody>
-              {overzicht.laatsteSessies.map((sessie) => (
-                <tr key={sessie.id}>
-                  <td data-label="Gestart">{datumTijd(sessie.started_at)}</td>
-                  <td data-label="Laadpaal">{sessie.loadpoint_name ?? "—"}</td>
-                  <td data-label="Voertuig">{sessie.vehicle ?? "—"}</td>
-                  <td data-label="kWh" className="getal">{kwh(sessie.energy_kwh)}</td>
-                  <td data-label="Zon" className="getal">
-                    {sessie.solar_percentage === null
-                      ? "—"
-                      : `${Math.round(Number(sessie.solar_percentage))} %`}
-                  </td>
-                  <td data-label="Zon (kWh)" className="getal">
-                    {kwh(zonneKwh(sessie.energy_kwh, sessie.solar_percentage))}
-                  </td>
-                  <td data-label="Status">
-                    <span
-                      className={`label-vlag ${sessie.is_complete ? "goed" : "let-op"}`}
-                    >
-                      {sessie.is_complete ? "afgerond" : "loopt nog"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {overzicht.laatsteSessies.map((sessie) => {
+                const deel = verdeelKwh(sessie.energy_kwh, sessie.solar_percentage);
+
+                return (
+                  <tr key={sessie.id}>
+                    <td data-label="Gestart">{datumTijd(sessie.started_at)}</td>
+                    <td data-label="Laadpaal">{sessie.loadpoint_name ?? "—"}</td>
+                    <td data-label="Voertuig">{sessie.vehicle ?? "—"}</td>
+                    <td data-label="kWh (net)" className="getal">{kwh(deel.net)}</td>
+                    <td data-label="kWh (zon)" className="getal">{kwh(deel.zon)}</td>
+                    <td data-label="kWh (totaal)" className="getal">{kwh(deel.totaal)}</td>
+                    <td data-label="Status" className="smal">
+                      <span
+                        className={`vlag-icoon ${sessie.is_complete ? "goed" : "let-op"}`}
+                        title={sessie.is_complete ? "Afgerond" : "Loopt nog"}
+                        aria-label={sessie.is_complete ? "Afgerond" : "Loopt nog"}
+                        role="img"
+                      >
+                        {sessie.is_complete ? "✓" : "⋯"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
