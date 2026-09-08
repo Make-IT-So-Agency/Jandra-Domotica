@@ -473,6 +473,35 @@ td.smal {
 }
 
 /* --- Verdeling per laadpaal ---------------------------------------------- */
+/* De reekskleuren van de verdelingsbalk. Vaste volgorde: welke laadpaal welke
+   kleur krijgt, hangt aan zijn naam en niet aan zijn grootte.
+
+   De donkere modus heeft eigen stappen van dezelfde tinten. Simpelweg de
+   lichte kleuren op een donkere tegel zetten haalt het niet: oranje, geel en
+   magenta zijn daar te fel. Beide reeksen zijn nagerekend op de tegelkleur van
+   hun eigen modus -- op onderscheid ook voor kleurenblinden, en op genoeg
+   contrast met die achtergrond. De grijze is de restgroep en hoort er bewust
+   niet bij te horen. */
+:root {
+  --reeks-1: #2a78d6;
+  --reeks-2: #eb6834;
+  --reeks-3: #1baf7a;
+  --reeks-4: #eda100;
+  --reeks-5: #e87ba4;
+  --reeks-overig: #6b7280;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --reeks-1: #3987e5;
+    --reeks-2: #d95926;
+    --reeks-3: #199e70;
+    --reeks-4: #c98500;
+    --reeks-5: #d55181;
+    --reeks-overig: #9ca3af;
+  }
+}
+
 .tegel-breed {
   grid-column: span 2;
 }
@@ -484,10 +513,26 @@ td.smal {
 }
 
 .verdeling-balk {
-  display: block;
+  display: flex;
+  /* De kier tussen de stukken is een echte 2px en niet een tekeneenheid die
+     meerekt met de tegelbreedte. */
+  gap: 2px;
   width: 100%;
   height: 10px;
   margin: 10px 0 12px;
+}
+
+.verdeling-stuk {
+  /* Niet groeien, wel krimpen: de breedte komt van flex-basis (het aandeel),
+     en wat er nodig is voor de kieren en voor de minimumbreedte van de kleine
+     stukken haalt de browser bij de grote weg. */
+  flex: 0 1 auto;
+  /* Een laadpaal met 1 % blijft anders een haartje dat je niet meer ziet, en
+     een streepje van niets leest als een naad in de balk. Zes pixels is smal
+     genoeg om niet te liegen over de verhouding en breed genoeg om een stuk
+     te zijn -- het exacte getal staat er hieronder toch bij. */
+  min-width: 6px;
+  border-radius: 3px;
 }
 
 .verdeling-legende {

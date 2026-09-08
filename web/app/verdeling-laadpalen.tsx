@@ -14,8 +14,18 @@ import type { Laadsessie } from "@/lib/types";
 // wordt een paal volgende maand de kleinste, dan houdt hij dezelfde kleur.
 // Bewust niet de statuskleuren van de app -- groen en oranje betekenen op dit
 // scherm al "afgerond" en "loopt nog".
-const REEKSKLEUREN = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
-const OVERIGE_KLEUR = "#6b7280";
+//
+// De hex-waardes staan in globals.css en niet hier, omdat de donkere modus
+// eigen stappen van dezelfde tinten nodig heeft: de lichte stappen zijn te
+// fel op een donkere tegel. Zo staat die omschakeling op één plek.
+const REEKSKLEUREN = [
+  "var(--reeks-1)",
+  "var(--reeks-2)",
+  "var(--reeks-3)",
+  "var(--reeks-4)",
+  "var(--reeks-5)",
+];
+const OVERIGE_KLEUR = "var(--reeks-overig)";
 
 interface Deel {
   laadpaal: string;
@@ -96,18 +106,6 @@ export function VerdelingPerLaadpaal({ sessies }: { sessies: Laadsessie[] }) {
     );
   }
 
-  const BREEDTE = 100;
-  const KIER = 0.8; // in dezelfde eenheden als de balk; wordt 2px op het scherm
-  const beschikbaar = BREEDTE - KIER * (delen.length - 1);
-
-  let x = 0;
-  const stukken = delen.map((deel) => {
-    const breedte = Math.max(deel.aandeel * beschikbaar, 0.6);
-    const stuk = { ...deel, x, breedte };
-    x += breedte + KIER;
-    return stuk;
-  });
-
   const samenvatting = delen
     .map((deel) => `${deel.laadpaal} ${percent(deel.aandeel)}`)
     .join(", ");
@@ -116,27 +114,26 @@ export function VerdelingPerLaadpaal({ sessies }: { sessies: Laadsessie[] }) {
     <div className="tegel tegel-breed">
       <div className="label">Verdeling per laadpaal</div>
 
-      <svg
+      {/* Geen SVG maar gewone vakken naast elkaar. De balk wordt uitgerekt tot
+          de tegelbreedte; in een SVG rekt dan ook de afronding van de hoeken
+          mee uit, en een minimumbreedte zou in tekeneenheden moeten in plaats
+          van in pixels. Met flexbox blijven de afronding, de kier van 2px en
+          de minimumbreedte gewoon pixels, en verdeelt de browser zelf wat er
+          van de grote stukken af moet om de kleine hun minimum te geven. */}
+      <div
         className="verdeling-balk"
-        viewBox={`0 0 ${BREEDTE} 8`}
-        preserveAspectRatio="none"
         role="img"
         aria-label={`Verdeling van het verbruik deze maand: ${samenvatting}`}
       >
-        {stukken.map((stuk) => (
-          <rect
-            key={stuk.laadpaal}
-            x={stuk.x}
-            y={0}
-            width={stuk.breedte}
-            height={8}
-            rx={1.5}
-            fill={stuk.kleur}
-          >
-            <title>{`${stuk.laadpaal}: ${kwh(stuk.kwh)} (${percent(stuk.aandeel)})`}</title>
-          </rect>
+        {delen.map((deel) => (
+          <div
+            key={deel.laadpaal}
+            className="verdeling-stuk"
+            style={{ flexBasis: `${deel.aandeel * 100}%`, background: deel.kleur }}
+            title={`${deel.laadpaal}: ${kwh(deel.kwh)} (${percent(deel.aandeel)})`}
+          />
         ))}
-      </svg>
+      </div>
 
       {/* De namen en getallen staan er voluit bij: de verhouding mag nooit
           alleen aan de kleur hangen. */}

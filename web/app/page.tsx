@@ -273,24 +273,6 @@ export default async function Overzichtspagina() {
             <div className="bij">{afgerondDezeMaand.length} sessies</div>
           </div>
         </div>
-        <div className="tegel">
-          <div className="label">Laadpalen</div>
-          <div className="waarde">{overzicht.eigenLaadpalen.length}</div>
-          <div className="bij">
-            {!beheerder
-              ? "van jouw vennootschap"
-              : overzicht.nietGekoppeld.length === 0
-                ? "allemaal gekoppeld"
-                : `${overzicht.nietGekoppeld.length} nog te koppelen`}
-          </div>
-        </div>
-        {beheerder ? (
-          <div className="tegel">
-            <div className="label">Vennootschappen</div>
-            <div className="waarde">{overzicht.vennootschappen.length}</div>
-            <div className="bij">die kosten terugbetalen</div>
-          </div>
-        ) : null}
         <VerdelingPerLaadpaal sessies={overzicht.sessiesDezeMaand} />
       </div>
 
