@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { datum, datumTijd, euro, kwh, tariefPerKwh } from "@/lib/format";
-import { lokaleOnderdelen } from "@/lib/periods";
+import { periodeKeuzes } from "@/lib/periods";
 import { bereidRapportVoor, type RapportVoorbereiding } from "@/lib/reports";
 import {
   magRapportenMaken,
@@ -13,24 +13,10 @@ import { vereistGebruiker } from "@/lib/toegang";
 import type { Vennootschap } from "@/lib/types";
 
 import { maakRapport, verwijderRapport } from "./acties";
+import { PeriodeKiezer } from "./periode-kiezer";
 import { periodeUitFormulier } from "./periode";
 
 export const dynamic = "force-dynamic";
-
-const MAANDEN = [
-  "januari",
-  "februari",
-  "maart",
-  "april",
-  "mei",
-  "juni",
-  "juli",
-  "augustus",
-  "september",
-  "oktober",
-  "november",
-  "december",
-];
 
 interface BewaardRapportRij {
   id: string;
@@ -52,7 +38,6 @@ export default async function Rapportenpagina({
   const ik = await vereistGebruiker();
   const params = await searchParams;
   const nu = new Date();
-  const vandaag = lokaleOnderdelen(nu);
 
   const magMaken = magRapportenMaken(ik);
   const beperking = zichtbareVennootschappen(ik);
@@ -89,7 +74,9 @@ export default async function Rapportenpagina({
   const archief = (archiefResultaat.data ?? []) as unknown as BewaardRapportRij[];
 
   const gekozenVennootschap = params.vennootschap ?? "";
-  const periodesoort = params.periodesoort ?? "month";
+  const keuzes = periodeKeuzes(nu);
+  const vorigKwartaal = keuzes.filter((keuze) => keuze.groep === "Kwartaal")[1];
+  const gekozenPeriode = params.periode ?? vorigKwartaal.waarde;
 
   let voorbeeld: RapportVoorbereiding | null = null;
   let voorbeeldFout: string | null = null;
@@ -100,10 +87,11 @@ export default async function Rapportenpagina({
     } else {
       try {
         const periode = periodeUitFormulier({
-          soort: periodesoort,
-          jaar: params.jaar ?? String(vandaag.jaar),
-          maand: params.maand ?? String(vandaag.maand),
-          kwartaal: params.kwartaal ?? String(Math.floor((vandaag.maand - 1) / 3) + 1),
+          periode: params.periode ?? (params.periodesoort ? "" : gekozenPeriode),
+          soort: params.periodesoort,
+          jaar: params.jaar,
+          maand: params.maand,
+          kwartaal: params.kwartaal,
           van: params.van ?? "",
           tot: params.tot ?? "",
         });
@@ -160,67 +148,17 @@ export default async function Rapportenpagina({
                 ))}
               </select>
             </div>
-            <div>
-              <label htmlFor="periodesoort">Periode</label>
-              <select id="periodesoort" name="periodesoort" defaultValue={periodesoort}>
-                <option value="month">Maand</option>
-                <option value="quarter">Kwartaal</option>
-                <option value="vrij">Zelf kiezen</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="jaar">Jaar</label>
-              <input
-                id="jaar"
-                name="jaar"
-                type="number"
-                min={2020}
-                max={2100}
-                defaultValue={params.jaar ?? vandaag.jaar}
-              />
-            </div>
-            <div>
-              <label htmlFor="maand">Maand</label>
-              <select id="maand" name="maand" defaultValue={params.maand ?? vandaag.maand}>
-                {MAANDEN.map((naam, index) => (
-                  <option key={naam} value={index + 1}>
-                    {naam}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="kwartaal">Kwartaal</label>
-              <select
-                id="kwartaal"
-                name="kwartaal"
-                defaultValue={params.kwartaal ?? Math.floor((vandaag.maand - 1) / 3) + 1}
-              >
-                {[1, 2, 3, 4].map((nummer) => (
-                  <option key={nummer} value={nummer}>
-                    Q{nummer}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <PeriodeKiezer
+              opties={keuzes}
+              gekozen={gekozenPeriode}
+              van={params.van ?? ""}
+              tot={params.tot ?? ""}
+            />
           </div>
 
-          <div className="veldenrij">
-            <div>
-              <label htmlFor="van">Zelf gekozen: van</label>
-              <input id="van" name="van" type="date" defaultValue={params.van ?? ""} />
-            </div>
-            <div>
-              <label htmlFor="tot">tot en met</label>
-              <input id="tot" name="tot" type="date" defaultValue={params.tot ?? ""} />
-            </div>
-          </div>
-
-          <p className="hulp" style={{ marginBottom: 12 }}>
-            De velden Maand, Kwartaal en de vrije datums worden enkel gebruikt door de
-            periodesoort die je hierboven kiest.
-          </p>
-          <button type="submit">Voorbeeld tonen</button>
+          <button type="submit" style={{ marginTop: 12 }}>
+            Voorbeeld tonen
+          </button>
         </form>
       ) : null}
 
@@ -456,7 +394,8 @@ function Voorbeeld({
       {klaar ? (
         <form action={maakRapport} style={{ marginTop: 20 }}>
           <input type="hidden" name="vennootschap" value={voorbereiding.vennootschap.id} />
-          <input type="hidden" name="periodesoort" value={params.periodesoort ?? "month"} />
+          <input type="hidden" name="periode" value={params.periode ?? ""} />
+          <input type="hidden" name="periodesoort" value={params.periodesoort ?? ""} />
           <input type="hidden" name="jaar" value={params.jaar ?? ""} />
           <input type="hidden" name="maand" value={params.maand ?? ""} />
           <input type="hidden" name="kwartaal" value={params.kwartaal ?? ""} />

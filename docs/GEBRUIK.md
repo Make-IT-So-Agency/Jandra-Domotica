@@ -9,7 +9,10 @@ kennis nodig.
 2. Kijk of het beginscherm groen meldt dat alles klaarstaat. Zo niet, staat er
    letterlijk bij wat er nog moet gebeuren en een knop die je erheen brengt.
 3. Klik op **Rapporten**.
-4. Kies de vennootschap, kies **Maand** of **Kwartaal**, en de juiste periode.
+4. Kies de vennootschap en daarna de periode uit de lijst. Die staat vol met
+   kant-en-klare keuzes — *Vorig kwartaal*, *Q1 2026*, *juni 2026* — met het
+   vorige kwartaal al voorgeselecteerd. Heb je iets nodig dat er niet bij staat,
+   kies onderaan **Zelf gekozen datums**; dan verschijnen er twee datumvelden.
 5. Klik **Voorbeeld tonen**. Je ziet meteen elke sessie, het tarief en het
    totaal.
 6. Klopt het? Klik **Rapport bewaren**.

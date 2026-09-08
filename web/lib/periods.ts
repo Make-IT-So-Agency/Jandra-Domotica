@@ -194,3 +194,94 @@ export function vrijePeriode(start: string, eind: string): Periode {
     label: `${start} t.e.m. ${eind}`,
   };
 }
+
+const KORTE_MAANDNAMEN = [
+  "jan",
+  "feb",
+  "mrt",
+  "apr",
+  "mei",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "okt",
+  "nov",
+  "dec",
+];
+
+/** Eén regel in de keuzelijst met vooringestelde periodes. */
+export interface PeriodeOptie {
+  /** Wat het formulier verstuurt, bv. "quarter:2026-3". */
+  waarde: string;
+  label: string;
+  /** Kop waaronder de regel hoort, voor een optgroup. */
+  groep: string;
+}
+
+/**
+ * Zet een keuzewaarde om naar een periode.
+ *
+ * Geeft null bij alles wat niet herkend wordt, zodat de aanroeper zelf kan
+ * beslissen wat er dan moet gebeuren.
+ */
+export function periodeUitWaarde(waarde: string): Periode | null {
+  const treffer = /^(month|quarter):(\d{4})-(\d{1,2})$/.exec(waarde.trim());
+  if (!treffer) return null;
+
+  const jaar = Number(treffer[2]);
+  const nummer = Number(treffer[3]);
+  if (jaar < 2000 || jaar > 2100) return null;
+
+  try {
+    return treffer[1] === "quarter" ? kwartaalPeriode(jaar, nummer) : maandPeriode(jaar, nummer);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * De vooringestelde periodes, nieuwste eerst.
+ *
+ * Bewust geen "volgend kwartaal" of "tot vandaag": een rapport gaat over wat
+ * er geladen is, en dat is per definitie verleden tijd. Een lopende periode
+ * staat er wel bij, want tussentijds kijken is nuttig -- maar dan zegt het
+ * label ook dat ze nog loopt.
+ */
+export function periodeKeuzes(nu: Date = new Date()): PeriodeOptie[] {
+  const { jaar, maand } = lokaleOnderdelen(nu);
+  const opties: PeriodeOptie[] = [];
+
+  const huidigKwartaal = Math.floor((maand - 1) / 3) + 1;
+  for (let terug = 0; terug < 8; terug += 1) {
+    const verschoven = huidigKwartaal - 1 - terug;
+    const kwartaalJaar = jaar + Math.floor(verschoven / 4);
+    const kwartaal = ((verschoven % 4) + 4) % 4 + 1;
+    const eerste = (kwartaal - 1) * 3;
+    const maanden = `${KORTE_MAANDNAMEN[eerste]}–${KORTE_MAANDNAMEN[eerste + 2]}`;
+    const naam = `Q${kwartaal} ${kwartaalJaar} (${maanden})`;
+
+    opties.push({
+      waarde: `quarter:${kwartaalJaar}-${kwartaal}`,
+      groep: "Kwartaal",
+      label:
+        terug === 0 ? `Dit kwartaal — ${naam}` : terug === 1 ? `Vorig kwartaal — ${naam}` : naam,
+    });
+  }
+
+  for (let terug = 0; terug < 12; terug += 1) {
+    const verschoven = maand - 1 - terug;
+    const maandJaar = jaar + Math.floor(verschoven / 12);
+    const nummer = ((verschoven % 12) + 12) % 12 + 1;
+    const naam = `${MAANDNAMEN[nummer - 1]} ${maandJaar}`;
+
+    opties.push({
+      waarde: `month:${maandJaar}-${nummer}`,
+      groep: "Maand",
+      label: terug === 0 ? `Deze maand — ${naam}` : terug === 1 ? `Vorige maand — ${naam}` : naam,
+    });
+  }
+
+  opties.push({ waarde: "vrij", groep: "Anders", label: "Zelf gekozen datums…" });
+  return opties;
+}

@@ -28,7 +28,8 @@ export async function maakRapport(formulier: FormData): Promise<void> {
   let referentie: string;
   try {
     const periode = periodeUitFormulier({
-      soort: String(formulier.get("periodesoort") ?? "month"),
+      periode: String(formulier.get("periode") ?? ""),
+      soort: String(formulier.get("periodesoort") ?? ""),
       jaar: String(formulier.get("jaar") ?? ""),
       maand: String(formulier.get("maand") ?? ""),
       kwartaal: String(formulier.get("kwartaal") ?? ""),

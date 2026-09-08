@@ -6,6 +6,8 @@ import {
   lokaleDatumNaarUtc,
   lokaleOnderdelen,
   maandPeriode,
+  periodeKeuzes,
+  periodeUitWaarde,
   vorigePeriode,
   vrijePeriode,
 } from "@/lib/periods";
@@ -133,5 +135,81 @@ describe("lokaleOnderdelen", () => {
       maand: 7,
       dag: 1,
     });
+  });
+});
+
+describe("periodeUitWaarde", () => {
+  it("leest een kwartaal", () => {
+    const periode = periodeUitWaarde("quarter:2026-3");
+
+    expect(periode?.soort).toBe("quarter");
+    expect(periode?.start).toBe("2026-07-01");
+    expect(periode?.eind).toBe("2026-09-30");
+  });
+
+  it("leest een maand", () => {
+    const periode = periodeUitWaarde("month:2026-9");
+
+    expect(periode?.soort).toBe("month");
+    expect(periode?.start).toBe("2026-09-01");
+    expect(periode?.eind).toBe("2026-09-30");
+  });
+
+  it("geeft null bij iets onherkenbaars", () => {
+    for (const waarde of ["", "vrij", "kwartaal:2026-3", "quarter:2026-5", "month:1999-1", "x"]) {
+      expect(periodeUitWaarde(waarde)).toBeNull();
+    }
+  });
+});
+
+describe("periodeKeuzes", () => {
+  // 8 september 2026, in Belgische tijd. Dat is Q3 en september.
+  const nu = new Date("2026-09-08T12:00:00Z");
+  const keuzes = periodeKeuzes(nu);
+  const kwartalen = keuzes.filter((k) => k.groep === "Kwartaal");
+  const maanden = keuzes.filter((k) => k.groep === "Maand");
+
+  it("zet het lopende kwartaal vooraan, met het kwartaal erbij", () => {
+    expect(kwartalen[0].waarde).toBe("quarter:2026-3");
+    expect(kwartalen[0].label).toBe("Dit kwartaal — Q3 2026 (jul–sep)");
+    expect(kwartalen[1].waarde).toBe("quarter:2026-2");
+    expect(kwartalen[1].label).toBe("Vorig kwartaal — Q2 2026 (apr–jun)");
+  });
+
+  it("telt over de jaargrens terug", () => {
+    expect(kwartalen[2].label).toBe("Q1 2026 (jan–mrt)");
+    expect(kwartalen[3].waarde).toBe("quarter:2025-4");
+    expect(kwartalen[3].label).toBe("Q4 2025 (okt–dec)");
+    expect(kwartalen.at(-1)?.waarde).toBe("quarter:2024-4");
+  });
+
+  it("doet hetzelfde voor de maanden", () => {
+    expect(maanden[0].label).toBe("Deze maand — september 2026");
+    expect(maanden[1].label).toBe("Vorige maand — augustus 2026");
+    expect(maanden[8].waarde).toBe("month:2026-1");
+    expect(maanden[9].waarde).toBe("month:2025-12");
+    expect(maanden.at(-1)?.waarde).toBe("month:2025-10");
+  });
+
+  it("sluit af met de vrije keuze", () => {
+    expect(keuzes.at(-1)?.waarde).toBe("vrij");
+  });
+
+  it("levert enkel waardes die ook te lezen zijn", () => {
+    for (const keuze of keuzes) {
+      if (keuze.waarde === "vrij") continue;
+      expect(periodeUitWaarde(keuze.waarde), keuze.waarde).not.toBeNull();
+    }
+  });
+
+  it("werkt ook in januari, wanneer alles over de jaargrens valt", () => {
+    const inJanuari = periodeKeuzes(new Date("2026-01-15T12:00:00Z"));
+    const q = inJanuari.filter((k) => k.groep === "Kwartaal");
+    const m = inJanuari.filter((k) => k.groep === "Maand");
+
+    expect(q[0].waarde).toBe("quarter:2026-1");
+    expect(q[1].waarde).toBe("quarter:2025-4");
+    expect(m[0].waarde).toBe("month:2026-1");
+    expect(m[1].waarde).toBe("month:2025-12");
   });
 });
