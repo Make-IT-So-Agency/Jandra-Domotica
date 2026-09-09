@@ -228,3 +228,57 @@ export function rekenSessiesDoor(
     ),
   };
 }
+
+export interface SessiePrijs {
+  /** Wat de sessie kost, inclusief btw. Null als dat niet te zeggen valt. */
+  bedrag_incl_btw: number | null;
+  /** Of het gebruikte tarief al bevestigd is. Zo niet: een richtprijs. */
+  bevestigd: boolean;
+  /** Waarom er geen bedrag staat. Null zodra er wel een bedrag is. */
+  reden: string | null;
+}
+
+/**
+ * Wat één sessie kost, om naast de sessie te tonen.
+ *
+ * Dit is bewust geen rapport. Een rapport weigert te vertrekken zolang het
+ * tarief van een kwartaal niet bevestigd is; hier tonen we het bedrag wel al,
+ * maar dan als richtprijs. Daarom staat `bevestigd` erbij: het scherm moet dat
+ * verschil kunnen laten zien in plaats van een onbevestigd bedrag te tonen
+ * alsof het vaststaat.
+ */
+export function richtprijsVoorSessie(
+  sessie: Laadsessie,
+  context: DoorrekenContext,
+): SessiePrijs {
+  const referentie = sessie.finished_at ?? sessie.started_at;
+  if (!sessie.is_complete || referentie === null) {
+    return { bedrag_incl_btw: null, bevestigd: false, reden: "sessie loopt nog" };
+  }
+
+  const kwh = Number(sessie.energy_kwh);
+  if (!Number.isFinite(kwh) || kwh <= 0) {
+    return {
+      bedrag_incl_btw: null,
+      bevestigd: false,
+      reden: "geen geldig verbruik geregistreerd",
+    };
+  }
+
+  const laadpaal = sessie.loadpoint_name ?? "";
+  const regio = context.regioPerLaadpaal.get(laadpaal.toLowerCase()) ?? "vlaanderen";
+  const tarief = tariefVoorDatum(context.tarieven, referentie, regio);
+  if (!tarief) {
+    return {
+      bedrag_incl_btw: null,
+      bevestigd: false,
+      reden: `nog geen tarief voor ${referentie.slice(0, 10)}`,
+    };
+  }
+
+  return {
+    bedrag_incl_btw: berekenSessieKost(kwh, tarief).bedrag_incl_btw,
+    bevestigd: Boolean(tarief.confirmed_at),
+    reden: null,
+  };
+}

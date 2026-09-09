@@ -53,7 +53,8 @@
     "sensor": {
       "last_sync": { "name": "Last sync" },
       "sessions_sent": { "name": "Sessions sent" },
-      "sessions_complete": { "name": "Completed sessions" }
+      "sessions_complete": { "name": "Completed sessions" },
+      "sessions_live": { "name": "Sessions in progress" }
     },
     "button": {
       "sync_now": { "name": "Sync now" }

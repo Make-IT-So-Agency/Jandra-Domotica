@@ -53,7 +53,8 @@
     "sensor": {
       "last_sync": { "name": "Laatste synchronisatie" },
       "sessions_sent": { "name": "Verstuurde sessies" },
-      "sessions_complete": { "name": "Afgeronde sessies" }
+      "sessions_complete": { "name": "Afgeronde sessies" },
+      "sessions_live": { "name": "Sessies die nu lopen" }
     },
     "button": {
       "sync_now": { "name": "Nu synchroniseren" }

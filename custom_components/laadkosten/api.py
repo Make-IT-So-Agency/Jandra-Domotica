@@ -14,7 +14,7 @@ from .const import (
     HTTP_TIMEOUT,
     INGEST_PATH,
 )
-from .session_mapper import extract_meter_readings, extract_sessions
+from .session_mapper import extract_sessions
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,13 +77,20 @@ class EvccClient:
     async def async_get_sessions(self) -> list[dict[str, Any]]:
         return extract_sessions(await self._get_json(EVCC_SESSIONS_PATH))
 
-    async def async_get_meter_readings(self) -> list[dict[str, Any]]:
-        """Meterstanden zijn extra controle-informatie, geen blokkerende stap."""
+    async def async_get_state(self) -> Any | None:
+        """De huidige status van evcc, of None als die niet te lezen valt.
+
+        Hieruit komen de meterstanden en de sessies die op dit moment lopen.
+        Allebei zijn ze extra informatie naast de afgeronde sessies, dus een
+        onbereikbare status mag de synchronisatie niet doen mislukken. None
+        betekent expliciet "niet gezien", zodat de webapp weet dat ze de
+        lopende sessies met rust moet laten in plaats van ze op te ruimen.
+        """
         try:
-            return extract_meter_readings(await self._get_json(EVCC_STATE_PATH))
+            return await self._get_json(EVCC_STATE_PATH)
         except LaadkostenError as err:
-            _LOGGER.debug("Meterstanden konden niet gelezen worden: %s", err)
-            return []
+            _LOGGER.debug("Status van evcc kon niet gelezen worden: %s", err)
+            return None
 
 
 class AppClient:

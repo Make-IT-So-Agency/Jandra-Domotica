@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { verdeelKwh } from "@/lib/billing";
-import { datumTijd, kwh } from "@/lib/format";
+import { richtprijsVoorSessie, verdeelKwh, type DoorrekenContext } from "@/lib/billing";
+import { datumTijd, euro, kwh } from "@/lib/format";
 import { kwartaalPeriode, kwartaalVan, lokaleOnderdelen, maandPeriode } from "@/lib/periods";
 import {
   isHoofdbeheerder,
@@ -9,12 +9,14 @@ import {
   zichtbareVennootschappen,
   type Gebruiker,
 } from "@/lib/rollen";
+import { sessieToestand, TOESTANDEN, type SessieToestand } from "@/lib/sessies";
 import { leesInstellingen } from "@/lib/settings";
 import { db } from "@/lib/supabase";
 import { leesTarieven } from "@/lib/tariffs";
 import { vereistGebruiker } from "@/lib/toegang";
 import type { Laadpaal, Laadsessie, Vennootschap } from "@/lib/types";
 
+import { MeldingAllesKlaar } from "./melding-klaar";
 import { VerdelingPerLaadpaal } from "./verdeling-laadpalen";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,8 @@ interface Overzicht {
   nietGekoppeld: string[];
   tariefOntbreekt: string | null;
   tariefOnbevestigd: string | null;
+  /** Alles wat nodig is om een sessie een prijs te geven in de lijst. */
+  prijscontext: DoorrekenContext;
 }
 
 async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
@@ -83,6 +87,7 @@ async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
         nietGekoppeld: [],
         tariefOntbreekt: null,
         tariefOnbevestigd: null,
+        prijscontext: { tarieven: [], regioPerLaadpaal: new Map() },
       };
     }
     maandVraag = maandVraag.in("loadpoint_name", eigenNamen);
@@ -95,6 +100,16 @@ async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
     (vennootschap) => beperking === null || beperking.includes(vennootschap.id),
   );
 
+  // Alle tarieven in één keer: de lijst met sessies gaat vijftien rijen terug
+  // en kan dus over een kwartaalgrens heen lopen.
+  const tarieven = await leesTarieven();
+  const prijscontext: DoorrekenContext = {
+    tarieven,
+    regioPerLaadpaal: new Map(
+      alleLaadpalen.map((laadpaal) => [laadpaal.name.toLowerCase(), laadpaal.region]),
+    ),
+  };
+
   // Tariefmeldingen zijn enkel zinvol voor wie ze kan oplossen.
   let tariefOntbreekt: string | null = null;
   let tariefOnbevestigd: string | null = null;
@@ -103,8 +118,10 @@ async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
     const instellingen = await leesInstellingen();
     const { jaar: kJaar, kwartaal } = kwartaalVan(nu);
     const kwartaalStart = kwartaalPeriode(kJaar, kwartaal).start;
-    const tarieven = await leesTarieven(instellingen.regio);
-    const huidigTarief = tarieven.find((tarief) => tarief.period_start === kwartaalStart);
+    const huidigTarief = tarieven.find(
+      (tarief) =>
+        tarief.region === instellingen.regio && tarief.period_start === kwartaalStart,
+    );
 
     tariefOntbreekt = huidigTarief ? null : `Q${kwartaal} ${kJaar}`;
     tariefOnbevestigd =
@@ -122,6 +139,7 @@ async function haalOverzicht(gebruiker: Gebruiker): Promise<Overzicht> {
       .map((laadpaal) => laadpaal.name),
     tariefOntbreekt,
     tariefOnbevestigd,
+    prijscontext,
   };
 }
 
@@ -229,10 +247,7 @@ export default async function Overzichtspagina() {
             </ul>
           </div>
         ) : (
-          <div className="melding goed">
-            Alles staat klaar. Je kan meteen een rapport maken bij{" "}
-            <Link href="/rapporten">Rapporten</Link>.
-          </div>
+          <MeldingAllesKlaar />
         )
       ) : null}
 
@@ -295,12 +310,15 @@ export default async function Overzichtspagina() {
                 <th className="getal">kWh (net)</th>
                 <th className="getal">kWh (zon)</th>
                 <th className="getal">kWh (totaal)</th>
+                <th className="getal">Kostprijs incl. btw</th>
                 <th className="smal">Status</th>
               </tr>
             </thead>
             <tbody>
               {overzicht.laatsteSessies.map((sessie) => {
                 const deel = verdeelKwh(sessie.energy_kwh, sessie.solar_percentage);
+                const prijs = richtprijsVoorSessie(sessie, overzicht.prijscontext);
+                const toestand = TOESTANDEN[sessieToestand(sessie)];
 
                 return (
                   <tr key={sessie.id}>
@@ -309,14 +327,28 @@ export default async function Overzichtspagina() {
                     <td data-label="kWh (net)" className="getal">{kwh(deel.net)}</td>
                     <td data-label="kWh (zon)" className="getal">{kwh(deel.zon)}</td>
                     <td data-label="kWh (totaal)" className="getal">{kwh(deel.totaal)}</td>
+                    <td data-label="Kostprijs incl. btw" className="getal">
+                      {prijs.bedrag_incl_btw === null ? (
+                        <span className="ontbreekt" title={prijs.reden ?? undefined}>
+                          —
+                        </span>
+                      ) : prijs.bevestigd ? (
+                        euro(prijs.bedrag_incl_btw)
+                      ) : (
+                        <span title="Richtprijs: het tarief van dit kwartaal is nog niet bevestigd.">
+                          {euro(prijs.bedrag_incl_btw)}
+                          <span className="ster">*</span>
+                        </span>
+                      )}
+                    </td>
                     <td data-label="Status" className="smal">
                       <span
-                        className={`vlag-icoon ${sessie.is_complete ? "goed" : "let-op"}`}
-                        title={sessie.is_complete ? "Afgerond" : "Loopt nog"}
-                        aria-label={sessie.is_complete ? "Afgerond" : "Loopt nog"}
+                        className={`vlag-icoon ${toestand.klasse}`}
+                        title={toestand.label}
+                        aria-label={toestand.label}
                         role="img"
                       >
-                        {sessie.is_complete ? "✓" : "⋯"}
+                        {toestand.icoon}
                       </span>
                     </td>
                   </tr>
@@ -327,10 +359,36 @@ export default async function Overzichtspagina() {
         </div>
       )}
 
-      <p className="hulp" style={{ marginTop: 12 }}>
-        Bedragen staan hier bewust niet bij: die worden pas berekend in een rapport, met het
-        bevestigde tarief van het kwartaal waarin de sessie viel.
-      </p>
+      {/* De drie toestanden staan er alle drie bij, ook die niet in de lijst
+          voorkomen: anders weet je niet dat ze bestaan tot je er een tegenkomt. */}
+      <dl className="legende">
+        {(Object.keys(TOESTANDEN) as SessieToestand[]).map((naam) => {
+          const toestand = TOESTANDEN[naam];
+          return (
+            <div key={naam}>
+              <dt>
+                <span className={`vlag-icoon ${toestand.klasse}`} aria-hidden="true">
+                  {toestand.icoon}
+                </span>
+                {toestand.label}
+              </dt>
+              <dd>{toestand.uitleg}</dd>
+            </div>
+          );
+        })}
+        <div>
+          <dt>
+            <span className="ster" aria-hidden="true">
+              *
+            </span>
+            Richtprijs
+          </dt>
+          <dd>
+            berekend met een tarief dat nog niet bevestigd is. Een rapport vertrekt pas
+            met een bevestigd tarief, dus daar kan het bedrag nog van afwijken.
+          </dd>
+        </div>
+      </dl>
     </>
   );
 }

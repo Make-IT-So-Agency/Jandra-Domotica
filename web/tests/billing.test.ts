@@ -4,6 +4,7 @@ import {
   afrondenCent,
   berekenSessieKost,
   rekenSessiesDoor,
+  richtprijsVoorSessie,
   tariefVoorDatum,
   verdeelKwh,
   zonneKwh,
@@ -281,5 +282,102 @@ describe("verdeelKwh", () => {
 
   it("zet bij honderd procent alles op de zon", () => {
     expect(verdeelKwh(12.5, 100)).toEqual({ net: 0, zon: 12.5, totaal: 12.5 });
+  });
+});
+
+describe("richtprijsVoorSessie", () => {
+  it("rekent een afgeronde sessie door met het tarief van haar kwartaal", () => {
+    const prijs = richtprijsVoorSessie(sessie({ energy_kwh: 10 }), CONTEXT);
+
+    // 10 kWh aan 0,28 inclusief btw.
+    expect(prijs.bedrag_incl_btw).toBe(2.8);
+    expect(prijs.bevestigd).toBe(true);
+    expect(prijs.reden).toBeNull();
+  });
+
+  it("neemt het tarief van het kwartaal waarin de sessie viel", () => {
+    const q2 = sessie({
+      started_at: "2026-05-10T08:00:00Z",
+      finished_at: "2026-05-10T10:00:00Z",
+    });
+
+    expect(richtprijsVoorSessie(q2, CONTEXT).bedrag_incl_btw).toBe(3.0);
+  });
+
+  it("markeert een onbevestigd tarief als richtprijs", () => {
+    const onbevestigd = {
+      ...CONTEXT,
+      tarieven: [{ ...TARIEF_Q1, confirmed_at: null }],
+    };
+    const prijs = richtprijsVoorSessie(sessie(), onbevestigd);
+
+    // Het bedrag komt er wel, maar niet als vaststaand: een rapport vertrekt
+    // pas met een bevestigd tarief.
+    expect(prijs.bedrag_incl_btw).toBe(2.8);
+    expect(prijs.bevestigd).toBe(false);
+  });
+
+  it("geeft geen bedrag zolang de sessie loopt", () => {
+    const prijs = richtprijsVoorSessie(
+      sessie({ is_complete: false, finished_at: null }),
+      CONTEXT,
+    );
+
+    expect(prijs.bedrag_incl_btw).toBeNull();
+    expect(prijs.reden).toMatch(/loopt nog/);
+  });
+
+  it("geeft geen bedrag zonder geldig verbruik", () => {
+    expect(richtprijsVoorSessie(sessie({ energy_kwh: 0 }), CONTEXT).reden).toMatch(
+      /verbruik/,
+    );
+    expect(richtprijsVoorSessie(sessie({ energy_kwh: null }), CONTEXT).reden).toMatch(
+      /verbruik/,
+    );
+  });
+
+  it("geeft geen bedrag als het kwartaal nog geen tarief heeft", () => {
+    const later = sessie({
+      started_at: "2027-02-01T08:00:00Z",
+      finished_at: "2027-02-01T10:00:00Z",
+    });
+    const prijs = richtprijsVoorSessie(later, CONTEXT);
+
+    expect(prijs.bedrag_incl_btw).toBeNull();
+    expect(prijs.reden).toMatch(/2027-02-01/);
+  });
+
+  it("gebruikt de regio van de laadpaal", () => {
+    const wallonie = {
+      ...TARIEF_Q1,
+      id: "t3",
+      region: "wallonie",
+      eur_per_kwh: 0.35,
+    };
+    const context = {
+      tarieven: [TARIEF_Q1, wallonie],
+      regioPerLaadpaal: new Map([["garage", "wallonie"]]),
+    };
+
+    expect(richtprijsVoorSessie(sessie(), context).bedrag_incl_btw).toBe(3.5);
+  });
+
+  it("telt hetzelfde op als het rapport", () => {
+    // Zou dit uiteenlopen, dan zou het overzicht een ander bedrag tonen dan
+    // wat de boekhouder in het rapport ziet staan.
+    const sessies = [
+      sessie({ id: "a", energy_kwh: 7.3 }),
+      sessie({ id: "b", energy_kwh: 12.45 }),
+      sessie({ id: "c", energy_kwh: 0.9 }),
+    ];
+
+    const uitRapport = rekenSessiesDoor(sessies, CONTEXT).regels.map(
+      (regel) => regel.bedrag_incl_btw,
+    );
+    const uitOverzicht = sessies.map(
+      (item) => richtprijsVoorSessie(item, CONTEXT).bedrag_incl_btw,
+    );
+
+    expect(uitOverzicht).toEqual(uitRapport);
   });
 });

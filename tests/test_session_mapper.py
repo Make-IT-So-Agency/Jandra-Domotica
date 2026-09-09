@@ -20,6 +20,7 @@ _spec = importlib.util.spec_from_file_location("session_mapper", _MODULE_PATH)
 session_mapper = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(session_mapper)
 
+extract_live_sessions = session_mapper.extract_live_sessions
 extract_meter_readings = session_mapper.extract_meter_readings
 extract_sessions = session_mapper.extract_sessions
 filter_recent = session_mapper.filter_recent
@@ -177,3 +178,126 @@ def test_meterstanden_uit_de_evcc_status():
 def test_meterstanden_bij_onverwacht_antwoord():
     assert extract_meter_readings(None) == []
     assert extract_meter_readings({"result": {}}) == []
+
+
+# --- Sessies die op dit moment lopen ---------------------------------------
+
+NU = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+
+LOPEND_LAADPUNT = {
+    "title": "Garage",
+    "connected": True,
+    "charging": True,
+    "chargedEnergy": 12.5,
+    "sessionSolarPercentage": 60.0,
+    "connectedDuration": 3600,
+    "chargeDuration": 1800,
+    "vehicleTitle": "Auto Jandra",
+}
+
+
+def _state(*loadpoints):
+    return {"result": {"loadpoints": list(loadpoints)}}
+
+
+def test_lopende_sessie_wordt_een_eigen_rij_per_laadpunt():
+    live = extract_live_sessions(_state(LOPEND_LAADPUNT), now=NU)
+
+    assert len(live) == 1
+    sessie = live[0]
+    assert sessie["external_id"] == "evcc:live:Garage"
+    assert sessie["loadpoint"] == "Garage"
+    assert sessie["vehicle"] == "Auto Jandra"
+    assert sessie["energy_kwh"] == 12.5
+    assert sessie["solar_percentage"] == 60.0
+    assert sessie["duration_seconds"] == 1800
+    assert sessie["finished_at"] is None
+
+
+def test_lopende_sessie_is_nooit_afgerond():
+    # Zou ze dat wel zijn, dan telde ze mee in de totalen en in een rapport,
+    # naast de afgeronde sessie die evcc straks met haar eigen id stuurt.
+    live = extract_live_sessions(_state(LOPEND_LAADPUNT), now=NU)
+    assert live[0]["is_complete"] is False
+
+
+def test_starttijd_komt_van_hoelang_de_wagen_al_hangt():
+    live = extract_live_sessions(_state(LOPEND_LAADPUNT), now=NU)
+    # connectedDuration is 3600 s, dus een uur voor NU.
+    assert live[0]["started_at"] == datetime(
+        2026, 9, 9, 11, 0, tzinfo=timezone.utc
+    ).isoformat()
+
+
+def test_starttijd_valt_terug_op_de_laadduur():
+    zonder = {**LOPEND_LAADPUNT}
+    del zonder["connectedDuration"]
+    live = extract_live_sessions(_state(zonder), now=NU)
+    assert live[0]["started_at"] == datetime(
+        2026, 9, 9, 11, 30, tzinfo=timezone.utc
+    ).isoformat()
+
+
+def test_losgekoppeld_laadpunt_geeft_geen_lopende_sessie():
+    los = {**LOPEND_LAADPUNT, "connected": False}
+    assert extract_live_sessions(_state(los), now=NU) == []
+
+
+def test_wagen_aan_de_kabel_zonder_te_laden_is_geen_sessie():
+    wachtend = {
+        **LOPEND_LAADPUNT,
+        "charging": False,
+        "chargedEnergy": 0,
+    }
+    assert extract_live_sessions(_state(wachtend), now=NU) == []
+
+
+def test_gepauzeerde_sessie_met_energie_telt_wel_mee():
+    pauze = {**LOPEND_LAADPUNT, "charging": False}
+    live = extract_live_sessions(_state(pauze), now=NU)
+    assert len(live) == 1
+    assert live[0]["energy_kwh"] == 12.5
+
+
+def test_laadpunt_zonder_naam_krijgt_hetzelfde_label_als_bij_de_meterstanden():
+    naamloos = {**LOPEND_LAADPUNT}
+    del naamloos["title"]
+
+    live = extract_live_sessions(_state(naamloos), now=NU)
+    meters = extract_meter_readings(_state({**naamloos, "chargeTotalImport": 100}))
+
+    # Zou dit uiteenlopen, dan kwam dezelfde laadpaal er twee keer in te staan.
+    assert live[0]["loadpoint"] == meters[0]["loadpoint"] == "Laadpunt 1"
+
+
+def test_zonnefractie_wordt_ook_hier_begrensd():
+    raar = {**LOPEND_LAADPUNT, "sessionSolarPercentage": 140}
+    assert extract_live_sessions(_state(raar), now=NU)[0]["solar_percentage"] == 100.0
+
+
+def test_negatieve_energie_wordt_genegeerd():
+    raar = {**LOPEND_LAADPUNT, "chargedEnergy": -3}
+    live = extract_live_sessions(_state(raar), now=NU)
+    # Nog altijd aan het laden, dus wel een sessie -- maar zonder verzonnen getal.
+    assert live[0]["energy_kwh"] is None
+
+
+def test_meerdere_laadpunten_leveren_elk_hun_eigen_rij():
+    live = extract_live_sessions(
+        _state(
+            LOPEND_LAADPUNT,
+            {**LOPEND_LAADPUNT, "title": "Oprit", "chargedEnergy": 4},
+        ),
+        now=NU,
+    )
+
+    assert [sessie["external_id"] for sessie in live] == [
+        "evcc:live:Garage",
+        "evcc:live:Oprit",
+    ]
+
+
+def test_lopende_sessies_bij_onverwacht_antwoord():
+    assert extract_live_sessions(None, now=NU) == []
+    assert extract_live_sessions({"result": {}}, now=NU) == []
+    assert extract_live_sessions(_state("geen woordenboek"), now=NU) == []

@@ -49,6 +49,13 @@ SENSORS: tuple[LaadkostenSensorDescription, ...] = (
         native_unit_of_measurement="sessies",
         value_fn=lambda data: data.get("sessions_complete"),
     ),
+    LaadkostenSensorDescription(
+        key="sessions_live",
+        translation_key="sessions_live",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="sessies",
+        value_fn=lambda data: data.get("sessions_live"),
+    ),
 )
 
 

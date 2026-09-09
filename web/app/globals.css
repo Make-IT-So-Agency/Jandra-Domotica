@@ -351,6 +351,33 @@ button.gevaar {
   padding-left: 20px;
 }
 
+.melding.met-kruisje {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kruisje {
+  flex: none;
+  /* Geen knopkleuren: dit is een sluitkruisje en geen actie om aandacht naar
+     toe te trekken. */
+  background: none;
+  border: none;
+  padding: 0 2px;
+  margin: -2px 0;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.kruisje:hover {
+  opacity: 1;
+  filter: none;
+}
+
 .melding.goed {
   background: var(--goed-zacht);
   border-color: var(--goed);
@@ -417,6 +444,64 @@ button.gevaar {
 .vlag-icoon.let-op {
   background: var(--let-op-zacht);
   color: var(--let-op);
+}
+
+/* "Bezig" krijgt de accentkleur en niet groen of oranje: die twee betekenen op
+   dit scherm al "afgerond" en "onafgewerkt". */
+.vlag-icoon.bezig {
+  background: var(--accent-zacht);
+  color: var(--accent);
+}
+
+/* Een bedrag dat met een nog niet bevestigd tarief berekend is. */
+.ster {
+  color: var(--let-op);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* Een streepje waar geen bedrag te geven valt. De reden staat in title. */
+.ontbreekt {
+  color: var(--zacht);
+  cursor: help;
+}
+
+/* Legende onder de sessietabel. */
+.legende {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+.legende > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.legende dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--tekst);
+  /* Zodat de uitleg van alle regels op dezelfde hoogte begint. */
+  min-width: 150px;
+}
+
+.legende dd {
+  margin: 0;
+  flex: 1 1 260px;
+}
+
+.legende .ster {
+  /* Even breed als het statusicoon, zodat de namen onder elkaar uitkomen. */
+  width: 22px;
+  text-align: center;
+  font-size: 15px;
 }
 
 /* Een kolom die niet meer plaats hoeft dan haar inhoud. */

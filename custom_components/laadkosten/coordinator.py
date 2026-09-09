@@ -28,7 +28,11 @@ from .const import (
     DEFAULT_SCAN_MINUTES,
     DOMAIN,
 )
-from .session_mapper import filter_recent
+from .session_mapper import (
+    extract_live_sessions,
+    extract_meter_readings,
+    filter_recent,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,15 +69,27 @@ class LaadkostenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             sessions = await self._evcc.async_get_sessions()
             selected = filter_recent(sessions, self._history_days)
-            meters = await self._evcc.async_get_meter_readings()
+
+            # Eén keer de status ophalen: de meterstanden én de sessies die nu
+            # lopen komen er allebei uit, en dan zijn ze ook van hetzelfde
+            # moment.
+            state = await self._evcc.async_get_state()
+            meters = extract_meter_readings(state) if state is not None else []
 
             now = datetime.now(timezone.utc)
+            live = extract_live_sessions(state, now) if state is not None else []
+
             payload = {
                 "source": "evcc",
                 "sent_at": now.isoformat(),
                 "installation_id": self.entry.entry_id,
                 "sessions": selected,
                 "meters": [{**meter, "read_at": now.isoformat()} for meter in meters],
+                "live_sessions": live,
+                # Enkel als we de status écht gezien hebben, mag de webapp de
+                # lopende rijen opruimen die er niet meer in staan. Anders zou
+                # een evcc dat even niet antwoordt elke lopende sessie wissen.
+                "live_observed": state is not None,
             }
             result = await self._app.async_push(payload)
         except AppUnauthorized as err:
@@ -88,6 +104,7 @@ class LaadkostenCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "last_sync": now,
             "sessions_sent": len(selected),
             "sessions_complete": complete,
+            "sessions_live": len(live),
             "sessions_known_by_evcc": len(sessions),
             "inserted": int(result.get("inserted") or 0),
             "updated": int(result.get("updated") or 0),

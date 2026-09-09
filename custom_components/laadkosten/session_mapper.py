@@ -186,6 +186,104 @@ def filter_recent(
     return recent
 
 
+def _loadpoint_title(loadpoint: dict[str, Any], index: int) -> str:
+    """De naam waaronder een laadpunt in de webapp bekend staat.
+
+    Moet exact hetzelfde zijn als bij de meterstanden en de sessies, anders
+    komt eenzelfde laadpaal er twee keer in te staan.
+    """
+    return _clean_text(_first(loadpoint, "title")) or f"Laadpunt {index + 1}"
+
+
+def extract_live_sessions(
+    state: Any, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Lees per laadpunt de sessie die op dit moment loopt uit /api/state.
+
+    De sessielijst van evcc bevat enkel afgeronde sessies -- de sessie die nu
+    bezig is staat alleen in de status. Die krijgt hier een eigen external_id
+    per laadpunt (``evcc:live:<naam>``), zodat er per laadpunt hoogstens één
+    lopende rij kan bestaan en elke synchronisatie die gewoon overschrijft.
+    Zodra de sessie afgerond is komt ze met haar echte evcc-id binnen als een
+    aparte rij, en ruimt de webapp de lopende rij op.
+
+    Eenheden komen uit de REST-documentatie van evcc: chargedEnergy in kWh en
+    chargeDuration in seconden. Dat is niet hetzelfde als de sessielijst, waar
+    de duur in nanoseconden staat; _duration_seconds vangt allebei op.
+    """
+    if isinstance(state, dict) and isinstance(state.get("result"), dict):
+        state = state["result"]
+    if not isinstance(state, dict):
+        return []
+
+    loadpoints = state.get("loadpoints")
+    if not isinstance(loadpoints, list):
+        return []
+
+    reference = now or datetime.now(timezone.utc)
+    live: list[dict[str, Any]] = []
+
+    for index, loadpoint in enumerate(loadpoints):
+        if not isinstance(loadpoint, dict):
+            continue
+        # Zonder aangesloten wagen is er niets aan de gang. Dit is ook het
+        # signaal waarop de webapp een oude lopende rij weer opruimt.
+        if not bool(_first(loadpoint, "connected")):
+            continue
+
+        charging = bool(_first(loadpoint, "charging"))
+        energy = _to_float(_first(loadpoint, "chargedEnergy", "sessionEnergy"))
+        if energy is not None and energy < 0:
+            energy = None
+
+        # Een wagen die enkel aan de kabel hangt zonder ooit geladen te hebben
+        # is geen sessie om te tonen.
+        if not charging and not energy:
+            continue
+
+        # connectedDuration telt vanaf het insteken, chargeDuration enkel de
+        # tijd dat er stroom liep. Voor een starttijdstip is het eerste juister.
+        duration = _duration_seconds(
+            _first(loadpoint, "connectedDuration", "chargeDuration")
+        )
+        started_at = (
+            reference - timedelta(seconds=duration) if duration is not None else reference
+        )
+
+        solar = _to_float(_first(loadpoint, "sessionSolarPercentage"))
+        if solar is not None:
+            solar = min(max(solar, 0.0), 100.0)
+
+        title = _loadpoint_title(loadpoint, index)
+        live.append(
+            {
+                "external_id": f"evcc:live:{title}",
+                "loadpoint": title,
+                "vehicle": _clean_text(
+                    _first(loadpoint, "vehicleTitle", "vehicleName")
+                ),
+                "started_at": started_at.isoformat(),
+                "finished_at": None,
+                "energy_kwh": energy,
+                "meter_start_kwh": None,
+                "meter_stop_kwh": None,
+                "duration_seconds": _duration_seconds(
+                    _first(loadpoint, "chargeDuration")
+                ),
+                "solar_percentage": solar,
+                "odometer_km": _to_float(_first(loadpoint, "vehicleOdometer")),
+                "evcc_price_eur": None,
+                "evcc_price_per_kwh": None,
+                # Nooit volledig: deze rij mag in geen enkel totaal of rapport
+                # meetellen zolang de sessie loopt. Dat ze lopend is, zie je
+                # verder aan het voorvoegsel van external_id.
+                "is_complete": False,
+            }
+        )
+
+    return live
+
+
 def extract_meter_readings(state: Any) -> list[dict[str, Any]]:
     """Lees de huidige meterstand per laadpunt uit /api/state.
 
@@ -204,7 +302,7 @@ def extract_meter_readings(state: Any) -> list[dict[str, Any]]:
     for index, loadpoint in enumerate(loadpoints):
         if not isinstance(loadpoint, dict):
             continue
-        title = _clean_text(_first(loadpoint, "title")) or f"Laadpunt {index + 1}"
+        title = _loadpoint_title(loadpoint, index)
         total = _to_float(_first(loadpoint, "chargeTotalImport", "meterEnergy"))
         if total is None:
             continue

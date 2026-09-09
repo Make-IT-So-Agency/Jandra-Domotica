@@ -110,6 +110,24 @@ Een sessie die nog loopt komt binnen met `is_complete = false` en wordt wel
 getoond maar niet doorgerekend. Zodra ze afgerond is, wordt dezelfde rij
 bijgewerkt.
 
+### De sessie die nu loopt komt uit een andere bron
+
+De sessielijst van evcc bevat enkel afgeronde sessies. Wat er op dit moment
+laadt staat alleen in `/api/state`, per laadpunt, zonder sessie-id. De
+integratie leest dat mee en stuurt het als aparte `live_sessions`, met een
+verzonnen id `evcc:live:<naam van het laadpunt>`.
+
+Daardoor bestaat er per laadpunt hoogstens één lopende rij, die elke
+synchronisatie overschreven wordt. Zo'n rij is altijd `is_complete = false` --
+de ingest dwingt dat af en gelooft de integratie daarin niet op haar woord --
+en telt dus in geen enkel totaal en in geen enkel rapport mee. Zodra de sessie
+afgerond is stuurt evcc ze met haar échte id als een gewone rij, en verwijdert
+de ingest de lopende versie. Dubbeltellen kan dus niet, ook niet in het korte
+moment dat beide rijen naast elkaar bestaan.
+
+Het opruimen gebeurt enkel wanneer `live_observed` waar is. Een evcc dat even
+niet antwoordt zou anders elke lopende sessie wissen alsof er niets meer laadt.
+
 ## Keuzes rond toegang
 
 ### De rol wordt bij elke paginaweergave opgezocht

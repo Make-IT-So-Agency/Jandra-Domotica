@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { LIVE_VOORVOEGSEL } from "@/lib/sessies";
 import { db } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -36,6 +37,14 @@ const PayloadSchema = z.object({
   installation_id: z.string().optional(),
   sessions: z.array(SessieSchema).max(20000),
   meters: z.array(MeterSchema).max(200).default([]),
+  /** De sessies die op dit moment lopen, één per laadpunt. */
+  live_sessions: z.array(SessieSchema).max(200).default([]),
+  /**
+   * Of de integratie de status van evcc écht gelezen heeft. Alleen dan mag
+   * een lopende rij die er niet meer bij staat opgeruimd worden: een evcc dat
+   * even niet antwoordt zou anders elke lopende sessie wissen.
+   */
+  live_observed: z.boolean().default(false),
 });
 
 /** Vergelijking die niet sneller stopt bij een vroege afwijking. */
@@ -92,21 +101,19 @@ export async function POST(request: Request) {
   const supabase = db();
 
   try {
-    const rijen = payload.sessions.map((sessie) => ({
-      external_id: sessie.external_id,
-      loadpoint_name: sessie.loadpoint ?? null,
-      vehicle: sessie.vehicle ?? null,
-      started_at: sessie.started_at ?? null,
-      finished_at: sessie.finished_at ?? null,
-      energy_kwh: sessie.energy_kwh ?? null,
-      meter_start_kwh: sessie.meter_start_kwh ?? null,
-      meter_stop_kwh: sessie.meter_stop_kwh ?? null,
-      duration_seconds: sessie.duration_seconds ?? null,
-      solar_percentage: sessie.solar_percentage ?? null,
-      odometer_km: sessie.odometer_km ?? null,
-      evcc_price_eur: sessie.evcc_price_eur ?? null,
-      evcc_price_per_kwh: sessie.evcc_price_per_kwh ?? null,
-      is_complete: sessie.is_complete,
+    const rijen = payload.sessions.map(naarRij);
+
+    // Een lopende rij mag nooit als afgerond binnenkomen: ze zou meetellen in
+    // de totalen en in een rapport, naast de afgeronde sessie die evcc straks
+    // met haar eigen id stuurt. Dat afdwingen we hier en niet enkel in de
+    // integratie, want dit is de grens waar de gegevens binnenkomen.
+    const liveRijen = payload.live_sessions.map((sessie) => ({
+      ...naarRij(sessie),
+      external_id: sessie.external_id.startsWith(LIVE_VOORVOEGSEL)
+        ? sessie.external_id
+        : `${LIVE_VOORVOEGSEL}${sessie.external_id}`,
+      finished_at: null,
+      is_complete: false,
     }));
 
     // Vooraf tellen wat we al kenden, zodat de sensor in Home Assistant kan
@@ -124,17 +131,21 @@ export async function POST(request: Request) {
       bestaand += count ?? 0;
     }
 
-    for (const stuk of stukjes(rijen, 500)) {
+    for (const stuk of stukjes([...rijen, ...liveRijen], 500)) {
       const { error } = await supabase
         .from("sessions")
         .upsert(stuk, { onConflict: "external_id" });
       if (error) throw new Error(error.message);
     }
 
+    const opgeruimd = payload.live_observed
+      ? await ruimAfgelopenLiveRijenOp(liveRijen.map((rij) => rij.external_id))
+      : 0;
+
     // Nieuwe laadpalen automatisch aanmaken, zodat ze meteen in de app staan
     // om aan een vennootschap te koppelen.
     await registreerNieuweLaadpalen(
-      payload.sessions
+      [...payload.sessions, ...payload.live_sessions]
         .map((sessie) => sessie.loadpoint)
         .filter((naam): naam is string => Boolean(naam && naam.trim())),
     );
@@ -166,6 +177,8 @@ export async function POST(request: Request) {
       received: rijen.length,
       inserted: nieuw,
       updated: bestaand,
+      live: liveRijen.length,
+      live_opgeruimd: opgeruimd,
     });
   } catch (fout) {
     const boodschap = fout instanceof Error ? fout.message : "onbekende fout";
@@ -176,6 +189,65 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: false, error: boodschap }, { status: 500 });
   }
+}
+
+function naarRij(sessie: z.infer<typeof SessieSchema>) {
+  return {
+    external_id: sessie.external_id,
+    loadpoint_name: sessie.loadpoint ?? null,
+    vehicle: sessie.vehicle ?? null,
+    started_at: sessie.started_at ?? null,
+    finished_at: sessie.finished_at ?? null,
+    energy_kwh: sessie.energy_kwh ?? null,
+    meter_start_kwh: sessie.meter_start_kwh ?? null,
+    meter_stop_kwh: sessie.meter_stop_kwh ?? null,
+    duration_seconds: sessie.duration_seconds ?? null,
+    solar_percentage: sessie.solar_percentage ?? null,
+    odometer_km: sessie.odometer_km ?? null,
+    evcc_price_eur: sessie.evcc_price_eur ?? null,
+    evcc_price_per_kwh: sessie.evcc_price_per_kwh ?? null,
+    is_complete: sessie.is_complete,
+  };
+}
+
+/**
+ * Verwijder de lopende rijen van laadpunten waar niets meer laadt.
+ *
+ * Zonder dit blijft een sessie eeuwig als "bezig" staan nadat de wagen
+ * losgekoppeld is. De afgeronde sessie komt straks met haar eigen evcc-id
+ * binnen als een aparte rij, dus de lopende versie mag gewoon weg.
+ *
+ * Er wordt gezocht op is_complete en niet met een jokerteken op external_id:
+ * een lopende rij is per definitie onafgerond, dat zijn er weinig, en zo hangt
+ * het opruimen niet af van hoe een LIKE-filter onderweg vertaald wordt. Het
+ * voorvoegsel wordt hier gecontroleerd, zodat een sessie die evcc onvolledig
+ * afsloot met rust gelaten wordt.
+ *
+ * De rijen worden eerst opgezocht en dan bij naam verwijderd, en niet met een
+ * "niet in deze lijst"-filter: een laadpaalnaam met een komma of een
+ * aanhalingsteken erin zou zo'n filter stukmaken.
+ */
+async function ruimAfgelopenLiveRijenOp(behouden: string[]): Promise<number> {
+  const supabase = db();
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("external_id")
+    .eq("is_complete", false);
+  if (error) throw new Error(error.message);
+
+  const nogBezig = new Set(behouden);
+  const verlopen = (data ?? [])
+    .map((rij) => String(rij.external_id))
+    .filter((id) => id.startsWith(LIVE_VOORVOEGSEL) && !nogBezig.has(id));
+  if (verlopen.length === 0) return 0;
+
+  const { error: wisFout } = await supabase
+    .from("sessions")
+    .delete()
+    .in("external_id", verlopen);
+  if (wisFout) throw new Error(wisFout.message);
+
+  return verlopen.length;
 }
 
 async function registreerNieuweLaadpalen(namen: string[]): Promise<void> {
