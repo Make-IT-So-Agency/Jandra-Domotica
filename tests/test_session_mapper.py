@@ -188,7 +188,8 @@ LOPEND_LAADPUNT = {
     "title": "Garage",
     "connected": True,
     "charging": True,
-    "chargedEnergy": 12.5,
+    # In wattuur, zoals evcc het in /api/state publiceert.
+    "chargedEnergy": 12500,
     "sessionSolarPercentage": 60.0,
     "connectedDuration": 3600,
     "chargeDuration": 1800,
@@ -257,6 +258,32 @@ def test_gepauzeerde_sessie_met_energie_telt_wel_mee():
     live = extract_live_sessions(_state(pauze), now=NU)
     assert len(live) == 1
     assert live[0]["energy_kwh"] == 12.5
+
+
+def test_energie_uit_de_status_staat_in_wattuur():
+    # Dit ging een keer mis en stond als 9.600 kWh op het scherm: tien volle
+    # autobatterijen in één sessie. /api/state publiceert chargedEnergy in Wh.
+    live = extract_live_sessions(
+        _state({**LOPEND_LAADPUNT, "chargedEnergy": 9600}), now=NU
+    )
+    assert live[0]["energy_kwh"] == 9.6
+
+
+def test_de_meterstand_in_hetzelfde_antwoord_blijft_kilowattuur():
+    # chargedEnergy staat in Wh maar chargeTotalImport in kWh -- twee eenheden
+    # naast elkaar in hetzelfde object. Zou de omrekening ook op de meterstand
+    # slaan, dan zakte elke meterstand met een factor duizend.
+    laadpunt = {**LOPEND_LAADPUNT, "chargeTotalImport": 9600}
+    state = _state(laadpunt)
+
+    assert extract_live_sessions(state, now=NU)[0]["energy_kwh"] == 12.5
+    assert extract_meter_readings(state)[0]["reading_kwh"] == 9600
+
+
+def test_sessie_uit_de_sessielijst_blijft_kilowattuur():
+    # De sessielijst gebruikt wél kWh. Die loopt langs normalise_session, en
+    # daar mag niets omgerekend worden.
+    assert normalise_session(VOLLEDIGE_SESSIE)["energy_kwh"] == 30.0
 
 
 def test_laadpunt_zonder_naam_krijgt_hetzelfde_label_als_bij_de_meterstanden():

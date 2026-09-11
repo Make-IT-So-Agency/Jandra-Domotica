@@ -80,6 +80,25 @@ def _duration_seconds(value: Any) -> float | None:
     return seconds
 
 
+def _wh_naar_kwh(value: Any) -> float | None:
+    """Energie uit /api/state komt in wattuur, niet in kilowattuur.
+
+    Let op: dat geldt niet voor élk energieveld in dat antwoord.
+    chargedEnergy en sessionEnergy publiceert evcc in Wh, maar
+    chargeTotalImport (de meterstand) in kWh -- twee eenheden naast elkaar in
+    hetzelfde object. Daarom staat de omrekening hier apart, zodat ze niet per
+    ongeluk op de meterstand toegepast wordt.
+
+    De sessielijst (/api/sessions) gebruikt wél kWh voor chargedEnergy; die
+    loopt dan ook langs normalise_session en niet langs deze functie.
+    """
+    wattuur = _to_float(value)
+    if wattuur is None:
+        return None
+    # Drie cijfers na de komma: verder gaat de databank toch niet.
+    return round(wattuur / 1000, 3)
+
+
 def _clean_text(value: Any) -> str | None:
     if value is None:
         return None
@@ -207,9 +226,10 @@ def extract_live_sessions(
     Zodra de sessie afgerond is komt ze met haar echte evcc-id binnen als een
     aparte rij, en ruimt de webapp de lopende rij op.
 
-    Eenheden komen uit de REST-documentatie van evcc: chargedEnergy in kWh en
-    chargeDuration in seconden. Dat is niet hetzelfde als de sessielijst, waar
-    de duur in nanoseconden staat; _duration_seconds vangt allebei op.
+    De energie komt in wattuur binnen en niet in kilowattuur -- zie
+    _wh_naar_kwh, want dat geldt niet voor elk veld in ditzelfde antwoord. De
+    duur kan zowel in seconden als in nanoseconden staan; _duration_seconds
+    vangt allebei op.
     """
     if isinstance(state, dict) and isinstance(state.get("result"), dict):
         state = state["result"]
@@ -232,7 +252,11 @@ def extract_live_sessions(
             continue
 
         charging = bool(_first(loadpoint, "charging"))
-        energy = _to_float(_first(loadpoint, "chargedEnergy", "sessionEnergy"))
+        # Bewust enkel chargedEnergy. Er bestaat ook sessionEnergy, maar van
+        # dat veld is de eenheid hier niet nagegaan, en zo'n ongecontroleerde
+        # terugval is precies hoe het verbruik er een keer duizend keer te
+        # groot uitzag.
+        energy = _wh_naar_kwh(_first(loadpoint, "chargedEnergy"))
         if energy is not None and energy < 0:
             energy = None
 
