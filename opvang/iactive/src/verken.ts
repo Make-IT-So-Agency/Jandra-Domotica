@@ -183,48 +183,43 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForTimeout(3000);
   uit.push(`- Activiteitgroep gezet: ${gefilterd ? "ja" : "nee"}, tegels daarna: ${await telTegels()}`);
 
-  // Ook de locatie moet gekozen zijn (P44_LOCATIE). In een nieuwe sessie is
-  // die leeg en geeft de kalender niets terug. Voor de verkenning: alle
-  // locaties aanvinken via "Filter op locaties".
-  await pagina.click("#KNOP_LOCATIES").catch(() => {});
-  await pagina.waitForTimeout(1000);
-  // De vakjes zijn verborgen (u-hidden); aanzetten en het change-event
-  // sturen waar de facettenzoeker op luistert.
-  const aantalLocaties = await pagina.evaluate(() => {
-    const vakjes = Array.from(document.querySelectorAll<HTMLInputElement>(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]"));
-    for (const v of vakjes) {
-      if (v.checked) continue;
-      v.checked = true;
-      v.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    return vakjes.length;
-  });
-  await pagina.waitForLoadState("networkidle").catch(() => {});
-  await pagina.waitForTimeout(3000);
-  uit.push(`- Locaties aangevinkt: ${aantalLocaties}, tegels daarna: ${await telTegels()}`);
-
-  // Het kind: in een nieuwe sessie staat mogelijk een kind geselecteerd voor
-  // wie er (nog) geen opvang is, en dan is de kalender leeg. Elk kind
-  // proberen tot er tegels verschijnen. Enkel de volgorde komt in het verslag.
-  const kinderen = await pagina.locator("#P44_LEERLING option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  let gekozen = -1;
-  for (let i = 0; i < kinderen.length; i++) {
-    await pagina.selectOption("#P44_LEERLING", kinderen[i]).catch(() => {});
-    await pagina.waitForLoadState("networkidle").catch(() => {});
-    await pagina.waitForTimeout(3000);
-    if ((await telTegels()) > 0) {
-      gekozen = i;
-      break;
-    }
-  }
-  uit.push(`- Kinderen in de lijst: ${kinderen.length}, kind met tegels: ${gekozen < 0 ? "geen" : `nummer ${gekozen + 1}`}, tegels: ${await telTegels()}`);
-
   // Naar november: daar toonde de kalender in een gewone browser tegels.
   for (let i = 0; i < 2; i++) {
     await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
     await pagina.waitForLoadState("networkidle").catch(() => {});
     await pagina.waitForTimeout(3000);
   }
+  // Kind en locatie: in een gewone browser staat er één kind en één locatie
+  // gekozen. Per kind elke locatie afzonderlijk proberen, tot er tegels
+  // verschijnen. In het verslag enkel de volgnummers.
+  await pagina.click("#KNOP_LOCATIES").catch(() => {});
+  await pagina.waitForTimeout(1000);
+  const kinderen = await pagina.locator("#P44_LEERLING option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  const locaties = await pagina.locator(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]").evaluateAll((vs) => vs.map((v) => (v as HTMLInputElement).id));
+  let gevonden = "geen";
+  zoek: for (let k = 0; k < kinderen.length; k++) {
+    await pagina.selectOption("#P44_LEERLING", kinderen[k]).catch(() => {});
+    await pagina.waitForLoadState("networkidle").catch(() => {});
+    for (let l = 0; l < locaties.length; l++) {
+      await pagina.evaluate((aan) => {
+        for (const v of Array.from(document.querySelectorAll<HTMLInputElement>(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]"))) {
+          const moet = v.id === aan;
+          if (v.checked !== moet) {
+            v.checked = moet;
+            v.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
+      }, locaties[l]);
+      await pagina.waitForLoadState("networkidle").catch(() => {});
+      await pagina.waitForTimeout(2500);
+      if ((await telTegels()) > 0) {
+        gevonden = `kind ${k + 1}, locatie ${l + 1}`;
+        break zoek;
+      }
+    }
+  }
+  uit.push(`- Kinderen: ${kinderen.length}, locaties: ${locaties.length}, tegels gevonden bij: ${gevonden}, tegels: ${await telTegels()}`);
+
   const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "?");
   uit.push(`- Maand: ${zuiverLabel(titel)}, dagen: ${await pagina.locator("td[data-date]").count()}, tegels: ${await telTegels()}`);
 
