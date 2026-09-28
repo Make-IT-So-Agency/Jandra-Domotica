@@ -16,14 +16,69 @@ Telegram (Jan + Sandra)
 Vercel: web/app/api/telegram          toegang, knoppen, selectie
         │
         ▼
-Supabase                              selecties, status, resultaten
-        │  pg_cron, ~10 min vóór de opening
-        ▼
-GitHub Actions: Playwright            inloggen, wachten, reserveren
-        │                             en daarna elk slot controleren
-        ▼
-Supabase → Telegram                   "Opvang november verwerkt"
+Supabase                              kinderen, rondes, tegels, keuzes, resultaten
+        ▲                ▲
+        │ elke ochtend   │ op de openingsdag, ~2 uur vooraf
+GitHub Actions           GitHub Actions: Playwright
+kalender lezen           wachten, inloggen, om 18:00 inschrijven,
+(tegels → Supabase)      elk slot controleren
+        │                │
+        ▼                ▼
+Telegram: keuzemenu      Telegram: per slot ✔ / ⏸ / ❌, en een verslag
 ```
+
+## Hoe een maand verloopt
+
+1. **Tien dagen vóór de opening** maakt de webapp de ronde aan (dagelijkse
+   taak op Vercel, 10:00). De workflow **Opvang - kalender lezen** (elke
+   ochtend) leest de tegels van die maand uit i-Active en zet ze in Supabase.
+2. **Meteen daarna** stuurt de bot in Telegram per kind een keuzemenu: per
+   week de dagen, per dag een knop per moment (`voor`, `na`, `woe-nm`, in
+   vakanties `vm`, `nm`, `dag`, per locatie). Jan en Sandra tikken aan wat
+   nodig is. "Alles deze week" vinkt de schooldagen van die week aan, nooit
+   vakantiedagen met meerdere locaties.
+3. **🔒 Definitief maken**: de bot weigert als er dubbele keuzes in zitten
+   (twee locaties voor hetzelfde moment, of een volle dag met een halve), en
+   stuurt anders het vaste overzicht van wat hij zal inschrijven. **✏️
+   Wijzigen** kan tot 5 minuten vóór de opening.
+4. **Herinneringen** 7, 3 en 1 dag vooraf en de ochtend zelf, zolang het niet
+   definitief is. Om 16:00 op de openingsdag nog eens, vanuit de workflow.
+5. **Op de openingsdag** start **Opvang - inschrijven** vanzelf (drie keer,
+   als vangnet). De eerste run wacht, logt 6 minuten vooraf in, legt 4
+   minuten vooraf de keuze vast (status `bezig`), en wacht tot 18:00:00.
+   Daarna herlaadt hij de kalender tot de tegels opengaan, en schrijft per
+   slot in: venster openen, enkel het juiste kind aanvinken, **Inschrijven**,
+   en dan de tegel opnieuw lezen. Enkel de tegel beslist of het gelukt is.
+   Volzet: toch inschrijven, dan staat het kind op de reservelijst (⏸).
+6. **Na afloop** leest hij elke gekozen tegel opnieuw, van nul, en stuurt
+   het verslag: ingeschreven, reservelijst, en wat niet lukte en je dus zelf
+   moet doen.
+7. **Niet definitief om 18:00?** Dan schrijft de bot niets in, en zegt dat.
+
+`/stop` in Telegram laat een lopende inschrijving stoppen vóór het volgende
+slot. Een run die crasht, zet de ronde terug op `definitief`; een nieuwe run
+(met de hand starten, modus `normaal`) doet enkel wat nog niet gebeurd is.
+
+### Commando's
+
+| Commando | Wat |
+| --- | --- |
+| `/plannen` | het keuzemenu van de volgende inschrijving (opnieuw) tonen |
+| `/status` | wat er nu gekozen is, en of het definitief is |
+| `/kinderen` | voor wie de bot reserveert (aan/uit per kind) |
+| `/stop` | een lopende inschrijving stoppen |
+| `/hier` | de bot praat voortaan in deze chat (de groep) |
+| `/volgende`, `/id`, `/help` | |
+
+### Met de hand, in GitHub → Actions
+
+- **Opvang - inschrijven**, modus `proef`: alles behalve de klik op
+  Inschrijven. Met `maand` = een maand met open tegels (bv. `2026-11`): een
+  proef op één vrije en één volzette tegel.
+- Modus `test` met `slot` = `2026-11-16:voor`: schrijft **echt** dat ene slot
+  in voor het kind dat ingepland wordt, en controleert het in i-Active.
+- Modus `normaal`: de ronde van vandaag, zoals de geplande run.
+- **Opvang - kalender lezen**: de tegels opnieuw inlezen.
 
 ## Twee regels die niet onderhandelbaar zijn
 
@@ -40,13 +95,16 @@ Supabase → Telegram                   "Opvang november verwerkt"
 - [x] `/start`, `/id` en `/volgende` (eerstvolgende inschrijfmomenten)
 - [x] Inschrijfmomenten 2026-2027 vastgelegd (`web/lib/opvang/inschrijfmomenten.ts`)
 - [x] Publieke kant van i-Active verkend: login, velden, geen CAPTCHA
-- [ ] i-Active na login verkennen: het reservatiescherm en het winkelmandje
-- [ ] AM/PM-knoppen en de maandkalender
-- [ ] Selecties bewaren in Supabase, status **Definitief**
-- [ ] Sandra erbij, gezamenlijke groep
-- [ ] Herinneringen zolang niet definitief
-- [ ] Reservatieworkflow met droogloop, controle per slot en terugmelding
-- [ ] Startsein via `pg_cron`, met een tweede poging als de eerste niet opdaagt
+- [x] i-Active na login verkend: menu, kalender, venster "Inschrijven"
+- [x] Kalender en inschrijfvenster werken in een headless browser op GitHub
+- [x] Kalender lezen: tegels, locaties en staat per slot in Supabase
+- [x] Keuzemenu per kind en per week, status **Definitief**, Wijzigen
+- [x] Herinneringen zolang niet definitief
+- [x] Inschrijfworkflow met proef, controle per slot, eindcontrole en verslag
+- [x] Startsein: geplande workflow, drie keer als vangnet
+- [ ] Sandra erbij, gezamenlijke groep (`/hier`)
+- [ ] Eén echte testinschrijving in november, om de controle na de klik te zien werken
+- [ ] Eerste echte ronde: december, dinsdag 6 oktober 2026 om 18:00
 
 ## i-Active
 
@@ -69,6 +127,71 @@ scherm na de login is nog niet gezien.
 - Afgeleid uit de scripts: reserveren gaat via een **winkelmandje** met een
   afrekenpagina. Een slot in het mandje is dus nog geen reservatie; de
   controle na afloop moet naar de echte inschrijvingen kijken.
+
+### De kalender: hier gebeurt het reserveren
+
+Menu **Mijn kalender → Kinderopvang**
+(`/ords/r/iactive01/burgerportaal/kalender-kinderopvang-nieuw`). Bovenaan
+kies je een kind (`#P44_LEERLING`, één optie per kind) en een activiteitgroep
+(**Opvang (inschrijvingen)**). Daaronder staat een maandkalender van
+FullCalendar, met knoppen `<`, `>` en `Vandaag`.
+
+**Welke kinderen.** Er staan twee kinderen in het account. Voorlopig plant
+de bot enkel voor het oudste; het jongste komt er pas bij vanaf de
+opvangmaand september 2027. Namen en leerling-id's staan niet in deze
+publieke repository maar in Supabase, samen met die startmaand, zodat het
+jongste kind er vanzelf bijkomt zonder codewijziging.
+
+We reserveren via deze kalender, niet via "Inschrijven via periode": één
+tegel is één slot, dus de bot klikt exact wat aangeduid werd en niets anders,
+en leest op hetzelfde scherm het resultaat terug.
+
+| Wat | Waar in de HTML |
+| --- | --- |
+| Een dag | `td[data-date="2026-11-09"]` |
+| Locatie | `.kal-loc`, bv. "BKO - Speelhuis": staat vóór de tegels van die locatie, niet erin. In vakanties 3 à 4 locaties per dag |
+| Een slot | `a.fc-event` in die cel; tekst "Voorschoolse opvang", "Naschoolse opvang" of "Woensdagmiddag opvang" |
+| Vrij | `title="Inschrijven  tot: 09/11/2026 06:00"`, balk `.progress-bar-text` met een percentage |
+| Volzet | `title="Inschrijven OP RESERVELIJST tot: …"`, balk `pb_full` met "RESERVE" |
+| Gesloten | klasse `calendaralert`, `title="Inschrijven beëindigd op …"`, geen link |
+| Nog niet open | klasse `no_click`, geen link, `title="Inschrijven vanaf 06/10/2026 18:00"` |
+| Ingeschreven | klasse `ingeschreven`, `title="Ingeschreven"` (gezien in november) |
+| Op de reservelijst | icoon `fa-pause-circle` (volgens de legende) |
+
+Een klik op een tegel opent het venster **Inschrijven**: artikel, datum, een
+vinkje per kind, "Inschrijven mogelijk van … tot …", een opmerkingsveld en de
+knop **Inschrijven**. Geen winkelmandje in deze weg.
+
+Het venster is een APEX-dialoog in een **iframe**, pagina `inschrijven1`
+(items `P59_*`):
+
+| Wat | Selector |
+| --- | --- |
+| Vinkje van het kind | `#P59_LEERLING_CSV_0` (één per kind, `_0`, `_1`, …) |
+| Opmerking | `#P59_OPMERKING` |
+| Inschrijven | knop met tekst "Inschrijven" (nu `#B171236999143809159`) |
+| Sluiten zonder inschrijven | knop "close" (nu `#B171233816848809132`) |
+
+De knop-id's zijn door APEX gegenereerd en kunnen bij een update van i-Active
+veranderen; het script zoekt daarom op de tekst van de knop.
+
+**Wat de kalender nodig heeft om tegels te tonen** (uitgezocht met de
+verkenning, want in een nieuwe sessie is hij anders leeg):
+
+- Activiteitgroep **Opvang (inschrijvingen)** gekozen (`P44_TRAN_GROEP=TIJD`).
+- De locatiefilter **leeg** laten: leeg betekent alle locaties. Meer dan één
+  locatie tegelijk aanvinken geeft een lege kalender.
+- Het juiste kind in `#P44_LEERLING`.
+- Een maand die al gegevens heeft: in september 2026 bleven september en
+  oktober leeg, november gaf 44 tegels.
+
+**Volzet betekent: toch inschrijven, op de reservelijst.** Dat is de keuze
+van Jan en Sandra. Het verslag in Telegram meldt zo'n slot apart, want het is
+geen gewone reservatie:
+
+```
+Ma 09/11 - naschools  RESERVELIJST (volzet, schuift door als er plaats vrijkomt)
+```
 
 ### Wanneer de inschrijvingen openen
 
@@ -98,9 +221,9 @@ de kerstvakantie.
 - **Niet** te reserveren: naschoolse opvang van de lagere school, die gebeurt
   op school. Uitzondering: Hagelstein, die gaan naar Robbedoes.
 - Wie niet gereserveerd heeft, kan niet terecht.
-- Volzet: je kind komt op een **wachtlijst**, en schuift automatisch door als
-  er plaats vrijkomt. Dat is dus geen "mislukt", maar ook geen "gelukt": het
-  verslag in Telegram moet dat apart melden.
+- Volzet: je kind komt op de **reservelijst**, en schuift automatisch door
+  als er plaats vrijkomt, tot de dag ervoor. Dat is geen "mislukt", maar ook
+  geen "gelukt": het verslag in Telegram meldt het apart.
 
 ### Annuleren
 
@@ -125,9 +248,18 @@ plus € 5.
 Pas een secret altijd in GitHub aan, nooit rechtstreeks in Vercel: de volgende
 uitrol zou je wijziging overschrijven.
 
-Later, voor het startsein, komt er nog één bij: een GitHub-token dat enkel
-workflows van deze repository mag starten. Dat staat beschreven zodra het
-nodig is.
+De workflows gebruiken verder `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`AUTH_URL` en `CRON_SECRET`, die er al staan voor de webapp.
+
+### Sandra en de groep
+
+1. Maak in Telegram een groep met Jan, Sandra en **Opvang_bot**.
+2. Stuur in de groep `/id`: de bot antwoordt met jouw id en die van de groep
+   (een negatief getal). Sandra stuurt ook `/id` voor het hare.
+3. Zet beide erbij in `TOEGELATEN_TELEGRAM_IDS`, met komma's, en start
+   **Productie uitrollen** opnieuw.
+4. Stuur in de groep `/hier`. Vanaf dan komen menu's en verslagen daar.
+5. `/kinderen`: zet het kind aan dat ingepland moet worden.
 
 ### De webhook koppelen, na de eerste uitrol
 
@@ -151,13 +283,14 @@ runner van GitHub Actions is een gewone Linux-machine met Chromium, mag uren
 lopen, en bewaart logboeken die ook in een volgende Claude-sessie te lezen
 zijn.
 
-**Waarom Supabase het startsein geeft en niet een geplande workflow.** Een
-geplande workflow van GitHub kan tot een uur te laat vertrekken, en de cron
-van Vercel valt ergens binnen het gevraagde uur. `pg_cron` in Supabase draait
-op de minuut en start de workflow via de GitHub-API; een gestarte workflow
-vertrekt binnen seconden. De workflow start ruim op voorhand, logt in, en
-wacht zelf tot het exacte moment. Meldt hij zich niet op tijd aan in Supabase,
-dan volgt een tweede start en een bericht in Telegram.
+**Waarom een geplande workflow het startsein geeft, en geen `pg_cron`.** Een
+geplande workflow van GitHub kan tot een uur te laat vertrekken, of een keer
+wegvallen. Daarom start hij om 16:07, 17:07 en 17:37 (Belgische zomertijd),
+ruim vóór 18:00, en wacht de run zelf tot het exacte moment; de latere runs
+stoppen meteen als de eerste bezig of klaar is. `pg_cron` zou op de minuut
+starten, maar vraagt een GitHub-token in Supabase, en de marge van twee uur
+maakt dat overbodig. Let op: GitHub zet geplande workflows van een publieke
+repository stil na 60 dagen zonder commits; dan krijg je een mail.
 
 **Waarom het geheim van de webhook niet apart ingesteld wordt.** Telegram
 stuurt bij elke aanroep een geheim mee in een header; zonder die controle kan

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { verwerkBericht } from "@/lib/opvang/bot";
+import { verwerkKlik } from "@/lib/opvang/menu";
 import { botToken, geheimKlopt, verbergToken, type Update } from "@/lib/opvang/telegram";
 
 export const runtime = "nodejs";
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
   const update = (await request.json().catch(() => null)) as Update | null;
   try {
     if (update?.message) await verwerkBericht(update.message, botToken());
+    if (update?.callback_query) await verwerkKlik(update.callback_query, botToken());
   } catch (fout) {
     // Toch 200: anders blijft Telegram dezelfde update opnieuw sturen, en een
     // fout die bij de eerste keer optreedt, treedt de tiende keer ook op.

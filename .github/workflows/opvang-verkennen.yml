@@ -18,6 +18,10 @@ on:
         description: "Ook inloggen met IACTIVE_EMAIL en IACTIVE_WACHTWOORD"
         type: boolean
         default: false
+      maanden:
+        description: "Enkel deze maanden lezen, bv. '2026-11 2026-12' (vereist inloggen)"
+        type: string
+        default: ""
 
 concurrency:
   group: opvang-iactive
@@ -65,7 +69,15 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Verkennen
+        if: ${{ inputs.maanden == '' }}
         env:
           IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
           IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
         run: npm run verken -- --inloggen
+      - name: Maanden lezen
+        if: ${{ inputs.maanden != '' }}
+        env:
+          IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
+          IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
+          MAANDEN: ${{ inputs.maanden }}
+        run: node src/lees-maand.ts $MAANDEN
