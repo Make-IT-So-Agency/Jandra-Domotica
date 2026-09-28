@@ -120,102 +120,65 @@ async function leesStructuur(doel: Page | Frame, selector: string, max: number, 
  */
 async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   const uit: string[] = ["## Kalender kinderopvang, van dichtbij", ""];
+
+  // Wat de pagina op de achtergrond ophaalt en wat er misloopt: enkel pad,
+  // status en grootte, nooit de inhoud.
+  const verkeer: string[] = [];
+  pagina.on("response", (r) => {
+    const soort = r.request().resourceType();
+    if ((soort === "xhr" || soort === "fetch") && new URL(r.url()).hostname.endsWith("i-active.be")) {
+      verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`);
+    }
+  });
+  const fouten: string[] = [];
+  pagina.on("console", (m) => {
+    if (m.type() === "error") fouten.push(zuiverLabel(m.text(), 120));
+  });
+  pagina.on("pageerror", (e) => fouten.push(zuiverLabel(String(e), 120)));
+
+  await pagina.setViewportSize({ width: 1400, height: 1000 });
   await pagina.goto(new URL(adres, OORSPRONG).href, { waitUntil: "networkidle" });
   await pagina.waitForTimeout(2500);
+  const telTegels = () => pagina.locator("a.fc-event").count();
+  uit.push(`- Tegels meteen na laden: ${await telTegels()}`);
 
-  // Zonder activiteitgroep toont de kalender geen tegels. De filter zetten
-  // op "Opvang (inschrijvingen)", zoals een ouder dat in de browser ziet.
+  // Zonder activiteitgroep toont de kalender niets.
   const filter = pagina.locator("select.apex-item-select").filter({ has: pagina.locator("option", { hasText: "Opvang (inschrijvingen)" }) }).first();
-  const gefilterd = await filter
-    .selectOption({ label: "Opvang (inschrijvingen)" })
-    .then(() => true)
-    .catch(() => false);
-  uit.push(`- Activiteitgroep gezet: ${gefilterd ? "ja" : "nee"}`);
+  const gefilterd = await filter.selectOption({ label: "Opvang (inschrijvingen)" }).then(() => true).catch(() => false);
   await pagina.waitForLoadState("networkidle").catch(() => {});
   await pagina.waitForTimeout(3000);
+  uit.push(`- Activiteitgroep gezet: ${gefilterd ? "ja" : "nee"}, tegels daarna: ${await telTegels()}`);
 
-  // Een maand verder: de lopende maand heeft bijna geen dagen meer over.
+  // Een maand verder, waar zeker nog open dagen zijn.
   await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
   await pagina.waitForLoadState("networkidle").catch(() => {});
-  await pagina.waitForTimeout(2500);
+  await pagina.waitForTimeout(3000);
+  const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "?");
+  uit.push(`- Maand: ${zuiverLabel(titel)}, dagen: ${await pagina.locator("td[data-date]").count()}, tegels: ${await telTegels()}`);
 
-  // Wachten tot de tegels er echt staan: ze komen na de pagina, via AJAX.
-  const geladen = await pagina
-    .waitForFunction(() => /schoolse opvang|feestdag/i.test(document.body.innerText), undefined, { timeout: 20_000 })
-    .then(() => true)
-    .catch(() => false);
-  uit.push(`- Tegels verschenen: ${geladen ? "ja" : "nee, na 20 s nog niet"}`);
+  uit.push("", "**Achtergrondverkeer**", "", ...verkeer.slice(-25).map((v) => `- ${v}`));
+  uit.push("", "**Fouten in de browser**", "", ...(fouten.length ? fouten.slice(0, 10).map((f) => `- ${f}`) : ["- geen"]), "");
 
-  // Waar staan ze? De keten van voorouders van de eerste drie teksten die een
-  // opvangmoment noemen, met tag, id en klassen.
-  const ketens = await pagina.evaluate(() => {
-    const uit: string[] = [];
-    const wandelaar = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    while (wandelaar.nextNode() && uit.length < 3) {
-      const n = wandelaar.currentNode;
-      if (!/opvang \(/i.test(n.textContent ?? "") || n.parentElement?.closest("select")) continue;
-      const keten: string[] = [];
-      for (let el = n.parentElement; el && el !== document.body; el = el.parentElement) {
-        keten.push(`${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).join(".") : ""}`);
-      }
-      uit.push(keten.join(" < "));
+  // Een tegel met plaats: de titel begint met "Inschrijven  tot", niet met
+  // "Inschrijven OP RESERVELIJST" en niet met "Inschrijven beëindigd".
+  const tegels = pagina.locator("a.fc-event[title]");
+  let doel = -1;
+  const n = await tegels.count();
+  for (let i = 0; i < n; i++) {
+    const t = (await tegels.nth(i).getAttribute("title")) ?? "";
+    if (/^Inschrijven\s+tot/i.test(t)) {
+      doel = i;
+      break;
     }
-    return uit;
-  });
-  for (const k of ketens) uit.push(`- Keten: \`${zuiverLabel(k, 600)}\``);
-  uit.push("");
-
-  // De kalender is een eigen raster: .container met een .row per week. Van
-  // de tweede week (de eerste kan nog in de vorige maand vallen) de volledige
-  // structuur, tot diep genoeg om tegels, datum en balk te zien.
-  const week = await pagina.evaluate(() => {
-    // De kalender is een tabel met een rij per week (kolomkoppen ma..zo).
-    const rijen = Array.from(document.querySelectorAll("tbody tr"));
-    const rij = rijen.find((r) => /%/.test((r as HTMLElement).innerText)) ?? rijen.find((r) => /opvang/i.test((r as HTMLElement).innerText));
-    // Staan de tegels niet in de tabel, neem dan de kleinste gemeenschappelijke
-    // container van alles wat "opvang (" noemt.
-    if (!rij) {
-      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      while (w.nextNode()) {
-        if (/opvang \(/i.test(w.currentNode.textContent ?? "") && !w.currentNode.parentElement?.closest("select")) {
-          let el = w.currentNode.parentElement;
-          for (let i = 0; i < 4 && el?.parentElement; i++) el = el.parentElement;
-          el?.setAttribute("data-verkenning-week", "ja");
-          break;
-        }
-      }
-    }
-    rij?.setAttribute("data-verkenning-week", "ja");
-    return rijen.length;
-  });
-  uit.push(`- Tabelrijen: ${week}`, "");
-  const [rij] = await leesStructuur(pagina, "[data-verkenning-week=ja]", 1, 12);
-  if (rij) uit.push("### Eén week", "", "```", skelet(rij), "```", "");
-
-  // Een tegel met plaats: het element met een bezettingspercentage, en het
-  // blok daarrond dat ook het opvangmoment noemt.
-  const doel = await pagina.evaluate(() => {
-    const balk = Array.from(document.querySelectorAll("[data-verkenning-week=ja] *")).find((el) =>
-      Array.from(el.childNodes).some((n) => n.nodeType === 3 && /^\s*\d+\s*%\s*$/.test(n.textContent ?? "")),
-    );
-    let blok: Element | null | undefined = balk;
-    while (blok && !/opvang/i.test((blok as HTMLElement).innerText ?? "")) blok = blok.parentElement;
-    if (!blok || /reserve/i.test((blok as HTMLElement).innerText)) return -1;
-    blok.setAttribute("data-verkenning-tegel", "ja");
-    return 1;
-  });
-  const tegels = pagina.locator("[data-verkenning-tegel=ja]");
-  if (doel > 0) {
-    const [tegel] = await leesStructuur(pagina, "[data-verkenning-tegel=ja]", 1, 8);
-    if (tegel) uit.push("### De tegel die aangeklikt wordt", "", "```", skelet(tegel), "```", "");
   }
+  uit.push(`- Tegels met een titel: ${n}, eerste met plaats: ${doel}`);
 
   if (doel < 0) {
     uit.push("Geen tegel met plaats gevonden, venster niet geopend.");
     return uit;
   }
 
-  await tegels.first().click();
+  await tegels.nth(doel).click();
   const venster = pagina.locator(".ui-dialog:visible, [role=dialog]:visible").first();
   await venster.waitFor({ state: "visible", timeout: 15_000 });
   await pagina.waitForTimeout(2000);

@@ -40,7 +40,8 @@ Supabase → Telegram                   "Opvang november verwerkt"
 - [x] `/start`, `/id` en `/volgende` (eerstvolgende inschrijfmomenten)
 - [x] Inschrijfmomenten 2026-2027 vastgelegd (`web/lib/opvang/inschrijfmomenten.ts`)
 - [x] Publieke kant van i-Active verkend: login, velden, geen CAPTCHA
-- [ ] i-Active na login verkennen: het reservatiescherm en het winkelmandje
+- [x] i-Active na login verkend: menu, kalender, venster "Inschrijven"
+- [ ] Waarom de kalender in een headless browser leeg blijft
 - [ ] AM/PM-knoppen en de maandkalender
 - [ ] Selecties bewaren in Supabase, status **Definitief**
 - [ ] Sandra erbij, gezamenlijke groep
@@ -70,6 +71,42 @@ scherm na de login is nog niet gezien.
   afrekenpagina. Een slot in het mandje is dus nog geen reservatie; de
   controle na afloop moet naar de echte inschrijvingen kijken.
 
+### De kalender: hier gebeurt het reserveren
+
+Menu **Mijn kalender → Kinderopvang**
+(`/ords/r/iactive01/burgerportaal/kalender-kinderopvang-nieuw`). Bovenaan
+kies je een kind (`#P44_LEERLING`, één optie per kind) en een activiteitgroep
+(**Opvang (inschrijvingen)**). Daaronder staat een maandkalender van
+FullCalendar, met knoppen `<`, `>` en `Vandaag`.
+
+We reserveren via deze kalender, niet via "Inschrijven via periode": één
+tegel is één slot, dus de bot klikt exact wat aangeduid werd en niets anders,
+en leest op hetzelfde scherm het resultaat terug.
+
+| Wat | Waar in de HTML |
+| --- | --- |
+| Een dag | `td[data-date="2026-11-09"]` |
+| Locatie | `.kal-loc`, bv. "BKO - Speelhuis" |
+| Een slot | `a.fc-event` in die cel; tekst "Voorschoolse opvang", "Naschoolse opvang" of "Woensdagmiddag opvang" |
+| Vrij | `title="Inschrijven  tot: 09/11/2026 06:00"`, balk `.progress-bar-text` met een percentage |
+| Volzet | `title="Inschrijven OP RESERVELIJST tot: …"`, balk `pb_full` met "RESERVE" |
+| Gesloten | klasse `calendaralert`, `title="Inschrijven beëindigd op …"`, geen link |
+| Nog niet open | grijze tegel, zonder balk |
+| Ingeschreven | icoon `fa-check-circle` (volgens de legende) |
+| Op de reservelijst | icoon `fa-pause-circle` (volgens de legende) |
+
+Een klik op een tegel opent het venster **Inschrijven**: artikel, datum, een
+vinkje per kind, "Inschrijven mogelijk van … tot …", een opmerkingsveld en de
+knop **Inschrijven**. Geen winkelmandje in deze weg.
+
+**Volzet betekent: toch inschrijven, op de reservelijst.** Dat is de keuze
+van Jan en Sandra. Het verslag in Telegram meldt zo'n slot apart, want het is
+geen gewone reservatie:
+
+```
+Ma 09/11 - naschools  RESERVELIJST (volzet, schuift door als er plaats vrijkomt)
+```
+
 ### Wanneer de inschrijvingen openen
 
 Bron: *Start inschrijvingsperiodes 2026-2027.pdf* op
@@ -98,9 +135,9 @@ de kerstvakantie.
 - **Niet** te reserveren: naschoolse opvang van de lagere school, die gebeurt
   op school. Uitzondering: Hagelstein, die gaan naar Robbedoes.
 - Wie niet gereserveerd heeft, kan niet terecht.
-- Volzet: je kind komt op een **wachtlijst**, en schuift automatisch door als
-  er plaats vrijkomt. Dat is dus geen "mislukt", maar ook geen "gelukt": het
-  verslag in Telegram moet dat apart melden.
+- Volzet: je kind komt op de **reservelijst**, en schuift automatisch door
+  als er plaats vrijkomt, tot de dag ervoor. Dat is geen "mislukt", maar ook
+  geen "gelukt": het verslag in Telegram meldt het apart.
 
 ### Annuleren
 
