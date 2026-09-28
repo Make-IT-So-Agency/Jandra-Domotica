@@ -128,6 +128,32 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForLoadState("networkidle").catch(() => {});
   await pagina.waitForTimeout(2500);
 
+  // Wachten tot de tegels er echt staan: ze komen na de pagina, via AJAX.
+  const geladen = await pagina
+    .waitForFunction(() => /opvang \(|feestdag/i.test(document.body.innerText), undefined, { timeout: 20_000 })
+    .then(() => true)
+    .catch(() => false);
+  uit.push(`- Tegels verschenen: ${geladen ? "ja" : "nee, na 20 s nog niet"}`);
+
+  // Waar staan ze? De keten van voorouders van de eerste drie teksten die een
+  // opvangmoment noemen, met tag, id en klassen.
+  const ketens = await pagina.evaluate(() => {
+    const uit: string[] = [];
+    const wandelaar = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (wandelaar.nextNode() && uit.length < 3) {
+      const n = wandelaar.currentNode;
+      if (!/opvang \(/i.test(n.textContent ?? "")) continue;
+      const keten: string[] = [];
+      for (let el = n.parentElement; el && el !== document.body; el = el.parentElement) {
+        keten.push(`${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).join(".") : ""}`);
+      }
+      uit.push(keten.join(" < "));
+    }
+    return uit;
+  });
+  for (const k of ketens) uit.push(`- Keten: \`${zuiverLabel(k, 600)}\``);
+  uit.push("");
+
   // De kalender is een eigen raster: .container met een .row per week. Van
   // de tweede week (de eerste kan nog in de vorige maand vallen) de volledige
   // structuur, tot diep genoeg om tegels, datum en balk te zien.
@@ -135,6 +161,19 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
     // De kalender is een tabel met een rij per week (kolomkoppen ma..zo).
     const rijen = Array.from(document.querySelectorAll("tbody tr"));
     const rij = rijen.find((r) => /%/.test((r as HTMLElement).innerText)) ?? rijen.find((r) => /opvang/i.test((r as HTMLElement).innerText));
+    // Staan de tegels niet in de tabel, neem dan de kleinste gemeenschappelijke
+    // container van alles wat "opvang (" noemt.
+    if (!rij) {
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) {
+        if (/opvang \(/i.test(w.currentNode.textContent ?? "")) {
+          let el = w.currentNode.parentElement;
+          for (let i = 0; i < 4 && el?.parentElement; i++) el = el.parentElement;
+          el?.setAttribute("data-verkenning-week", "ja");
+          break;
+        }
+      }
+    }
     rij?.setAttribute("data-verkenning-week", "ja");
     return rijen.length;
   });
