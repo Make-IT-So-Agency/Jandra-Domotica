@@ -213,7 +213,8 @@ async function verwerk(pagina: Page, r: Ronde, keuzes: Keuze[]): Promise<Map<num
           await meld(`${label(k)}: venster geopend, ${k.kind} aangevinkt, knop Inschrijven gevonden${volzet ? " (volzet → reservelijst)" : ""}. Niet geklikt.`);
           continue;
         }
-        if (resultaat.soort !== "geklikt") {
+        const geklikt = resultaat.soort === "geklikt" || (resultaat.soort === "fout" && resultaat.geklikt === true);
+        if (!geklikt) {
           uitkomst = "mislukt";
           melding =
             resultaat.soort === "fout"
@@ -233,7 +234,7 @@ async function verwerk(pagina: Page, r: Ronde, keuzes: Keuze[]): Promise<Map<num
           }
           if (!uitkomst) {
             uitkomst = "mislukt";
-            melding = `Geklikt, maar de tegel toont geen inschrijving (${staat}).`;
+            melding = `Geklikt, maar de tegel toont geen inschrijving (${staat}).${resultaat.soort === "fout" ? ` i-Active: ${resultaat.melding}` : ""}`;
           }
         }
       }

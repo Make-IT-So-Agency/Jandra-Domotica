@@ -121,9 +121,16 @@ export async function openKalender(pagina: Page, leerlingId: string, maand: stri
     await wachtOpRust(pagina);
     if (stap === 23) throw new Error(`Maand ${maand} niet bereikt in de kalender.`);
   }
+  // De titel verandert meteen, de tegels komen pas na een aanvraag: wachten
+  // tot een dag van déze maand tegels heeft (een lege maand kost 20 seconden).
   await pagina
-    .waitForFunction(() => document.querySelectorAll("a.fc-event, .fc-event").length > 0, undefined, { timeout: 15_000 })
+    .waitForFunction(
+      (maand) => Array.from(document.querySelectorAll(`td[data-date^="${maand}"]`)).some((d) => d.querySelector(".fc-event")),
+      maand,
+      { timeout: 20_000 },
+    )
     .catch(() => {});
+  await wachtOpRust(pagina, 800);
 }
 
 /** Eén tegel: één slot op één dag, op één locatie. */
@@ -233,7 +240,7 @@ export type Poging =
   | { soort: "proef" }
   | { soort: "niet_gevonden" }
   | { soort: "geen_vinkje" }
-  | { soort: "fout"; melding: string };
+  | { soort: "fout"; melding: string; geklikt?: boolean };
 
 /**
  * Opent de tegel, vinkt enkel het gevraagde kind aan en klikt op
@@ -268,7 +275,12 @@ export async function schrijfIn(
     if (!gevonden) return { soort: "geen_vinkje" };
 
     const knop = frame.locator("button, a.t-Button").filter({ hasText: /^\s*Inschrijven\s*$/ }).first();
-    if (!(await knop.isVisible().catch(() => false))) return { soort: "fout", melding: "Geen knop Inschrijven in het venster." };
+    if (!(await knop.isVisible().catch(() => false))) {
+      const labels = (await frame.locator("button:visible, a.t-Button:visible").allInnerTexts().catch(() => []))
+        .map((t) => t.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      return { soort: "fout", melding: `Geen knop Inschrijven in het venster (wel: ${labels.join(", ") || "geen knoppen"}).` };
+    }
     if (proef) return { soort: "proef" };
 
     await knop.click();
@@ -280,9 +292,10 @@ export async function schrijfIn(
     ]).catch(() => "traag" as const);
     if (uitkomst === "melding") {
       const tekst = await frame.locator(FOUTMELDING).first().innerText().catch(() => "");
-      return { soort: "fout", melding: tekst.replace(/\s+/g, " ").trim().slice(0, 200) || "Melding zonder tekst." };
+      return { soort: "fout", geklikt: true, melding: tekst.replace(/\s+/g, " ").trim().slice(0, 200) || "Melding zonder tekst." };
     }
-    if (uitkomst === "traag") return { soort: "fout", melding: "Het venster sloot niet binnen 30 seconden." };
+    // Bleef het venster open zonder foutmelding, dan beslist de tegel straks.
+    if (uitkomst === "traag") return { soort: "fout", geklikt: true, melding: "Het venster sloot niet binnen 30 seconden." };
     return { soort: "geklikt" };
   } finally {
     await sluit();
