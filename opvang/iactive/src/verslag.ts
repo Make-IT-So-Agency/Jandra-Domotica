@@ -63,8 +63,30 @@ export function zuiverLabel(tekst: string, lengte = 40): string {
     .trim()
     .replace(/[^\s@]+@[^\s@]+/g, "<e-mail>")
     .replace(/\d[\d.\-/ ]{5,}\d/g, "<getal>")
+    .replace(/\p{Lu}[\p{L}'-]*/gu, (woord) =>
+      woord.split("-").every((deel) => !deel || GEKENDE_WOORDEN.has(deel.toLowerCase())) ? woord : "<naam>",
+    )
     .slice(0, lengte);
 }
+
+/**
+ * Woorden met een hoofdletter die geen naam zijn. Al de rest wordt <naam>:
+ * de knop rechtsboven draagt de voornaam van wie ingelogd is, en een
+ * kalender kan de namen van de kinderen dragen. Liever een woord te veel
+ * gemaskeerd dan een naam in een publiek logboek.
+ */
+const GEKENDE_WOORDEN = new Set(
+  (
+    "aanmelden afmelden annuleren bevestigen bewaren bestanden checkout dag datum dinsdag donderdag " +
+    "eid financieel foutmelding fr gemeente help helptekst home hoofdnavigatie hou in itsme kalender " +
+    "katelijne klik login maandag maand menu mijn naar namiddag naschools nl ongeldige opslaan " +
+    "opvang opvanglocaties opvangmoment opvangmomenten overzicht registreer reserveren reservaties " +
+    "sint sluiten terug vandaag volgende voormiddag voorschools vorige vrijdag waver wachtlijst " +
+    "wachtwoord week weergeven winkelmandje woensdag woensdagnamiddag zaterdag zoeken zondag " +
+    "januari februari maart april mei juni juli augustus september oktober november december " +
+    "wacht inlogreferenties tonen vergeten hier seconden welkom rrn"
+  ).split(" "),
+);
 
 const GEVAARLIJK =
   /annul|verwijder|wis\b|schrap|uitschrijv|afmeld|uitlog|logout|betaal|bevestig|checkout|afrekenen|winkelmand|delete|opslaan|bewaar|registr/i;
@@ -74,6 +96,11 @@ const GEVAARLIJK =
  * i-Active, en niets dat naar iets onomkeerbaars klinkt. Knoppen worden nooit
  * aangeklikt; dit gaat enkel over links.
  */
+/** Een menu-item zonder gewone link dat we mogen aanklikken om te navigeren. */
+export function veiligMenuItem(label: string): boolean {
+  return /kalender|overzicht|reservatie|inschrijving|opvangmoment/i.test(label) && !GEVAARLIJK.test(label);
+}
+
 export function veiligeLink(link: Link, oorsprong: string): boolean {
   if (!link.href || link.href.startsWith("javascript:") || link.href.startsWith("#")) return false;
   if (GEVAARLIJK.test(link.label) || GEVAARLIJK.test(link.href)) return false;

@@ -12,10 +12,9 @@
  * van de cookiemelding, en er wordt niets ingevuld behalve de login.
  */
 
-import { appendFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 
-import { alsMarkdown, veiligeLink, zuiverLabel, type Pagina } from "./verslag.ts";
+import { alsMarkdown, veiligeLink, veiligMenuItem, zuiverLabel, type Pagina } from "./verslag.ts";
 
 const OORSPRONG = "https://sint-katelijne-waver.i-active.be";
 const LOGIN = `${OORSPRONG}/ords/r/iactive01/burgerportaal/login`;
@@ -124,6 +123,21 @@ async function main() {
         const r = await pagina.goto(new URL(link.href, OORSPRONG).href, { waitUntil: "networkidle" });
         verslag.push(alsMarkdown(await leesPagina(pagina, r?.status() ?? null)), "");
       }
+
+      // Menu-items zonder link (zoals "Mijn kalender") navigeren via
+      // JavaScript. Die klikken we aan in het navigatiemenu zelf, en enkel
+      // als het label naar een overzicht klinkt.
+      for (const item of start.menu.filter((l) => !l.href && veiligMenuItem(l.label))) {
+        await pagina.goto(start.url, { waitUntil: "networkidle" });
+        const knop = pagina.locator(".t-TreeNav, nav, [role=navigation]").getByText(item.label.trim(), { exact: true }).first();
+        if (!(await knop.isVisible().catch(() => false))) {
+          await pagina.click("#t_Button_navControl").catch(() => {});
+        }
+        await knop.click({ timeout: 10_000 });
+        await pagina.waitForLoadState("networkidle").catch(() => {});
+        await pagina.waitForTimeout(2000);
+        verslag.push(alsMarkdown(await leesPagina(pagina, null)), "");
+      }
     }
   } catch (fout) {
     // Enkel de melding, geen stack: daarin kan een URL met sessie-id staan.
@@ -133,9 +147,9 @@ async function main() {
     await browser.close();
   }
 
-  const tekst = verslag.join("\n");
-  console.log(tekst);
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${tekst}\n`);
+  // Enkel in het logboek, niet in de samenvatting van de run: een logboek
+  // kan je achteraf wissen zonder de hele run te verwijderen.
+  console.log(verslag.join("\n"));
 }
 
 await main();

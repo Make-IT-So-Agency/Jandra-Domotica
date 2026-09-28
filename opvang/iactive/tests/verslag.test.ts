@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { alsMarkdown, veiligeLink, zuiverLabel, zuiverUrl } from "../src/verslag.ts";
+import { alsMarkdown, veiligeLink, veiligMenuItem, zuiverLabel, zuiverUrl } from "../src/verslag.ts";
 
 const O = "https://sint-katelijne-waver.i-active.be";
 
@@ -19,6 +19,20 @@ describe("verslag zonder persoonsgegevens", () => {
     expect(zuiverLabel("RRN 85.07.30-033.28")).toBe("RRN <getal>");
     expect(zuiverLabel("  Reserveren \n  opvang ")).toBe("Reserveren opvang");
     expect(zuiverLabel("x".repeat(100))).toHaveLength(40);
+  });
+
+  it("maskeert namen, maar laat gekende woorden staan", () => {
+    expect(zuiverLabel("Jan")).toBe("<naam>");
+    expect(zuiverLabel("Opvang voor Emma en Lucas")).toBe("Opvang voor <naam> en <naam>");
+    expect(zuiverLabel("Mijn kalender")).toBe("Mijn kalender");
+    expect(zuiverLabel("Wachtwoord vergeten? Klik hier")).toBe("Wachtwoord vergeten? Klik hier");
+    expect(zuiverLabel("Gemeente Sint-Katelijne-Waver")).toBe("Gemeente Sint-Katelijne-Waver");
+  });
+
+  it("klikt enkel menu-items aan die naar een overzicht klinken", () => {
+    expect(veiligMenuItem("Mijn kalender")).toBe(true);
+    expect(veiligMenuItem("Afmelden")).toBe(false);
+    expect(veiligMenuItem("Kalender annuleren")).toBe(false);
   });
 
   it("volgt geen link die iets zou kunnen wijzigen of buiten i-Active gaat", () => {
