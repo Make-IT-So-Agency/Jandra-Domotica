@@ -84,7 +84,8 @@ const GEKENDE_WOORDEN = new Set(
     "sint sluiten terug vandaag volgende voormiddag voorschools vorige vrijdag waver wachtlijst " +
     "wachtwoord week weergeven winkelmandje woensdag woensdagnamiddag zaterdag zoeken zondag " +
     "januari februari maart april mei juni juli augustus september oktober november december " +
-    "wacht inlogreferenties tonen vergeten hier seconden welkom rrn"
+    "wacht inlogreferenties tonen vergeten hier seconden welkom rrn " +
+    "inschrijven uitschrijven kinderopvang periode via kind kinderen e"
   ).split(" "),
 );
 

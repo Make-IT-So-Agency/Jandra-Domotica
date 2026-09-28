@@ -136,7 +136,18 @@ async function main() {
         await knop.click({ timeout: 10_000 });
         await pagina.waitForLoadState("networkidle").catch(() => {});
         await pagina.waitForTimeout(2000);
-        verslag.push(alsMarkdown(await leesPagina(pagina, null)), "");
+        const na = await leesPagina(pagina, null);
+        verslag.push(alsMarkdown(na), "");
+
+        // Het submenu dat openklapte: die pagina's enkel openen, nooit iets indienen.
+        for (const link of na.menu.filter((l) => veiligeLink(l, OORSPRONG))) {
+          const pad = new URL(link.href, OORSPRONG).pathname;
+          if (bezocht.has(OORSPRONG + pad) || bezocht.size >= MAX_PAGINAS) continue;
+          bezocht.add(OORSPRONG + pad);
+          const r = await pagina.goto(new URL(link.href, OORSPRONG).href, { waitUntil: "networkidle" });
+          await pagina.waitForTimeout(2000);
+          verslag.push(alsMarkdown(await leesPagina(pagina, r?.status() ?? null)), "");
+        }
       }
     }
   } catch (fout) {

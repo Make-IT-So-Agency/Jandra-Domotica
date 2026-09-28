@@ -33,6 +33,8 @@ describe("verslag zonder persoonsgegevens", () => {
     expect(veiligMenuItem("Mijn kalender")).toBe(true);
     expect(veiligMenuItem("Afmelden")).toBe(false);
     expect(veiligMenuItem("Kalender annuleren")).toBe(false);
+    expect(veiligeLink({ label: "Uitschrijven via periode", href: `${O}/ords/r/iactive01/burgerportaal/uitschrijven-via-periode` }, O)).toBe(false);
+    expect(zuiverLabel("Inschrijven via periode")).toBe("Inschrijven via periode");
   });
 
   it("volgt geen link die iets zou kunnen wijzigen of buiten i-Active gaat", () => {
