@@ -85,7 +85,9 @@ const GEKENDE_WOORDEN = new Set(
     "wachtwoord week weergeven winkelmandje woensdag woensdagnamiddag zaterdag zoeken zondag " +
     "januari februari maart april mei juni juli augustus september oktober november december " +
     "wacht inlogreferenties tonen vergeten hier seconden welkom rrn " +
-    "inschrijven uitschrijven kinderopvang periode via kind kinderen e"
+    "inschrijven uitschrijven kinderopvang periode via kind kinderen e " +
+    "ingeschreven reservelijst reserve afwezig verwittigd onverwittigd toegepast joker verwerking " +
+    "voorschoolse naschoolse woensdagmiddag feestdag opvangen gesloten bko artikel wanneer opmerking mogelijk van tot"
   ).split(" "),
 );
 

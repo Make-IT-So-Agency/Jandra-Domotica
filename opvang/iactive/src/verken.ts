@@ -132,13 +132,14 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   // de tweede week (de eerste kan nog in de vorige maand vallen) de volledige
   // structuur, tot diep genoeg om tegels, datum en balk te zien.
   const week = await pagina.evaluate(() => {
-    const rijen = Array.from(document.querySelectorAll(".t-Body-contentInner .container > .row"));
-    const rij = rijen.find((r) => /%|reserve/i.test((r as HTMLElement).innerText)) ?? rijen[1] ?? rijen[0];
+    // De kalender is een tabel met een rij per week (kolomkoppen ma..zo).
+    const rijen = Array.from(document.querySelectorAll("tbody tr"));
+    const rij = rijen.find((r) => /%/.test((r as HTMLElement).innerText)) ?? rijen.find((r) => /opvang/i.test((r as HTMLElement).innerText));
     rij?.setAttribute("data-verkenning-week", "ja");
     return rijen.length;
   });
-  uit.push(`- Weken (.container > .row): ${week}`, "");
-  const [rij] = await leesStructuur(pagina, "[data-verkenning-week=ja]", 1, 10);
+  uit.push(`- Tabelrijen: ${week}`, "");
+  const [rij] = await leesStructuur(pagina, "[data-verkenning-week=ja]", 1, 12);
   if (rij) uit.push("### Eén week", "", "```", skelet(rij), "```", "");
 
   // Een tegel met plaats: het element met een bezettingspercentage, en het
