@@ -157,6 +157,22 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForTimeout(3000);
   uit.push(`- Activiteitgroep gezet: ${gefilterd ? "ja" : "nee"}, tegels daarna: ${await telTegels()}`);
 
+  // Ook de locatie moet gekozen zijn (P44_LOCATIE). In een nieuwe sessie is
+  // die leeg en geeft de kalender niets terug. Voor de verkenning: alle
+  // locaties aanvinken via "Filter op locaties".
+  await pagina.click("#KNOP_LOCATIES").catch(() => {});
+  await pagina.waitForTimeout(1000);
+  const vakjes = pagina.locator(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]");
+  const aantalLocaties = await vakjes.count();
+  for (let i = 0; i < aantalLocaties; i++) {
+    const id = await vakjes.nth(i).getAttribute("id");
+    if (!id || (await vakjes.nth(i).isChecked())) continue;
+    await pagina.locator(`label[for="${id}"]`).click().catch(() => vakjes.nth(i).check({ force: true }));
+    await pagina.waitForLoadState("networkidle").catch(() => {});
+    await pagina.waitForTimeout(1500);
+  }
+  uit.push(`- Locaties aangevinkt: ${aantalLocaties}, tegels daarna: ${await telTegels()}`);
+
   // Een maand verder, waar zeker nog open dagen zijn.
   await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
   await pagina.waitForLoadState("networkidle").catch(() => {});
