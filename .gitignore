@@ -26,7 +26,3 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
-
-# Cloudflare Worker
-.wrangler/
-opvang/worker/dist/

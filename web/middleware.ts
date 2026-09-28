@@ -7,9 +7,10 @@ import { authConfig } from "./auth.config";
 const { auth } = NextAuth(authConfig);
 
 /**
- * Schermt de hele app af. De koppeling met Home Assistant (/api/ingest) en de
- * automatische taken (/api/cron) hebben hun eigen sleutel en zitten daarom
- * niet achter de Google-login.
+ * Schermt de hele app af. De koppeling met Home Assistant (/api/ingest), de
+ * automatische taken (/api/cron) en de webhook van Telegram (/api/telegram)
+ * hebben hun eigen sleutel en zitten daarom niet achter de Google-login.
+ * /api/telegram/setup wel: dat is enkel voor de hoofdbeheerder.
  */
 export default auth((request) => {
   const { pathname } = request.nextUrl;
@@ -18,6 +19,7 @@ export default auth((request) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/ingest") ||
     pathname.startsWith("/api/cron") ||
+    pathname === "/api/telegram" ||
     pathname === "/login";
 
   if (openbaar || request.auth) return;

@@ -16,17 +16,6 @@ updates:
     commit-message:
       prefix: "Werk afhankelijkheden bij"
 
-  - package-ecosystem: npm
-    directory: /opvang/worker
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
-    groups:
-      alles:
-        patterns: ["*"]
-    commit-message:
-      prefix: "Werk afhankelijkheden van de opvang-bot bij"
-
   - package-ecosystem: github-actions
     directory: /
     schedule:

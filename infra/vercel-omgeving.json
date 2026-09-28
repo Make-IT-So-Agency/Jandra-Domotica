@@ -85,6 +85,18 @@
       "herkomst": "geheim",
       "omgevingen": ["production"],
       "toelichting": "Beveiligt de geplande taken van Vercel. openssl rand -hex 32"
+    },
+    {
+      "naam": "TELEGRAM_BOT_TOKEN",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Token van Opvang_bot, uit BotFather. Enkel productie: er is maar één webhook per bot."
+    },
+    {
+      "naam": "TOEGELATEN_TELEGRAM_IDS",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Telegram-id's van gebruikers en groepen die de opvang-bot mogen gebruiken, met komma's."
     }
   ]
 }

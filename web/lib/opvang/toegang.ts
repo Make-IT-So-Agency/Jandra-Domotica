@@ -1,5 +1,6 @@
 import type { Bericht } from "./telegram";
 
+/** Leest TOEGELATEN_TELEGRAM_IDS: gebruikers- en groeps-id's, met komma's ertussen. */
 export function toegelatenIds(lijst: string | undefined): Set<number> {
   return new Set(
     (lijst ?? "")

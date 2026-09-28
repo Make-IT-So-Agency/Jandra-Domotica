@@ -68,6 +68,8 @@ jobs:
           TOEGELATEN_EMAILS: ${{ secrets.TOEGELATEN_EMAILS }}
           INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TOEGELATEN_TELEGRAM_IDS: ${{ secrets.TOEGELATEN_TELEGRAM_IDS }}
         run: |
           if [ "${{ inputs.alleen_tonen }}" = "true" ]; then
             node scripts/zet-vercel-omgeving.mjs --droogloop

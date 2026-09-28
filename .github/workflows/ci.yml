@@ -81,34 +81,6 @@ jobs:
           CRON_SECRET: bouwcontrole
         run: npm run build
 
-  opvang:
-    name: Opvang-bot
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: opvang/worker
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: opvang/worker/package-lock.json
-
-      - name: Afhankelijkheden installeren
-        run: npm ci
-
-      - name: Typecontrole
-        run: npm run typecheck
-
-      - name: Tests draaien
-        run: npm test
-
-      - name: Bundelen zoals Cloudflare het zou doen
-        # Praat niet met Cloudflare: --dry-run bouwt enkel de bundel.
-        run: npm run bouwcontrole
-
   databank:
     name: Databankschema
     runs-on: ubuntu-latest
