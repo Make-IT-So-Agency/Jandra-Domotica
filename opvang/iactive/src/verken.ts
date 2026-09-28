@@ -82,9 +82,9 @@ function skelet(knoop: Knoop, inspringing = ""): string {
 }
 
 /** Leest de structuur van elementen in de pagina (of een frame), tot een bepaalde diepte. */
-async function leesStructuur(doel: Page | Frame, selector: string, max: number): Promise<Knoop[]> {
+async function leesStructuur(doel: Page | Frame, selector: string, max: number, diepte = 6): Promise<Knoop[]> {
   return doel.evaluate(
-    ({ selector, max }) => {
+    ({ selector, max, diepte }) => {
       const lees = (el: Element, diepte: number): Knoop => {
         const attributen: Record<string, string> = {};
         for (const a of Array.from(el.attributes)) {
@@ -107,9 +107,9 @@ async function leesStructuur(doel: Page | Frame, selector: string, max: number):
           kinderen: diepte > 0 ? Array.from(el.children).slice(0, 12).map((k) => lees(k, diepte - 1)) : [],
         };
       };
-      return Array.from(document.querySelectorAll(selector)).slice(0, max).map((el) => lees(el, 6));
+      return Array.from(document.querySelectorAll(selector)).slice(0, max).map((el) => lees(el, diepte));
     },
-    { selector, max },
+    { selector, max, diepte },
   ) as Promise<Knoop[]>;
 }
 
@@ -128,69 +128,43 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForLoadState("networkidle").catch(() => {});
   await pagina.waitForTimeout(2500);
 
-  // Tegels opzoeken op hun inhoud: het kleinste blok dat een opvangmoment
-  // noemt én een bezettingsbalk of "RESERVE" bevat, zonder de locatiekop.
-  const aantal = await pagina.evaluate(() => {
-    const tegels = new Set<Element>();
-    const alles = Array.from(document.querySelectorAll("body *"));
-    for (const el of alles) {
-      const eigen = Array.from(el.childNodes).some((n) => n.nodeType === 3 && /opvang|feestdag/i.test(n.textContent ?? ""));
-      if (!eigen) continue;
-      let blok: Element | null = el;
-      while (blok && blok.parentElement) {
-        const tekst = (blok as HTMLElement).innerText ?? "";
-        if (/%|reserve|feestdag|gesloten/i.test(tekst)) break;
-        blok = blok.parentElement;
-      }
-      if (blok && !/BKO/.test((blok as HTMLElement).innerText ?? "")) tegels.add(blok);
-    }
-    let i = 0;
-    for (const t of tegels) t.setAttribute("data-verkenning-tegel", String(i++));
-    return i;
+  // De kalender is een eigen raster: .container met een .row per week. Van
+  // de tweede week (de eerste kan nog in de vorige maand vallen) de volledige
+  // structuur, tot diep genoeg om tegels, datum en balk te zien.
+  const week = await pagina.evaluate(() => {
+    const rijen = Array.from(document.querySelectorAll(".t-Body-contentInner .container > .row"));
+    const rij = rijen.find((r) => /%|reserve/i.test((r as HTMLElement).innerText)) ?? rijen[1] ?? rijen[0];
+    rij?.setAttribute("data-verkenning-week", "ja");
+    return rijen.length;
   });
-  const tegels = pagina.locator("[data-verkenning-tegel]");
-  uit.push(`- Tegels gevonden op inhoud: ${aantal}`);
-  const soorten = await tegels.evaluateAll((els) => [...new Set(els.map((e) => `${e.tagName.toLowerCase()}.${(e as HTMLElement).className}`))]);
-  uit.push(`- Soorten tegels: ${soorten.map((k) => `\`${k}\``).join(" · ") || "geen"}`, "");
+  uit.push(`- Weken (.container > .row): ${week}`, "");
+  const [rij] = await leesStructuur(pagina, "[data-verkenning-week=ja]", 1, 10);
+  if (rij) uit.push("### Eén week", "", "```", skelet(rij), "```", "");
 
-  // Eén dagcel volledig, zodat de plaats van datum, locatie en tegels zichtbaar wordt.
-  const cel = await pagina.evaluate(() => {
-    const t = document.querySelector("[data-verkenning-tegel]");
-    const td = t?.closest("td, [role=gridcell]");
-    td?.setAttribute("data-verkenning-cel", "ja");
-    return Boolean(td);
+  // Een tegel met plaats: het element met een bezettingspercentage, en het
+  // blok daarrond dat ook het opvangmoment noemt.
+  const doel = await pagina.evaluate(() => {
+    const balk = Array.from(document.querySelectorAll("[data-verkenning-week=ja] *")).find((el) =>
+      Array.from(el.childNodes).some((n) => n.nodeType === 3 && /^\s*\d+\s*%\s*$/.test(n.textContent ?? "")),
+    );
+    let blok: Element | null | undefined = balk;
+    while (blok && !/opvang/i.test((blok as HTMLElement).innerText ?? "")) blok = blok.parentElement;
+    if (!blok || /reserve/i.test((blok as HTMLElement).innerText)) return -1;
+    blok.setAttribute("data-verkenning-tegel", "ja");
+    return 1;
   });
-  if (cel) {
-    const [knoop] = await leesStructuur(pagina, "[data-verkenning-cel=ja]", 1);
-    if (knoop) uit.push("### Eén dagcel", "", "```", skelet(knoop), "```", "");
+  const tegels = pagina.locator("[data-verkenning-tegel=ja]");
+  if (doel > 0) {
+    const [tegel] = await leesStructuur(pagina, "[data-verkenning-tegel=ja]", 1, 8);
+    if (tegel) uit.push("### De tegel die aangeklikt wordt", "", "```", skelet(tegel), "```", "");
   }
 
-  // Van elke soort tegel één voorbeeld: vrij, reserve, feestdag.
-  const gezien = new Set<string>();
-  for (let i = 0; i < Math.min(aantal, 80); i++) {
-    const tekst = await tegels.nth(i).innerText();
-    const soort = /reserve/i.test(tekst) ? "reserve" : /feestdag|gesloten/i.test(tekst) ? "gesloten" : /%/.test(tekst) ? "vrij" : "anders";
-    if (gezien.has(soort)) continue;
-    gezien.add(soort);
-    const [knoop] = await leesStructuur(pagina, `[data-verkenning-tegel="${i}"]`, 1);
-    if (knoop) uit.push(`### Tegel: ${soort}`, "", "```", skelet(knoop), "```", "");
-  }
-
-  // Het venster van één tegel met plaats: openen, lezen, sluiten.
-  let doel = -1;
-  for (let i = 0; i < Math.min(aantal, 60); i++) {
-    const tekst = await tegels.nth(i).innerText();
-    if (/%/.test(tekst) && !/reserve|feestdag|gesloten/i.test(tekst)) {
-      doel = i;
-      break;
-    }
-  }
   if (doel < 0) {
     uit.push("Geen tegel met plaats gevonden, venster niet geopend.");
     return uit;
   }
 
-  await tegels.nth(doel).click();
+  await tegels.first().click();
   const venster = pagina.locator(".ui-dialog:visible, [role=dialog]:visible").first();
   await venster.waitFor({ state: "visible", timeout: 15_000 });
   await pagina.waitForTimeout(2000);
