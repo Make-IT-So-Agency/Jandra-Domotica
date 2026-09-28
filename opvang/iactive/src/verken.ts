@@ -162,15 +162,19 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   // locaties aanvinken via "Filter op locaties".
   await pagina.click("#KNOP_LOCATIES").catch(() => {});
   await pagina.waitForTimeout(1000);
-  const vakjes = pagina.locator(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]");
-  const aantalLocaties = await vakjes.count();
-  for (let i = 0; i < aantalLocaties; i++) {
-    const id = await vakjes.nth(i).getAttribute("id");
-    if (!id || (await vakjes.nth(i).isChecked())) continue;
-    await pagina.locator(`label[for="${id}"]`).click().catch(() => vakjes.nth(i).check({ force: true }));
-    await pagina.waitForLoadState("networkidle").catch(() => {});
-    await pagina.waitForTimeout(1500);
-  }
+  // De vakjes zijn verborgen (u-hidden); aanzetten en het change-event
+  // sturen waar de facettenzoeker op luistert.
+  const aantalLocaties = await pagina.evaluate(() => {
+    const vakjes = Array.from(document.querySelectorAll<HTMLInputElement>(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]"));
+    for (const v of vakjes) {
+      if (v.checked) continue;
+      v.checked = true;
+      v.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return vakjes.length;
+  });
+  await pagina.waitForLoadState("networkidle").catch(() => {});
+  await pagina.waitForTimeout(3000);
   uit.push(`- Locaties aangevinkt: ${aantalLocaties}, tegels daarna: ${await telTegels()}`);
 
   // Een maand verder, waar zeker nog open dagen zijn.
