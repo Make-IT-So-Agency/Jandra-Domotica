@@ -189,37 +189,9 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
     await pagina.waitForLoadState("networkidle").catch(() => {});
     await pagina.waitForTimeout(3000);
   }
-  // Kind en locatie: in een gewone browser staat er één kind en één locatie
-  // gekozen. Per kind elke locatie afzonderlijk proberen, tot er tegels
-  // verschijnen. In het verslag enkel de volgnummers.
-  await pagina.click("#KNOP_LOCATIES").catch(() => {});
-  await pagina.waitForTimeout(1000);
-  const kinderen = await pagina.locator("#P44_LEERLING option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  const locaties = await pagina.locator(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]").evaluateAll((vs) => vs.map((v) => (v as HTMLInputElement).id));
-  let gevonden = "geen";
-  zoek: for (let k = 0; k < kinderen.length; k++) {
-    await pagina.selectOption("#P44_LEERLING", kinderen[k]).catch(() => {});
-    await pagina.waitForLoadState("networkidle").catch(() => {});
-    for (let l = 0; l < locaties.length; l++) {
-      await pagina.evaluate((aan) => {
-        for (const v of Array.from(document.querySelectorAll<HTMLInputElement>(".ZOEK_LOCATIE_FAC_SEARCH input[type=checkbox]"))) {
-          const moet = v.id === aan;
-          if (v.checked !== moet) {
-            v.checked = moet;
-            v.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        }
-      }, locaties[l]);
-      await pagina.waitForLoadState("networkidle").catch(() => {});
-      await pagina.waitForTimeout(2500);
-      if ((await telTegels()) > 0) {
-        gevonden = `kind ${k + 1}, locatie ${l + 1}`;
-        break zoek;
-      }
-    }
-  }
-  uit.push(`- Kinderen: ${kinderen.length}, locaties: ${locaties.length}, tegels gevonden bij: ${gevonden}, tegels: ${await telTegels()}`);
-
+  // Geen locatiefilter: leeg betekent "alle locaties", en meerdere vinkjes
+  // tegelijk geven een lege kalender. Wachten tot de tegels van de maand er zijn.
+  await pagina.waitForFunction(() => document.querySelectorAll("a.fc-event").length > 0, undefined, { timeout: 15_000 }).catch(() => {});
   const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "?");
   uit.push(`- Maand: ${zuiverLabel(titel)}, dagen: ${await pagina.locator("td[data-date]").count()}, tegels: ${await telTegels()}`);
 
