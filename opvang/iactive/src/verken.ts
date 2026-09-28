@@ -123,6 +123,17 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.goto(new URL(adres, OORSPRONG).href, { waitUntil: "networkidle" });
   await pagina.waitForTimeout(2500);
 
+  // Zonder activiteitgroep toont de kalender geen tegels. De filter zetten
+  // op "Opvang (inschrijvingen)", zoals een ouder dat in de browser ziet.
+  const filter = pagina.locator("select.apex-item-select").filter({ has: pagina.locator("option", { hasText: "Opvang (inschrijvingen)" }) }).first();
+  const gefilterd = await filter
+    .selectOption({ label: "Opvang (inschrijvingen)" })
+    .then(() => true)
+    .catch(() => false);
+  uit.push(`- Activiteitgroep gezet: ${gefilterd ? "ja" : "nee"}`);
+  await pagina.waitForLoadState("networkidle").catch(() => {});
+  await pagina.waitForTimeout(3000);
+
   // Een maand verder: de lopende maand heeft bijna geen dagen meer over.
   await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
   await pagina.waitForLoadState("networkidle").catch(() => {});
@@ -130,7 +141,7 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
 
   // Wachten tot de tegels er echt staan: ze komen na de pagina, via AJAX.
   const geladen = await pagina
-    .waitForFunction(() => /opvang \(|feestdag/i.test(document.body.innerText), undefined, { timeout: 20_000 })
+    .waitForFunction(() => /schoolse opvang|feestdag/i.test(document.body.innerText), undefined, { timeout: 20_000 })
     .then(() => true)
     .catch(() => false);
   uit.push(`- Tegels verschenen: ${geladen ? "ja" : "nee, na 20 s nog niet"}`);
@@ -142,7 +153,7 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
     const wandelaar = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (wandelaar.nextNode() && uit.length < 3) {
       const n = wandelaar.currentNode;
-      if (!/opvang \(/i.test(n.textContent ?? "")) continue;
+      if (!/opvang \(/i.test(n.textContent ?? "") || n.parentElement?.closest("select")) continue;
       const keten: string[] = [];
       for (let el = n.parentElement; el && el !== document.body; el = el.parentElement) {
         keten.push(`${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).join(".") : ""}`);
@@ -166,7 +177,7 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
     if (!rij) {
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       while (w.nextNode()) {
-        if (/opvang \(/i.test(w.currentNode.textContent ?? "")) {
+        if (/opvang \(/i.test(w.currentNode.textContent ?? "") && !w.currentNode.parentElement?.closest("select")) {
           let el = w.currentNode.parentElement;
           for (let i = 0; i < 4 && el?.parentElement; i++) el = el.parentElement;
           el?.setAttribute("data-verkenning-week", "ja");
