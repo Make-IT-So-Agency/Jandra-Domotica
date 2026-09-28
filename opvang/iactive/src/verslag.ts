@@ -57,13 +57,13 @@ export function zuiverUrl(url: string): string {
  * Een label van een knop, menu-item of kolomkop. Kort, en zonder wat op een
  * e-mailadres, een rijksregisternummer of een ander lang getal lijkt.
  */
-export function zuiverLabel(tekst: string): string {
+export function zuiverLabel(tekst: string, lengte = 40): string {
   return tekst
     .replace(/\s+/g, " ")
     .trim()
     .replace(/[^\s@]+@[^\s@]+/g, "<e-mail>")
     .replace(/\d[\d.\-/ ]{5,}\d/g, "<getal>")
-    .slice(0, 40);
+    .slice(0, lengte);
 }
 
 const GEVAARLIJK =
@@ -106,7 +106,7 @@ export function alsMarkdown(pagina: Pagina): string {
     for (const k of pagina.knoppen) regels.push(`- \`${k.id || "(geen id)"}\` ${zuiverLabel(k.label)}`);
   }
   if (pagina.kolomkoppen.length) {
-    regels.push("", `**Kolomkoppen:** ${pagina.kolomkoppen.map(zuiverLabel).join(" · ")}`);
+    regels.push("", `**Kolomkoppen:** ${pagina.kolomkoppen.map((k) => zuiverLabel(k)).join(" · ")}`);
   }
   return regels.join("\n");
 }

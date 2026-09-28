@@ -15,11 +15,13 @@
 import { appendFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 
-import { alsMarkdown, veiligeLink, type Pagina } from "./verslag.ts";
+import { alsMarkdown, veiligeLink, zuiverLabel, type Pagina } from "./verslag.ts";
 
 const OORSPRONG = "https://sint-katelijne-waver.i-active.be";
 const LOGIN = `${OORSPRONG}/ords/r/iactive01/burgerportaal/login`;
 const MAX_PAGINAS = 12;
+const FOUTMELDING =
+  ".t-Alert--danger, .t-Alert--warning, .a-Notification--error, #t_Alert_Notification, .t-Form-error, .apex-page-error, .htmldbStdErr";
 
 async function leesPagina(pagina: Page, status: number | null): Promise<Pagina> {
   const gegevens = await pagina.evaluate(() => {
@@ -91,14 +93,23 @@ async function main() {
       await wegMetCookiemelding(pagina);
       await pagina.fill("#P101_USERNAME", email);
       await pagina.fill("#P101_PASSWORD", wachtwoord);
-      await Promise.all([
-        pagina.waitForLoadState("networkidle"),
-        pagina.click("#LOGIN_BUTTON"),
-      ]);
-      await pagina.waitForTimeout(1500);
-      const nogOpLogin = await pagina.locator("#P101_PASSWORD").isVisible().catch(() => false);
+      await pagina.click("#LOGIN_BUTTON");
+      // APEX verstuurt het formulier en laadt een nieuwe pagina, of toont een
+      // foutmelding op dezelfde pagina. Wacht op het ene of het andere.
+      await Promise.race([
+        pagina.waitForURL((u) => !u.pathname.endsWith("/login"), { timeout: 30_000 }),
+        pagina.locator(FOUTMELDING).first().waitFor({ state: "visible", timeout: 30_000 }),
+      ]).catch(() => {});
+      await pagina.waitForLoadState("networkidle").catch(() => {});
+
+      const nogOpLogin = new URL(pagina.url()).pathname.endsWith("/login");
       verslag.push(`**Ingelogd:** ${nogOpLogin ? "nee, nog op de loginpagina" : "ja"}`, "");
-      if (nogOpLogin) throw new Error("Inloggen lukte niet.");
+      if (nogOpLogin) {
+        const meldingen = await pagina.locator(FOUTMELDING).allInnerTexts().catch(() => []);
+        const zichtbaar = meldingen.map((m) => zuiverLabel(m, 120)).filter(Boolean);
+        verslag.push(`**Melding van i-Active:** ${zichtbaar.length ? zichtbaar.join(" · ") : "geen"}`, "");
+        throw new Error("Inloggen lukte niet.");
+      }
 
       const start = await leesPagina(pagina, null);
       verslag.push(alsMarkdown(start), "");
