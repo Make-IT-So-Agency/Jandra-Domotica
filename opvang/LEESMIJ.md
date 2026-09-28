@@ -37,14 +37,77 @@ Supabase → Telegram                   "Opvang november verwerkt"
 
 - [x] Webhook Telegram → Vercel, beveiligd met een geheim
 - [x] Enkel toegelaten Telegram-id's, en in een groep ook de groep zelf
-- [x] `/start` en `/id`
-- [ ] i-Active verkennen: login, schermen, openingsmomenten
+- [x] `/start`, `/id` en `/volgende` (eerstvolgende inschrijfmomenten)
+- [x] Inschrijfmomenten 2026-2027 vastgelegd (`web/lib/opvang/inschrijfmomenten.ts`)
+- [x] Publieke kant van i-Active verkend: login, velden, geen CAPTCHA
+- [ ] i-Active na login verkennen: het reservatiescherm en het winkelmandje
 - [ ] AM/PM-knoppen en de maandkalender
 - [ ] Selecties bewaren in Supabase, status **Definitief**
 - [ ] Sandra erbij, gezamenlijke groep
 - [ ] Herinneringen zolang niet definitief
 - [ ] Reservatieworkflow met droogloop, controle per slot en terugmelding
 - [ ] Startsein via `pg_cron`, met een tweede poging als de eerste niet opdaagt
+
+## i-Active
+
+Wat we weten, en waar het vandaan komt. Alles hieronder is publiek; het
+scherm na de login is nog niet gezien.
+
+### Login
+
+- Ouders loggen in op
+  `https://sint-katelijne-waver.i-active.be/ords/r/iactive01/burgerportaal/login`,
+  niet op `i-active.be` zelf. Het is een Oracle APEX-app ("burgerportaal").
+- Velden `#P101_USERNAME` (e-mailadres of UserID) en `#P101_PASSWORD`, knop
+  `#LOGIN_BUTTON` ("Aanmelden"). itsme loopt via een andere knop, die we niet
+  gebruiken.
+- Geen CAPTCHA in de pagina of haar scripts, en geen teken van 2FA bij
+  e-mail en wachtwoord. Er is wel een cookiemelding, en de site zit achter
+  Zenedge (Imperva). Een gewone HTTP-aanvraag kreeg meteen de echte pagina;
+  of een browser op een GitHub-server even vlot binnen geraakt, zegt de
+  workflow **Opvang - i-Active verkennen**.
+- Afgeleid uit de scripts: reserveren gaat via een **winkelmandje** met een
+  afrekenpagina. Een slot in het mandje is dus nog geen reservatie; de
+  controle na afloop moet naar de echte inschrijvingen kijken.
+
+### Wanneer de inschrijvingen openen
+
+Bron: *Start inschrijvingsperiodes 2026-2027.pdf* op
+[huisvanhetkind.skw.be/inschrijven-bko](https://huisvanhetkind.skw.be/inschrijven-bko).
+
+| Ronde | Wanneer | Voor wie |
+| --- | --- | --- |
+| Eerste | eerste dinsdag, 18:00, twee maanden voor de opvangmaand | inwoners en personeel |
+| Eerste | donderdag daarna, 09:00 | niet-inwoners |
+| Tweede | voorlaatste dinsdag van de maand ervoor, 18:00 | iedereen, extra plaatsen |
+
+De website zegt "derde dinsdag" voor de tweede ronde, maar de tabel zegt
+overal de voorlaatste. De code volgt de tabel, en een test bewaakt dat de
+regel er exact mee overeenkomt. Voor de zomervakantie geldt een eigen datum
+(27 april 2027). Na juni 2027 rekent de code verder met de regel en zegt ze
+"berekend" tot de nieuwe tabel er is.
+
+**Eerstvolgende opening: dinsdag 6 oktober 2026, 18:00**, voor december en
+de kerstvakantie.
+
+### Wat je reserveert
+
+- Per kind, per dag, per opvangmoment: **voorschools**, **naschools**,
+  **woensdagnamiddag**. Op schoolvrije dagen en in de vakanties per halve dag
+  (voormiddag tot 13:00, namiddag vanaf 12:00).
+- **Niet** te reserveren: naschoolse opvang van de lagere school, die gebeurt
+  op school. Uitzondering: Hagelstein, die gaan naar Robbedoes.
+- Wie niet gereserveerd heeft, kan niet terecht.
+- Volzet: je kind komt op een **wachtlijst**, en schuift automatisch door als
+  er plaats vrijkomt. Dat is dus geen "mislukt", maar ook geen "gelukt": het
+  verslag in Telegram moet dat apart melden.
+
+### Annuleren
+
+Tot 06:00 dezelfde ochtend voor voorschoolse opvang, vakanties en
+schoolvrije dagen; tot 11:00 voor naschoolse opvang en woensdagnamiddag. Drie
+jokers per kind per maand. Te laat of niet geannuleerd: het volledige moment
+plus € 5.
 
 ## Wat je zelf moet instellen
 
@@ -56,7 +119,7 @@ Supabase → Telegram                   "Opvang november verwerkt"
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Telegram → **@BotFather** → `/mybots` → Opvang_bot → **API Token** | Vercel (wordt er bij het uitrollen naartoe gezet) |
 | `TOEGELATEN_TELEGRAM_IDS` | Je eigen id: stuur iets naar **@userinfobot** in Telegram. Later Sandra's id en de id van de groep erbij, met komma's. | Vercel |
-| `IACTIVE_EMAIL` | Het e-mailadres waarmee je in i-Active inlogt | GitHub Actions (de reservatie) |
+| `IACTIVE_EMAIL` | Het e-mailadres waarmee je inlogt op [het burgerportaal](https://sint-katelijne-waver.i-active.be/ords/r/iactive01/burgerportaal/login) | GitHub Actions (verkenning en reservatie) |
 | `IACTIVE_WACHTWOORD` | Het wachtwoord daarvan | GitHub Actions |
 
 Pas een secret altijd in GitHub aan, nooit rechtstreeks in Vercel: de volgende

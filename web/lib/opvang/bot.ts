@@ -1,5 +1,6 @@
 import "server-only";
 
+import { momentLabel, opvangLabel, volgendeMomenten } from "./inschrijfmomenten";
 import { commando, stuurBericht, type Bericht } from "./telegram";
 import { heeftToegang, toegelatenIds } from "./toegang";
 
@@ -28,6 +29,9 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
     case "id":
       await stuurBericht(token, bericht.chat.id, idRegels(bericht));
       return;
+    case "volgende":
+      await stuurBericht(token, bericht.chat.id, volgendeTekst(new Date()));
+      return;
     default:
       await stuurBericht(token, bericht.chat.id, `Onbekend commando: /${cmd}`);
   }
@@ -36,5 +40,17 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
 function idRegels(bericht: Bericht): string {
   const regels = [`Jouw Telegram-id: ${bericht.from?.id ?? "onbekend"}`];
   if (bericht.chat.type !== "private") regels.push(`Id van deze groep: ${bericht.chat.id}`);
+  return regels.join("\n");
+}
+
+/** De eerstvolgende openingen voor inwoners, en de tweede ronde die eerder valt. */
+export function volgendeTekst(nu: Date): string {
+  const regels = ["Volgende inschrijvingen BKO (inwoners):"];
+  for (const m of volgendeMomenten("inwoners", nu, 2)) {
+    const onzeker = m.bron === "berekend" ? " (berekend, nog niet officieel)" : "";
+    regels.push(`${momentLabel(m.opent)} voor ${opvangLabel(m.opvang)}${onzeker}`);
+  }
+  const [tweede] = volgendeMomenten("tweede_ronde", nu);
+  if (tweede) regels.push("", `Tweede ronde: ${momentLabel(tweede.opent)} voor ${opvangLabel(tweede.opvang)}`);
   return regels.join("\n");
 }

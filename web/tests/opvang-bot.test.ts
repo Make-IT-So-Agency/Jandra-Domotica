@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/telegram/route";
+import { volgendeTekst } from "@/lib/opvang/bot";
 import { heeftToegang, toegelatenIds } from "@/lib/opvang/toegang";
 import { commando, verbergToken, webhookGeheim } from "@/lib/opvang/telegram";
 
@@ -97,6 +98,11 @@ describe("webhook van de opvang-bot", () => {
     expect(String(fout.mock.calls[0])).not.toContain(TOKEN);
   });
 
+  it("antwoordt op /volgende met de eerstvolgende openingen", async () => {
+    await stuurUpdate(bericht("/volgende"));
+    expect(verstuurd[0].text).toContain("Volgende inschrijvingen BKO");
+  });
+
   it("antwoordt 503 zolang er geen token ingesteld is", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
     expect((await stuurUpdate(bericht("/start"))).status).toBe(503);
@@ -127,5 +133,15 @@ describe("hulpfuncties van de opvang-bot", () => {
 
   it("maakt een geheim dat Telegram aanvaardt", () => {
     expect(webhookGeheim(TOKEN)).toMatch(/^[a-f0-9]{64}$/);
+  });
+});
+
+describe("/volgende", () => {
+  it("noemt december op 6 oktober en de tweede ronde voor november", () => {
+    const tekst = volgendeTekst(new Date("2026-09-28T12:00:00Z"));
+    expect(tekst).toMatch(/6 okt.*18:00 voor december 2026/);
+    expect(tekst).toContain("voor januari 2027");
+    expect(tekst).toMatch(/Tweede ronde: .*20 okt.* voor november 2026/);
+    expect(tekst).not.toContain("berekend");
   });
 });

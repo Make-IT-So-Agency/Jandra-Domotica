@@ -81,6 +81,33 @@ jobs:
           CRON_SECRET: bouwcontrole
         run: npm run build
 
+  opvang-iactive:
+    name: Opvang - i-Active
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+
+      - name: Afhankelijkheden installeren
+        # Zonder browser: de tests raken i-Active niet aan.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: Typecontrole
+        run: npm run typecheck
+
+      - name: Tests draaien
+        run: npm test
+
   databank:
     name: Databankschema
     runs-on: ubuntu-latest
