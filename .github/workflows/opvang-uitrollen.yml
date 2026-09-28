@@ -1,0 +1,63 @@
+name: Opvang-bot uitrollen
+
+# Rolt de Cloudflare Worker "opvang-bot" uit. Enkel de code gaat mee: het
+# Telegram-token en de lijst met toegelaten id's staan als secret in
+# Cloudflare en komen nooit langs GitHub.
+on:
+  push:
+    branches: ["main"]
+    paths: ["opvang/worker/**", ".github/workflows/opvang-uitrollen.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: uitrollen-opvang
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  uitrollen:
+    name: Tests en uitrollen
+    runs-on: ubuntu-latest
+    environment: productie
+    defaults:
+      run:
+        working-directory: opvang/worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/worker/package-lock.json
+
+      - name: Controleer de instellingen van deze omgeving
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ontbreekt=0
+          [ -n "$CLOUDFLARE_API_TOKEN" ]  || { echo "Ontbreekt: secret CLOUDFLARE_API_TOKEN"; ontbreekt=1; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "Ontbreekt: variable CLOUDFLARE_ACCOUNT_ID"; ontbreekt=1; }
+          if [ "$ontbreekt" = "1" ]; then
+            echo "::error::De GitHub-omgeving 'productie' mist de Cloudflare-instellingen. Zie opvang/LEESMIJ.md."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Uitrollen naar Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler deploy
+          {
+            echo "### Opvang-bot uitgerold"
+            echo ""
+            echo "Eerste keer, of na een nieuw token? Open dan eenmalig /setup op de Worker."
+          } >> "$GITHUB_STEP_SUMMARY"

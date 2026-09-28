@@ -20,11 +20,12 @@ de samenvatting.
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_TOKEN`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`,
 `AUTH_GOOGLE_SECRET`, `AUTH_URL`, `TOEGELATEN_EMAILS`, `INGEST_API_KEY`,
-`CRON_SECRET`
+`CRON_SECRET`, `CLOUDFLARE_API_TOKEN` (opvang-bot)
 
 **Variables** — verwijzingen, geen geheimen:
 
-`SUPABASE_PROJECT_REF`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`
+`SUPABASE_PROJECT_REF`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`,
+`CLOUDFLARE_ACCOUNT_ID` (opvang-bot)
 
 Zet ze in een *environment* met de naam exact `productie`, aan te maken onder
 **Settings → Environments**. De workflows verwijzen daarnaar, en zo kan je er

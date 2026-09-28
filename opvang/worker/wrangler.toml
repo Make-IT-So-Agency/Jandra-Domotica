@@ -1,0 +1,13 @@
+# De Worker die in Cloudflare al bestaat als "opvang-bot". Uitrollen overschrijft
+# enkel de code: de secrets (TELEGRAM_BOT_TOKEN, TOEGELATEN_TELEGRAM_IDS) staan
+# in Cloudflare en blijven daar staan.
+name = "opvang-bot"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# Variabelen die in het Cloudflare-scherm gezet zijn, niet wissen bij een deploy.
+keep_vars = true
+
+[observability]
+enabled = true
