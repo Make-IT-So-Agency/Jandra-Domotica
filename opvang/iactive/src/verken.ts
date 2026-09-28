@@ -146,14 +146,20 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
             try {
               const pi = JSON.parse(json)?.pageItems?.itemsToSubmit ?? [];
               items = (pi as { n: string; v: unknown }[])
-                .map((i) => `${i.n}=${/_(VAN|TOT|LOCATIE|TRAN_GROEP)$/.test(i.n) ? zuiverLabel(String(i.v), 30) : i.v === "" || i.v == null ? "(leeg)" : "(ingevuld)"}`)
+                .map((i) => {
+                  const v = String(i.v ?? "");
+                  // Datums en hoofdlettercodes zijn geen persoonsgegevens; die letterlijk.
+                  const veilig = /^[\d/:\- ]{0,20}$/.test(v) || /^[A-Z_:]{0,200}$/.test(v);
+                  return `${i.n}=${v === "" ? "(leeg)" : veilig && !/LEERLING/.test(i.n) ? v.slice(0, 60) : "(ingevuld)"}`;
+                })
                 .join(" ");
             } catch {
               items = "(p_json onleesbaar)";
             }
           }
           verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}, ${soortInhoud.split(";")[0]}, ${b.length} bytes, ${vorm}${aantalItems ? `, ${aantalItems} title/start-velden` : ""}${kort}`);
-          verkeer.push(`    velden: ${namen}${items ? ` | items: ${items}` : ""}`);
+          const x = ["x01", "x02", "x03"].map((k) => velden.get(k)).filter(Boolean).map((v) => zuiverLabel(String(v), 30));
+          verkeer.push(`    velden: ${namen}${x.length ? ` | x: ${x.join(" ")}` : ""}${items ? ` | items: ${items}` : ""}`);
         })
         .catch(() => verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`));
     }
@@ -213,10 +219,12 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   }
   uit.push(`- Kinderen in de lijst: ${kinderen.length}, kind met tegels: ${gekozen < 0 ? "geen" : `nummer ${gekozen + 1}`}, tegels: ${await telTegels()}`);
 
-  // Een maand verder, waar zeker nog open dagen zijn.
-  await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
-  await pagina.waitForLoadState("networkidle").catch(() => {});
-  await pagina.waitForTimeout(3000);
+  // Naar november: daar toonde de kalender in een gewone browser tegels.
+  for (let i = 0; i < 2; i++) {
+    await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
+    await pagina.waitForLoadState("networkidle").catch(() => {});
+    await pagina.waitForTimeout(3000);
+  }
   const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "?");
   uit.push(`- Maand: ${zuiverLabel(titel)}, dagen: ${await pagina.locator("td[data-date]").count()}, tegels: ${await telTegels()}`);
 
