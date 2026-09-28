@@ -127,7 +127,15 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   pagina.on("response", (r) => {
     const soort = r.request().resourceType();
     if ((soort === "xhr" || soort === "fetch") && new URL(r.url()).hostname.endsWith("i-active.be")) {
-      verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`);
+      const soortInhoud = r.headers()["content-type"] ?? "?";
+      r.body()
+        .then((b) => {
+          const begin = b.subarray(0, 40).toString("utf8").replace(/\s+/g, " ");
+          const vorm = /^\s*[[{]/.test(begin) ? "json" : /<html|<!doctype/i.test(begin) ? "html" : "anders";
+          const aantalItems = vorm === "json" ? (b.toString("utf8").match(/"(title|start)"\s*:/g) ?? []).length : 0;
+          verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}, ${soortInhoud.split(";")[0]}, ${b.length} bytes, ${vorm}${aantalItems ? `, ${aantalItems} title/start-velden` : ""}`);
+        })
+        .catch(() => verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`));
     }
   });
   const fouten: string[] = [];
@@ -214,7 +222,14 @@ async function main() {
   const browser = await chromium.launch(
     process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY } } : {},
   );
-  const pagina = await browser.newPage({ locale: "nl-BE", timezoneId: "Europe/Brussels" });
+  // Een gewone Chrome-identiteit: "HeadlessChrome" in de user agent kan een
+  // bescherming tegen bots anders laten antwoorden.
+  const pagina = await browser.newPage({
+    locale: "nl-BE",
+    timezoneId: "Europe/Brussels",
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+  });
   const verslag: string[] = [`## Verkenning i-Active (${inloggen ? "met login" : "enkel loginpagina"})`, ""];
 
   try {
