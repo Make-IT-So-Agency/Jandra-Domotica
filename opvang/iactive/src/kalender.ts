@@ -4,7 +4,9 @@
  * niets in i-Active.
  *
  *   node src/kalender.ts            elke ronde die binnen 21 dagen opent
- *   node src/kalender.ts 2026-12    enkel die opvangmaand
+ *   node src/kalender.ts 2026-12    enkel die opvangmaand, ook zonder ronde
+ *   node src/kalender.ts --stil     zonder de webapp te roepen: geen
+ *                                   berichten in Telegram
  *
  * Daarna vraagt het de webapp om het keuzemenu te sturen of bij te werken.
  * In het logboek komen enkel aantallen: geen namen, geen keuzes.
@@ -17,13 +19,16 @@ import { rest } from "./supabase.ts";
 const VOORUIT_DAGEN = 21;
 
 async function main() {
+  const stil = process.argv.includes("--stil");
   // Eerst de webapp: die maakt de volgende ronde aan als ze binnen tien dagen opent.
-  await vraagMenu(false);
+  if (!stil) await vraagMenu(false);
   const gevraagd = process.argv.slice(2).find((a) => /^(\d{4}-\d{2}|zomer-\d{4})$/.test(a));
   const nu = Date.now();
-  const rondes = (await lopendeRondes()).filter((r) =>
+  const rondes: Pick<Ronde, "id" | "maand">[] = (await lopendeRondes()).filter((r) =>
     gevraagd ? r.maand === gevraagd : new Date(r.opent).getTime() - nu < VOORUIT_DAGEN * 86_400_000,
   );
+  // Een gevraagde maand zonder ronde: toch lezen, de tegels hangen aan het kind.
+  if (gevraagd && !rondes.length) rondes.push({ id: 0, maand: gevraagd });
   if (!rondes.length) {
     console.log("Geen ronde om de kalender voor te lezen.");
     return;
@@ -51,7 +56,12 @@ async function main() {
       for (const kind of kinderen) {
         for (const maand of kalenderMaanden(ronde.maand)) {
           await openKalender(pagina, kind.leerling_id, maand);
-          const tegels = await leesTegels(pagina, maand);
+          // Twee tegels met dezelfde sleutel kunnen niet samen in één upsert,
+          // en de bot zou ze bij het inschrijven niet uit elkaar houden: weg ermee.
+          const alle = await leesTegels(pagina, maand);
+          const sleutel = (t: (typeof alle)[number]) => `${t.datum}|${t.moment}|${t.locatie}`;
+          const tegels = alle.filter((t) => alle.filter((u) => sleutel(u) === sleutel(t)).length === 1);
+          if (tegels.length < alle.length) console.log(`Tegels met een dubbele sleutel weggelaten: ${alle.length - tegels.length}`);
           totaal += tegels.length;
           if (!tegels.length) continue;
           await rest(
@@ -74,13 +84,13 @@ async function main() {
           console.log(`Ronde ${ronde.maand}, kind ${kinderen.indexOf(kind) + 1}, ${maand}: ${tegels.length} tegels (${[...telling].map(([s, n]) => `${s} ${n}`).join(", ")})`);
         }
       }
-      await rest("PATCH", `opvang_rondes?id=eq.${ronde.id}`, { kalender_gelezen_op: new Date().toISOString() }, "return=minimal");
+      if (ronde.id) await rest("PATCH", `opvang_rondes?id=eq.${ronde.id}`, { kalender_gelezen_op: new Date().toISOString() }, "return=minimal");
       if (!totaal) console.log(`Ronde ${ronde.maand}: geen tegels gevonden.`);
     }
   } finally {
     await browser.close();
   }
-  await vraagMenu();
+  if (!stil) await vraagMenu();
 }
 
 /** Laat de webapp het keuzemenu sturen of bijwerken met de nieuwe tegels. */

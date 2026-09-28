@@ -15,6 +15,10 @@ on:
         description: "Enkel deze opvangmaand, bv. 2026-12 (leeg: elke ronde binnen 21 dagen)"
         type: string
         default: ""
+      stil:
+        description: "Geen berichten in Telegram (de webapp niet roepen)"
+        type: boolean
+        default: false
 
 concurrency:
   group: opvang-iactive
@@ -50,4 +54,5 @@ jobs:
           AUTH_URL: ${{ secrets.AUTH_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           MAAND: ${{ inputs.maand }}
-        run: node src/kalender.ts $MAAND
+          STIL: ${{ inputs.stil && '--stil' || '' }}
+        run: node src/kalender.ts $MAAND $STIL
