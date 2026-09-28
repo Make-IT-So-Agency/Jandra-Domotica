@@ -128,25 +128,52 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForLoadState("networkidle").catch(() => {});
   await pagina.waitForTimeout(2500);
 
-  const tegels = pagina.locator(".fc-event");
-  const aantal = await tegels.count();
-  uit.push(`- Tegels (.fc-event): ${aantal}`);
-  const soorten = await tegels.evaluateAll((els) => [...new Set(els.map((e) => (e as HTMLElement).className))]);
-  uit.push(`- Klassen van tegels: ${soorten.map((k) => `\`${k}\``).join(" · ") || "geen"}`, "");
+  // Tegels opzoeken op hun inhoud: het kleinste blok dat een opvangmoment
+  // noemt én een bezettingsbalk of "RESERVE" bevat, zonder de locatiekop.
+  const aantal = await pagina.evaluate(() => {
+    const tegels = new Set<Element>();
+    const alles = Array.from(document.querySelectorAll("body *"));
+    for (const el of alles) {
+      const eigen = Array.from(el.childNodes).some((n) => n.nodeType === 3 && /opvang|feestdag/i.test(n.textContent ?? ""));
+      if (!eigen) continue;
+      let blok: Element | null = el;
+      while (blok && blok.parentElement) {
+        const tekst = (blok as HTMLElement).innerText ?? "";
+        if (/%|reserve|feestdag|gesloten/i.test(tekst)) break;
+        blok = blok.parentElement;
+      }
+      if (blok && !/BKO/.test((blok as HTMLElement).innerText ?? "")) tegels.add(blok);
+    }
+    let i = 0;
+    for (const t of tegels) t.setAttribute("data-verkenning-tegel", String(i++));
+    return i;
+  });
+  const tegels = pagina.locator("[data-verkenning-tegel]");
+  uit.push(`- Tegels gevonden op inhoud: ${aantal}`);
+  const soorten = await tegels.evaluateAll((els) => [...new Set(els.map((e) => `${e.tagName.toLowerCase()}.${(e as HTMLElement).className}`))]);
+  uit.push(`- Soorten tegels: ${soorten.map((k) => `\`${k}\``).join(" · ") || "geen"}`, "");
 
-  // Van elke soort tegel één voorbeeld.
+  // Eén dagcel volledig, zodat de plaats van datum, locatie en tegels zichtbaar wordt.
+  const cel = await pagina.evaluate(() => {
+    const t = document.querySelector("[data-verkenning-tegel]");
+    const td = t?.closest("td, [role=gridcell]");
+    td?.setAttribute("data-verkenning-cel", "ja");
+    return Boolean(td);
+  });
+  if (cel) {
+    const [knoop] = await leesStructuur(pagina, "[data-verkenning-cel=ja]", 1);
+    if (knoop) uit.push("### Eén dagcel", "", "```", skelet(knoop), "```", "");
+  }
+
+  // Van elke soort tegel één voorbeeld: vrij, reserve, feestdag.
   const gezien = new Set<string>();
-  for (let i = 0; i < Math.min(aantal, 60); i++) {
-    const soort = await tegels.nth(i).evaluate((e) => (e as HTMLElement).className + "|" + /reserve/i.test((e as HTMLElement).innerText) + "|" + /%/.test((e as HTMLElement).innerText));
+  for (let i = 0; i < Math.min(aantal, 80); i++) {
+    const tekst = await tegels.nth(i).innerText();
+    const soort = /reserve/i.test(tekst) ? "reserve" : /feestdag|gesloten/i.test(tekst) ? "gesloten" : /%/.test(tekst) ? "vrij" : "anders";
     if (gezien.has(soort)) continue;
     gezien.add(soort);
-    const [knoop] = await tegels.nth(i).evaluate((el) => {
-      el.setAttribute("data-verkenning", "ja");
-      return null;
-    }).then(() => leesStructuur(pagina, "[data-verkenning=ja]", 1));
-    await tegels.nth(i).evaluate((el) => el.removeAttribute("data-verkenning"));
-    if (knoop) uit.push("```", skelet(knoop), "```", "");
-    if (gezien.size >= 5) break;
+    const [knoop] = await leesStructuur(pagina, `[data-verkenning-tegel="${i}"]`, 1);
+    if (knoop) uit.push(`### Tegel: ${soort}`, "", "```", skelet(knoop), "```", "");
   }
 
   // Het venster van één tegel met plaats: openen, lezen, sluiten.
