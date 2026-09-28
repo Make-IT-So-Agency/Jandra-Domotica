@@ -13,7 +13,17 @@ import { leesStaat, maandVanTitel, type Staat } from "./tegels.ts";
 
 export const OORSPRONG = "https://sint-katelijne-waver.i-active.be";
 export const LOGIN = `${OORSPRONG}/ords/r/iactive01/burgerportaal/login`;
-export const KALENDER = `${OORSPRONG}/ords/r/iactive01/burgerportaal/kalender-kinderopvang-nieuw`;
+const KALENDER = `${OORSPRONG}/ords/r/iactive01/burgerportaal/kalender-kinderopvang-nieuw`;
+
+/**
+ * APEX houdt de sessie in de URL (?session=...). Een adres zonder die sessie
+ * begint een nieuwe, niet-ingelogde sessie. Daarom onthouden we ze na de login.
+ */
+let sessie = "";
+
+export function kalenderAdres(): string {
+  return sessie ? `${KALENDER}?session=${encodeURIComponent(sessie)}` : KALENDER;
+}
 const FOUTMELDING =
   ".t-Alert--danger, .t-Alert--warning, .a-Notification--error, #t_Alert_Notification, .t-Form-error, .apex-page-error, .htmldbStdErr";
 
@@ -48,7 +58,17 @@ export async function login(pagina: Page, email: string, wachtwoord: string): Pr
     pagina.locator(FOUTMELDING).first().waitFor({ state: "visible", timeout: 30_000 }),
   ]).catch(() => {});
   await pagina.waitForLoadState("networkidle").catch(() => {});
-  if (new URL(pagina.url()).pathname.endsWith("/login")) throw new Error("Inloggen bij i-Active lukte niet.");
+  const na = new URL(pagina.url());
+  if (na.pathname.endsWith("/login")) throw new Error("Inloggen bij i-Active lukte niet.");
+  sessie = na.searchParams.get("session") ?? "";
+}
+
+/** Gaat naar de kalender, en controleert dat we niet op de loginpagina belandden. */
+export async function naarKalender(pagina: Page): Promise<void> {
+  await pagina.goto(kalenderAdres(), { waitUntil: "networkidle" });
+  if (new URL(pagina.url()).pathname.endsWith("/login")) throw new Error("De sessie in i-Active is verlopen.");
+  await pagina.locator("#P44_LEERLING").waitFor({ state: "attached", timeout: 20_000 });
+  await pagina.waitForTimeout(1500);
 }
 
 /** Een kind zoals de kalender het kent: de waarde en de tekst van de optie in #P44_LEERLING. */
@@ -75,10 +95,7 @@ async function wachtOpRust(pagina: Page, ms = 1500): Promise<void> {
  * pijltjes naar de maand, en controleert via de titel dat het de juiste is.
  */
 export async function openKalender(pagina: Page, leerlingId: string, maand: string): Promise<void> {
-  if (!pagina.url().includes("kalender-kinderopvang-nieuw")) {
-    await pagina.goto(KALENDER, { waitUntil: "networkidle" });
-    await pagina.waitForTimeout(1500);
-  }
+  if (!pagina.url().includes("kalender-kinderopvang-nieuw")) await naarKalender(pagina);
   const kind = pagina.locator("#P44_LEERLING");
   if ((await kind.inputValue().catch(() => "")) !== leerlingId) {
     await kind.selectOption(leerlingId);
@@ -252,7 +269,6 @@ export function naamKlopt(label: string, naam: string): boolean {
 
 /** Herlaadt de kalender, zodat de iconen de toestand van nu tonen. */
 export async function herlaad(pagina: Page, leerlingId: string, maand: string): Promise<void> {
-  await pagina.goto(KALENDER, { waitUntil: "networkidle" });
-  await pagina.waitForTimeout(1500);
+  await naarKalender(pagina);
   await openKalender(pagina, leerlingId, maand);
 }

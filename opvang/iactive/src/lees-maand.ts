@@ -6,7 +6,7 @@
  *   node src/lees-maand.ts 2026-11 2026-12
  */
 
-import { leesLeerlingen, leesTegels, login, openKalender, startBrowser } from "./iactive.ts";
+import { leesLeerlingen, leesTegels, login, naarKalender, openKalender, startBrowser } from "./iactive.ts";
 import { zuiverLabel } from "./verslag.ts";
 
 const maanden = process.argv.slice(2).filter((a) => /^\d{4}-\d{2}$/.test(a));
@@ -18,9 +18,7 @@ const { browser, pagina } = await startBrowser();
 const uit: string[] = [];
 try {
   await login(pagina, email, wachtwoord);
-  await pagina.goto("https://sint-katelijne-waver.i-active.be/ords/r/iactive01/burgerportaal/kalender-kinderopvang-nieuw", {
-    waitUntil: "networkidle",
-  });
+  await naarKalender(pagina);
   const kinderen = await leesLeerlingen(pagina);
   uit.push(`Kinderen in de kalender: ${kinderen.length}`);
   for (const [k, kind] of kinderen.entries()) {
