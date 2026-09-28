@@ -79,6 +79,12 @@ kies je een kind (`#P44_LEERLING`, één optie per kind) en een activiteitgroep
 (**Opvang (inschrijvingen)**). Daaronder staat een maandkalender van
 FullCalendar, met knoppen `<`, `>` en `Vandaag`.
 
+**Welke kinderen.** Er staan twee kinderen in het account. Voorlopig plant
+de bot enkel voor het oudste; het jongste komt er pas bij vanaf de
+opvangmaand september 2027. Namen en leerling-id's staan niet in deze
+publieke repository maar in Supabase, samen met die startmaand, zodat het
+jongste kind er vanzelf bijkomt zonder codewijziging.
+
 We reserveren via deze kalender, niet via "Inschrijven via periode": één
 tegel is één slot, dus de bot klikt exact wat aangeduid werd en niets anders,
 en leest op hetzelfde scherm het resultaat terug.
