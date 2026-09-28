@@ -12,9 +12,9 @@
  * van de cookiemelding, en er wordt niets ingevuld behalve de login.
  */
 
-import { chromium, type Page } from "playwright";
+import { chromium, type Frame, type Page } from "playwright";
 
-import { alsMarkdown, veiligeLink, veiligMenuItem, zuiverLabel, type Pagina } from "./verslag.ts";
+import { alsMarkdown, veiligeLink, veiligMenuItem, zuiverLabel, zuiverUrl, type Pagina } from "./verslag.ts";
 
 const OORSPRONG = "https://sint-katelijne-waver.i-active.be";
 const LOGIN = `${OORSPRONG}/ords/r/iactive01/burgerportaal/login`;
@@ -60,6 +60,128 @@ async function leesPagina(pagina: Page, status: number | null): Promise<Pagina> 
     };
   });
   return { url: pagina.url(), status, ...gegevens };
+}
+
+interface Knoop {
+  tag: string;
+  id: string;
+  klassen: string;
+  attributen: Record<string, string>;
+  tekst: string;
+  kinderen: Knoop[];
+}
+
+/** De HTML-structuur van een element, met tekst en attributen gemaskeerd. */
+function skelet(knoop: Knoop, inspringing = ""): string {
+  const attrs = Object.entries(knoop.attributen)
+    .map(([k, v]) => ` ${k}="${k === "href" ? zuiverUrl(v) : zuiverLabel(v, 60)}"`)
+    .join("");
+  const kop = `${inspringing}<${knoop.tag}${knoop.id ? ` id="${zuiverLabel(knoop.id, 60)}"` : ""}${knoop.klassen ? ` class="${knoop.klassen}"` : ""}${attrs}>`;
+  const tekst = knoop.tekst ? ` "${zuiverLabel(knoop.tekst, 60)}"` : "";
+  return [kop + tekst, ...knoop.kinderen.map((k) => skelet(k, inspringing + "  "))].join("\n");
+}
+
+/** Leest de structuur van elementen in de pagina (of een frame), tot een bepaalde diepte. */
+async function leesStructuur(doel: Page | Frame, selector: string, max: number): Promise<Knoop[]> {
+  return doel.evaluate(
+    ({ selector, max }) => {
+      const lees = (el: Element, diepte: number): Knoop => {
+        const attributen: Record<string, string> = {};
+        for (const a of Array.from(el.attributes)) {
+          if (a.name === "id" || a.name === "class" || a.name === "style") continue;
+          if (a.name.startsWith("data-") || ["href", "role", "title", "aria-label", "type", "name", "onclick"].includes(a.name)) {
+            attributen[a.name] = a.value.slice(0, 120);
+          }
+        }
+        const eigenTekst = Array.from(el.childNodes)
+          .filter((n) => n.nodeType === 3)
+          .map((n) => n.textContent ?? "")
+          .join(" ")
+          .trim();
+        return {
+          tag: el.tagName.toLowerCase(),
+          id: el.id,
+          klassen: typeof el.className === "string" ? el.className : "",
+          attributen,
+          tekst: eigenTekst,
+          kinderen: diepte > 0 ? Array.from(el.children).slice(0, 12).map((k) => lees(k, diepte - 1)) : [],
+        };
+      };
+      return Array.from(document.querySelectorAll(selector)).slice(0, max).map((el) => lees(el, 6));
+    },
+    { selector, max },
+  ) as Promise<Knoop[]>;
+}
+
+/**
+ * De kalender van de kinderopvang: hoe de tegels eruitzien, en wat er in het
+ * venster staat dat een tegel opent. Het venster wordt meteen weer gesloten;
+ * op "Inschrijven" wordt nooit geklikt.
+ */
+async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
+  const uit: string[] = ["## Kalender kinderopvang, van dichtbij", ""];
+  await pagina.goto(new URL(adres, OORSPRONG).href, { waitUntil: "networkidle" });
+  await pagina.waitForTimeout(2500);
+
+  // Een maand verder: de lopende maand heeft bijna geen dagen meer over.
+  await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
+  await pagina.waitForLoadState("networkidle").catch(() => {});
+  await pagina.waitForTimeout(2500);
+
+  const tegels = pagina.locator(".fc-event");
+  const aantal = await tegels.count();
+  uit.push(`- Tegels (.fc-event): ${aantal}`);
+  const soorten = await tegels.evaluateAll((els) => [...new Set(els.map((e) => (e as HTMLElement).className))]);
+  uit.push(`- Klassen van tegels: ${soorten.map((k) => `\`${k}\``).join(" · ") || "geen"}`, "");
+
+  // Van elke soort tegel één voorbeeld.
+  const gezien = new Set<string>();
+  for (let i = 0; i < Math.min(aantal, 60); i++) {
+    const soort = await tegels.nth(i).evaluate((e) => (e as HTMLElement).className + "|" + /reserve/i.test((e as HTMLElement).innerText) + "|" + /%/.test((e as HTMLElement).innerText));
+    if (gezien.has(soort)) continue;
+    gezien.add(soort);
+    const [knoop] = await tegels.nth(i).evaluate((el) => {
+      el.setAttribute("data-verkenning", "ja");
+      return null;
+    }).then(() => leesStructuur(pagina, "[data-verkenning=ja]", 1));
+    await tegels.nth(i).evaluate((el) => el.removeAttribute("data-verkenning"));
+    if (knoop) uit.push("```", skelet(knoop), "```", "");
+    if (gezien.size >= 5) break;
+  }
+
+  // Het venster van één tegel met plaats: openen, lezen, sluiten.
+  let doel = -1;
+  for (let i = 0; i < Math.min(aantal, 60); i++) {
+    const tekst = await tegels.nth(i).innerText();
+    if (/%/.test(tekst) && !/reserve|feestdag|gesloten/i.test(tekst)) {
+      doel = i;
+      break;
+    }
+  }
+  if (doel < 0) {
+    uit.push("Geen tegel met plaats gevonden, venster niet geopend.");
+    return uit;
+  }
+
+  await tegels.nth(doel).click();
+  const venster = pagina.locator(".ui-dialog:visible, [role=dialog]:visible").first();
+  await venster.waitFor({ state: "visible", timeout: 15_000 });
+  await pagina.waitForTimeout(2000);
+  const iframe = await venster.locator("iframe").first().elementHandle().catch(() => null);
+  const frame = iframe ? await iframe.contentFrame() : null;
+  uit.push(`### Venster na klik op een tegel`, "", `- In een iframe: ${frame ? "ja" : "nee"}`);
+  if (frame) uit.push(`- Adres van het iframe: ${zuiverUrl(frame.url())}`);
+  uit.push("");
+  const inhoud = frame ? await leesStructuur(frame, "body", 1) : await leesStructuur(pagina, ".ui-dialog:not([style*='display: none'])", 1);
+  if (inhoud[0]) uit.push("```", skelet(inhoud[0]), "```", "");
+
+  // Sluiten zonder in te schrijven.
+  const sluit = pagina.locator(".ui-dialog-titlebar-close:visible").first();
+  if (await sluit.isVisible().catch(() => false)) await sluit.click();
+  else await pagina.keyboard.press("Escape");
+  await venster.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+  uit.push(`- Venster gesloten: ${(await venster.isVisible().catch(() => false)) ? "nee" : "ja"}`);
+  return uit;
 }
 
 async function wegMetCookiemelding(pagina: Page): Promise<void> {
@@ -148,6 +270,9 @@ async function main() {
           await pagina.waitForTimeout(2000);
           verslag.push(alsMarkdown(await leesPagina(pagina, r?.status() ?? null)), "");
         }
+
+        const kalender = na.menu.find((l) => l.href.includes("kalender-kinderopvang"));
+        if (kalender) verslag.push(...(await verkenKalender(pagina, kalender.href)));
       }
     }
   } catch (fout) {
