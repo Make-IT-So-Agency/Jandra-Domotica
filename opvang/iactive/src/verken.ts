@@ -133,7 +133,27 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
           const begin = b.subarray(0, 40).toString("utf8").replace(/\s+/g, " ");
           const vorm = /^\s*[[{]/.test(begin) ? "json" : /<html|<!doctype/i.test(begin) ? "html" : "anders";
           const aantalItems = vorm === "json" ? (b.toString("utf8").match(/"(title|start)"\s*:/g) ?? []).length : 0;
-          verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}, ${soortInhoud.split(";")[0]}, ${b.length} bytes, ${vorm}${aantalItems ? `, ${aantalItems} title/start-velden` : ""}`);
+          // Korte antwoorden letterlijk (gemaskeerd): "null", "[]" of een foutmelding.
+          const kort = b.length <= 80 ? ` = ${zuiverLabel(b.toString("utf8"), 80)}` : "";
+          // Wat de aanvraag meestuurt: namen van velden, en van de paginavelden
+          // enkel of ze leeg zijn, behalve datums en codes.
+          const post = r.request().postData() ?? "";
+          const velden = new URLSearchParams(post);
+          const namen = [...new Set(velden.keys())].join(",");
+          let items = "";
+          const json = velden.get("p_json");
+          if (json) {
+            try {
+              const pi = JSON.parse(json)?.pageItems?.itemsToSubmit ?? [];
+              items = (pi as { n: string; v: unknown }[])
+                .map((i) => `${i.n}=${/_(VAN|TOT|LOCATIE|TRAN_GROEP)$/.test(i.n) ? zuiverLabel(String(i.v), 30) : i.v === "" || i.v == null ? "(leeg)" : "(ingevuld)"}`)
+                .join(" ");
+            } catch {
+              items = "(p_json onleesbaar)";
+            }
+          }
+          verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}, ${soortInhoud.split(";")[0]}, ${b.length} bytes, ${vorm}${aantalItems ? `, ${aantalItems} title/start-velden` : ""}${kort}`);
+          verkeer.push(`    velden: ${namen}${items ? ` | items: ${items}` : ""}`);
         })
         .catch(() => verkeer.push(`${r.request().method()} ${new URL(r.url()).pathname} → ${r.status()}`));
     }
