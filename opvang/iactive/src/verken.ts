@@ -197,6 +197,22 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   await pagina.waitForTimeout(3000);
   uit.push(`- Locaties aangevinkt: ${aantalLocaties}, tegels daarna: ${await telTegels()}`);
 
+  // Het kind: in een nieuwe sessie staat mogelijk een kind geselecteerd voor
+  // wie er (nog) geen opvang is, en dan is de kalender leeg. Elk kind
+  // proberen tot er tegels verschijnen. Enkel de volgorde komt in het verslag.
+  const kinderen = await pagina.locator("#P44_LEERLING option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  let gekozen = -1;
+  for (let i = 0; i < kinderen.length; i++) {
+    await pagina.selectOption("#P44_LEERLING", kinderen[i]).catch(() => {});
+    await pagina.waitForLoadState("networkidle").catch(() => {});
+    await pagina.waitForTimeout(3000);
+    if ((await telTegels()) > 0) {
+      gekozen = i;
+      break;
+    }
+  }
+  uit.push(`- Kinderen in de lijst: ${kinderen.length}, kind met tegels: ${gekozen < 0 ? "geen" : `nummer ${gekozen + 1}`}, tegels: ${await telTegels()}`);
+
   // Een maand verder, waar zeker nog open dagen zijn.
   await pagina.getByRole("button", { name: ">", exact: true }).first().click().catch(() => {});
   await pagina.waitForLoadState("networkidle").catch(() => {});
