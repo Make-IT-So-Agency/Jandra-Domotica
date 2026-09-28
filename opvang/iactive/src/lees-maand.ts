@@ -7,9 +7,12 @@
  */
 
 import { leesLeerlingen, leesTegels, login, naarKalender, openKalender, startBrowser } from "./iactive.ts";
+import { leesStructuur, skelet } from "./structuur.ts";
 import { zuiverLabel } from "./verslag.ts";
 
 const maanden = process.argv.slice(2).filter((a) => /^\d{4}-\d{2}$/.test(a));
+// Van deze dagen ook de HTML-structuur van de cel tonen (gemaskeerd).
+const dagen = process.argv.slice(2).filter((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
 const email = process.env.IACTIVE_EMAIL;
 const wachtwoord = process.env.IACTIVE_WACHTWOORD;
 if (!email || !wachtwoord) throw new Error("IACTIVE_EMAIL of IACTIVE_WACHTWOORD ontbreekt.");
@@ -49,6 +52,10 @@ try {
       );
       const klassen = new Set(staal.map((s) => s.klassen.replace(/\s+/g, " ").trim()));
       uit.push(`- klassen (${klassen.size} soorten):`, ...[...klassen].slice(0, 8).map((k) => `  - ${zuiverLabel(k, 200)}`));
+      for (const d of dagen.filter((d) => d.startsWith(maand))) {
+        const [cel] = await leesStructuur(pagina, `td[data-date="${d}"]`, 1, 9);
+        if (cel) uit.push("", `### Cel ${d}`, "```", skelet(cel), "```");
+      }
     }
   }
 } catch (fout) {
