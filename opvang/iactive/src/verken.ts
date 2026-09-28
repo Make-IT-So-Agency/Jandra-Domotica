@@ -22,7 +22,7 @@ const MAX_PAGINAS = 12;
 const FOUTMELDING =
   ".t-Alert--danger, .t-Alert--warning, .a-Notification--error, #t_Alert_Notification, .t-Form-error, .apex-page-error, .htmldbStdErr";
 
-async function leesPagina(pagina: Page, status: number | null): Promise<Pagina> {
+async function leesPagina(pagina: Page | Frame, status: number | null): Promise<Pagina> {
   const gegevens = await pagina.evaluate(() => {
     const zichtbaar = (e: Element) => (e as HTMLElement).offsetParent !== null;
     const velden = [...document.querySelectorAll("input, select, textarea")]
@@ -226,12 +226,20 @@ async function verkenKalender(pagina: Page, adres: string): Promise<string[]> {
   uit.push(`### Venster na klik op een tegel`, "", `- In een iframe: ${frame ? "ja" : "nee"}`);
   if (frame) uit.push(`- Adres van het iframe: ${zuiverUrl(frame.url())}`);
   uit.push("");
-  const inhoud = frame ? await leesStructuur(frame, "body", 1) : await leesStructuur(pagina, ".ui-dialog:not([style*='display: none'])", 1);
-  if (inhoud[0]) uit.push("```", skelet(inhoud[0]), "```", "");
+  if (frame) {
+    await frame.waitForLoadState("networkidle").catch(() => {});
+    uit.push(alsMarkdown(await leesPagina(frame, null)), "");
+    const [regio] = await leesStructuur(frame, ".t-Dialog-body, .t-Body-content, main", 1, 7);
+    if (regio) uit.push("```", skelet(regio), "```", "");
+  }
 
-  // Sluiten zonder in te schrijven.
-  const sluit = pagina.locator(".ui-dialog-titlebar-close:visible").first();
-  if (await sluit.isVisible().catch(() => false)) await sluit.click();
+  // Sluiten zonder in te schrijven: de knop in het venster die geen
+  // "Inschrijven" is, anders Escape.
+  const sluitInFrame = frame
+    ? frame.locator("button, a.t-Button").filter({ hasNotText: /inschrijven|opslaan|bevestig/i }).filter({ has: frame.locator(".fa-times, .fa-close, .fa-remove, .fa-window-close") }).first()
+    : null;
+  if (sluitInFrame && (await sluitInFrame.isVisible().catch(() => false))) await sluitInFrame.click();
+  else if (await pagina.locator(".ui-dialog-titlebar-close:visible").first().isVisible().catch(() => false)) await pagina.locator(".ui-dialog-titlebar-close:visible").first().click();
   else await pagina.keyboard.press("Escape");
   await venster.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
   uit.push(`- Venster gesloten: ${(await venster.isVisible().catch(() => false)) ? "nee" : "ja"}`);
