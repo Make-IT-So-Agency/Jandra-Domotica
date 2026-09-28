@@ -41,7 +41,7 @@ Supabase → Telegram                   "Opvang november verwerkt"
 - [x] Inschrijfmomenten 2026-2027 vastgelegd (`web/lib/opvang/inschrijfmomenten.ts`)
 - [x] Publieke kant van i-Active verkend: login, velden, geen CAPTCHA
 - [x] i-Active na login verkend: menu, kalender, venster "Inschrijven"
-- [ ] Waarom de kalender in een headless browser leeg blijft
+- [x] Kalender en inschrijfvenster werken in een headless browser op GitHub
 - [ ] AM/PM-knoppen en de maandkalender
 - [ ] Selecties bewaren in Supabase, status **Definitief**
 - [ ] Sandra erbij, gezamenlijke groep
@@ -104,6 +104,29 @@ en leest op hetzelfde scherm het resultaat terug.
 Een klik op een tegel opent het venster **Inschrijven**: artikel, datum, een
 vinkje per kind, "Inschrijven mogelijk van … tot …", een opmerkingsveld en de
 knop **Inschrijven**. Geen winkelmandje in deze weg.
+
+Het venster is een APEX-dialoog in een **iframe**, pagina `inschrijven1`
+(items `P59_*`):
+
+| Wat | Selector |
+| --- | --- |
+| Vinkje van het kind | `#P59_LEERLING_CSV_0` (één per kind, `_0`, `_1`, …) |
+| Opmerking | `#P59_OPMERKING` |
+| Inschrijven | knop met tekst "Inschrijven" (nu `#B171236999143809159`) |
+| Sluiten zonder inschrijven | knop "close" (nu `#B171233816848809132`) |
+
+De knop-id's zijn door APEX gegenereerd en kunnen bij een update van i-Active
+veranderen; het script zoekt daarom op de tekst van de knop.
+
+**Wat de kalender nodig heeft om tegels te tonen** (uitgezocht met de
+verkenning, want in een nieuwe sessie is hij anders leeg):
+
+- Activiteitgroep **Opvang (inschrijvingen)** gekozen (`P44_TRAN_GROEP=TIJD`).
+- De locatiefilter **leeg** laten: leeg betekent alle locaties. Meer dan één
+  locatie tegelijk aanvinken geeft een lege kalender.
+- Het juiste kind in `#P44_LEERLING`.
+- Een maand die al gegevens heeft: in september 2026 bleven september en
+  oktober leeg, november gaf 44 tegels.
 
 **Volzet betekent: toch inschrijven, op de reservelijst.** Dat is de keuze
 van Jan en Sandra. Het verslag in Telegram meldt zo'n slot apart, want het is
