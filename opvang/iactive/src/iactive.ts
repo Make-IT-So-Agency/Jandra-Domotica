@@ -135,25 +135,37 @@ export interface Tegel {
   staat: Staat;
 }
 
-/** Leest alle tegels van de getoonde maand. Tegels van de buurmaanden vallen weg. */
+/**
+ * Leest alle tegels van de getoonde maand. Tegels van de buurmaanden vallen weg.
+ *
+ * In een dagcel staat per locatie eerst een blok `.kal-loc` ("BKO - …"),
+ * gevolgd door de tegels van die locatie. De locatie van een tegel is dus de
+ * laatste `.kal-loc` die ervoor staat.
+ */
 export async function leesTegels(pagina: Page, maand: string): Promise<Tegel[]> {
   const ruw = await pagina.evaluate(() => {
-    const uit: { datum: string; moment: string; locatie: string; titel: string; klassen: string; iconen: string; balk: string }[] = [];
+    const uit: { datum: string; moment: string; locatie: string; titel: string; klassen: string; iconen: string; balk: string; klikbaar: boolean }[] = [];
     for (const dag of Array.from(document.querySelectorAll("td[data-date]"))) {
       const datum = dag.getAttribute("data-date") ?? "";
-      for (const tegel of Array.from(dag.querySelectorAll(".fc-event"))) {
-        const locatie = (tegel.querySelector(".kal-loc")?.textContent ?? "").trim();
-        // De tekst van de tegel zonder de locatie en de balk: het soort opvang.
-        const kloon = tegel.cloneNode(true) as HTMLElement;
-        kloon.querySelectorAll(".kal-loc, .progress, .progress-bar-text").forEach((e) => e.remove());
+      let locatie = "";
+      for (const el of Array.from(dag.querySelectorAll(".kal-loc, a.fc-event, .fc-event"))) {
+        if (el.classList.contains("kal-loc")) {
+          locatie = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+          continue;
+        }
+        if (el.parentElement?.closest(".fc-event")) continue;
+        const titelEl = el.querySelector(".fc-event-title");
+        const kloon = (titelEl ?? el).cloneNode(true) as HTMLElement;
+        kloon.querySelectorAll(".kal-loc, .progress-bar, .progress, .progress-bar-text, [id]").forEach((e) => e.remove());
         uit.push({
           datum,
           moment: (kloon.textContent ?? "").replace(/\s+/g, " ").trim(),
           locatie,
-          titel: tegel.getAttribute("title") ?? tegel.querySelector("[title]")?.getAttribute("title") ?? "",
-          klassen: `${tegel.className} ${Array.from(tegel.querySelectorAll("[class]")).map((e) => e.className).join(" ")}`,
-          iconen: Array.from(tegel.querySelectorAll("[class*=fa-]")).map((e) => e.className).join(" "),
-          balk: (tegel.querySelector(".progress-bar-text")?.textContent ?? "").trim(),
+          titel: el.getAttribute("title") ?? el.querySelector("[title]")?.getAttribute("title") ?? "",
+          klassen: `${el.className} ${Array.from(el.querySelectorAll("[class]")).map((e) => e.className).join(" ")}`,
+          iconen: Array.from(el.querySelectorAll("[class*=fa-]")).map((e) => e.className).join(" "),
+          balk: (el.querySelector(".progress-bar-text")?.textContent ?? "").trim(),
+          klikbaar: el.hasAttribute("href") && !el.classList.contains("no_click"),
         });
       }
     }
@@ -164,10 +176,38 @@ export async function leesTegels(pagina: Page, maand: string): Promise<Tegel[]> 
     .map((t) => ({ datum: t.datum, moment: t.moment, locatie: t.locatie, titel: t.titel, staat: leesStaat(t) }));
 }
 
-function tegelLocator(pagina: Page, tegel: Pick<Tegel, "datum" | "moment" | "locatie">) {
-  let l = pagina.locator(`td[data-date="${tegel.datum}"] .fc-event`).filter({ hasText: tegel.moment });
-  if (tegel.locatie) l = l.filter({ has: pagina.locator(".kal-loc", { hasText: tegel.locatie }) });
-  return l;
+/**
+ * Zoekt een tegel terug: eerst exact (dag, tekst, locatie). Verandert de
+ * tekst bij de opening, dan dezelfde dag en locatie met hetzelfde soort
+ * opvang, maar enkel als dat er precies één is.
+ */
+export function zoekTegel<T extends Pick<Tegel, "datum" | "moment" | "locatie">>(tegels: T[], doel: Pick<Tegel, "datum" | "moment" | "locatie">): T | null {
+  const exact = tegels.filter((t) => t.datum === doel.datum && t.moment === doel.moment && t.locatie === doel.locatie);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  const soort = soortVan(doel.moment);
+  const zelfde = tegels.filter((t) => t.datum === doel.datum && t.locatie === doel.locatie && soortVan(t.moment) === soort);
+  return soort && zelfde.length === 1 ? zelfde[0] : null;
+}
+
+export function soortVan(moment: string): string {
+  const m = moment.toLowerCase();
+  if (m.includes("voorschool")) return "voor";
+  if (m.includes("naschool")) return "na";
+  if (m.includes("woensdag")) return "woe";
+  if (m.includes("voormiddag")) return "vm";
+  if (m.includes("namiddag")) return "nm";
+  if (/\bdag\b/.test(m)) return "dag";
+  return "";
+}
+
+/** De n-de tegel in de cel van die dag, in dezelfde volgorde als leesTegels ze vond. */
+async function tegelLocator(pagina: Page, maand: string, doel: Pick<Tegel, "datum" | "moment" | "locatie">) {
+  const tegels = (await leesTegels(pagina, maand)).filter((t) => t.datum === doel.datum);
+  const gevonden = zoekTegel(tegels, doel);
+  if (!gevonden) return null;
+  const index = tegels.indexOf(gevonden);
+  return pagina.locator(`td[data-date="${doel.datum}"] .fc-event`).filter({ hasNot: pagina.locator(".fc-event") }).nth(index);
 }
 
 async function venster(pagina: Page): Promise<{ frame: Frame; sluit: () => Promise<void> }> {
@@ -208,9 +248,9 @@ export async function schrijfIn(
   kindNaam: string,
   proef: boolean,
 ): Promise<Poging> {
-  const l = tegelLocator(pagina, tegel);
-  if ((await l.count()) !== 1) return { soort: "niet_gevonden" };
-  await l.first().click();
+  const l = await tegelLocator(pagina, tegel.datum.slice(0, 7), tegel);
+  if (!l || (await l.count()) === 0) return { soort: "niet_gevonden" };
+  await l.click();
   const { frame, sluit } = await venster(pagina);
   try {
     // De vinkjes: één per kind. Enkel dat van dit kind, alle andere uit.

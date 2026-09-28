@@ -1,0 +1,83 @@
+name: Opvang - inschrijven
+
+# Schrijft de definitieve keuze in op het moment dat i-Active opent, en
+# controleert elk slot daarna in i-Active zelf. Zie opvang/LEESMIJ.md.
+#
+# Start drie keer per dag vanzelf. Op een dag zonder opening stopt het na
+# enkele seconden. Op een openingsdag wacht de eerste run tot enkele minuten
+# vóór het openingsuur, logt in, en schrijft in; de latere runs zijn een
+# vangnet voor als GitHub een geplande run laat vallen, en stoppen meteen als
+# de eerste al bezig of klaar is.
+#
+# Met de hand: een proef (alles behalve de klik op Inschrijven), of één echte
+# testinschrijving van een slot dat nu al open staat.
+on:
+  schedule:
+    # Openingen zijn om 18:00 Belgische tijd: 16:00 UTC in de zomer, 17:00 in
+    # de winter. Alle drie vallen ruim vóór beide.
+    - cron: "7 14 * * *"
+    - cron: "7 15 * * *"
+    - cron: "37 15 * * *"
+  workflow_dispatch:
+    inputs:
+      modus:
+        description: "normaal (de ronde van vandaag), proef (niets klikken), of test (één slot écht)"
+        type: choice
+        options: ["proef", "normaal", "test"]
+        default: "proef"
+      maand:
+        description: "Bij proef: een maand met open tegels, bv. 2026-11 (leeg: de lopende ronde)"
+        type: string
+        default: ""
+      slot:
+        description: "Bij test: dag en soort, bv. 2026-11-16:voor (voor, na, woe, vm, nm, dag)"
+        type: string
+        default: ""
+
+concurrency:
+  group: opvang-inschrijven
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  inschrijven:
+    name: Inschrijven
+    runs-on: ubuntu-latest
+    environment: productie
+    timeout-minutes: 300
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Inschrijven
+        env:
+          IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
+          IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          MODUS: ${{ inputs.modus || 'normaal' }}
+          MAAND: ${{ inputs.maand }}
+          SLOT: ${{ inputs.slot }}
+        run: |
+          case "$MODUS" in
+            normaal) node src/reserveren.ts ;;
+            proef)
+              if [ -n "$MAAND" ]; then node src/reserveren.ts --proef --maand "$MAAND"; else node src/reserveren.ts --proef; fi ;;
+            test)
+              if ! printf '%s' "$SLOT" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}:(voor|na|woe|vm|nm|dag)$'; then
+                echo "::error::Vul 'slot' in als 2026-11-16:voor"; exit 1
+              fi
+              node src/reserveren.ts --test "$SLOT" ;;
+            *) echo "::error::Onbekende modus $MODUS"; exit 1 ;;
+          esac

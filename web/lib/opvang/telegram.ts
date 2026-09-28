@@ -51,8 +51,38 @@ export async function roepAan<T = unknown>(
   return inhoud.result as T;
 }
 
-export function stuurBericht(token: string, chatId: number, tekst: string) {
-  return roepAan(token, "sendMessage", { chat_id: chatId, text: tekst });
+export interface Knop {
+  text: string;
+  callback_data: string;
+}
+
+export type Knoppen = Knop[][];
+
+export function stuurBericht(token: string, chatId: number, tekst: string, knoppen?: Knoppen) {
+  return roepAan<{ message_id: number }>(token, "sendMessage", {
+    chat_id: chatId,
+    text: tekst,
+    ...(knoppen ? { reply_markup: { inline_keyboard: knoppen } } : {}),
+  });
+}
+
+/** Past een bericht aan. "Niets gewijzigd" is voor ons geen fout. */
+export async function bewerkBericht(token: string, chatId: number, berichtId: number, tekst: string, knoppen?: Knoppen) {
+  try {
+    await roepAan(token, "editMessageText", {
+      chat_id: chatId,
+      message_id: berichtId,
+      text: tekst,
+      reply_markup: { inline_keyboard: knoppen ?? [] },
+    });
+  } catch (fout) {
+    if (!(fout instanceof TelegramFout && /message is not modified/i.test(fout.message))) throw fout;
+  }
+}
+
+/** Laat de draaiende klok op een knop verdwijnen, eventueel met een korte melding. */
+export function beantwoordKnop(token: string, id: string, tekst?: string) {
+  return roepAan(token, "answerCallbackQuery", { callback_query_id: id, ...(tekst ? { text: tekst } : {}) });
 }
 
 /**
@@ -79,6 +109,7 @@ export function geheimKlopt(aangeboden: string, token: string): boolean {
 export interface Update {
   update_id: number;
   message?: Bericht;
+  callback_query?: Klik;
 }
 
 export interface Bericht {
@@ -86,6 +117,14 @@ export interface Bericht {
   text?: string;
   from?: { id: number; first_name?: string };
   chat: { id: number; type: "private" | "group" | "supergroup" | "channel" };
+}
+
+/** Een klik op een knop onder een bericht van de bot. */
+export interface Klik {
+  id: string;
+  from: { id: number; first_name?: string };
+  message?: Bericht;
+  data?: string;
 }
 
 /**

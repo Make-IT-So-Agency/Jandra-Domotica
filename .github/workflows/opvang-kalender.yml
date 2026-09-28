@@ -1,0 +1,53 @@
+name: Opvang - kalender lezen
+
+# Leest elke ochtend de kalender van i-Active voor de inschrijfrondes die
+# binnen drie weken openen, en zet de tegels in Supabase. Daarna vraagt het
+# de webapp om het keuzemenu in Telegram te sturen of bij te werken.
+#
+# Wijzigt niets in i-Active. Het logboek is publiek en bevat enkel aantallen.
+on:
+  schedule:
+    # 04:23 UTC: 06:23 in de zomer, 05:23 in de winter, Belgische tijd.
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      maand:
+        description: "Enkel deze opvangmaand, bv. 2026-12 (leeg: elke ronde binnen 21 dagen)"
+        type: string
+        default: ""
+
+concurrency:
+  group: opvang-iactive
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lezen:
+    name: Kalender lezen
+    runs-on: ubuntu-latest
+    environment: productie
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Lezen
+        env:
+          IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
+          IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MAAND: ${{ inputs.maand }}
+        run: node src/kalender.ts $MAAND

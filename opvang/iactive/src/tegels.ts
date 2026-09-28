@@ -24,8 +24,19 @@ export interface RuweTegel {
  * op de reservelijst staat (⏸), is dat, wat de titel ook zegt.
  */
 export function leesStaat(t: RuweTegel): Staat {
-  if (/\bfa-check-circle\b/.test(t.iconen)) return "ingeschreven";
-  if (/\bfa-pause-circle\b/.test(t.iconen)) return "reservelijst";
+  // Een tegel waarop het kind ingeschreven is: klasse "ingeschreven" en titel
+  // "Ingeschreven" (gezien in november 2026). Voor de reservelijst verwachten
+  // we hetzelfde patroon; het icoon uit de legende telt ook.
+  if (/\bingeschreven\b/i.test(t.klassen) || /^\s*Ingeschreven\b/i.test(t.titel) || /\bfa-check-circle\b/.test(t.iconen)) {
+    return "ingeschreven";
+  }
+  if (
+    /\b(reservelijst|reserve|wachtlijst)\b/i.test(t.klassen) ||
+    /^\s*(Op\s+(de\s+)?)?(reservelijst|wachtlijst)\b/i.test(t.titel) ||
+    /\bfa-pause-circle\b/.test(t.iconen)
+  ) {
+    return "reservelijst";
+  }
   if (/\bcalendaralert\b/.test(t.klassen) || /be[eë]indigd/i.test(t.titel)) return "gesloten";
   if (/^\s*Inschrijven\s+OP\s+RESERVELIJST/i.test(t.titel) || /\bpb_full\b/.test(t.klassen) || /^\s*RESERVE/i.test(t.balk)) {
     return "volzet";
