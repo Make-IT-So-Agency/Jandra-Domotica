@@ -226,11 +226,20 @@ async function venster(pagina: Page): Promise<{ frame: Frame; sluit: () => Promi
   await frame.waitForLoadState("networkidle").catch(() => {});
   await frame.locator("button, a.t-Button").first().waitFor({ state: "visible", timeout: 15_000 });
   const sluit = async () => {
-    if (!(await dialoog.isVisible().catch(() => false))) return;
-    const knop = frame.locator("button, a.t-Button").filter({ hasText: /^\s*close\s*$/i }).first();
-    if (await knop.isVisible().catch(() => false)) await knop.click().catch(() => {});
-    else await pagina.keyboard.press("Escape");
-    await dialoog.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+    const pogingen: (() => Promise<unknown>)[] = [
+      // De knop "close" in het venster is een icoon: zoeken op label, titel of icoon.
+      () => frame.locator("button, a.t-Button").filter({ hasText: /^\s*close\s*$/i }).first().click({ timeout: 3000 }),
+      () => frame.locator("button[title*=lose i], button[aria-label*=lose i], button:has(.fa-times), button:has(.fa-close), button:has(.fa-remove)").first().click({ timeout: 3000 }),
+      () => pagina.locator(".ui-dialog:visible .ui-dialog-titlebar-close").first().click({ timeout: 3000 }),
+      () => frame.locator("body").press("Escape"),
+      () => pagina.keyboard.press("Escape"),
+    ];
+    for (const poging of pogingen) {
+      if (!(await dialoog.isVisible().catch(() => false))) return;
+      await poging().catch(() => {});
+      await dialoog.waitFor({ state: "hidden", timeout: 4000 }).catch(() => {});
+    }
+    if (await dialoog.isVisible().catch(() => false)) throw new Error("Het inschrijfvenster ging niet dicht.");
   };
   return { frame, sluit };
 }
@@ -257,7 +266,9 @@ export async function schrijfIn(
 ): Promise<Poging> {
   const l = await tegelLocator(pagina, tegel.datum.slice(0, 7), tegel);
   if (!l || (await l.count()) === 0) return { soort: "niet_gevonden" };
-  await l.click();
+  await l.scrollIntoViewIfNeeded().catch(() => {});
+  // Lukt een gewone klik niet (iets ligt erover), dan de klik van de link zelf.
+  await l.click({ timeout: 8000 }).catch(() => l.evaluate((e) => (e as HTMLElement).click()));
   const { frame, sluit } = await venster(pagina);
   try {
     // De vinkjes: één per kind. Enkel dat van dit kind, alle andere uit.
