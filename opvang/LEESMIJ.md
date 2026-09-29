@@ -103,7 +103,8 @@ slot. Een run die crasht, zet de ronde terug op `definitief`; een nieuwe run
 - [x] Inschrijfworkflow met proef, controle per slot, eindcontrole en verslag
 - [x] Startsein: geplande workflow, drie keer als vangnet
 - [ ] Sandra erbij, gezamenlijke groep (`/hier`)
-- [ ] Eén echte testinschrijving in november, om de controle na de klik te zien werken
+- [x] Proef op november: vrije én volzette tegel hebben dezelfde knop "Inschrijven"
+- [x] Echte testinschrijving: vr 13/11 naschools, na de klik en bij de eindcontrole als ingeschreven gezien (29/09/2026)
 - [ ] Eerste echte ronde: december, dinsdag 6 oktober 2026 om 18:00
 
 ## i-Active
