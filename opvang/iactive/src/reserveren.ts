@@ -243,7 +243,7 @@ async function verwerk(pagina: Page, r: Ronde, keuzes: Keuze[]): Promise<Map<num
       }
       klaar.set(k.slotId, { uitkomst, melding });
       await bewaarResultaat(r.id, k.slotId, uitkomst, melding);
-      if (uitkomst !== "mislukt" || poging === 2) {
+      if (uitkomst !== "mislukt" || poging === 2 || proef) {
         await meld(`${TEKEN[uitkomst]} ${k.kind} · ${label(k)}: ${uitleg(uitkomst)}${melding ? `\n   ${melding}` : ""}`);
       }
     }
