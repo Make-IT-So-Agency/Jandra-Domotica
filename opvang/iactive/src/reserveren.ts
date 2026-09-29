@@ -30,6 +30,7 @@ import { lopendeRondes, ronde as leesRonde, zetStatus, type Ronde } from "./rond
 import { rest } from "./supabase.ts";
 import { afgehandeld, inschrijfbaar, type Staat } from "./tegels.ts";
 import { stuur } from "./telegram.ts";
+import { zuiverLabel } from "./verslag.ts";
 import { dagLabel, langMoment } from "./weergave.ts";
 
 const argumenten = process.argv.slice(2);
@@ -63,6 +64,8 @@ const slaap = (ms: number) => new Promise((ok) => setTimeout(ok, Math.max(0, ms)
 
 let chat: number | null = null;
 async function meld(tekst: string): Promise<void> {
+  // In het publieke logboek: dezelfde tekst, met namen en getallen gemaskeerd.
+  console.log(`Telegram: ${tekst.split("\n").map((r) => zuiverLabel(r, 200)).join(" / ")}`);
   if (!chat) return;
   await stuur(chat, proef ? `🧪 PROEF · ${tekst}` : tekst).catch((f) => console.log(`Telegram mislukt: ${String(f).slice(0, 120)}`));
 }
@@ -240,7 +243,7 @@ async function verwerk(pagina: Page, r: Ronde, keuzes: Keuze[]): Promise<Map<num
       }
       klaar.set(k.slotId, { uitkomst, melding });
       await bewaarResultaat(r.id, k.slotId, uitkomst, melding);
-      if (uitkomst !== "mislukt" || poging === 2) {
+      if (uitkomst !== "mislukt" || poging === 2 || proef) {
         await meld(`${TEKEN[uitkomst]} ${k.kind} · ${label(k)}: ${uitleg(uitkomst)}${melding ? `\n   ${melding}` : ""}`);
       }
     }
