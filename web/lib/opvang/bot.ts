@@ -39,6 +39,7 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
       return;
     case "hier":
       await opslag.zetInstelling("telegram_chat_id", String(bericht.chat.id));
+      await opslag.zetInstelling("telegram_chat_gekozen", "ja");
       await stuurBericht(
         token,
         bericht.chat.id,

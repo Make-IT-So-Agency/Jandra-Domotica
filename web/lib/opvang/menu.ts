@@ -226,11 +226,29 @@ function zelfdeDag(a: string | null, nu: Date): boolean {
 export async function dagelijks(token: string, nu = new Date(), vernieuw = false): Promise<string[]> {
   const gedaan: string[] = [];
   let chat = await opslag.leesChat();
-  if (!chat) {
-    // Nog geen /hier gedaan: de eerste groep uit de lijst, anders de eerste persoon.
-    const ids = [...toegelatenIds(process.env.TOEGELATEN_TELEGRAM_IDS)];
-    chat = ids.find((i) => i < 0) ?? ids[0] ?? null;
-    if (chat) await opslag.zetInstelling("telegram_chat_id", String(chat));
+  // Nog geen chat, of nog een persoonlijke chat terwijl er intussen een groep
+  // toegelaten is: dan de groep. Wie met /hier bewust een chat koos, houdt die.
+  const ids = [...toegelatenIds(process.env.TOEGELATEN_TELEGRAM_IDS)];
+  const groep = ids.find((i) => i < 0);
+  const gekozen = (await opslag.leesInstelling("telegram_chat_gekozen")) === "ja";
+  const nieuw = !chat ? (groep ?? ids[0] ?? null) : chat > 0 && groep && !gekozen ? groep : null;
+  if (nieuw && nieuw !== chat) {
+    const vorig = chat;
+    chat = nieuw;
+    await opslag.zetInstelling("telegram_chat_id", String(chat));
+    // Wie al een menu kreeg in de oude chat, krijgt het nu ook in de nieuwe.
+    if (vorig) {
+      for (const r of (await opslag.lopendeRondes()).filter((r) => r.status === "open" || r.status === "definitief")) {
+        if (!r.gevraagd_op) continue;
+        await stuurBericht(
+          token,
+          chat,
+          `👋 Vanaf nu praat ik in deze groep. De inschrijving voor ${opvangLabel(r.maand)} opent ${momentLabel(new Date(r.opent))}. Hieronder het keuzemenu; wat al gekozen was, blijft staan.`,
+        );
+        await toonMenus(token, r.id, chat, true);
+        gedaan.push(`naar groep verhuisd (${r.maand})`);
+      }
+    }
   }
   const [volgende] = volgendeMomenten("inwoners", nu);
   if (volgende && dagenTot(volgende.opent, nu) <= VRAGEN_VANAF_DAGEN) {
