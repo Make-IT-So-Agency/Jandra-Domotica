@@ -138,3 +138,25 @@ describe("een ronde van begin tot definitief", () => {
     expect(verstuurd().at(-1)).toContain("Ik heb niets ingeschreven");
   });
 });
+
+describe("van de persoonlijke chat naar de groep", () => {
+  it("verhuist vanzelf zodra een groep toegelaten is, en stuurt het menu daar opnieuw", async () => {
+    db.tabellen.opvang_instellingen = [{ sleutel: "telegram_chat_id", waarde: String(JAN) }];
+    db.tabellen.opvang_rondes[0].gevraagd_op = "2026-09-29T04:35:00.000Z";
+    db.tabellen.opvang_rondes[0].herinnerd_op = "2026-09-30T08:00:00.000Z";
+    await dagelijks(TOKEN, new Date("2026-09-30T09:00:00Z"));
+    expect(db.tabellen.opvang_instellingen.find((i) => i.sleutel === "telegram_chat_id")?.waarde).toBe(String(GROEP));
+    const naarGroep = aanroepen.filter((a) => a.methode === "sendMessage" && a.body.chat_id === GROEP);
+    expect(String(naarGroep[0].body.text)).toContain("Vanaf nu praat ik in deze groep");
+    expect(String(naarGroep[1].body.text)).toContain("🧒 Kind");
+  });
+
+  it("wie met /hier een chat koos, houdt die", async () => {
+    db.tabellen.opvang_instellingen = [
+      { sleutel: "telegram_chat_id", waarde: String(JAN) },
+      { sleutel: "telegram_chat_gekozen", waarde: "ja" },
+    ];
+    await dagelijks(TOKEN, new Date("2026-09-30T09:00:00Z"));
+    expect(db.tabellen.opvang_instellingen.find((i) => i.sleutel === "telegram_chat_id")?.waarde).toBe(String(JAN));
+  });
+});
