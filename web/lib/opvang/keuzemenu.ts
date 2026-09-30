@@ -87,7 +87,7 @@ function maandag(datum: string): string {
 /** De weken met tegels, elk als de lijst van haar dagen met tegels. */
 export function weken(slots: Slot[]): string[][] {
   const perWeek = new Map<string, Set<string>>();
-  for (const s of sorteer(slots.filter((s) => s.staat !== "gesloten"))) {
+  for (const s of sorteer(slots.filter((s) => !VERBORGEN.includes(s.staat)))) {
     const w = maandag(s.datum);
     if (!perWeek.has(w)) perWeek.set(w, new Set());
     perWeek.get(w)!.add(s.datum);
@@ -116,8 +116,11 @@ function knopTekst(s: Slot, gekozen: boolean): string {
 }
 
 /** Kan dit slot nog aan- of uitgevinkt worden? */
+/** Geen knop: gesloten, of niet meer in de kalender van i-Active. */
+const VERBORGEN = ["gesloten", "weg"];
+
 export function aanklikbaar(s: Slot): boolean {
-  return !["gesloten", "ingeschreven", "reservelijst"].includes(s.staat);
+  return !["gesloten", "weg", "ingeschreven", "reservelijst"].includes(s.staat);
 }
 
 export function keuzemenu(m: Menu): { tekst: string; knoppen: Knoppen } {
@@ -143,7 +146,7 @@ export function keuzemenu(m: Menu): { tekst: string; knoppen: Knoppen } {
   const knoppen: Knoppen = [];
   for (const d of dagen) {
     // Gesloten tegels (feestdagen, "opvang gesloten") krijgen geen knop.
-    const vandaag = sorteer(m.slots.filter((s) => s.datum === d && s.staat !== "gesloten"));
+    const vandaag = sorteer(m.slots.filter((s) => s.datum === d && !VERBORGEN.includes(s.staat)));
     const locaties = [...new Set(vandaag.map((s) => s.locatie))];
     for (const loc of locaties) {
       // Meer dan één locatie op een dag (vakanties): één rij per locatie.
@@ -188,7 +191,7 @@ export function keuzemenu(m: Menu): { tekst: string; knoppen: Knoppen } {
  */
 export function slotsVanWeek(slots: Slot[], week: number, enkelEénLocatie = false): Slot[] {
   const dagen = new Set(weken(slots)[week] ?? []);
-  const lijst = slots.filter((s) => dagen.has(s.datum) && aanklikbaar(s) && s.staat !== "gesloten");
+  const lijst = slots.filter((s) => dagen.has(s.datum) && aanklikbaar(s) && !VERBORGEN.includes(s.staat));
   if (!enkelEénLocatie) return lijst;
   return lijst.filter((s) => new Set(lijst.filter((t) => t.datum === s.datum).map((t) => t.locatie)).size === 1);
 }
@@ -216,7 +219,7 @@ export function overzicht(perKind: { naam: string; slots: Slot[] }[]): string {
   for (const k of perKind) {
     regels.push("", `🧒 ${k.naam}: ${k.slots.length} ${k.slots.length === 1 ? "moment" : "momenten"}`);
     for (const s of sorteer(k.slots)) {
-      regels.push(`• ${dagLabel(s.datum)}  ${langMoment(s.moment)}${s.locatie ? ` (${s.locatie})` : ""}${s.staat === "volzet" ? "  ⏸ volzet" : ""}`);
+      regels.push(`• ${dagLabel(s.datum)}  ${langMoment(s.moment)}${s.locatie ? ` (${s.locatie})` : ""}${s.staat === "volzet" ? "  ⏸ volzet" : ""}${s.staat === "weg" ? "  ⚠️ niet meer in i-Active" : ""}`);
     }
   }
   return regels.join("\n").trim();

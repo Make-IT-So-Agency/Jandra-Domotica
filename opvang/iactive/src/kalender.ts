@@ -38,6 +38,7 @@ async function main() {
   const wachtwoord = process.env.IACTIVE_WACHTWOORD;
   if (!email || !wachtwoord) throw new Error("IACTIVE_EMAIL of IACTIVE_WACHTWOORD ontbreekt.");
 
+  const start = new Date().toISOString();
   const { browser, pagina } = await startBrowser();
   try {
     await login(pagina, email, wachtwoord);
@@ -79,6 +80,13 @@ async function main() {
             })),
             "resolution=merge-duplicates,return=minimal",
           );
+          // Wat i-Active niet meer toont, is er niet meer: niet meer aan te duiden.
+          const weg = await rest<unknown[]>(
+            "PATCH",
+            `opvang_slots?kind_id=eq.${kind.id}&maand=eq.${maand}&gezien_op=lt.${encodeURIComponent(start)}&staat=neq.weg`,
+            { staat: "weg" },
+          );
+          if (weg.length) console.log(`Tegels niet meer in de kalender: ${weg.length}`);
           const telling = new Map<string, number>();
           for (const t of tegels) telling.set(t.staat, (telling.get(t.staat) ?? 0) + 1);
           console.log(`Ronde ${ronde.maand}, kind ${kinderen.indexOf(kind) + 1}, ${maand}: ${tegels.length} tegels (${[...telling].map(([s, n]) => `${s} ${n}`).join(", ")})`);

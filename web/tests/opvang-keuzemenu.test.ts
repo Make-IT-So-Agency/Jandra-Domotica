@@ -86,6 +86,15 @@ describe("keuzemenu", () => {
   });
 });
 
+describe("tegels die i-Active niet meer toont", () => {
+  it("krijgen geen knop meer, en het overzicht waarschuwt als ze gekozen waren", () => {
+    const weg = slot("2026-12-03", "Voorschoolse opvang", "weg");
+    const { knoppen } = keuzemenu({ ...basis, slots: [weg, slot("2026-12-03", "Naschoolse opvang")] });
+    expect(knoppen[0].map((k) => k.text)).toEqual(["do 3/12", "▫️ na"]);
+    expect(overzicht([{ naam: "Kind", slots: [weg] }])).toContain("⚠️ niet meer in i-Active");
+  });
+});
+
 describe("conflicten en overzicht", () => {
   it("twee keer hetzelfde moment op één dag, of een volle dag met een halve", () => {
     expect(conflicten([vakantie[0], vakantie[2]])).toEqual(["di 22/12: voormiddag op meer dan één plaats"]);
