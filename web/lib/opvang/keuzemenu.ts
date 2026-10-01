@@ -32,6 +32,39 @@ export interface Menu {
   gekozen: ReadonlySet<number>;
   week: number;
   definitiefDoor?: string | null;
+  /** In vakanties met meerdere locaties: welke het menu toont. Leeg: de vaste locatie van het kind. */
+  vakantieLocatie?: string | null;
+}
+
+/** De locaties van dagen waarop i-Active meer dan één locatie aanbiedt (vakanties). */
+export function vakantieLocaties(slots: Slot[]): string[] {
+  const perDag = new Map<string, Set<string>>();
+  for (const s of slots.filter((s) => !VERBORGEN.includes(s.staat))) {
+    perDag.set(s.datum, (perDag.get(s.datum) ?? new Set()).add(s.locatie));
+  }
+  const uit = new Set<string>();
+  for (const locs of perDag.values()) if (locs.size > 1) locs.forEach((l) => uit.add(l));
+  return [...uit].sort();
+}
+
+/**
+ * De vakantielocatie die het menu toont: de gekozen, anders de locatie waar
+ * het kind op schooldagen naartoe gaat (als die ook in de vakantie open is),
+ * anders de eerste.
+ */
+export function welkeVakantieLocatie(slots: Slot[], gekozen?: string | null): string | null {
+  const locs = vakantieLocaties(slots);
+  if (!locs.length) return null;
+  if (gekozen && locs.includes(gekozen)) return gekozen;
+  const telling = new Map<string, number>();
+  for (const s of slots) {
+    if (VERBORGEN.includes(s.staat)) continue;
+    if (new Set(slots.filter((t) => t.datum === s.datum).map((t) => t.locatie)).size === 1) {
+      telling.set(s.locatie, (telling.get(s.locatie) ?? 0) + 1);
+    }
+  }
+  const vast = [...telling].sort((a, b) => b[1] - a[1])[0]?.[0];
+  return vast && locs.includes(vast) ? vast : locs[0];
 }
 
 const DAGEN = ["zo", "ma", "di", "wo", "do", "vr", "za"];
@@ -141,15 +174,31 @@ export function keuzemenu(m: Menu): { tekst: string; knoppen: Knoppen } {
     `Status: ${STATUS[m.status]}${m.status === "definitief" && m.definitiefDoor ? ` (door ${m.definitiefDoor})` : ""}`,
     "",
     open ? "✅ gekozen · ▫️ niet · ⏸ volzet: komt op de reservelijst" : "Druk op Wijzigen om nog iets aan te passen.",
+    ...(open && vakantieLocaties(m.slots).length ? ["In de vakantie zijn er meerdere locaties: 📍 toont er één, tik erop om te wisselen."] : []),
   ].join("\n");
 
+  const vakantie = welkeVakantieLocatie(m.slots, m.vakantieLocatie);
+  const locaties = vakantieLocaties(m.slots);
+  const weekHeeftVakantie = dagen.some((d) => new Set(m.slots.filter((s) => s.datum === d && !VERBORGEN.includes(s.staat)).map((s) => s.locatie)).size > 1);
+
   const knoppen: Knoppen = [];
+  if (weekHeeftVakantie && vakantie) {
+    knoppen.push([
+      {
+        text: `📍 ${kortLocatie(vakantie)}${locaties.length > 1 ? " · tik voor een andere locatie" : ""}`,
+        callback_data: locaties.length > 1 ? `o:v:${m.rondeId}:${m.kindId}` : "o:x",
+      },
+    ]);
+  }
   for (const d of dagen) {
     // Gesloten tegels (feestdagen, "opvang gesloten") krijgen geen knop.
     const vandaag = sorteer(m.slots.filter((s) => s.datum === d && !VERBORGEN.includes(s.staat)));
-    const locaties = [...new Set(vandaag.map((s) => s.locatie))];
+    let locaties = [...new Set(vandaag.map((s) => s.locatie))];
+    if (locaties.length > 1 && vakantie && locaties.includes(vakantie)) {
+      // Vakantie: enkel de getoonde locatie, plus een andere waar al iets gekozen is.
+      locaties = locaties.filter((l) => l === vakantie || vandaag.some((s) => s.locatie === l && m.gekozen.has(s.id)));
+    }
     for (const loc of locaties) {
-      // Meer dan één locatie op een dag (vakanties): één rij per locatie.
       const label = locaties.length > 1 ? `${dagLabel(d)} ${kortLocatie(loc)}` : dagLabel(d);
       const rij = [{ text: label, callback_data: "o:x" }];
       for (const s of vandaag.filter((s) => s.locatie === loc)) {

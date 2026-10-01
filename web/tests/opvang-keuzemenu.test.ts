@@ -56,11 +56,18 @@ describe("keuzemenu", () => {
     for (const k of knoppen.flat()) expect(new TextEncoder().encode(k.callback_data).length).toBeLessThanOrEqual(64);
   });
 
-  it("in een vakantie met meer locaties: één rij per locatie", () => {
-    const { knoppen } = keuzemenu({ ...basis, slots: vakantie });
+  it("in een vakantie met meer locaties: één locatie tegelijk, standaard die van de schooldagen", () => {
+    const { knoppen } = keuzemenu({ ...basis, slots: [...schoolweek, ...vakantie], week: 2 });
+    expect(knoppen[0]).toEqual([{ text: "📍 Speelhuis · tik voor een andere locatie", callback_data: "o:v:7:3" }]);
+    const rijen = knoppen.filter((r) => r[0].text.startsWith("di 22/12"));
+    expect(rijen.map((r) => r.map((k) => k.text))).toEqual([["di 22/12", "▫️ vm", "▫️ nm"]]);
+  });
+
+  it("een andere vakantielocatie tonen, en een locatie met een keuze blijft zichtbaar", () => {
+    const { knoppen } = keuzemenu({ ...basis, slots: vakantie, vakantieLocatie: "BKO - Robbedoes", gekozen: new Set([vakantie[0].id]) });
+    expect(knoppen[0][0].text).toBe("📍 Robbedoes · tik voor een andere locatie");
     const rijen = knoppen.filter((r) => r[0].text.startsWith("di 22/12"));
     expect(rijen.map((r) => r[0].text)).toEqual(["di 22/12 Robbedoes", "di 22/12 Speelhuis"]);
-    expect(rijen[1].map((k) => k.text)).toEqual(["di 22/12 Speelhuis", "▫️ vm", "▫️ nm"]);
   });
 
   it("volzet toont ⏸, ingeschreven kan niet meer aangeklikt worden", () => {

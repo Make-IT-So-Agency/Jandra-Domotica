@@ -1,7 +1,7 @@
 import "server-only";
 
 import { heeftToegang, toegelatenIds } from "./toegang";
-import { aanklikbaar, conflicten, keuzemenu, overzicht, slotsVanWeek, type Slot } from "./keuzemenu";
+import { aanklikbaar, conflicten, keuzemenu, overzicht, slotsVanWeek, vakantieLocaties, welkeVakantieLocatie, type Slot } from "./keuzemenu";
 import { momentLabel, opvangLabel, volgendeMomenten } from "./inschrijfmomenten";
 import * as opslag from "./opslag";
 import { beantwoordKnop, bewerkBericht, stuurBericht, type Klik, type Knoppen } from "./telegram";
@@ -21,7 +21,11 @@ export const VRAGEN_VANAF_DAGEN = 10;
 const HERINNEREN_OP = [7, 3, 1, 0];
 
 async function menuVoor(ronde: opslag.Ronde, kind: opslag.Kind, week: number) {
-  const [lijst, keuzes] = await Promise.all([opslag.slots(kind.id, ronde.maand), opslag.gekozen(ronde.id)]);
+  const [lijst, keuzes, vakantieLocatie] = await Promise.all([
+    opslag.slots(kind.id, ronde.maand),
+    opslag.gekozen(ronde.id),
+    opslag.leesInstelling(`vakantielocatie_${kind.id}`),
+  ]);
   return {
     lijst,
     ...keuzemenu({
@@ -35,6 +39,7 @@ async function menuVoor(ronde: opslag.Ronde, kind: opslag.Kind, week: number) {
       gekozen: keuzes,
       week,
       definitiefDoor: ronde.definitief_door,
+      vakantieLocatie,
     }),
   };
 }
@@ -130,6 +135,22 @@ export async function verwerkKlik(klik: Klik, token: string): Promise<void> {
         const r = await volgendeRonde();
         if (r.status === "open") await toonMenus(token, r.id, chat.id);
       }
+    }
+  } else if (soort === "v") {
+    // Naar de volgende vakantielocatie. Mag ook na Definitief: het verandert enkel wat je ziet.
+    const [rondeId, kindId] = getallen;
+    const ronde = await opslag.ronde(rondeId);
+    const kind = (await opslag.kinderen()).find((k) => k.id === kindId);
+    if (ronde && kind) {
+      const lijst = await opslag.slots(kindId, ronde.maand);
+      const locs = vakantieLocaties(lijst);
+      const nu = welkeVakantieLocatie(lijst, await opslag.leesInstelling(`vakantielocatie_${kindId}`));
+      const volgende = locs[(locs.indexOf(nu ?? "") + 1) % locs.length];
+      if (volgende) await opslag.zetInstelling(`vakantielocatie_${kindId}`, volgende);
+      const week = (await opslag.menus(rondeId)).find((m) => m.kind_id === kindId)?.week ?? 0;
+      const { tekst, knoppen } = await menuVoor(ronde, kind, week);
+      await bewerkBericht(token, chat.id, bericht.message_id, tekst, knoppen);
+      melding = volgende ? `📍 ${volgende}` : undefined;
     }
   } else if (["t", "w", "a", "l"].includes(soort)) {
     const [rondeId, kindId, derde] = getallen;
