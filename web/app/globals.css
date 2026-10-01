@@ -466,6 +466,15 @@ button.gevaar {
   cursor: help;
 }
 
+/* Of het rapport bij de vennootschap geraakt is. */
+.hulp.verstuurd {
+  color: var(--goed);
+}
+
+.hulp.niet-verstuurd {
+  color: var(--let-op);
+}
+
 /* Legende onder de sessietabel. */
 .legende {
   display: grid;

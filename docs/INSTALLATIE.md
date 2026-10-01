@@ -120,6 +120,7 @@ Knop *Add environment secret*, één per rij.
 | `INGEST_API_KEY` | **2e regel** uit stap 3 | je notities | 64 tekens |
 | `CRON_SECRET` | **3e regel** uit stap 3 | je notities | 64 tekens |
 | `TOEGELATEN_EMAILS` | je eigen e-mailadres | — | `jan@makeitso.be` |
+| `RESEND_API_KEY` | je API-sleutel van Resend | resend.com → API Keys → Create | `re_a1b2c3...` |
 
 ### Environment variables
 
@@ -275,6 +276,36 @@ Druk daarna één keer op **Nu synchroniseren**.
 
 Open de app en werk het lijstje op het beginscherm af: je vennootschappen
 invullen, de laadpalen eraan koppelen, en het kwartaaltarief bevestigen.
+
+Vul bij elke vennootschap ook het **e-mailadres** in. Daar gaat het
+kwartaalrapport naartoe, als je de volgende stap doet.
+
+## 9. Het kwartaalrapport laten mailen (optioneel)
+
+Op de eerste van elke maand maakt de app vanzelf de rapporten van de afgelopen
+maand, en bij de start van een nieuw kwartaal ook die van het afgelopen
+kwartaal. Dat kwartaalrapport kan meteen naar de vennootschap vertrekken, met
+de PDF en de Excel in bijlage.
+
+Zonder `RESEND_API_KEY` gebeurt dat niet en blijven de rapporten gewoon in de
+app staan. Er gaat dus niets vanzelf de deur uit zolang je deze stap overslaat.
+
+1. Maak een account op [resend.com](https://resend.com) — de gratis laag is
+   ruim genoeg voor een handvol mails per kwartaal.
+2. **Domains → Add Domain**: zet je eigen domein erin en voeg de DNS-records toe
+   die Resend toont. Wacht tot het domein **Verified** is. Dit is geen stap om
+   over te slaan: zonder geverifieerd domein weigert Resend te versturen, of
+   belandt alles wat je stuurt in de spam.
+3. **API Keys → Create**, rechten *Sending access*. Zet die sleutel in GitHub
+   als secret `RESEND_API_KEY` in de omgeving `productie`.
+4. Staat het afzenderadres in `infra/vercel-omgeving.json` (`MAIL_AFZENDER`) op
+   een domein dat je net geverifieerd hebt? Zo niet, pas het daar aan.
+5. Start **Productie uitrollen** zodat de sleutel bij de app geraakt.
+
+Controleren zonder een kwartaal af te wachten: de rapporten die er al staan
+worden nooit alsnog verstuurd — de taak verstuurt enkel wat ze in die ronde
+zelf maakt. Wil je het toch eens zien werken, verwijder dan een
+kwartaalrapport in de app en start de taak opnieuw.
 
 ---
 

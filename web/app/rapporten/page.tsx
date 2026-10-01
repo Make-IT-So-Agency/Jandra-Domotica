@@ -23,10 +23,13 @@ interface BewaardRapportRij {
   reference: string;
   period_start: string;
   period_end: string;
+  period_kind: string | null;
   session_count: number;
   total_kwh: number;
   total_incl_vat: number;
   generated_at: string;
+  emailed_at: string | null;
+  emailed_to: string | null;
   companies: { name: string } | null;
 }
 
@@ -46,7 +49,8 @@ export default async function Rapportenpagina({
   let archiefQuery = db()
     .from("reports")
     .select(
-      "id, reference, period_start, period_end, session_count, total_kwh, total_incl_vat, generated_at, companies(name)",
+      "id, reference, period_start, period_end, period_kind, session_count, " +
+        "total_kwh, total_incl_vat, generated_at, emailed_at, emailed_to, companies(name)",
     )
     .order("generated_at", { ascending: false })
     .limit(50);
@@ -194,6 +198,11 @@ export default async function Rapportenpagina({
                   <td data-label="Referentie">
                     <strong>{rapport.reference}</strong>
                     <div className="hulp">{datumTijd(rapport.generated_at)}</div>
+                    <Verzending
+                      verstuurdOp={rapport.emailed_at}
+                      verstuurdNaar={rapport.emailed_to}
+                      soort={rapport.period_kind}
+                    />
                   </td>
                   <td data-label="Vennootschap">{rapport.companies?.name ?? "—"}</td>
                   <td data-label="Periode">
@@ -372,4 +381,34 @@ function Voorbeeld({
       ) : null}
     </section>
   );
+}
+
+/**
+ * Wat er met de mail van dit rapport gebeurd is.
+ *
+ * Alleen bij een kwartaalrapport staat er iets als het níet verstuurd is: dat
+ * is het enige soort dat vanzelf de deur uit gaat, en dan is "niet verstuurd"
+ * iets om te zien. Bij een maandrapport zou diezelfde regel suggereren dat er
+ * iets misging terwijl er nooit post voorzien was.
+ */
+function Verzending({
+  verstuurdOp,
+  verstuurdNaar,
+  soort,
+}: {
+  verstuurdOp: string | null;
+  verstuurdNaar: string | null;
+  soort: string | null;
+}) {
+  if (verstuurdOp) {
+    return (
+      <div className="hulp verstuurd">
+        Verstuurd naar {verstuurdNaar ?? "onbekend adres"} op {datum(verstuurdOp)}
+      </div>
+    );
+  }
+  if (soort === "quarter") {
+    return <div className="hulp niet-verstuurd">Niet verstuurd</div>;
+  }
+  return null;
 }

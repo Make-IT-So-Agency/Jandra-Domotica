@@ -97,6 +97,19 @@
       "herkomst": "geheim",
       "omgevingen": ["production"],
       "toelichting": "Telegram-id's van gebruikers en groepen die de opvang-bot mogen gebruiken, met komma's."
+    },
+    {
+      "naam": "RESEND_API_KEY",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "API-sleutel van Resend, waarmee het kwartaalrapport naar de vennootschap vertrekt. Bewust enkel in production: zo kan een voorbeelduitrol nooit echte post versturen. Ontbreekt hij, dan maakt de taak de rapporten gewoon en verstuurt ze niet."
+    },
+    {
+      "naam": "MAIL_AFZENDER",
+      "herkomst": "waarde",
+      "waarde": "Laadkosten <laadkosten@makeitso.be>",
+      "omgevingen": ["production"],
+      "toelichting": "Afzender van die mail. Geen geheim, dus hij staat hier gewoon. Het domein moet wel geverifieerd zijn in Resend; anders weigert Resend te versturen of belandt alles in de spam."
     }
   ]
 }

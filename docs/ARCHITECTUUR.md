@@ -170,15 +170,40 @@ Het rapport is de onkostennota van de begunstigde. Dat een vennootschap haar
 eigen claim tegen die persoon zou opmaken, klopt niet. Inkijken en downloaden
 mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 
+### Het kwartaalrapport gaat vanzelf naar de vennootschap
+
+Een rapport dat vanzelf verschijnt zonder dat iemand het weet, is een halve
+functie. Daarom stuurt de maandelijkse taak elk kwartaalrapport dat ze maakt
+per mail naar het adres van die vennootschap, met de PDF en de Excel in
+bijlage. Het maandrapport blijft in de app: dat is er om zelf op te volgen, en
+een boekhouder die per kwartaal afrekent zit niet te wachten op twaalf extra
+berichten per jaar.
+
+Drie dingen houden die post in toom. Er vertrekt alleen iets voor rapporten die
+de taak **zelf in die ronde gemaakt heeft** -- bestond het rapport al, dan is
+het ergens anders vandaan gekomen en beslist iemand zelf wat ermee gebeurt, dus
+een nieuwe taak kan nooit een stapel oude rapporten alsnog de deur uit sturen.
+`reports.emailed_at` zorgt dat hetzelfde rapport nooit twee keer vertrekt.
+En zonder `RESEND_API_KEY` verstuurt de taak niets: zo kan de code uitgerold
+worden zonder dat er meteen post op gang komt, en zet je het aan door het
+geheim in te vullen. Die sleutel staat bewust enkel op production, zodat een
+voorbeelduitrol nooit echte post kan versturen.
+
+Het rapport wordt eerst bewaard en pas daarna verstuurd, en `emailed_at` wordt
+pas geschreven als de mail echt weg is. Mislukt het versturen, dan staat het
+rapport er nog en kan het alsnog met de hand gedownload worden; de lijst met
+bewaarde rapporten toont per kwartaalrapport of het vertrokken is.
+
 ## Wat opzettelijk niet gebeurt
 
-- **Geen automatische e-mail.** De rapporten staan in de app; er is geen
-  mailserver in de lus die stilletjes kan falen.
 - **Geen toewijzing per auto.** Toewijzing gebeurt per laadpaal, zoals gekozen.
-  Het voertuig komt wél op het rapport, als informatie. Wil je later per auto
-  toewijzen, dan is `sessions.vehicle` het aanknopingspunt.
-- **Geen splitsing zon versus net.** `solar_percentage` komt binnen en staat in
-  de databank, maar wordt niet in de berekening gebruikt.
+  Het voertuig staat nergens meer op het scherm of in een document, omdat evcc
+  het in deze opstelling niet invult. Wil je later per auto toewijzen, dan is
+  `sessions.vehicle` nog altijd het aanknopingspunt: de kolom wordt nog gevuld.
+- **Geen zonne-energie in het rapport.** `solar_percentage` komt binnen en het
+  overzicht splitst het verbruik in net en zon, maar het rapport zwijgt erover
+  en de berekening gebruikt het niet. Het rapport is voor de boekhouder; welk
+  deel van je eigen dak kwam, is een interne zaak.
 - **Geen doorrekening tussen de twee vennootschappen.** Elk rapport staat op
   zich, met jou als begunstigde.
 
@@ -193,6 +218,8 @@ mag wel; zie `magRapportenMaken()` in `web/lib/rollen.ts`.
 | `scripts/controleer-conflictdoelen.mjs` | Leest de `onConflict` uit de webapp en eist een unieke index op precies die kolommen |
 | `scripts/sql/` | Vragen aan de databank, via de workflow SQL uitvoeren |
 | `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
+| `web/lib/mail.ts` | Mail versturen via Resend; staat uit zonder `RESEND_API_KEY` |
+| `web/lib/rapport-mail.ts` | Het bericht en de bijlagen van één kwartaalrapport |
 | `web/lib/toegang.ts` | De aangemelde gebruiker met zijn actuele rol |
 | `web/lib/gebruikers.ts` | Gebruikers lezen en schrijven in de databank |
 | `web/lib/billing.ts` | Kostenberekening en afronding |

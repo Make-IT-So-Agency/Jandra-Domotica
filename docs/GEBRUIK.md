@@ -60,10 +60,24 @@ melding dan een factuur met een verkeerd cijfer.
   afgelopen maand voor elke vennootschap, en bij de start van een nieuw
   kwartaal ook dat van het afgelopen kwartaal. Je vindt ze gewoon in de lijst
   bij Rapporten.
+- **Bij de start van een nieuw kwartaal**: het kwartaalrapport gaat ook per
+  mail naar het e-mailadres van die vennootschap, met de PDF en de Excel in
+  bijlage. Het maandrapport niet — dat is er om zelf op te volgen.
 
 Ontbreekt er iets — een niet-gekoppelde laadpaal, een onbevestigd tarief — dan
 slaat de automatische taak dat rapport over en blijft de melding op het
 beginscherm staan tot je het regelt.
+
+### Wat er verstuurd is, en wat niet
+
+Onder de referentie van elk kwartaalrapport staat of het vertrokken is en naar
+welk adres. Staat er **Niet verstuurd**, dan is er iets dat je zelf kan
+regelen: meestal ontbreekt het e-mailadres bij de vennootschap. Vul het in en
+stuur dat rapport met de hand door — de taak stuurt een bestaand rapport niet
+alsnog na.
+
+Een rapport dat je zelf maakt, wordt nooit automatisch gemaild. Alleen wat de
+taak zelf aanmaakt, gaat de deur uit.
 
 ## Meldingen die je kan tegenkomen
 
