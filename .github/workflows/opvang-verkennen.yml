@@ -1,0 +1,83 @@
+name: Opvang - i-Active verkennen
+
+# Kijkt hoe i-Active eruitziet, zonder iets te wijzigen: nooit een knop
+# behalve "Aanmelden", nooit een formulier behalve de login. Het verslag staat
+# in de samenvatting van de run en bevat enkel structuur (velden, knoppen,
+# menu's), geen persoonsgegevens: deze repository en haar logboeken zijn
+# publiek. Er worden bewust geen schermafdrukken of traces bewaard.
+#
+# Zonder login draait hij ook bij elke wijziging aan opvang/iactive: zo zie je
+# meteen of de loginpagina nog laadt in een browser op een server.
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths: ["opvang/iactive/**", ".github/workflows/opvang-verkennen.yml"]
+  workflow_dispatch:
+    inputs:
+      inloggen:
+        description: "Ook inloggen met IACTIVE_EMAIL en IACTIVE_WACHTWOORD"
+        type: boolean
+        default: false
+      maanden:
+        description: "Enkel deze maanden lezen, bv. '2026-11 2026-12' (vereist inloggen)"
+        type: string
+        default: ""
+
+concurrency:
+  group: opvang-iactive
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  loginpagina:
+    name: Loginpagina
+    if: ${{ !inputs.inloggen }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verken
+
+  met-login:
+    name: Met login
+    if: ${{ inputs.inloggen }}
+    runs-on: ubuntu-latest
+    environment: productie
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verkennen
+        if: ${{ inputs.maanden == '' }}
+        env:
+          IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
+          IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
+        run: npm run verken -- --inloggen
+      - name: Maanden lezen
+        if: ${{ inputs.maanden != '' }}
+        env:
+          IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
+          IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
+          MAANDEN: ${{ inputs.maanden }}
+        run: node src/lees-maand.ts $MAANDEN

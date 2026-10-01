@@ -1,7 +1,40 @@
-# Laadkosten
+# Jandra-Domotica
 
 [![CI](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/ci.yml/badge.svg)](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/ci.yml)
 [![Validatie](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/validatie.yml/badge.svg)](https://github.com/Make-IT-So-Agency/Jandra-Domotica/actions/workflows/validatie.yml)
+
+Automatisering voor ons gezin. Alles draait in één omgeving: de code in deze
+repository, één webapp op Vercel, één databank in Supabase, en GitHub Actions
+voor wat lang loopt of een browser nodig heeft. Elke functie is een module
+met haar eigen stukje in elk van die lagen en haar eigen tests.
+
+## Modules
+
+| Module | Wat het doet | Waar het draait | Map |
+| --- | --- | --- | --- |
+| **Laadkosten** | Laadsessies uit evcc doorrekenen en per vennootschap rapporteren | Home Assistant, Vercel, Supabase | `custom_components/laadkosten/`, `web/`, `supabase/` |
+| **Opvang** | Buitenschoolse opvang aanduiden in Telegram en automatisch reserveren in i-Active | Vercel, Supabase, GitHub Actions | [`opvang/`](opvang/LEESMIJ.md), `web/lib/opvang/` |
+
+### Afspraken voor een nieuwe module
+
+- **Eén `LEESMIJ.md` per module** in een eigen map in de root, die zegt wat
+  het doet, waar elk stuk staat en wat er nog met de hand moet.
+- **Geen nieuw platform** zonder goede reden. Schermen en webhooks horen in
+  `web/`, onder `web/lib/<module>/` en `web/app/...`. Gegevens horen in
+  Supabase, via een migratie in `supabase/migrations/`, met de naam van de
+  module voor de tabel. Wat lang loopt of een browser nodig heeft, wordt een
+  workflow in GitHub Actions.
+- **Geen sleutels in de code of in de repository.** Elk geheim staat bij
+  GitHub, in de omgeving `productie`, en wordt van daaruit naar Vercel gezet
+  (zie `infra/vercel-omgeving.json`).
+- **Telegram als gezamenlijke ingang** voor meldingen en vragen aan het gezin.
+  Opvang_bot is de eerste; een tweede functie kan een extra commando in
+  dezelfde bot worden in plaats van een tweede bot.
+
+De CI-badge hierboven dekt alle modules. De mappen `custom_components/` en
+`hacs.json` blijven in de root staan: HACS verwacht ze daar.
+
+## Laadkosten
 
 Overzicht en rapportage van de laadkosten van thuisladen, per vennootschap.
 
@@ -10,7 +43,7 @@ Vercel. Daar reken je ze met één klik door aan het geldende maximumtarief en
 krijg je per vennootschap een PDF en een Excel om de terugbetaling mee te
 staven.
 
-## Wat het doet
+### Wat het doet
 
 - **Alle sessies uit evcc**, ook die van vóór de installatie: evcc houdt zijn
   eigen sessiedatabank bij, en die wordt volledig ingelezen.
@@ -26,12 +59,12 @@ staven.
   boekhouder uitnodigen, en ziet daarbij enkel haar eigen cijfers. Jij houdt
   het overzicht over alles.
 
-## Wat je maandelijks moet doen
+### Wat je maandelijks moet doen
 
 Openen, kiezen, downloaden. Zie [docs/GEBRUIK.md](docs/GEBRUIK.md) — dat is
 één schermpje werk.
 
-## Installeren
+### Installeren
 
 De draaiende omgeving staat beschreven in deze repository en wordt toegepast
 door GitHub Actions. Je maakt eenmalig de accounts aan, zet de secrets klaar in
@@ -41,7 +74,7 @@ de omgeving `productie`, en start twee workflows: **Databankmigraties** en
 Stap voor stap in [docs/INSTALLATIE.md](docs/INSTALLATIE.md). Reken op een
 uurtje, waarvan het Google-luik voor het inloggen het enige echte klikwerk is.
 
-## Wat waar staat
+### Wat waar staat
 
 | Map | Wat het is |
 | --- | --- |
@@ -52,7 +85,7 @@ uurtje, waarvan het Google-luik voor het inloggen het enige echte klikwerk is.
 | `scripts/` | Migraties testen, variabelen gelijkzetten, vragen aan de databank |
 | `docs/` | Installatiegids, maandelijkse routine en achtergrond |
 
-## Voor wie later aan de code komt
+### Voor wie later aan de code komt
 
 - Achtergrond en keuzes: [docs/ARCHITECTUUR.md](docs/ARCHITECTUUR.md)
 - Uitrollen, en waarom de volgorde uitmaakt: [docs/UITROL.md](docs/UITROL.md)

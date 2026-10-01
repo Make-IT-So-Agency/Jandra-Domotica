@@ -42,8 +42,15 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
         run: |
           ontbreekt=0
+          # Een AUTH_URL zonder https:// laat de middleware op elke pagina
+          # crashen met "Invalid URL". Beter hier stoppen dan uitrollen.
+          if [ -n "$AUTH_URL" ] && ! node -e 'const u=new URL(process.env.AUTH_URL); if(u.protocol!=="https:"||u.pathname!=="/") process.exit(1)' 2>/dev/null; then
+            echo "::error::AUTH_URL is geen geldig adres. Vorm: https://project-0la2o.vercel.app (met https://, zonder schuine streep of pad erachter, zonder aanhalingstekens)."
+            ontbreekt=1
+          fi
           [ -n "$VERCEL_TOKEN" ]      || { echo "Ontbreekt: secret VERCEL_TOKEN"; ontbreekt=1; }
           [ -n "$VERCEL_PROJECT_ID" ] || { echo "Ontbreekt: variable VERCEL_PROJECT_ID"; ontbreekt=1; }
           if [ "$ontbreekt" = "1" ]; then
@@ -68,6 +75,8 @@ jobs:
           TOEGELATEN_EMAILS: ${{ secrets.TOEGELATEN_EMAILS }}
           INGEST_API_KEY: ${{ secrets.INGEST_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TOEGELATEN_TELEGRAM_IDS: ${{ secrets.TOEGELATEN_TELEGRAM_IDS }}
         run: |
           if [ "${{ inputs.alleen_tonen }}" = "true" ]; then
             node scripts/zet-vercel-omgeving.mjs --droogloop

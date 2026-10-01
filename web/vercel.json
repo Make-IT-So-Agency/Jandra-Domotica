@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/rapporten",
       "schedule": "0 7 1 * *"
+    },
+    {
+      "path": "/api/cron/opvang",
+      "schedule": "0 8 * * *"
     }
   ]
 }

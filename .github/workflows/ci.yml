@@ -81,6 +81,33 @@ jobs:
           CRON_SECRET: bouwcontrole
         run: npm run build
 
+  opvang-iactive:
+    name: Opvang - i-Active
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opvang/iactive
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: opvang/iactive/package-lock.json
+
+      - name: Afhankelijkheden installeren
+        # Zonder browser: de tests raken i-Active niet aan.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: Typecontrole
+        run: npm run typecheck
+
+      - name: Tests draaien
+        run: npm test
+
   databank:
     name: Databankschema
     runs-on: ubuntu-latest
@@ -112,6 +139,11 @@ jobs:
           fi
           if git grep -nI -E 'eyJ[A-Za-z0-9_-]{20,}\.' -- . ':!*.md' ':!*.lock' ':!package-lock.json'; then
             echo "::error::Dit lijkt op een echte sleutel in de code."
+            exit 1
+          fi
+          # Een Telegram-bottoken: cijfers, dubbelpunt, 35 tekens.
+          if git grep -nI -E '[0-9]{8,10}:[A-Za-z0-9_-]{35}' -- . ':!*.lock' ':!package-lock.json'; then
+            echo "::error::Dit lijkt op een Telegram-bottoken in de code."
             exit 1
           fi
           echo "Niets verdachts gevonden."
