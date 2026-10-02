@@ -21,9 +21,9 @@ import type {
 
 /**
  * Alles wat de module Bouw in de databank leest en schrijft. De tabellen staan
- * in supabase/migrations/20261002100000_bouw.sql en
- * 20261002200000_bouw_omzetting.sql. De bestanden zelf staan in Storage; zie
- * opslagruimte.ts.
+ * in supabase/migrations/20261002100000_bouw.sql en de migraties van Bouw
+ * erna. De planning, de keuzes en het beslissingslog staan apart in
+ * regie-opslag.ts. De bestanden zelf staan in Storage; zie opslagruimte.ts.
  */
 
 interface Databankfout {
@@ -41,14 +41,14 @@ export class Bouwfout extends Error {
   }
 }
 
-interface Meldingen {
+export interface Meldingen {
   /** 23505: er bestaat al iets met die naam of dat label. */
   uniek?: string;
   /** 23503: er hangt nog iets aan, of het verwijst naar iets wat er niet is. */
   inGebruik?: string;
 }
 
-function check<T>(r: { data: T; error: Databankfout | null }, wat: string, meldingen: Meldingen = {}): T {
+export function check<T>(r: { data: T; error: Databankfout | null }, wat: string, meldingen: Meldingen = {}): T {
   if (!r.error) return r.data;
   if (r.error.code === "23505" && meldingen.uniek) throw new Bouwfout(meldingen.uniek, r.error.code);
   if (r.error.code === "23503" && meldingen.inGebruik) throw new Bouwfout(meldingen.inGebruik, r.error.code);

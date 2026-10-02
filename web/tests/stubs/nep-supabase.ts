@@ -34,6 +34,9 @@ const SLEUTELS: Record<string, string[]> = {
   bouw_omzettingen: ["planversie_id"],
   bouw_referentiepunten: ["code"],
   bouw_planversies: ["plan_id", "label"],
+  bouw_keuze_ruimtes: ["keuze_id", "ruimte_id"],
+  bouw_voorkeuren: ["keuze_id", "wie"],
+  bouw_meldingen: ["sleutel"],
 };
 
 type Actie =
