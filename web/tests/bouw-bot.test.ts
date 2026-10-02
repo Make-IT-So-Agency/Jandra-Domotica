@@ -230,6 +230,18 @@ describe("de dagelijkse ronde", () => {
     expect(db.tabellen.bouw_meldingen.map((m) => m.sleutel)).toContain("factuur:5:2026-10-08:3");
   });
 
+  it("herinnert aan een actiepunt de dag voor de deadline", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    db.tabellen.bouw_actiepunten = [
+      { id: 9, titel: "Stelling afbreken", omschrijving: null, partij_id: 4, deadline: "2026-10-06", status: "open", klaar_op: null },
+      { id: 10, titel: "Al gedaan", omschrijving: null, partij_id: null, deadline: "2026-10-06", status: "klaar", klaar_op: "2026-10-04T10:00:00Z" },
+    ];
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
+    const herinnering = verstuurd.at(-1)!;
+    expect(herinnering.text).toBe("📌 Actiepunt Stelling afbreken (Bouwbedrijf Voorbeeld): klaar tegen morgen.");
+    expect(JSON.stringify(herinnering.reply_markup)).toContain("/bouw/werf/actiepunten");
+  });
+
   it("probeert het de volgende keer opnieuw als Telegram faalde", async () => {
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
     telegramFaalt = true;

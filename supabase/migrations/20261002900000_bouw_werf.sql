@@ -56,13 +56,14 @@ create index if not exists bouw_opleverpunten_partij on bouw_opleverpunten (part
 
 -- ---------------------------------------------------------------------------
 -- Een foto van de werf. Het bestand zelf staat in de privé-bucket, onder
--- fotos/, verkleind en zonder EXIF. Een foto kan bij een ruimte horen, op
--- het plan geprikt zijn, bij een dag van het dagboek horen, of bij een
--- opleverpunt.
+-- fotos/, verkleind en zonder EXIF, met een kleine versie voor de
+-- overzichten. Een foto kan bij een ruimte horen, op het plan geprikt zijn,
+-- bij een dag van het dagboek horen, of bij een opleverpunt.
 -- ---------------------------------------------------------------------------
 create table if not exists bouw_werffotos (
   id              bigint generated always as identity primary key,
   bestand_id      bigint         not null references bouw_bestanden (id) on delete cascade,
+  duim_bestand_id bigint         references bouw_bestanden (id) on delete set null,
   genomen_op      timestamptz    not null,
   onderschrift    text,
   verdieping_id   bigint         references bouw_verdiepingen (id) on delete set null,

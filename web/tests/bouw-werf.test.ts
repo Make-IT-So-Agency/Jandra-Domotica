@@ -184,7 +184,10 @@ describe("de werf in de databank", () => {
       bouw_opleverpunten: [],
       bouw_werffotos: [],
       bouw_checklist: [],
-      bouw_bestanden: [{ id: 80, pad: "fotos/werf.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg" }],
+      bouw_bestanden: [
+        { id: 80, pad: "fotos/werf.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg" },
+        { id: 81, pad: "fotos/werf-klein.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg" },
+      ],
       bouw_planversies: [],
       bouw_opties: [],
       bouw_offertes: [],
@@ -217,13 +220,13 @@ describe("de werf in de databank", () => {
 
   it("houdt de foto in de opslag zolang de werf ze gebruikt", async () => {
     const fotoId = await voegWerffotoToe({
-      bestand_id: 80, genomen_op: "2026-10-02T08:00:00Z", onderschrift: "Leidingen keuken", verdieping_id: null, ruimte_id: null,
-      x_m: null, y_m: null, dagboek_id: null, opleverpunt_id: null, door: "Jan",
+      bestand_id: 80, duim_bestand_id: 81, genomen_op: "2026-10-02T08:00:00Z", onderschrift: "Leidingen keuken", verdieping_id: null,
+      ruimte_id: null, x_m: null, y_m: null, dagboek_id: null, opleverpunt_id: null, door: "Jan",
     });
-    await ruimOngebruikteBestandenOp([80]);
+    await ruimOngebruikteBestandenOp([80, 81]);
     expect(db.verwijderd).toEqual([]);
-    expect(await verwijderWerffoto(fotoId)).toBe(80);
-    await ruimOngebruikteBestandenOp([80]);
-    expect(db.verwijderd).toEqual(["fotos/werf.jpg"]);
+    expect(await verwijderWerffoto(fotoId)).toEqual([80, 81]);
+    await ruimOngebruikteBestandenOp([80, 81]);
+    expect(db.verwijderd).toEqual(["fotos/werf.jpg", "fotos/werf-klein.jpg"]);
   });
 });

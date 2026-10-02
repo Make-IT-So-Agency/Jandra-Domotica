@@ -1777,6 +1777,136 @@ tr.deze-maand td {
   font-weight: 600;
 }
 
+/* De werf: een grote knop om foto's te nemen, ook met handschoenen. */
+.knop.groot {
+  padding: 14px 20px;
+  font-size: 17px;
+}
+
+.werffotoknop .knop.bezig {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.werffotoknop.compact {
+  display: inline-block;
+}
+
+/* Foto's als tegels: vierkant, zo veel naast elkaar als er passen. */
+.galerij {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.galerij a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.galerij img,
+.galerij-leeg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--vlak);
+  border: 1px solid var(--lijn);
+}
+
+.galerij-leeg {
+  display: grid;
+  place-items: center;
+  color: var(--zacht);
+}
+
+.galerij-bij {
+  display: block;
+  font-size: 12px;
+  color: var(--zacht);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.werffoto {
+  margin: 0 0 10px;
+}
+
+.werffoto img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  border-radius: var(--radius);
+  border: 1px solid var(--lijn);
+}
+
+.bladeren {
+  justify-content: space-between;
+}
+
+/* Prikken op de tekening van de ruimtes: in meter, net als de ruimtes. */
+.prikplan {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  margin-top: 10px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+.prikplan path {
+  fill: var(--vlak);
+  stroke: var(--zacht);
+  stroke-width: 0.04;
+}
+
+.prikplan path.gekozen {
+  fill: var(--accent-zacht);
+  stroke: var(--accent);
+}
+
+.prik circle {
+  fill: var(--fout);
+  stroke: #ffffff;
+  stroke-width: 0.05;
+}
+
+.prik .prik-halo {
+  fill: var(--fout);
+  opacity: 0.25;
+  stroke: none;
+}
+
+.dagboek {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.dagboek h2 {
+  margin: 0;
+}
+
+.dagboek-tekst {
+  white-space: pre-wrap;
+}
+
+.regelformulier {
+  display: inline;
+}
+
 /* Op een gsm worden de tabellen kaartjes: daar valt een cel met enkel een
    streepje weg, en een cel met een leeg label staat links. */
 @media (max-width: 680px) {

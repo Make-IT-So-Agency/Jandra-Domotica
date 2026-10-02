@@ -5,6 +5,7 @@ import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { factuurWat, openFacturen, poststanden, totalen } from "@/lib/bouw/geld";
 import { lijstFacturen, lijstMeerwerken, lijstOffertes, lijstPosten } from "@/lib/bouw/geld-opslag";
 import { lijstInzendingen } from "@/lib/bouw/links";
+import { lijstActiepunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { leesBouwstand } from "@/lib/bouw/opslag";
@@ -33,10 +34,10 @@ export default async function Bouwoverzicht({
   let stand;
   let keuzes;
   let planning;
-  let geld;
+  let cijfers;
   try {
-    let posten, offertes, meerwerken, facturen, inzendingen;
-    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen] = await Promise.all([
+    let posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos;
+    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos] = await Promise.all([
       leesBouwstand(),
       lijstKeuzes(),
       lijstPlanning(),
@@ -45,8 +46,10 @@ export default async function Bouwoverzicht({
       lijstMeerwerken(),
       lijstFacturen(),
       lijstInzendingen({ status: "nieuw" }),
+      lijstActiepunten(),
+      lijstWerffotos(),
     ]);
-    geld = {
+    cijfers = {
       posten,
       facturen,
       totaal: totalen(poststanden(posten, offertes, meerwerken, facturen), facturen),
@@ -54,6 +57,8 @@ export default async function Bouwoverzicht({
         plannen: inzendingen.filter((inzending) => inzending.soort === "plan").length,
         geld: inzendingen.filter((inzending) => inzending.soort !== "plan").length,
       },
+      actiepunten: actiepunten.filter((punt) => punt.status === "open"),
+      fotos: fotos.length,
     };
   } catch (fout) {
     return (
@@ -66,7 +71,7 @@ export default async function Bouwoverzicht({
 
   const nu = vandaag();
   const deadlines = openDeadlines(keuzes, planning, nu);
-  const teBetalen = openFacturen(geld.facturen, nu);
+  const teBetalen = openFacturen(cijfers.facturen, nu);
   const partijnaam = (partijId: number | null) =>
     partijId === null ? null : (stand.partijen.find((partij) => partij.id === partijId)?.naam ?? null);
   const taken = takenVoorBouw({
@@ -80,7 +85,12 @@ export default async function Bouwoverzicht({
       wat: factuurWat(factuur, partijnaam(factuur.partij_id)),
       dagen,
     })),
-    inzendingen: geld.inzendingen,
+    inzendingen: cijfers.inzendingen,
+    actiepunten: cijfers.actiepunten.flatMap((punt) =>
+      punt.deadline
+        ? [{ puntId: punt.id, titel: punt.titel, wie: partijnaam(punt.partij_id), dagen: dagenTussen(nu, punt.deadline) }]
+        : [],
+    ),
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;
@@ -145,13 +155,24 @@ export default async function Bouwoverzicht({
         </div>
         <div className="tegel">
           <div className="label">Geld</div>
-          <div className="waarde">{geld.posten.length === 0 ? "—" : euroRond(geld.totaal.verwacht)}</div>
+          <div className="waarde">{cijfers.posten.length === 0 ? "—" : euroRond(cijfers.totaal.verwacht)}</div>
           <div className="bij">
-            {geld.posten.length === 0
+            {cijfers.posten.length === 0
               ? "nog geen posten"
               : teBetalen.length > 0
-                ? `verwacht, ${euroRond(geld.totaal.open)} te betalen`
-                : `verwacht, ${euroRond(geld.totaal.betaald)} betaald`}
+                ? `verwacht, ${euroRond(cijfers.totaal.open)} te betalen`
+                : `verwacht, ${euroRond(cijfers.totaal.betaald)} betaald`}
+          </div>
+        </div>
+        <div className="tegel">
+          <div className="label">Werf</div>
+          <div className="waarde">{cijfers.fotos === 1 ? "1 foto" : `${cijfers.fotos} foto's`}</div>
+          <div className="bij">
+            {cijfers.actiepunten.length === 0
+              ? "geen actiepunten open"
+              : cijfers.actiepunten.length === 1
+                ? "1 actiepunt open"
+                : `${cijfers.actiepunten.length} actiepunten open`}
           </div>
         </div>
         <div className="tegel">

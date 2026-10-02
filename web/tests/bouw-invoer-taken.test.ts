@@ -143,6 +143,24 @@ describe("takenVoorBouw", () => {
     ]);
   });
 
+  it("meldt een actiepunt dat binnen twee dagen klaar moet zijn of over tijd is", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 1,
+      plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
+      partijen: [{ soort: "architect" }],
+      actiepunten: [
+        { puntId: 1, titel: "Stelling afbreken", wie: "Bouwbedrijf Voorbeeld", dagen: 1 },
+        { puntId: 2, titel: "Container weg", wie: null, dagen: -3 },
+        { puntId: 3, titel: "Later", wie: null, dagen: 9 },
+      ],
+    });
+    expect(taken).toEqual([
+      { tekst: 'Actiepunt "Container weg": 3 dagen over tijd.', link: "/bouw/werf/actiepunten", knop: "Bekijken" },
+      { tekst: 'Actiepunt "Stelling afbreken" (Bouwbedrijf Voorbeeld): klaar tegen morgen.', link: "/bouw/werf/actiepunten", knop: "Bekijken" },
+    ]);
+  });
+
   it("is leeg als alles klaarstaat", () => {
     expect(
       takenVoorBouw({

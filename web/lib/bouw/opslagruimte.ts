@@ -54,10 +54,27 @@ export async function tijdelijkeUrl(pad: string, seconden: number, downloadNaam?
   return data.signedUrl;
 }
 
+/** Zoals tijdelijkeUrl, maar voor veel bestanden in één vraag, bv. een galerij foto's. Een pad dat er niet is, ontbreekt. */
+export async function tijdelijkeUrls(paden: string[], seconden: number): Promise<Map<string, string>> {
+  if (paden.length === 0) return new Map();
+  const { data, error } = await emmer().createSignedUrls(paden, seconden);
+  if (error || !data) throw new Error(`Bestanden openen mislukt: ${error?.message ?? "geen antwoord"}`);
+  return new Map(data.flatMap((rij) => (rij.path && rij.signedUrl && !rij.error ? [[rij.path, rij.signedUrl] as const] : [])));
+}
+
 /** De eerste bytes van een bestand, om na te kijken wat het echt is. */
 export async function leesBegin(pad: string, aantal: number): Promise<Uint8Array> {
   const url = await tijdelijkeUrl(pad, 60);
-  const antwoord = await fetch(url, { headers: { Range: `bytes=0-${aantal - 1}` }, cache: "no-store" });
+  // Een eigen signal is nodig, niet enkel als tijdslimiet: binnen een
+  // serveractie bewaart React elke GET-fetch en geeft het een kopie
+  // (response.clone()). Wie van die kopie maar een stuk leest en dan
+  // afbreekt, wacht eeuwig op de andere kopie. Met een eigen signal slaat
+  // React de fetch niet op.
+  const antwoord = await fetch(url, {
+    headers: { Range: `bytes=0-${aantal - 1}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!antwoord.ok) throw new Error(`Bestand lezen mislukt (HTTP ${antwoord.status}).`);
 
   // Een server die Range negeert, stuurt alles: lees dan niet verder dan nodig.

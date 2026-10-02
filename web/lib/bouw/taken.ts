@@ -25,6 +25,8 @@ export interface Bouwstand {
   facturen?: { factuurId: number; wat: string; dagen: number }[];
   /** Wat partijen via hun link instuurden en nog wacht: dossiers, en offertes of facturen. */
   inzendingen?: { plannen: number; geld: number };
+  /** De open actiepunten met een deadline: wat, wie, en het aantal dagen tot de deadline. */
+  actiepunten?: { puntId: number; titel: string; wie: string | null; dagen: number }[];
 }
 
 /** Zo ver vooruit komt een deadline bij "nog te doen". */
@@ -32,6 +34,9 @@ export const DEADLINE_VOORUIT_DAGEN = 14;
 
 /** Zo ver vooruit komt een factuur bij "nog te doen". */
 export const FACTUUR_VOORUIT_DAGEN = 7;
+
+/** Zo ver vooruit komt een actiepunt bij "nog te doen". */
+export const ACTIEPUNT_VOORUIT_DAGEN = 2;
 
 export interface Taak {
   tekst: string;
@@ -65,6 +70,19 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
           : `${wat}: betalen ${dagenTekst(factuur.dagen)}.`,
       link: "/bouw/geld/facturen",
       knop: "Betalen",
+    });
+  }
+
+  for (const punt of [...(stand.actiepunten ?? [])].sort((a, b) => a.dagen - b.dagen)) {
+    if (punt.dagen > ACTIEPUNT_VOORUIT_DAGEN) continue;
+    const wat = `Actiepunt "${punt.titel}"${punt.wie ? ` (${punt.wie})` : ""}`;
+    taken.push({
+      tekst:
+        punt.dagen < 0
+          ? `${wat}: ${-punt.dagen === 1 ? "1 dag" : `${-punt.dagen} dagen`} over tijd.`
+          : `${wat}: klaar tegen ${dagenTekst(punt.dagen)}.`,
+      link: "/bouw/werf/actiepunten",
+      knop: "Bekijken",
     });
   }
 

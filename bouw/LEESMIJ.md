@@ -2,8 +2,8 @@
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
-dat plan, de keuzes, de planning, het geld, en iedereen met wie we te maken
-hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
+dat plan, de keuzes, de planning, het geld, de werf, en iedereen met wie we te
+maken hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
 een digitaal plan van. Fase 1a, 1b, 2, 3, 4 en 5 zijn klaar; zie
@@ -52,6 +52,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 - **Geld** (`/bouw/geld`): de posten met hun raming, de offertes naast
   elkaar, meer- en minwerken, de facturen met hun vervaldag, het bouwkrediet,
   een kasplanning per maand en alles als Excel; zie [Geld](#geld).
+- **Werf** (`/bouw/werf`): foto's met de gsm, per dag en per ruimte, het
+  werfdagboek en de actiepunten; zie [De werf](#de-werf).
 - **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
@@ -260,6 +262,27 @@ Alle bedragen zijn **inclusief btw**: dat is wat we betalen.
   een gewone offerte of factuur, met de PDF. Een factuur opent daarna, om ze
   na te kijken. **Negeren** verwijdert ze.
 
+## De werf
+
+Op de gsm, op de werf zelf.
+
+- **Foto's.** Neem of kies er meerdere tegelijk, met eventueel de ruimte en
+  een onderschrift. De browser verkleint elke foto tot een JPEG van
+  hoogstens 1600 pixels, met een kleine versie van 480 pixels voor de
+  overzichten, en laat de EXIF weg (dus ook de plaats). De dag komt uit de
+  foto zelf: een foto van dinsdag die je woensdag oplaadt, staat bij
+  dinsdag. Per foto kan je de ruimte kiezen of op de tekening van de
+  ruimtes prikken waar ze genomen werd.
+- **Waarom foto's**: vóór het pleisterwerk en de chape zie je nog waar de
+  leidingen zitten. Later wil je dat weten, bv. om een kader op te hangen.
+  Filter op een ruimte om alles van die ruimte terug te vinden.
+- **Werfdagboek** (`/bouw/werf/dagboek`): per dag wat er gebeurde, wie er
+  was en het weer. De foto's van die dag staan er vanzelf bij.
+- **Actiepunten** (`/bouw/werf/actiepunten`): wat er moet gebeuren, door wie
+  en tegen wanneer, bv. uit de werfvergadering. De bot herinnert de dag
+  ervoor, op de dag zelf en de dag erna; wat binnen twee dagen moet, staat
+  bij "nog te doen".
+
 ## De bot van Bouw
 
 Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
@@ -273,6 +296,8 @@ knop naar het juiste scherm.
     dag zelf, en één keer de dag erna als ze nog open staat;
   - een herinnering 3 dagen vóór de vervaldag van een factuur, op de dag
     zelf, en één keer de dag erna als ze nog niet betaald is;
+  - een herinnering de dag vóór de deadline van een actiepunt, op de dag
+    zelf, en de dag erna;
   - wat morgen begint, en een mijlpaal van vandaag;
   - op maandag wat er deze en volgende week gebeurt.
 - Elke melding vertrekt maar één keer (`bouw_meldingen`), ook als de ronde
@@ -355,7 +380,12 @@ van de browser naar Storage:
    `klaar` en de versie aangemaakt. Is het geen PDF, dan verdwijnt het.
 
 Foto's (`fotos/`, verkleind in de browser) en de PDF's van offertes en
-facturen (`documenten/`, tot 20 MB) gaan langs dezelfde drie stappen. Bij een
+facturen (`documenten/`, tot 20 MB) gaan langs dezelfde drie stappen.
+
+Bij stap 3 leest de server enkel de eerste bytes van het bestand. Die fetch
+krijgt een eigen `signal`: binnen een serveractie bewaart React elke
+GET-fetch en geeft het een kopie, en wie van die kopie maar een stuk leest en
+dan afbreekt, wacht anders eeuwig op de andere kopie. Bij een
 offerte of factuur gebeurt stap 2 zodra je de PDF kiest; het formulier wacht
 tot het bestand er staat, en de serveractie rondt het af.
 
@@ -393,6 +423,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
 | `supabase/migrations/20261002700000_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
 | `supabase/migrations/20261002800000_bouw_inzendingen_geld.sql` | Offertes en facturen insturen via een link: de rechten, en de soort en het bedrag van een inzending |
+| `supabase/migrations/20261002900000_bouw_werf.sql` | Het werfdagboek, werffoto's, actiepunten, opleverpunten en de checklist |
+| `web/app/bouw/werf/` | Foto's opladen en bekijken, prikken op de tekening, het dagboek, de actiepunten |
+| `web/lib/bouw/werf.ts`, `exif.ts` | De stappen van een opleverpunt, de checklist, foto's per dag, en de datum uit een foto; puur, met tests |
+| `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen en foto-URL's voor de schermen |
 | `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
 | `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte of factuur openen |
 | `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
@@ -474,11 +508,12 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er acht:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er negen:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
    `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
    `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql`,
-   `20261002700000_bouw_geld.sql` en `20261002800000_bouw_inzendingen_geld.sql`.
+   `20261002700000_bouw_geld.sql`, `20261002800000_bouw_inzendingen_geld.sql`
+   en `20261002900000_bouw_werf.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -512,7 +547,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
      privévenster openen, een PDF insturen en die bij Plannen inlezen;
    - een link maken voor een aannemer, er in een privévenster een offerte
      en een factuur mee insturen, en ze bij Geld inboeken;
-   - op een gsm de plannen en de ruimtes bekijken.
+   - op een gsm de plannen en de ruimtes bekijken;
+   - op een gsm een paar foto's nemen bij Werf, en er één op de tekening
+     prikken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
    ontbrekende apikey bij Storage. De melding in het scherm zegt welke HTTP-fout
@@ -538,5 +575,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       facturen insturen via de link van een aannemer
 - [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
       een doorsnede en rondwandelen
-- [ ] **6** De werf: foto's op het plan, werfdagboek, opleveringspunten
+- [ ] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
+      het werfdagboek en actiepunten zijn klaar. Nog te doen: de
+      opleverpunten per aannemer, en de checklist per ruimte vóór alles
+      dichtgaat.
 - [ ] **7** Woningdossier en nazorg

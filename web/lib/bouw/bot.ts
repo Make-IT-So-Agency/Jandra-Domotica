@@ -4,7 +4,7 @@ import { commando, type Bericht } from "@/lib/opvang/telegram";
 import { heeftToegang, toegelatenIds } from "@/lib/opvang/toegang";
 
 import { HULP, deadlinebericht, factuurbericht, weekbericht } from "./berichten";
-import { vandaag } from "./kalender";
+import { dagenTussen, vandaag } from "./kalender";
 import { lijstInzendingen } from "./links";
 import { leesBouwstand } from "./opslag";
 import { zetInstelling } from "./regie-opslag";
@@ -70,7 +70,7 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       return;
     }
     case "taken": {
-      const [stand, { deadlines, teBetalen }, inzendingen] = await Promise.all([
+      const [stand, { deadlines, teBetalen, actiepunten, partijnaam }, inzendingen] = await Promise.all([
         leesBouwstand(),
         laadBotstand(dag),
         lijstInzendingen({ status: "nieuw" }),
@@ -86,6 +86,11 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
           plannen: inzendingen.filter((inzending) => inzending.soort === "plan").length,
           geld: inzendingen.filter((inzending) => inzending.soort !== "plan").length,
         },
+        actiepunten: actiepunten.flatMap((punt) =>
+          punt.status === "open" && punt.deadline
+            ? [{ puntId: punt.id, titel: punt.titel, wie: partijnaam(punt.partij_id), dagen: dagenTussen(dag, punt.deadline) }]
+            : [],
+        ),
       });
       await stuurBouwbericht(
         token,

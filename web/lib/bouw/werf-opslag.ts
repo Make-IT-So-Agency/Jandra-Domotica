@@ -77,6 +77,8 @@ export async function verwijderDagboekdag(id: number): Promise<void> {
 export interface Werffoto {
   id: number;
   bestand_id: number;
+  /** Een kleine versie voor de overzichten, of null: dan dient de grote. */
+  duim_bestand_id: number | null;
   genomen_op: string;
   onderschrift: string | null;
   verdieping_id: number | null;
@@ -95,6 +97,7 @@ function alsFoto(rij: Record<string, unknown>): Werffoto {
   return {
     id: Number(rij.id),
     bestand_id: Number(rij.bestand_id),
+    duim_bestand_id: getalOfNull(rij.duim_bestand_id),
     genomen_op: String(rij.genomen_op),
     onderschrift: tekstOfNull(rij.onderschrift),
     verdieping_id: getalOfNull(rij.verdieping_id),
@@ -149,12 +152,12 @@ export async function wijzigWerffoto(
   });
 }
 
-/** Geeft het bestand terug, zodat het uit Storage kan. */
-export async function verwijderWerffoto(id: number): Promise<number | null> {
+/** Geeft de bestanden terug, zodat ze uit Storage kunnen. */
+export async function verwijderWerffoto(id: number): Promise<number[]> {
   const foto = await leesWerffoto(id);
-  if (!foto) return null;
+  if (!foto) return [];
   check(await db().from("bouw_werffotos").delete().eq("id", id), "Foto verwijderen");
-  return foto.bestand_id;
+  return foto.duim_bestand_id ? [foto.bestand_id, foto.duim_bestand_id] : [foto.bestand_id];
 }
 
 // ---------------------------------------------------------------------------

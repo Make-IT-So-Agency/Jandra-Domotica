@@ -1,4 +1,4 @@
-import { dagenTekst, dagenTussen, korteDatum, vandaag as vandaagIn } from "./kalender";
+import { dagMetWeekdag, dagenTekst, dagenTussen, korteDatum, vandaag as vandaagIn } from "./kalender";
 import type { SoortRuimte } from "./types";
 
 /**
@@ -300,4 +300,9 @@ export function perDag<T extends { genomen_op: string }>(fotos: readonly T[]): {
     dagen.set(dag, [...(dagen.get(dag) ?? []), foto]);
   }
   return [...dagen.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([dag, lijst]) => ({ dag, fotos: lijst }));
+}
+
+/** "di 6 okt", met het jaar erbij als het een ander jaar is dan `nu`. */
+export function dagkop(dag: string, nu: string): string {
+  return `${dagMetWeekdag(dag)}${dag.slice(0, 4) === nu.slice(0, 4) ? "" : ` ${dag.slice(0, 4)}`}`;
 }
