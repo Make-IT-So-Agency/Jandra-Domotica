@@ -77,6 +77,8 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TOEGELATEN_TELEGRAM_IDS: ${{ secrets.TOEGELATEN_TELEGRAM_IDS }}
+          BOUW_TELEGRAM_BOT_TOKEN: ${{ secrets.BOUW_TELEGRAM_BOT_TOKEN }}
+          BOUW_TOEGELATEN_TELEGRAM_IDS: ${{ secrets.BOUW_TOEGELATEN_TELEGRAM_IDS }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
           if [ "${{ inputs.alleen_tonen }}" = "true" ]; then

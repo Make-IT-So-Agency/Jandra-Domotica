@@ -99,6 +99,18 @@
       "toelichting": "Telegram-id's van gebruikers en groepen die de opvang-bot mogen gebruiken, met komma's."
     },
     {
+      "naam": "BOUW_TELEGRAM_BOT_TOKEN",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Token van de eigen bot van Bouw, uit BotFather: een andere bot dan Opvang_bot. Enkel productie: er is maar één webhook per bot. Ontbreekt hij, dan blijft de bot van Bouw stil en werkt de rest gewoon."
+    },
+    {
+      "naam": "BOUW_TOEGELATEN_TELEGRAM_IDS",
+      "herkomst": "geheim",
+      "omgevingen": ["production"],
+      "toelichting": "Telegram-id's van gebruikers en groepen die de bot van Bouw mogen gebruiken, met komma's. Los van die van de opvang-bot."
+    },
+    {
       "naam": "RESEND_API_KEY",
       "herkomst": "geheim",
       "omgevingen": ["production"],

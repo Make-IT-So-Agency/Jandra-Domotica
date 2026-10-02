@@ -174,6 +174,28 @@ om te bestellen. Schuift de taak op, dan schuift de deadline mee.
   de wachttermijn na de vergunning (die mag je pas vanaf de 36e dag na de
   aanplakking gebruiken).
 
+## De bot van Bouw
+
+Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
+toegelaten id's, een eigen webhook (`/api/bouw/telegram`) met een eigen
+geheim. Hij meldt; het werk gebeurt in de webapp, en elk bericht heeft een
+knop naar het juiste scherm.
+
+- **Elke ochtend** (Vercel, 6.30 uur UTC: 8.30 uur in de zomer, 7.30 uur in de
+  winter) stuurt hij naar de gekozen chat:
+  - een herinnering 14, 7, 3 en 1 dag vóór de deadline van een keuze, op de
+    dag zelf, en één keer de dag erna als ze nog open staat;
+  - wat morgen begint, en een mijlpaal van vandaag;
+  - op maandag wat er deze en volgende week gebeurt.
+- Elke melding vertrekt maar één keer (`bouw_meldingen`), ook als de ronde
+  twee keer loopt. Schuift een taak op, dan komt er voor de nieuwe datum een
+  nieuwe herinnering. Mislukt het versturen, dan probeert de volgende ronde
+  het opnieuw.
+- **Commando's:** `/week`, `/deadlines`, `/taken` (wat er in de app nog te
+  doen is), `/hier` (stuur je herinneringen naar deze chat) en `/id`.
+- Wie niet op de lijst staat, krijgt enkel op `/start` en `/id` een antwoord:
+  zijn id. In een groep moet ook de groep zelf op de lijst staan.
+
 ## Privacy: de repository is publiek
 
 - De straatnaam, het adres, de plannen en later de foto's en facturen staan
@@ -237,6 +259,8 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/keuzes.ts`, `planning.ts`, `kalender.ts` | Hoeveelheid, meerprijs, deadlines, de planning en rekenen met dagen; puur, met tests |
 | `web/lib/bouw/regie-opslag.ts` | De planning, de keuzes en het log in de databank |
 | `web/lib/bouw/verklein.ts` | Een foto verkleinen in de browser |
+| `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
+| `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook en de setup van de bot, en de dagelijkse ronde |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
@@ -296,7 +320,20 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    `20261002300000_bouw_punten.sql` en `20261002400000_bouw_regie.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
-3. **Na het uitrollen nakijken:**
+3. **De bot van Bouw** (mag later):
+   1. Maak bij **@BotFather** een nieuwe bot met `/newbot`, met een neutrale
+      naam zonder straatnaam, bv. "Jandra Bouw".
+   2. Zet in GitHub (**Settings → Environments → productie**) de secrets
+      `BOUW_TELEGRAM_BOT_TOKEN` (het token van BotFather) en
+      `BOUW_TOEGELATEN_TELEGRAM_IDS` (je eigen id; stuur `/id` naar de bot
+      als je het niet kent).
+   3. Rol uit, meld je aan en open `/api/bouw/telegram/setup`. Je krijgt
+      `"ok": true` met de naam van de bot en de webhook.
+   4. Maak een groep met Jan, Sandra en de bot. Stuur er `/id`: zet het id
+      van Sandra en dat van de groep (negatief) erbij in
+      `BOUW_TOEGELATEN_TELEGRAM_IDS`, met komma's, en rol opnieuw uit.
+   5. Stuur `/hier` in de groep. Vanaf dan komen de herinneringen daar.
+4. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop

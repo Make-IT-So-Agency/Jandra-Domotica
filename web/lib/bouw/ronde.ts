@@ -1,0 +1,74 @@
+import "server-only";
+
+import { herinneringen, type Openstaand } from "./berichten";
+import { vandaag } from "./kalender";
+import { openDeadlines } from "./keuzes";
+import { lijstPartijen } from "./opslag";
+import { tweeWeken } from "./planning";
+import { leesInstelling, lijstKeuzes, lijstPlanning, meldEenKeer, vergeetMelding } from "./regie-opslag";
+import { stuurBouwbericht } from "./telegram";
+
+/**
+ * De dagelijkse ronde van de bot van Bouw, en wat de commando's nodig hebben.
+ * Vercel roept de ronde elke ochtend aan via /api/cron/bouw.
+ */
+
+/** In bouw_instellingen: de chat waar de bot zijn herinneringen heen stuurt, gekozen met /hier. */
+export const CHAT_SLEUTEL = "telegram_chat_id";
+
+export async function laadBotstand(dag: string) {
+  const [keuzes, planning, partijen] = await Promise.all([lijstKeuzes(), lijstPlanning(), lijstPartijen()]);
+  const open = openDeadlines(keuzes, planning, dag);
+  const deadlines: Openstaand[] = open.map(({ keuze, deadline, dagen }) => ({
+    keuzeId: keuze.id,
+    titel: keuze.titel,
+    datum: deadline.datum,
+    dagen,
+  }));
+  const namen = new Map(partijen.map((partij) => [partij.id, partij.naam]));
+  return {
+    deadlines,
+    planning: planning.map((item) => ({
+      id: item.id,
+      soort: item.soort,
+      titel: item.titel,
+      begindatum: item.begindatum,
+      status: item.status,
+      partij: item.partij_id ? (namen.get(item.partij_id) ?? null) : null,
+    })),
+    week: tweeWeken(planning, deadlines.map((d) => ({ titel: d.titel, datum: d.datum })), dag),
+  };
+}
+
+export interface Rondeverslag {
+  verstuurd: number;
+  alGemeld: number;
+  reden?: string;
+}
+
+export async function dagelijkseRonde(token: string, nu: Date, adres: string): Promise<Rondeverslag> {
+  const chat = Number(await leesInstelling(CHAT_SLEUTEL));
+  if (!Number.isSafeInteger(chat) || chat === 0) {
+    return { verstuurd: 0, alGemeld: 0, reden: "Nog geen chat gekozen: stuur /hier in de groep van Bouw." };
+  }
+
+  const dag = vandaag(nu);
+  const stand = await laadBotstand(dag);
+  let verstuurd = 0;
+  let alGemeld = 0;
+  for (const herinnering of herinneringen(stand.deadlines, stand.planning, stand.week, dag)) {
+    if (!(await meldEenKeer(herinnering.sleutel))) {
+      alGemeld++;
+      continue;
+    }
+    try {
+      await stuurBouwbericht(token, chat, herinnering.tekst, `${adres}${herinnering.pad}`);
+      verstuurd++;
+    } catch (fout) {
+      // Niet gelukt: de volgende ronde mag het opnieuw proberen.
+      await vergeetMelding(herinnering.sleutel).catch(() => undefined);
+      throw fout;
+    }
+  }
+  return { verstuurd, alGemeld };
+}
