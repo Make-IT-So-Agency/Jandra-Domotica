@@ -23,6 +23,8 @@ export interface Bouwstand {
   deadlines?: { keuzeId: number; titel: string; dagen: number }[];
   /** De facturen die nog betaald moeten worden: wat, en het aantal dagen tot de vervaldag. */
   facturen?: { factuurId: number; wat: string; dagen: number }[];
+  /** Wat partijen via hun link instuurden en nog wacht: dossiers, en offertes of facturen. */
+  inzendingen?: { plannen: number; geld: number };
 }
 
 /** Zo ver vooruit komt een deadline bij "nog te doen". */
@@ -63,6 +65,22 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
           : `${wat}: betalen ${dagenTekst(factuur.dagen)}.`,
       link: "/bouw/geld/facturen",
       knop: "Betalen",
+    });
+  }
+
+  const { plannen: dossiers = 0, geld = 0 } = stand.inzendingen ?? {};
+  if (dossiers > 0) {
+    taken.push({
+      tekst: dossiers === 1 ? "Er wacht een ingestuurd dossier." : `Er wachten ${dossiers} ingestuurde dossiers.`,
+      link: "/bouw/plannen#inzendingen",
+      knop: "Inlezen",
+    });
+  }
+  if (geld > 0) {
+    taken.push({
+      tekst: geld === 1 ? "Er wacht een ingestuurde offerte of factuur." : `Er wachten ${geld} ingestuurde offertes en facturen.`,
+      link: "/bouw/geld#inzendingen",
+      knop: "Inboeken",
     });
   }
 

@@ -5,6 +5,7 @@ import { heeftToegang, toegelatenIds } from "@/lib/opvang/toegang";
 
 import { HULP, deadlinebericht, factuurbericht, weekbericht } from "./berichten";
 import { vandaag } from "./kalender";
+import { lijstInzendingen } from "./links";
 import { leesBouwstand } from "./opslag";
 import { zetInstelling } from "./regie-opslag";
 import { CHAT_SLEUTEL, laadBotstand } from "./ronde";
@@ -69,7 +70,11 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       return;
     }
     case "taken": {
-      const [stand, { deadlines, teBetalen }] = await Promise.all([leesBouwstand(), laadBotstand(dag)]);
+      const [stand, { deadlines, teBetalen }, inzendingen] = await Promise.all([
+        leesBouwstand(),
+        laadBotstand(dag),
+        lijstInzendingen({ status: "nieuw" }),
+      ]);
       const taken = takenVoorBouw({
         projectnaam: stand.project.projectnaam,
         verdiepingen: stand.verdiepingen,
@@ -77,6 +82,10 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
         partijen: stand.partijen,
         deadlines: deadlines.map((d) => ({ keuzeId: d.keuzeId, titel: d.titel, dagen: d.dagen })),
         facturen: teBetalen.map((f) => ({ factuurId: f.factuurId, wat: f.wat, dagen: f.dagen })),
+        inzendingen: {
+          plannen: inzendingen.filter((inzending) => inzending.soort === "plan").length,
+          geld: inzendingen.filter((inzending) => inzending.soort !== "plan").length,
+        },
       });
       await stuurBouwbericht(
         token,

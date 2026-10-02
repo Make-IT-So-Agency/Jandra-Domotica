@@ -179,7 +179,7 @@ function standaard(tabel: string): Rij {
   if (tabel === "opvang_menus") return { week: 0 };
   if (tabel === "bouw_bestanden") return { status: "wacht", grootte_bytes: null, klaar_op: null };
   if (tabel === "bouw_planversies") return { pagina: 1, datum: null, kalibratie: null, opmerking: null };
-  if (tabel === "bouw_inzendingen") return { status: "nieuw", verwerkt_op: null, verwerkt_door: null };
+  if (tabel === "bouw_inzendingen") return { status: "nieuw", soort: "plan", verwerkt_op: null, verwerkt_door: null };
   if (tabel === "bouw_links") return { ingetrokken_op: null, laatst_gebruikt_op: null };
   return {};
 }

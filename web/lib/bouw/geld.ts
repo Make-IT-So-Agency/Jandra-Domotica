@@ -429,3 +429,23 @@ export function kortBedrag(bedrag: number): string {
   if (Math.abs(bedrag) >= 1000) return `${(bedrag / 1000).toLocaleString("nl-BE", { maximumFractionDigits: 1 })}k`;
   return Math.round(bedrag).toLocaleString("nl-BE");
 }
+
+/**
+ * Bij welke post een ingestuurde offerte of factuur waarschijnlijk hoort: de
+ * post waarvoor we die partij kozen, of de enige post van die partij. Anders
+ * niets: dan kiezen we zelf.
+ */
+export function postVoorstel(
+  partijId: number | null,
+  soort: "offerte" | "factuur",
+  posten: readonly Post[],
+  offertes: readonly Offerte[],
+): number | null {
+  if (partijId === null) return null;
+  if (soort === "factuur") {
+    const gekozen = [...new Set(offertes.filter((o) => o.status === "gekozen" && o.partij_id === partijId).map((o) => o.post_id))];
+    if (gekozen.length === 1) return gekozen[0];
+  }
+  const eigen = posten.filter((post) => post.partij_id === partijId);
+  return eigen.length === 1 ? eigen[0].id : null;
+}

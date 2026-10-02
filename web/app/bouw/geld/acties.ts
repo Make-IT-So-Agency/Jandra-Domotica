@@ -6,6 +6,7 @@ import { korteNaam } from "@/lib/bouw/keuzes";
 import { STANDAARDPOSTEN, euroBedrag, isCategoriePost, isStatusMeerwerk } from "@/lib/bouw/geld";
 import { EIGEN_INBRENG_SLEUTEL, KREDIET_SLEUTEL } from "@/lib/bouw/geld-laden";
 import {
+  boekInzendingIn,
   kiesOfferte,
   leesFactuur,
   leesOfferte,
@@ -30,6 +31,7 @@ import {
   zetMeerwerkStatus,
   type NieuwePost,
 } from "@/lib/bouw/geld-opslag";
+import { leesInzending, zetInzendingStatus } from "@/lib/bouw/links";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import { voegBeslissingToe, zetInstelling } from "@/lib/bouw/regie-opslag";
@@ -445,4 +447,40 @@ export async function vraagDocumentUploadAan(aanbod: { naam: string; type: strin
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Wat een partij via haar link instuurde
+// ---------------------------------------------------------------------------
+
+/** Een ingestuurde offerte of factuur inboeken. Daarna sta je op de offerte of de factuur, om ze na te kijken. */
+export async function boekInzendingInActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const inzendingId = id(formulier.get("inzending_id"));
+  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  if (!inzending || inzending.soort === "plan") terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
+  const postId = id(formulier.get("post_id"));
+  let ingeboekt: { soort: "offerte" | "factuur"; id: number };
+  try {
+    ingeboekt = await boekInzendingIn(inzending, postId, korteNaam(ik.naam, ik.email));
+  } catch (fout) {
+    terug(LIJST, "fout", foutmelding(fout, "Inboeken mislukt."));
+  }
+  if (ingeboekt.soort === "offerte") terug(pagina(postId!), "goed", "De offerte is ingeboekt.");
+  terug(`${FACTUREN}?factuur=${ingeboekt.id}`, "goed", "De factuur is ingeboekt. Kijk ze even na.");
+}
+
+/** Niet nodig: weg ermee, ook uit de opslag. */
+export async function negeerGeldinzendingActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const inzendingId = id(formulier.get("inzending_id"));
+  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  if (!inzending || inzending.soort === "plan" || inzending.status !== "nieuw") terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
+  try {
+    await zetInzendingStatus(inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
+    await ruimOngebruikteBestandenOp([inzending.bestand_id]);
+  } catch (fout) {
+    terug(LIJST, "fout", foutmelding(fout, "Negeren mislukt."));
+  }
+  terug(LIJST, "goed", "De inzending is genegeerd en verwijderd.");
 }

@@ -1,9 +1,11 @@
 import { Wenstabel } from "@/app/bouw/punten/wenstabel";
 import { Tijdlijn } from "@/app/bouw/planning/tijdlijn";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
+import { euroBedrag } from "@/lib/bouw/geld";
+import { betaaldOpVan } from "@/lib/bouw/geld-opslag";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { CATEGORIENAMEN_KEUZE } from "@/lib/bouw/keuzes";
-import { lijstInzendingen, leesLink } from "@/lib/bouw/links";
+import { lijstInzendingen, leesLink, type Inzending } from "@/lib/bouw/links";
 import { leesBestanden, leesProject, lijstGebouwen, lijstPartijen, lijstPlannen } from "@/lib/bouw/opslag";
 import { lijstKeuzes, lijstOpties, lijstPlanning } from "@/lib/bouw/regie-opslag";
 import { PLANNAMEN } from "@/lib/bouw/types";
@@ -11,6 +13,7 @@ import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
 import { sorteerPlannen } from "@/lib/bouw/weergave";
 import { datum, datumTijd } from "@/lib/format";
 
+import { GeldInzenden } from "./geld-inzenden";
 import { Inzenden } from "./inzenden";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +53,14 @@ export default async function Externepagina({ params }: { params: Promise<{ toke
       </p>
 
       {mag("inzenden") ? <Insturen token={token} linkId={externe.linkId} /> : null}
+      {mag("offertes") || mag("facturen") ? (
+        <GeldInsturen
+          token={token}
+          linkId={externe.linkId}
+          soorten={[...(mag("offertes") ? (["offerte"] as const) : []), ...(mag("facturen") ? (["factuur"] as const) : [])]}
+          vandaag={nu}
+        />
+      ) : null}
       {mag("plannen") ? <Plannen token={token} /> : null}
       {mag("keuzes") ? <Keuzes partijnamen={partijnamen} /> : null}
       {mag("planning") ? <Planning partijnamen={partijnamen} vandaag={nu} /> : null}
@@ -59,7 +70,7 @@ export default async function Externepagina({ params }: { params: Promise<{ toke
 }
 
 async function Insturen({ token, linkId }: { token: string; linkId: number }) {
-  const eerder = await lijstInzendingen({ linkId });
+  const eerder = await lijstInzendingen({ linkId, soorten: ["plan"] });
   const bestanden = new Map((await leesBestanden(eerder.map((inzending) => inzending.bestand_id))).map((b) => [b.id, b]));
   return (
     <section>
@@ -80,6 +91,51 @@ async function Insturen({ token, linkId }: { token: string; linkId: number }) {
               </li>
             );
           })}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/** Wat de partij over haar eigen offertes en facturen te zien krijgt: aangekomen, ingeboekt, betaald. Niet of een offerte gekozen werd. */
+function geldstand(inzending: Inzending, betaald: Map<number, string | null>): string {
+  if (inzending.status === "nieuw") return "ontvangen";
+  if (inzending.status === "genegeerd") return "niet gebruikt";
+  const betaaldOp = inzending.factuur_id ? betaald.get(inzending.factuur_id) : null;
+  return betaaldOp ? `betaald op ${datum(betaaldOp)}` : "ingeboekt";
+}
+
+async function GeldInsturen({
+  token,
+  linkId,
+  soorten,
+  vandaag: nu,
+}: {
+  token: string;
+  linkId: number;
+  soorten: ("offerte" | "factuur")[];
+  vandaag: string;
+}) {
+  const eerder = await lijstInzendingen({ linkId, soorten: ["offerte", "factuur"] });
+  const betaald = await betaaldOpVan(eerder.flatMap((inzending) => (inzending.factuur_id ? [inzending.factuur_id] : [])));
+  const welke = soorten.length === 2 ? "Een offerte of factuur" : soorten[0] === "offerte" ? "Een offerte" : "Een factuur";
+  return (
+    <section>
+      <h2>{soorten.length === 2 ? "Offertes en facturen" : soorten[0] === "offerte" ? "Offertes" : "Facturen"}</h2>
+      <p className="hulp">
+        {welke} als PDF tot 20 MB, met het bedrag inclusief btw. Het komt bij ons binnen; wij boeken het in.
+        {soorten.includes("factuur") ? " Zonder vervaldag rekenen we 30 dagen na de factuurdatum." : ""}
+      </p>
+      <GeldInzenden token={token} soorten={soorten} vandaag={nu} />
+      {eerder.length > 0 ? (
+        <ul className="wijzigingen">
+          {eerder.map((inzending) => (
+            <li key={inzending.id}>
+              {datumTijd(inzending.created_at)}: {inzending.soort === "offerte" ? "offerte" : `factuur${inzending.nummer ? ` ${inzending.nummer}` : ""}`}
+              {inzending.bedrag !== null ? ` van ${euroBedrag(inzending.bedrag)}` : ""}
+              <span className="hulp"> · {geldstand(inzending, betaald)}</span>
+            </li>
+          ))}
         </ul>
       ) : null}
     </section>

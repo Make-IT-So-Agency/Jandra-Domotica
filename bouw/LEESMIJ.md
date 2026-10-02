@@ -6,8 +6,8 @@ dat plan, de keuzes, de planning, het geld, en iedereen met wie we te maken
 hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b, 2, 3 en 5 zijn klaar, van fase 4 het
-geld zelf; zie [Wat nog komt](#wat-nog-komt).
+een digitaal plan van. Fase 1a, 1b, 2, 3, 4 en 5 zijn klaar; zie
+[Wat nog komt](#wat-nog-komt).
 
 ```
 Browser (Jan, Sandra)
@@ -58,8 +58,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
 - **Partijen** (`/bouw/partijen`): architect, aannemers, leveranciers,
   adviseurs, nutsbedrijven, de bank. Telefoon en e-mail zijn links.
-- **Toegang** (`/bouw/toegang`): een persoonlijke link voor de architect, en
-  later de aannemers; zie [Een link voor de architect](#een-link-voor-de-architect).
+- **Toegang** (`/bouw/toegang`): een persoonlijke link voor de architect, de
+  aannemers en de leveranciers; zie [Een link voor een partij](#een-link-voor-een-partij).
 
 ## Van PDF naar plan
 
@@ -253,6 +253,12 @@ Alle bedragen zijn **inclusief btw**: dat is wat we betalen.
 - **Excel**: de posten (met formules voor de totalen), de offertes, de meer-
   en minwerken, de facturen, de kasplanning en het krediet, met bedragen en
   datums als echte getallen. Ze wordt bij elke download gemaakt.
+- **Ingestuurd via een link.** Een aannemer of leverancier stuurt zelf een
+  offerte of factuur in (zie [Een link voor een partij](#een-link-voor-een-partij)).
+  Ze staat bovenaan Geld tot je ze **inboekt**: kies de post (bij een
+  factuur stelt de app de post voor waarvoor je die partij koos) en ze wordt
+  een gewone offerte of factuur, met de PDF. Een factuur opent daarna, om ze
+  na te kijken. **Negeren** verwijdert ze.
 
 ## De bot van Bouw
 
@@ -279,13 +285,16 @@ knop naar het juiste scherm.
 - Wie niet op de lijst staat, krijgt enkel op `/start` en `/id` een antwoord:
   zijn id. In een groep moet ook de groep zelf op de lijst staan.
 
-## Een link voor de architect
+## Een link voor een partij
 
 Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
 
-- **Wat hij mag**, vink je per link aan: de plannen bekijken en downloaden,
-  een dossier of plan insturen, de keuzes lezen, de planning lezen, de
-  wensenlijst lezen. Een architect krijgt standaard de eerste vier.
+- **Wat ze mag**, vink je per link aan: de plannen bekijken en downloaden,
+  een dossier of plan insturen, een offerte insturen, een factuur insturen,
+  de keuzes lezen, de planning lezen, de wensenlijst lezen. Standaard krijgt
+  een architect de plannen, insturen, facturen, de keuzes en de planning; een
+  aannemer de plannen, offertes, facturen en de planning; een leverancier of
+  adviseur de plannen, offertes en facturen.
 - **Wat hij nooit ziet:** prijzen, het adres, de opmerkingen in de planning en
   het beslissingslog in vrije tekst. Van de keuzes ziet hij enkel wat gekozen
   is (naam, leverancier, kleur) en wat nog open staat.
@@ -294,6 +303,11 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
   onder "Ingestuurd via een link": **Inlezen** opent ze in het gewone
   dossierformulier, **Negeren** verwijdert ze. De bot van Bouw meldt elke
   inzending. Hoogstens 20 bestanden per link per etmaal.
+- **Een offerte of factuur** (PDF tot 20 MB) komt met het bedrag inclusief
+  btw, bij een factuur ook het nummer, de factuurdatum en de vervaldag. De
+  browser en de server kijken dat na vóór het opladen. Ze komt bovenaan
+  **Geld** te staan, om in te boeken. De partij ziet bij wat ze instuurde of
+  het ontvangen, ingeboekt of betaald is; niet of een offerte gekozen werd.
 - **Veilig.** Het token is 32 willekeurige bytes. De databank bewaart enkel de
   SHA-256 ervan: de link zie je één keer, bij het maken, met een knop om te
   kopiëren of te mailen. Een link vervalt altijd (standaard na een half jaar,
@@ -378,6 +392,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
 | `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
 | `supabase/migrations/20261002700000_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
+| `supabase/migrations/20261002800000_bouw_inzendingen_geld.sql` | Offertes en facturen insturen via een link: de rechten, en de soort en het bedrag van een inzending |
 | `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
 | `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte of factuur openen |
 | `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
@@ -459,11 +474,11 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er zeven:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er acht:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
    `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
-   `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql` en
-   `20261002700000_bouw_geld.sql`.
+   `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql`,
+   `20261002700000_bouw_geld.sql` en `20261002800000_bouw_inzendingen_geld.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -495,6 +510,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
      openen, en de Excel downloaden;
    - bij Toegang een link voor jezelf maken (als architect), hem in een
      privévenster openen, een PDF insturen en die bij Plannen inlezen;
+   - een link maken voor een aannemer, er in een privévenster een offerte
+     en een factuur mee insturen, en ze bij Geld inboeken;
    - op een gsm de plannen en de ruimtes bekijken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
@@ -516,9 +533,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       PDF en Excel
 - [x] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
-- [ ] **4** Geld: posten, offertes, meer- en minwerken, facturen, bouwkrediet,
-      kasplanning en Excel zijn klaar. Nog te doen: een link voor de aannemers,
-      om zelf een offerte of factuur in te sturen.
+- [x] **4** Geld: posten, offertes, meer- en minwerken, facturen met
+      herinneringen, bouwkrediet, kasplanning en Excel, en offertes en
+      facturen insturen via de link van een aannemer
 - [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
       een doorsnede en rondwandelen
 - [ ] **6** De werf: foto's op het plan, werfdagboek, opleveringspunten

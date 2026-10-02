@@ -12,6 +12,7 @@ import type {
   StatusMeerwerk,
   StatusOfferte,
 } from "./geld";
+import { zetInzendingStatus, type Inzending } from "./links";
 import { check } from "./opslag";
 
 /**
@@ -232,6 +233,16 @@ export async function leesFactuur(id: number): Promise<Factuur | null> {
   return rij ? alsFactuur(rij) : null;
 }
 
+/** Wanneer deze facturen betaald zijn, en verder niets: voor wat een partij via haar link ziet. */
+export async function betaaldOpVan(ids: number[]): Promise<Map<number, string | null>> {
+  if (ids.length === 0) return new Map();
+  const rijen = check(await db().from("bouw_facturen").select("id, betaald_op").in("id", ids), "Facturen lezen") as {
+    id: number;
+    betaald_op: string | null;
+  }[];
+  return new Map(rijen.map((rij) => [getal(rij.id), tekstOfNull(rij.betaald_op)]));
+}
+
 export async function voegFactuurToe(factuur: NieuweFactuur): Promise<number> {
   const rij = check(await db().from("bouw_facturen").insert(factuur).select("id").single(), "Factuur toevoegen", {
     inGebruik: "De post, de partij of de vennootschap bestaat niet meer.",
@@ -301,4 +312,56 @@ export async function lijstVennootschappen(): Promise<{ id: string; naam: string
     "Vennootschappen lezen",
   ) as { id: string; name: string }[];
   return rijen.map((rij) => ({ id: String(rij.id), naam: String(rij.name) }));
+}
+
+// ---------------------------------------------------------------------------
+// Wat een partij via haar link instuurde
+// ---------------------------------------------------------------------------
+
+/**
+ * Een ingestuurde offerte of factuur inboeken: ze wordt een gewone offerte of
+ * factuur, met de PDF en wat de partij erbij invulde. Haar omschrijving wordt
+ * die van de offerte of factuur.
+ */
+export async function boekInzendingIn(
+  inzending: Inzending,
+  postId: number | null,
+  door: string,
+): Promise<{ soort: "offerte" | "factuur"; id: number }> {
+  if (inzending.status !== "nieuw") throw new Error("Deze inzending is al verwerkt.");
+  if (inzending.soort === "plan") throw new Error("Een plan lees je in bij Plannen.");
+  if (inzending.bedrag === null || inzending.bedrag <= 0) throw new Error("Deze inzending heeft geen bedrag.");
+
+  if (inzending.soort === "offerte") {
+    if (!postId) throw new Error("Kies de post waar de offerte bij hoort.");
+    const offerteId = await voegOfferteToe({
+      post_id: postId,
+      partij_id: inzending.partij_id,
+      omschrijving: inzending.opmerking,
+      bedrag: inzending.bedrag,
+      datum: inzending.datum,
+      geldig_tot: null,
+      bestand_id: inzending.bestand_id,
+      opmerking: null,
+    });
+    await zetInzendingStatus(inzending.id, "verwerkt", door, { offerte_id: offerteId });
+    return { soort: "offerte", id: offerteId };
+  }
+
+  const factuurdatum = inzending.datum ?? inzending.created_at.slice(0, 10);
+  const factuurId = await voegFactuurToe({
+    post_id: postId,
+    partij_id: inzending.partij_id,
+    nummer: inzending.nummer,
+    omschrijving: inzending.opmerking,
+    bedrag: inzending.bedrag,
+    factuurdatum,
+    vervaldag: inzending.vervaldag && inzending.vervaldag >= factuurdatum ? inzending.vervaldag : null,
+    betaald_op: null,
+    bestand_id: inzending.bestand_id,
+    vennootschap_id: null,
+    opmerking: null,
+  });
+  await zetInzendingStatus(inzending.id, "verwerkt", door, { factuur_id: factuurId });
+  return { soort: "factuur", id: factuurId };
 }

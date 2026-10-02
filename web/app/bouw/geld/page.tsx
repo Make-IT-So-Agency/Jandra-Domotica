@@ -5,10 +5,12 @@ import {
   CATEGORIEEN_POST,
   CATEGORIENAMEN_POST,
   STANDAARDPOSTEN,
+  euroBedrag,
   factuurWat,
   hoofdletter,
   kredietstand,
   openFacturen,
+  postVoorstel,
   poststanden,
   totalen,
   type Offerte,
@@ -18,11 +20,20 @@ import { laadGeld, type Geldgegevens } from "@/lib/bouw/geld-laden";
 import { sleutelVan } from "@/lib/bouw/invoer";
 import { dagenTekst, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, meerprijsTekst } from "@/lib/bouw/keuzes";
+import { lijstInzendingen, type Inzending } from "@/lib/bouw/links";
+import { datumTijd } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
+import { BevestigKnop } from "../bevestig-knop";
 import { Melding } from "../melding";
-import { bewaarFinancieringActie, voegPostToeActie, voegStandaardpostenToeActie } from "./acties";
+import {
+  bewaarFinancieringActie,
+  boekInzendingInActie,
+  negeerGeldinzendingActie,
+  voegPostToeActie,
+  voegStandaardpostenToeActie,
+} from "./acties";
 import { Geen } from "./factuurlabel";
 import { Geldmenu } from "./geldmenu";
 import { Postvelden, bedragVeld } from "./velden";
@@ -136,8 +147,9 @@ export default async function Geldpagina({
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   let g: Geldgegevens;
+  let inzendingen: Inzending[];
   try {
-    g = await laadGeld();
+    [g, inzendingen] = await Promise.all([laadGeld(), lijstInzendingen({ status: "nieuw", soorten: ["offerte", "factuur"] })]);
   } catch (fout) {
     return (
       <>
@@ -174,6 +186,60 @@ export default async function Geldpagina({
 
       <Geldmenu actief="posten" />
       <Melding soort={soort} melding={melding} />
+
+      {inzendingen.length > 0 ? (
+        <section id="inzendingen" className="melding info">
+          <p>
+            <strong>Ingestuurd via een link</strong>
+          </p>
+          <ul className="inzendingen">
+            {inzendingen.map((inzending) => {
+              const soort = inzending.soort === "offerte" ? "offerte" : "factuur";
+              const voorstel = postVoorstel(inzending.partij_id, soort, g.posten, g.offertes);
+              return (
+                <li key={inzending.id}>
+                  <div>
+                    {partijnaam(inzending.partij_id) ?? "Een partij"}:{" "}
+                    <strong>
+                      {soort === "offerte" ? "offerte" : `factuur${inzending.nummer ? ` ${inzending.nummer}` : ""}`}
+                      {inzending.bedrag !== null ? ` van ${euroBedrag(inzending.bedrag)}` : ""}
+                    </strong>
+                    <span className="hulp">
+                      {inzending.datum ? ` · ${korteDatum(inzending.datum, nu)}` : ""}
+                      {inzending.vervaldag ? ` · te betalen tegen ${korteDatum(inzending.vervaldag, nu)}` : ""} · ingestuurd{" "}
+                      {datumTijd(inzending.created_at)}
+                    </span>
+                  </div>
+                  {inzending.opmerking ? <div className="hulp">&quot;{inzending.opmerking}&quot;</div> : null}
+                  <form action={boekInzendingInActie} className="knoppenrij">
+                    <input type="hidden" name="inzending_id" value={inzending.id} />
+                    <select name="post_id" aria-label="Post" defaultValue={voorstel ?? ""} required={soort === "offerte"}>
+                      <option value="">{soort === "offerte" ? "— kies de post —" : "— geen post —"}</option>
+                      {g.posten.map((post) => (
+                        <option key={post.id} value={post.id}>
+                          {post.naam}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit">Inboeken als {soort}</button>
+                    <a className="knop stil" href={`/api/bouw/document/${inzending.bestand_id}`} target="_blank" rel="noopener noreferrer">
+                      PDF
+                    </a>
+                    <BevestigKnop
+                      vraag="Deze inzending negeren? Het bestand wordt verwijderd."
+                      formAction={negeerGeldinzendingActie}
+                      className="stil"
+                    >
+                      Negeren
+                    </BevestigKnop>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+          {g.posten.length === 0 ? <p className="hulp">Maak eerst de posten aan: een offerte hoort altijd bij een post.</p> : null}
+        </section>
+      ) : null}
 
       {dringend.length > 0 ? (
         <div className={`melding ${teLaat.length > 0 ? "fout" : "let-op"}`}>

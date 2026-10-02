@@ -17,6 +17,7 @@ import {
   kredietstand,
   mooieGrens,
   openFacturen,
+  postVoorstel,
   poststanden,
   totalen,
   vergelijkOffertes,
@@ -27,6 +28,7 @@ import {
   type Post,
 } from "@/lib/bouw/geld";
 import {
+  boekInzendingIn,
   kiesOfferte,
   lijstOffertes,
   lijstVennootschappen,
@@ -41,6 +43,7 @@ import {
   lijstFacturen,
 } from "@/lib/bouw/geld-opslag";
 import { maakGeldExcel } from "@/lib/bouw/geld-excel";
+import { leesInzending } from "@/lib/bouw/links";
 
 const post = (id: number, raming: number | null, over: Partial<Post> = {}): Post => ({
   id, naam: `post ${id}`, categorie: "werken", raming, partij_id: null, planning_id: null, opmerking: null, ...over,
@@ -154,6 +157,18 @@ describe("open facturen en offertes vergelijken", () => {
     expect(vergelijkOffertes([offerte(1, 1, 95_000)], null).get(1)).toEqual({ tovGoedkoopste: 0, tovRaming: null });
   });
 
+  it("stelt de post voor van de partij die een offerte of factuur instuurt", () => {
+    const posten = [post(1, null, { partij_id: 4 }), post(2, null), post(3, null, { partij_id: 5 }), post(6, null, { partij_id: 5 })];
+    const offertes = [offerte(1, 2, 1000, "gekozen"), offerte(2, 3, 900, "afgewezen")].map((o, i) => ({ ...o, partij_id: [4, 5][i] }));
+    // Een factuur hoort bij de post waarvoor we die partij kozen.
+    expect(postVoorstel(4, "factuur", posten, offertes)).toBe(2);
+    // Een offerte bij de enige post van die partij.
+    expect(postVoorstel(4, "offerte", posten, offertes)).toBe(1);
+    // Twee posten van dezelfde partij en geen keuze: wij kiezen zelf.
+    expect(postVoorstel(5, "factuur", posten, offertes)).toBeNull();
+    expect(postVoorstel(null, "offerte", posten, offertes)).toBeNull();
+  });
+
   it("leest het krediet uit de instellingen", () => {
     expect(bedragUitInstelling("300000")).toBe(300_000);
     expect(bedragUitInstelling("")).toBeNull();
@@ -207,6 +222,7 @@ describe("geld in de databank", () => {
       bouw_offertes: [],
       bouw_meerwerken: [],
       bouw_facturen: [],
+      bouw_inzendingen: [],
       companies: [
         { id: "a1", name: "Voorbeeld BV", is_active: true },
         { id: "b2", name: "Gestopt BV", is_active: false },
@@ -244,6 +260,36 @@ describe("geld in de databank", () => {
     await zetBetaald(factuurId, "2026-10-02");
     expect((await lijstFacturen(postId))[0]).toMatchObject({ betaald_op: "2026-10-02", bedrag: 6_000 });
     await expect(verwijderPost(postId)).rejects.toThrow("Deze post heeft facturen");
+  });
+
+  it("boekt een ingestuurde offerte en factuur in, met hun PDF", async () => {
+    const postId = await voegPostToe({ naam: "Ruwbouw", categorie: "werken", raming: 100_000, partij_id: null, planning_id: null, opmerking: null });
+    db.tabellen.bouw_inzendingen = [
+      { id: 1, link_id: 9, partij_id: 4, bestand_id: 70, soort: "offerte", bedrag: 95_000, nummer: null, datum: "2026-09-30", vervaldag: null, opmerking: "Volgens lastenboek", status: "nieuw", created_at: "2026-10-01T09:00:00Z" },
+      { id: 2, link_id: 9, partij_id: 4, bestand_id: 71, soort: "factuur", bedrag: 9_500, nummer: "V-1", datum: null, vervaldag: "2026-10-31", opmerking: "Voorschot", status: "nieuw", created_at: "2026-10-02T09:00:00Z" },
+      { id: 3, link_id: 9, partij_id: 4, bestand_id: 72, soort: "plan", bedrag: null, status: "nieuw", created_at: "2026-10-02T09:00:00Z" },
+    ];
+
+    const offerte = await boekInzendingIn((await leesInzending(1))!, postId, "Jan");
+    expect(offerte.soort).toBe("offerte");
+    expect((await lijstOffertes(postId))[0]).toMatchObject({ id: offerte.id, partij_id: 4, bedrag: 95_000, datum: "2026-09-30", bestand_id: 70, omschrijving: "Volgens lastenboek" });
+    expect(await leesInzending(1)).toMatchObject({ status: "verwerkt", offerte_id: offerte.id, verwerkt_door: "Jan" });
+    await expect(boekInzendingIn((await leesInzending(1))!, postId, "Jan")).rejects.toThrow("al verwerkt");
+
+    // Zonder factuurdatum telt de dag van insturen.
+    const factuur = await boekInzendingIn((await leesInzending(2))!, null, "Jan");
+    expect((await lijstFacturen())[0]).toMatchObject({ id: factuur.id, post_id: null, nummer: "V-1", bedrag: 9_500, factuurdatum: "2026-10-02", vervaldag: "2026-10-31", bestand_id: 71 });
+    expect(await leesInzending(2)).toMatchObject({ status: "verwerkt", factuur_id: factuur.id });
+
+    await expect(boekInzendingIn((await leesInzending(3))!, postId, "Jan")).rejects.toThrow("bij Plannen");
+  });
+
+  it("vraagt een post voor een ingestuurde offerte", async () => {
+    db.tabellen.bouw_inzendingen = [
+      { id: 1, partij_id: 4, bestand_id: 70, soort: "offerte", bedrag: 95_000, status: "nieuw", created_at: "2026-10-01T09:00:00Z" },
+    ];
+    await expect(boekInzendingIn((await leesInzending(1))!, null, "Jan")).rejects.toThrow("Kies de post");
+    expect(await leesInzending(1)).toMatchObject({ status: "nieuw" });
   });
 
   it("toont enkel de actieve vennootschappen", async () => {

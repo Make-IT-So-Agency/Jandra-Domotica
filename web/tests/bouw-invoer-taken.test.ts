@@ -129,6 +129,20 @@ describe("takenVoorBouw", () => {
     ]);
   });
 
+  it("meldt wat partijen via hun link instuurden", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 1,
+      plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
+      partijen: [{ soort: "architect" }],
+      inzendingen: { plannen: 1, geld: 3 },
+    });
+    expect(taken).toEqual([
+      { tekst: "Er wacht een ingestuurd dossier.", link: "/bouw/plannen#inzendingen", knop: "Inlezen" },
+      { tekst: "Er wachten 3 ingestuurde offertes en facturen.", link: "/bouw/geld#inzendingen", knop: "Inboeken" },
+    ]);
+  });
+
   it("is leeg als alles klaarstaat", () => {
     expect(
       takenVoorBouw({

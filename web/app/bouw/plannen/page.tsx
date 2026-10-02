@@ -46,7 +46,7 @@ export default async function Plannenpagina({
       lijstPlannen(),
       lijstVerdiepingen(),
       lijstGebouwen(),
-      lijstInzendingen({ status: "nieuw" }),
+      lijstInzendingen({ status: "nieuw", soorten: ["plan"] }),
       lijstPartijen(),
     ]);
     bestanden = await leesBestanden(inzendingen.map((inzending) => inzending.bestand_id));

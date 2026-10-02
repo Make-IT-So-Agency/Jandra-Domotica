@@ -314,6 +314,7 @@ export async function leesInzendingInActie(vraag: {
   if (!aanvraag.ok) return aanvraag;
   const inzending = await leesInzending(Number(vraag?.inzendingId));
   if (!inzending) return mislukt("Deze inzending bestaat niet meer.");
+  if (inzending.soort !== "plan") return mislukt("Een offerte of factuur boek je in bij Geld.");
   if (inzending.status !== "nieuw") return mislukt("Deze inzending is al ingelezen of genegeerd.");
 
   try {

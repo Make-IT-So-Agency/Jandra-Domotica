@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { db } from "@/lib/supabase";
 
-import { TOKENVORM, standVanLink, type RechtLink } from "./linkregels";
+import { TOKENVORM, standVanLink, type Inzendgegevens, type RechtLink, type SoortInzending } from "./linkregels";
 import { check } from "./opslag";
 import type { SoortPartij } from "./types";
 
@@ -159,38 +159,55 @@ export function doorLink(linkId: number): string {
 
 export type StatusInzending = "nieuw" | "verwerkt" | "genegeerd";
 
-export interface Inzending {
+export interface Inzending extends Inzendgegevens {
   id: number;
   link_id: number | null;
   partij_id: number | null;
   bestand_id: number;
+  soort: SoortInzending;
   opmerking: string | null;
   status: StatusInzending;
   verwerkt_op: string | null;
   verwerkt_door: string | null;
+  /** Waar ze terechtkwam, bij Geld. */
+  offerte_id: number | null;
+  factuur_id: number | null;
   created_at: string;
 }
+
+const getalOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
+const tekstOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : String(waarde));
 
 function alsInzending(rij: Record<string, unknown>): Inzending {
   return {
     id: Number(rij.id),
-    link_id: rij.link_id === null || rij.link_id === undefined ? null : Number(rij.link_id),
-    partij_id: rij.partij_id === null || rij.partij_id === undefined ? null : Number(rij.partij_id),
+    link_id: getalOfNull(rij.link_id),
+    partij_id: getalOfNull(rij.partij_id),
     bestand_id: Number(rij.bestand_id),
-    opmerking: (rij.opmerking as string | null) ?? null,
+    soort: (rij.soort as SoortInzending | undefined) ?? "plan",
+    opmerking: tekstOfNull(rij.opmerking),
+    bedrag: getalOfNull(rij.bedrag),
+    nummer: tekstOfNull(rij.nummer),
+    datum: tekstOfNull(rij.datum),
+    vervaldag: tekstOfNull(rij.vervaldag),
     status: (rij.status as StatusInzending) ?? "nieuw",
-    verwerkt_op: (rij.verwerkt_op as string | null) ?? null,
-    verwerkt_door: (rij.verwerkt_door as string | null) ?? null,
+    verwerkt_op: tekstOfNull(rij.verwerkt_op),
+    verwerkt_door: tekstOfNull(rij.verwerkt_door),
+    offerte_id: getalOfNull(rij.offerte_id),
+    factuur_id: getalOfNull(rij.factuur_id),
     created_at: String(rij.created_at ?? ""),
   };
 }
 
-export async function voegInzendingToe(inzending: {
-  linkId: number;
-  partijId: number;
-  bestandId: number;
-  opmerking: string | null;
-}): Promise<number> {
+export async function voegInzendingToe(
+  inzending: {
+    linkId: number;
+    partijId: number;
+    bestandId: number;
+    opmerking: string | null;
+    soort?: SoortInzending;
+  } & Partial<Inzendgegevens>,
+): Promise<number> {
   const rij = check(
     await db()
       .from("bouw_inzendingen")
@@ -199,6 +216,11 @@ export async function voegInzendingToe(inzending: {
         partij_id: inzending.partijId,
         bestand_id: inzending.bestandId,
         opmerking: inzending.opmerking,
+        soort: inzending.soort ?? "plan",
+        bedrag: inzending.bedrag ?? null,
+        nummer: inzending.nummer ?? null,
+        datum: inzending.datum ?? null,
+        vervaldag: inzending.vervaldag ?? null,
       })
       .select("id")
       .single(),
@@ -207,10 +229,13 @@ export async function voegInzendingToe(inzending: {
   return Number(rij.id);
 }
 
-export async function lijstInzendingen(filter: { status?: StatusInzending; linkId?: number } = {}): Promise<Inzending[]> {
+export async function lijstInzendingen(
+  filter: { status?: StatusInzending; linkId?: number; soorten?: SoortInzending[] } = {},
+): Promise<Inzending[]> {
   let vraag = db().from("bouw_inzendingen").select("*");
   if (filter.status) vraag = vraag.eq("status", filter.status);
   if (filter.linkId !== undefined) vraag = vraag.eq("link_id", filter.linkId);
+  if (filter.soorten) vraag = vraag.in("soort", filter.soorten);
   const rijen = check(await vraag.order("created_at", { ascending: false }), "Inzendingen lezen") as Record<string, unknown>[];
   return rijen.map(alsInzending);
 }
@@ -223,11 +248,16 @@ export async function leesInzending(id: number): Promise<Inzending | null> {
   return rij ? alsInzending(rij) : null;
 }
 
-export async function zetInzendingStatus(id: number, status: StatusInzending, door: string): Promise<void> {
+export async function zetInzendingStatus(
+  id: number,
+  status: StatusInzending,
+  door: string,
+  koppeling: { offerte_id?: number; factuur_id?: number } = {},
+): Promise<void> {
   check(
     await db()
       .from("bouw_inzendingen")
-      .update({ status, verwerkt_op: new Date().toISOString(), verwerkt_door: door })
+      .update({ status, verwerkt_op: new Date().toISOString(), verwerkt_door: door, ...koppeling })
       .eq("id", id),
     "Inzending bijwerken",
   );

@@ -4,6 +4,7 @@ import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { factuurWat, openFacturen, poststanden, totalen } from "@/lib/bouw/geld";
 import { lijstFacturen, lijstMeerwerken, lijstOffertes, lijstPosten } from "@/lib/bouw/geld-opslag";
+import { lijstInzendingen } from "@/lib/bouw/links";
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { leesBouwstand } from "@/lib/bouw/opslag";
@@ -34,8 +35,8 @@ export default async function Bouwoverzicht({
   let planning;
   let geld;
   try {
-    let posten, offertes, meerwerken, facturen;
-    [stand, keuzes, planning, posten, offertes, meerwerken, facturen] = await Promise.all([
+    let posten, offertes, meerwerken, facturen, inzendingen;
+    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen] = await Promise.all([
       leesBouwstand(),
       lijstKeuzes(),
       lijstPlanning(),
@@ -43,8 +44,17 @@ export default async function Bouwoverzicht({
       lijstOffertes(),
       lijstMeerwerken(),
       lijstFacturen(),
+      lijstInzendingen({ status: "nieuw" }),
     ]);
-    geld = { posten, facturen, totaal: totalen(poststanden(posten, offertes, meerwerken, facturen), facturen) };
+    geld = {
+      posten,
+      facturen,
+      totaal: totalen(poststanden(posten, offertes, meerwerken, facturen), facturen),
+      inzendingen: {
+        plannen: inzendingen.filter((inzending) => inzending.soort === "plan").length,
+        geld: inzendingen.filter((inzending) => inzending.soort !== "plan").length,
+      },
+    };
   } catch (fout) {
     return (
       <>
@@ -70,6 +80,7 @@ export default async function Bouwoverzicht({
       wat: factuurWat(factuur, partijnaam(factuur.partij_id)),
       dagen,
     })),
+    inzendingen: geld.inzendingen,
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;

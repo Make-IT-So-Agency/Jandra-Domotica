@@ -50,9 +50,10 @@ export default async function Toegangspagina({
     <>
       <h1>Toegang</h1>
       <p className="inleiding">
-        Een persoonlijke link voor de architect, en later de aannemers: zonder account, met een vervaldatum, en enkel
-        wat je aanvinkt. Wat ze insturen, komt bij <Link href="/bouw/plannen#inzendingen">Plannen</Link> en wacht daar
-        tot jullie het inlezen.
+        Een persoonlijke link voor de architect, de aannemers en de leveranciers: zonder account, met een vervaldatum,
+        en enkel wat je aanvinkt. Wat ze insturen, wacht tot jullie het verwerken: een dossier bij{" "}
+        <Link href="/bouw/plannen#inzendingen">Plannen</Link>, een offerte of factuur bij{" "}
+        <Link href="/bouw/geld#inzendingen">Geld</Link>.
       </p>
 
       <Melding soort={soort} melding={melding} />

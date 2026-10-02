@@ -8,7 +8,14 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 import { GET as openBestand } from "@/app/extern/[token]/bestand/[bestandId]/route";
 import { rondInzendingAfActie, startInzendingActie } from "@/app/extern/[token]/acties";
-import { MAX_INZENDINGEN_PER_DAG, TOKENVORM, schoneRechten, standVanLink, standaardRechten } from "@/lib/bouw/linkregels";
+import {
+  MAX_INZENDINGEN_PER_DAG,
+  TOKENVORM,
+  controleerGeldvelden,
+  schoneRechten,
+  standVanLink,
+  standaardRechten,
+} from "@/lib/bouw/linkregels";
 import { hashVan, leesLink, lijstInzendingen, maakLink, telUploadsVanLink, trekLinkIn } from "@/lib/bouw/links";
 import { ruimOngebruikteBestandenOp } from "@/lib/bouw/opladen";
 
@@ -58,10 +65,33 @@ afterEach(() => {
 const morgen = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 
 describe("de regels van een link", () => {
-  it("geeft een architect meer dan een aannemer", () => {
-    expect(standaardRechten("architect")).toEqual(["plannen", "inzenden", "keuzes", "planning"]);
-    expect(standaardRechten("aannemer")).toEqual(["plannen", "planning"]);
+  it("geeft elke soort partij wat ze nodig heeft", () => {
+    expect(standaardRechten("architect")).toEqual(["plannen", "inzenden", "facturen", "keuzes", "planning"]);
+    expect(standaardRechten("aannemer")).toEqual(["plannen", "offertes", "facturen", "planning"]);
+    expect(standaardRechten("leverancier")).toEqual(["plannen", "offertes", "facturen"]);
     expect(standaardRechten("bank")).toEqual(["plannen"]);
+  });
+
+  it("kijkt het bedrag en de datums van een offerte of factuur na", () => {
+    expect(controleerGeldvelden("plan", { bedrag: "onzin" })).toEqual({
+      ok: true,
+      waarde: { bedrag: null, nummer: null, datum: null, vervaldag: null },
+    });
+    expect(controleerGeldvelden("offerte", { bedrag: "12.100", datum: "", nummer: "genegeerd" })).toEqual({
+      ok: true,
+      waarde: { bedrag: 12_100, nummer: null, datum: null, vervaldag: null },
+    });
+    expect(controleerGeldvelden("offerte", { bedrag: "" })).toEqual({ ok: false, melding: "Vul het bedrag in, inclusief btw." });
+    expect(controleerGeldvelden("offerte", { bedrag: "12,5,0" }).ok).toBe(false);
+    expect(controleerGeldvelden("factuur", { bedrag: "2.420,00" })).toEqual({ ok: false, melding: "Vul de factuurdatum in." });
+    expect(controleerGeldvelden("factuur", { bedrag: "2.420,00", datum: "2026-10-05", vervaldag: "2026-10-01" })).toEqual({
+      ok: false,
+      melding: "De vervaldag ligt vóór de factuurdatum.",
+    });
+    expect(controleerGeldvelden("factuur", { bedrag: "2.420,00", datum: "2026-10-05", vervaldag: "2026-11-04", nummer: " F-12 " })).toEqual({
+      ok: true,
+      waarde: { bedrag: 2_420, nummer: "F-12", datum: "2026-10-05", vervaldag: "2026-11-04" },
+    });
   });
 
   it("kent actief, verlopen en ingetrokken", () => {
@@ -159,6 +189,68 @@ describe("insturen via een link", () => {
     db.tabellen.bouw_inzendingen[0].status = "genegeerd";
     await ruimOngebruikteBestandenOp([60]);
     expect(db.verwijderd).toEqual(["plannen/inzending.pdf"]);
+  });
+});
+
+describe("een offerte of factuur insturen via een link", () => {
+  async function link(rechten: Parameters<typeof maakLink>[0]["rechten"]) {
+    return maakLink({ partijId: 2, rechten, vervaltOp: morgen(), door: "jan" });
+  }
+
+  it("zet een offerte met haar bedrag bij Geld, en verwittigt de bot", async () => {
+    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "654321:nep-token-voor-de-bouwbot");
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
+    const { token, id } = await link(["offertes"]);
+    const velden = { bedrag: "12.100", datum: "2026-09-30" };
+
+    const start = await startInzendingActie(token, { naam: "offerte.pdf", type: "application/pdf", grootte: pdf.length, soort: "offerte", velden });
+    if (!start.ok) throw new Error(start.melding);
+    const rij = db.tabellen.bouw_bestanden.find((b) => b.id === start.data.bestandId)!;
+    expect(rij).toMatchObject({ doel: "document", opgeladen_door: `link:${id}` });
+    expect(String(rij.pad)).toMatch(/^documenten\//);
+    db.objecten.set(String(rij.pad), { inhoud: pdf, type: "application/pdf" });
+
+    const af = await rondInzendingAfActie(token, { bestandId: start.data.bestandId, opmerking: "Ruwbouw", soort: "offerte", velden });
+    expect(af).toEqual({ ok: true, data: null });
+    expect(await lijstInzendingen({ status: "nieuw", soorten: ["offerte", "factuur"] })).toEqual([
+      expect.objectContaining({ soort: "offerte", partij_id: 2, bedrag: 12_100, datum: "2026-09-30", opmerking: "Ruwbouw" }),
+    ]);
+    // Bij Plannen komt ze niet.
+    expect(await lijstInzendingen({ status: "nieuw", soorten: ["plan"] })).toEqual([]);
+    expect(String(verstuurd[0].text)).toBe('📥 Bouwbedrijf Voorbeeld stuurde een offerte in: €\u00a012.100,00.\n\n"Ruwbouw"');
+    expect(JSON.stringify(verstuurd[0].reply_markup)).toContain("/bouw/geld#inzendingen");
+  });
+
+  it("vraagt het recht voor die soort, en een geldig bedrag vóór het opladen", async () => {
+    const { token: dossierlink } = await link(["inzenden"]);
+    expect(
+      await startInzendingActie(dossierlink, { naam: "f.pdf", type: "application/pdf", grootte: 1000, soort: "factuur", velden: { bedrag: "100", datum: "2026-10-01" } }),
+    ).toEqual({ ok: false, melding: "Deze link werkt niet (meer). Vraag een nieuwe aan." });
+
+    const { token } = await link(["facturen"]);
+    const aantal = db.tabellen.bouw_bestanden.length;
+    expect(await startInzendingActie(token, { naam: "f.pdf", type: "application/pdf", grootte: 1000, soort: "factuur", velden: { bedrag: "100" } })).toEqual({
+      ok: false,
+      melding: "Vul de factuurdatum in.",
+    });
+    expect(db.tabellen.bouw_bestanden.length).toBe(aantal);
+    expect((await startInzendingActie(token, { naam: "f.pdf", type: "application/pdf", grootte: 1000, soort: "onzin" })).ok).toBe(false);
+  });
+
+  it("maakt van een opgeladen plan geen factuur", async () => {
+    const { token, id } = await link(["inzenden", "facturen"]);
+    const start = await startInzendingActie(token, { naam: "plan.pdf", type: "application/pdf", grootte: pdf.length });
+    if (!start.ok) throw new Error(start.melding);
+    const rij = db.tabellen.bouw_bestanden.find((b) => b.id === start.data.bestandId)!;
+    expect(rij).toMatchObject({ doel: "plan", opgeladen_door: `link:${id}` });
+    expect(
+      await rondInzendingAfActie(token, {
+        bestandId: start.data.bestandId,
+        opmerking: "",
+        soort: "factuur",
+        velden: { bedrag: "100", datum: "2026-10-01" },
+      }),
+    ).toEqual({ ok: false, melding: "Onbekend bestand." });
   });
 });
 
