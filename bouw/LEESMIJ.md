@@ -6,7 +6,7 @@ dat plan, de keuzes en de planning, en iedereen met wie we te maken hebben. Op
 de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b, 2 en 3 zijn klaar; zie
+een digitaal plan van. Fase 1a, 1b, 2, 3 en 5 zijn klaar; zie
 [Wat nog komt](#wat-nog-komt).
 
 ```
@@ -41,6 +41,9 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
   [Punten en de wensenlijst](#punten-en-de-wensenlijst).
+- **3D** (`/bouw/3d`): het huis in 3D, uit de omgezette grondplannen, met de
+  materialen uit de keuzes. Rondkijken, een verdieping of het dak weglaten,
+  een doorsnede, en rondwandelen; zie [Het huis in 3D](#het-huis-in-3d).
 - **Keuzes** (`/bouw/keuzes`): gevelsteen, dakbedekking, ramen, vloeren,
   keuken... met opties, foto's, onze voorkeur, de meerprijs en een deadline;
   zie [Keuzes en planning](#keuzes-en-planning).
@@ -134,6 +137,42 @@ per soort. Als PDF en als Excel (een blad per ruimte en een blad met het
 totaal), voor de elektricien en de domotica-installateur. Een download is een
 momentopname, met de datum erop. Later dient dezelfde lijst om hun offertes
 te vergelijken.
+
+## Het huis in 3D
+
+Niets van nul getekend: het 3D-model komt uit de omzetting van de
+grondplannen.
+
+- **Muren.** Vectorworks vult een doorgesneden muur met grijs: de buitenmuren
+  lichter, de binnenmuren donkerder. Een grijs vlak buiten de ruimtes en
+  ertegenaan is een muur (`omzetting/muren.ts`); een grijs meubel ligt in een
+  ruimte en valt weg. De muren gaan mee bij het bevestigen en staan in meter
+  in `bouw_omzettingen`. Een grondplan dat vóór deze versie omgezet werd, zet
+  je opnieuw om.
+- **Ramen en deuren** zijn de open plekken in een muur, langs de rand van een
+  ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam (met
+  een borstwering van 90 cm, of tot de vloer als het breder is dan 2,40 m)
+  of een buitendeur als er een deurboog bij staat. Ligt er een andere ruimte
+  achter, dan is het een deur of een doorgang. Een raamlabel als `205 x 275`
+  geeft de hoogte.
+- **Hoogtes.** Elke verdieping staat op haar peil, met haar plafondhoogte en
+  verdiepingshoogte (bij Verdiepingen). Tussen twee verdiepingen ligt een
+  vloerplaat van 25 cm. Wat de verdieping erboven niet bedekt, krijgt een plat
+  dak.
+- **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
+  een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
+  de architect leest de app (nog) niet.
+- **Materialen.** De gevelsteen kleurt de gevel, de dakbedekking het dak, de
+  ramen het schrijnwerk, de wanden de binnenmuren, en een vloer of tegels de
+  ruimtes die eraan gekoppeld zijn. Een optie met een foto wordt een textuur.
+  Een andere optie uitproberen kan in het 3D-scherm, zonder iets te bewaren.
+- **Bekijken.** Rondkijken met de muis of twee vingers; een verdieping, het
+  dak of de punten weglaten; een doorsnede op een hoogte; rondwandelen op
+  ooghoogte met W A S D of de knoppen, zonder door muren te lopen; een beeld
+  downloaden.
+- **Meer gebouwen** komen naast elkaar te staan, niet op hun echte plaats op
+  het perceel: elk grondplan heeft zijn eigen assenstelsel.
+- three.js laadt enkel op deze pagina, en enkel in de browser.
 
 ## Keuzes en planning
 
@@ -289,6 +328,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
 | `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook en de setup van de bot, en de dagelijkse ronde |
 | `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
+| `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
+| `web/app/bouw/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
+| `web/lib/bouw/drie/` | Het 3D-model als gewone gegevens: muren, ramen en deuren, vloeren, platen, daken, materialen; puur, met tests |
+| `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
 | `web/app/bouw/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -337,6 +380,17 @@ volgt de ruimte telkens uit de plaats van het punt en de veelhoeken van nu.
 tegenkomen, en de code, de wensenlijst en het plan moeten dezelfde codes en
 kleuren gebruiken. De databank kijkt enkel de vorm van de soort na.
 
+**Waarom de muren uit de grijze vlakken komen.** Muren tekenen met de hand of
+afleiden uit de ruimtes is onnauwkeurig: een buitenmuur is 41 cm, een
+binnenmuur 14, en de ramen zitten waar de architect ze tekende. De grijze
+vlakken zijn precies die muren, met de openingen erin. Op het echte dossier
+kwamen er voor de drie grondplannen 18, 72 en 81 muren uit, en geen enkel
+meubel.
+
+**Waarom three.js.** Het is de gewone bibliotheek voor 3D in de browser (MIT),
+werkt op een iPad, en heeft wat we nodig hebben: schaduw, doorzichtig glas,
+een doorsnede en texturen. De versie staat vast, zoals bij pdf.js.
+
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer
 anders, dus de gewone HTTP-cache helpt niet. Een bestand verandert nooit (een
@@ -346,10 +400,10 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er vijf:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er zes:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
-   `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql` en
-   `20261002500000_bouw_links.sql`.
+   `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
+   `20261002500000_bouw_links.sql` en `20261002600000_bouw_daken.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -369,7 +423,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
-     of iPad;
+     of iPad, en het huis bekijken bij 3D (het dak instellen);
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
    - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
      optie zetten met de gsm;
@@ -398,6 +452,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       Telegram-bot voor Bouw, en een link voor de architect
 - [ ] **4** Geld: posten, offertes, facturen, bouwkrediet, en links voor de
       aannemers
-- [ ] **5** Het huis in 3D, met de gekozen materialen
+- [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
+      een doorsnede en rondwandelen
 - [ ] **6** De werf: foto's op het plan, werfdagboek, opleveringspunten
 - [ ] **7** Woningdossier en nazorg

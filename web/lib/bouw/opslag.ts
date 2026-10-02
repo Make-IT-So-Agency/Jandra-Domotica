@@ -2,8 +2,11 @@ import "server-only";
 
 import { db } from "@/lib/supabase";
 
+import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
+import type { Gekendeopening } from "./drie/gaten";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
+import type { Xy } from "./omzetting/types";
 import type { Nieuwpunt, Punt, StatusPunt } from "./punten";
 import type {
   Bestand,
@@ -97,6 +100,35 @@ export async function lijstGebouwen(): Promise<Gebouw[]> {
     "Gebouwen lezen",
   ) as Record<string, unknown>[];
   return rijen.map((rij) => ({ id: Number(rij.id), naam: String(rij.naam), volgorde: Number(rij.volgorde ?? 0) }));
+}
+
+/** Het dak van elk gebouw, voor het 3D-model. */
+export async function lijstDaken(): Promise<Map<number, Dakinstelling>> {
+  const rijen = check(
+    await db().from("bouw_gebouwen").select("id, dak_type, dak_helling, dak_nok, dak_overstek"),
+    "Daken lezen",
+  ) as Record<string, unknown>[];
+  return new Map(
+    rijen.map((rij) => [
+      Number(rij.id),
+      {
+        type: isDaktype(String(rij.dak_type)) ? (String(rij.dak_type) as Dakinstelling["type"]) : STANDAARDDAK.type,
+        helling: Number(rij.dak_helling ?? STANDAARDDAK.helling),
+        nok: rij.dak_nok === "y" ? "y" : "x",
+        overstek: Number(rij.dak_overstek ?? STANDAARDDAK.overstek),
+      },
+    ]),
+  );
+}
+
+export async function bewaarDak(gebouwId: number, dak: Dakinstelling): Promise<void> {
+  check(
+    await db()
+      .from("bouw_gebouwen")
+      .update({ dak_type: dak.type, dak_helling: dak.helling, dak_nok: dak.nok, dak_overstek: dak.overstek })
+      .eq("id", gebouwId),
+    "Dak bewaren",
+  );
 }
 
 /**
@@ -355,6 +387,38 @@ function alsOmzetting(rij: Record<string, unknown>): Omzetting {
     bevestigd_door: (rij.bevestigd_door as string | null) ?? null,
     bevestigd_op: String(rij.bevestigd_op),
   };
+}
+
+const isGetal = (waarde: unknown): waarde is number => typeof waarde === "number" && Number.isFinite(waarde);
+
+/**
+ * De muren en openingen die bij het bevestigen bewaard werden, in meter, per
+ * planversie. Wat er niet in staat of niet klopt, valt weg: een omzetting van
+ * vóór de muren (werkwijze 1) heeft er geen.
+ */
+export async function leesMurenEnOpeningen(
+  versieIds: number[],
+): Promise<Map<number, { muren: Xy[][]; openingen: Gekendeopening[] }>> {
+  if (versieIds.length === 0) return new Map();
+  const rijen = check(
+    await db().from("bouw_omzettingen").select("planversie_id, voorstel").in("planversie_id", versieIds),
+    "Omzettingen lezen",
+  ) as { planversie_id: number; voorstel: Record<string, unknown> | null }[];
+  const punt = (p: unknown): p is Xy => Array.isArray(p) && p.length === 2 && isGetal(p[0]) && isGetal(p[1]);
+  return new Map(
+    rijen.map((rij) => {
+      const voorstel = rij.voorstel ?? {};
+      const muren = (Array.isArray(voorstel.muren) ? voorstel.muren : []).filter(
+        (ring): ring is Xy[] => Array.isArray(ring) && ring.length >= 3 && ring.every(punt),
+      );
+      const openingen = (Array.isArray(voorstel.openingen) ? voorstel.openingen : []).flatMap((o: Record<string, unknown>) =>
+        (o?.soort === "deur" || o?.soort === "raam") && isGetal(o.x) && isGetal(o.y) && isGetal(o.breedte)
+          ? [{ soort: o.soort, x: o.x, y: o.y, breedte: o.breedte, hoogte: isGetal(o.hoogte) ? o.hoogte : null } as Gekendeopening]
+          : [],
+      );
+      return [Number(rij.planversie_id), { muren, openingen }];
+    }),
+  );
 }
 
 /** De bevestigde omzettingen van deze versies. */

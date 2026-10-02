@@ -38,6 +38,7 @@ export const BOUWPAGINAS: Paginalink[] = [
   { pad: "/bouw/plannen", naam: "Plannen" },
   { pad: "/bouw/ruimtes", naam: "Ruimtes" },
   { pad: "/bouw/punten", naam: "Punten" },
+  { pad: "/bouw/3d", naam: "3D" },
   { pad: "/bouw/keuzes", naam: "Keuzes" },
   { pad: "/bouw/planning", naam: "Planning" },
   { pad: "/bouw/beslissingen", naam: "Beslissingen" },
