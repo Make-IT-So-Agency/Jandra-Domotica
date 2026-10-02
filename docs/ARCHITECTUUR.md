@@ -216,6 +216,7 @@ bewaarde rapporten toont per kwartaalrapport of het vertrokken is.
 | `supabase/migrations/` | Het databankschema, in volgorde van tijdstempel |
 | `scripts/test-migraties.sh` | Draait de migraties tweemaal tegen een lege Postgres, en toetst de conflictdoelen |
 | `scripts/controleer-conflictdoelen.mjs` | Leest de `onConflict` uit de webapp en eist een unieke index op precies die kolommen |
+| `scripts/controleer-omgevingsnamen.mjs` | Eist dat elk geheim uit het manifest ook echt doorgegeven wordt in de uitrolworkflow |
 | `scripts/sql/` | Vragen aan de databank, via de workflow SQL uitvoeren |
 | `web/lib/rollen.ts` | Wie wat mag; puur, zonder databank, volledig getest |
 | `web/lib/mail.ts` | Mail versturen via Resend; staat uit zonder `RESEND_API_KEY` |
