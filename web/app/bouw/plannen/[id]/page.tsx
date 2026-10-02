@@ -4,7 +4,14 @@ import { notFound } from "next/navigation";
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { id as leesId } from "@/lib/bouw/invoer";
-import { leesBestanden, leesPlan, lijstGebouwen, lijstPlanbestanden, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import {
+  leesBestanden,
+  leesPlan,
+  lijstGebouwen,
+  lijstOmzettingen,
+  lijstPlanbestanden,
+  lijstVerdiepingen,
+} from "@/lib/bouw/opslag";
 import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping } from "@/lib/bouw/types";
 import { sorteerVerdiepingen, verdiepingNaam, volgendLabel } from "@/lib/bouw/weergave";
 import { datum, datumTijd } from "@/lib/format";
@@ -35,12 +42,14 @@ export default async function Plandetail({
   const plan = await leesPlan(planId);
   if (!plan) notFound();
 
-  const [verdiepingen, gebouwen, bestanden, allePdfs] = await Promise.all([
+  const [verdiepingen, gebouwen, bestanden, allePdfs, omzettingen] = await Promise.all([
     lijstVerdiepingen(),
     lijstGebouwen(),
     leesBestanden([...new Set(plan.versies.map((v) => v.bestand_id))]),
     lijstPlanbestanden(),
+    lijstOmzettingen(plan.versies.map((v) => v.id)),
   ]);
+  const omzettingVan = new Map(omzettingen.map((o) => [o.planversie_id, o]));
   const bestandVan = new Map(bestanden.map((b) => [b.id, b]));
   const verdieping = verdiepingen.find((v) => v.id === plan.verdieping_id);
   const gebouw = gebouwen.find((g) => g.id === plan.gebouw_id);
@@ -76,7 +85,13 @@ export default async function Plandetail({
             <strong>{getoond.label}</strong>
             <span className="hulp">
               {getoond.datum ? `${datum(getoond.datum)} · ` : ""}blad {getoond.pagina}
+              {omzettingVan.has(getoond.id) ? ` · ruimtes bevestigd op ${datumTijd(omzettingVan.get(getoond.id)!.bevestigd_op)}` : ""}
             </span>
+            {plan.soort === "grondplan" ? (
+              <Link className="knop omzetknop" href={`/bouw/plannen/${plan.id}/omzetten?versie=${getoond.id}`}>
+                {omzettingVan.has(getoond.id) ? "Ruimtes nakijken" : "Omzetten naar ruimtes"}
+              </Link>
+            ) : null}
           </div>
           <ViewerLader
             key={getoond.id}
@@ -103,6 +118,7 @@ export default async function Plandetail({
                   <th className="getal">Blad</th>
                   <th>Bestand</th>
                   <th>Opgeladen</th>
+                  {plan.soort === "grondplan" ? <th>Ruimtes</th> : null}
                   <th />
                 </tr>
               </thead>
@@ -128,6 +144,13 @@ export default async function Plandetail({
                           : "—"}
                       </td>
                       <td data-label="Opgeladen">{datumTijd(versie.created_at)}</td>
+                      {plan.soort === "grondplan" ? (
+                        <td data-label="Ruimtes">
+                          <Link href={`/bouw/plannen/${plan.id}/omzetten?versie=${versie.id}`}>
+                            {omzettingVan.has(versie.id) ? "bevestigd" : "omzetten"}
+                          </Link>
+                        </td>
+                      ) : null}
                       <td>
                         <div className="knoppenrij">
                           <form action={downloadVersieActie}>

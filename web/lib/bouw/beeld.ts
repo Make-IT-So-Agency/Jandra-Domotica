@@ -97,6 +97,23 @@ export function passendBeeld(vak: Maat, pagina: Maat, marge = 16): Beeld {
   };
 }
 
+/** Een stuk van de pagina in het vak, gecentreerd, met wat marge; bv. enkel het gebouw. */
+export function passendStuk(
+  vak: Maat,
+  stuk: { x: number; y: number; breedte: number; hoogte: number },
+  marge = 16,
+): Beeld {
+  const zoom = Math.min(
+    Math.max(1, vak.breedte - 2 * marge) / Math.max(1, stuk.breedte),
+    Math.max(1, vak.hoogte - 2 * marge) / Math.max(1, stuk.hoogte),
+  );
+  return {
+    zoom,
+    x: (vak.breedte - stuk.breedte * zoom) / 2 - stuk.x * zoom,
+    y: (vak.hoogte - stuk.hoogte * zoom) / 2 - stuk.y * zoom,
+  };
+}
+
 /**
  * Hoe scherp het basisbeeld gerenderd wordt. Een iPad of iPhone weigert een
  * canvas boven ongeveer 16,7 miljoen pixels; we blijven ruim onder de helft,

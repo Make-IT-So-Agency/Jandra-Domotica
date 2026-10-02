@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 import { knijp, verschuif, zoomRond, type Beeld, type Grenzen, type Knijpbegin, type Punt } from "@/lib/bouw/beeld";
+
+/** Wie minder dan zoveel pixels beweegt tussen neer en op, tikt in plaats van te slepen. */
+const TIK_MAX_PX = 6;
 
 /**
  * Verschuiven en zoomen met muis, vinger en pen, via pointer events.
@@ -11,6 +14,7 @@ import { knijp, verschuif, zoomRond, type Beeld, type Grenzen, type Knijpbegin, 
  * - twee vingers: zoomen en verschuiven tegelijk
  * - muiswiel of knijpen op een trackpad: zoomen rond de muis
  * - dubbelklik: inzoomen rond de muis
+ * - tikken (neer en op zonder te slepen): opTik, met het punt in het vak
  *
  * Het wiel luistert rechtstreeks op het element en niet via React: React
  * registreert wheel als passief, en dan kan preventDefault de pagina niet
@@ -23,13 +27,22 @@ export function useGebaren(
   beeldRef: RefObject<Beeld | null>,
   zetBeeld: (beeld: Beeld) => void,
   grenzen: Grenzen,
+  opTik?: (punt: Punt) => void,
 ) {
+  // Altijd de nieuwste opTik, zonder de luisteraars opnieuw te moeten zetten.
+  const tikRef = useRef(opTik);
+  useEffect(() => {
+    tikRef.current = opTik;
+  });
+
   useEffect(() => {
     const vak = vakRef.current;
     if (!vak) return;
 
     const pointers = new Map<number, Punt>();
     let knijpbegin: Knijpbegin | null = null;
+    // Het begin van een mogelijke tik: één pointer die nog niet gesleept heeft.
+    let tik: { id: number; begin: Punt } | null = null;
 
     const inVak = (gebeurtenis: PointerEvent | WheelEvent | MouseEvent): Punt => {
       const rand = vak.getBoundingClientRect();
@@ -50,7 +63,9 @@ export function useGebaren(
       if (gebeurtenis.pointerType === "mouse" && gebeurtenis.button !== 0) return;
       if (opKnop(gebeurtenis)) return;
       vak.setPointerCapture(gebeurtenis.pointerId);
-      pointers.set(gebeurtenis.pointerId, inVak(gebeurtenis));
+      const punt = inVak(gebeurtenis);
+      pointers.set(gebeurtenis.pointerId, punt);
+      tik = pointers.size === 1 ? { id: gebeurtenis.pointerId, begin: punt } : null;
       if (pointers.size === 2) startKnijp();
     };
 
@@ -61,6 +76,8 @@ export function useGebaren(
       const nu = inVak(gebeurtenis);
       pointers.set(gebeurtenis.pointerId, nu);
 
+      if (tik && Math.hypot(nu.x - tik.begin.x, nu.y - tik.begin.y) > TIK_MAX_PX) tik = null;
+
       if (pointers.size === 1) {
         zetBeeld(verschuif(beeld, nu.x - vorig.x, nu.y - vorig.y));
       } else if (pointers.size === 2 && knijpbegin) {
@@ -70,7 +87,10 @@ export function useGebaren(
     };
 
     const omhoog = (gebeurtenis: PointerEvent) => {
+      const laatste = pointers.get(gebeurtenis.pointerId);
       if (!pointers.delete(gebeurtenis.pointerId)) return;
+      if (gebeurtenis.type === "pointerup" && tik?.id === gebeurtenis.pointerId && laatste) tikRef.current?.(laatste);
+      tik = null;
       // Van twee naar één vinger: die ene verschuift voortaan vanaf zijn eigen plaats.
       knijpbegin = null;
       if (pointers.size === 2) startKnijp();
@@ -87,6 +107,8 @@ export function useGebaren(
 
     const dubbel = (gebeurtenis: MouseEvent) => {
       if (opKnop(gebeurtenis)) return;
+      // Wie tikt om iets aan te duiden, wil niet dat het plan meteen inzoomt.
+      if (tikRef.current) return;
       const beeld = beeldRef.current;
       if (beeld) zetBeeld(zoomRond(beeld, inVak(gebeurtenis), 2, grenzen));
     };

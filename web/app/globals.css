@@ -853,6 +853,10 @@ td.smal {
   margin-bottom: 8px;
 }
 
+.viewer-kop .omzetknop {
+  margin-left: auto;
+}
+
 .keuzerij {
   border: none;
   padding: 0;
@@ -869,6 +873,216 @@ td.smal {
   display: block;
   width: 100%;
   margin-top: 8px;
+}
+
+/* Een omzetting nakijken: het plan links, de stappen rechts. Op een tablet
+   in staande stand komen de stappen onder het plan. */
+.omzetten {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.omzetten .viewer {
+  height: calc(100vh - 200px);
+  height: calc(100dvh - 200px);
+  min-height: 460px;
+}
+
+.omzetten-zijbalk {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.omzetten-zijbalk .kaart {
+  margin-bottom: 0;
+}
+
+.omzetten-zijbalk h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+@media (max-width: 1000px) {
+  .omzetten {
+    grid-template-columns: 1fr;
+  }
+
+  .omzetten-zijbalk {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+.viewer.tikken {
+  cursor: crosshair;
+}
+
+/* De laag over het blad: in paginapunten, dus ze zoomt mee. De lijnen blijven
+   even dik dankzij non-scaling-stroke. Het blad is altijd wit, dus de kleuren
+   hier ook. */
+.viewer-laag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.laag-ruimte {
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-ruimte.goed {
+  fill: rgba(4, 120, 87, 0.16);
+  stroke: #047857;
+}
+
+.laag-ruimte.nakijken {
+  fill: rgba(180, 83, 9, 0.2);
+  stroke: #b45309;
+}
+
+.laag-ruimte.uit {
+  fill: rgba(107, 114, 128, 0.08);
+  stroke: #9ca3af;
+  stroke-dasharray: 4 3;
+}
+
+.laag-ruimte.gekozen {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+}
+
+.laag-kandidaat {
+  fill: rgba(124, 58, 237, 0.12);
+  stroke: #7c3aed;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-referentie {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.laag-naam {
+  fill: #111827;
+  stroke: #ffffff;
+  paint-order: stroke;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.laag-deur {
+  fill: #0891b2;
+}
+
+.laag-raam {
+  fill: #7c3aed;
+}
+
+.laag-punt {
+  fill: #dc2626;
+}
+
+.laag-lijn {
+  stroke: #dc2626;
+  stroke-width: 2px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.status-goed {
+  color: var(--goed);
+}
+
+.status-nakijken {
+  color: var(--let-op);
+}
+
+.ruimtelijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ruimtelijst li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ruimtelijst li > input {
+  width: auto;
+}
+
+.ruimtelijst button.rij {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--tekst);
+  border: 1px solid var(--lijn);
+  font-weight: 400;
+  padding: 6px 10px;
+}
+
+.ruimtelijst li.gekozen button.rij {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+}
+
+.ruimtedetail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+}
+
+.schuifknoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.schuifknoppen button {
+  min-width: 42px;
+}
+
+.schuifknoppen select {
+  width: auto;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wijzigingen {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
 }
 
 /* Het dossier nakijken: een tabel met velden in de cellen. */

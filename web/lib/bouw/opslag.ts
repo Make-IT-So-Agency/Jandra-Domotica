@@ -3,7 +3,20 @@ import "server-only";
 import { db } from "@/lib/supabase";
 
 import { sleutelVan } from "./invoer";
-import type { Bestand, Gebouw, Partij, Plan, Planversie, SoortPartij, SoortPlan, Verdieping } from "./types";
+import type { Ruimterij } from "./omzetting/bevestigen";
+import type {
+  Bestand,
+  Gebouw,
+  Omzetting,
+  Partij,
+  Plan,
+  Planversie,
+  Ruimte,
+  SoortPartij,
+  SoortPlan,
+  SoortRuimte,
+  Verdieping,
+} from "./types";
 
 /**
  * Alles wat de module Bouw in de databank leest en schrijft. De tabellen staan
@@ -322,6 +335,125 @@ export async function verwijderVersie(id: number): Promise<number | null> {
   if (!versie) return null;
   check(await db().from("bouw_planversies").delete().eq("id", id), "Versie verwijderen");
   return versie.bestand_id;
+}
+
+/** Legt een versie in het assenstelsel van haar gebouw; zie omzetting/geometrie.ts. */
+export async function zetKalibratie(versieId: number, kalibratie: Record<string, unknown>): Promise<void> {
+  check(await db().from("bouw_planversies").update({ kalibratie }).eq("id", versieId), "Kalibratie bewaren");
+}
+
+// ---------------------------------------------------------------------------
+// Omzettingen en ruimtes
+// ---------------------------------------------------------------------------
+
+function alsOmzetting(rij: Record<string, unknown>): Omzetting {
+  return {
+    id: Number(rij.id),
+    planversie_id: Number(rij.planversie_id),
+    werkwijze: Number(rij.werkwijze ?? 1),
+    bevestigd_door: (rij.bevestigd_door as string | null) ?? null,
+    bevestigd_op: String(rij.bevestigd_op),
+  };
+}
+
+/** De bevestigde omzettingen van deze versies. */
+export async function lijstOmzettingen(versieIds: number[]): Promise<Omzetting[]> {
+  if (versieIds.length === 0) return [];
+  const rijen = check(
+    await db()
+      .from("bouw_omzettingen")
+      .select("id, planversie_id, werkwijze, bevestigd_door, bevestigd_op")
+      .in("planversie_id", versieIds),
+    "Omzettingen lezen",
+  ) as Record<string, unknown>[];
+  return rijen.map(alsOmzetting);
+}
+
+/** Bewaart de bevestigde omzetting van een versie; een tweede keer bevestigen vervangt de eerste. */
+export async function bewaarOmzetting(omzetting: {
+  planversie_id: number;
+  werkwijze: number;
+  voorstel: Record<string, unknown>;
+  bevestigd_door: string;
+}): Promise<number> {
+  check(
+    await db()
+      .from("bouw_omzettingen")
+      .upsert({ ...omzetting, bevestigd_op: new Date().toISOString() }, { onConflict: "planversie_id" }),
+    "Omzetting bewaren",
+  );
+  const rij = check(
+    await db().from("bouw_omzettingen").select("id").eq("planversie_id", omzetting.planversie_id).single(),
+    "Omzetting lezen",
+  ) as { id: number };
+  return Number(rij.id);
+}
+
+function alsRuimte(rij: Record<string, unknown>): Ruimte {
+  const getal = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
+  return {
+    id: Number(rij.id),
+    verdieping_id: Number(rij.verdieping_id),
+    naam: String(rij.naam),
+    soort: rij.soort as SoortRuimte,
+    veelhoek: (rij.veelhoek as [number, number][][]) ?? [],
+    oppervlakte_m2: Number(rij.oppervlakte_m2),
+    oppervlakte_plan_m2: getal(rij.oppervlakte_plan_m2),
+    plafondhoogte_m: getal(rij.plafondhoogte_m),
+    vloerpeil_m: getal(rij.vloerpeil_m),
+    omzetting_id: getal(rij.omzetting_id),
+  };
+}
+
+/** De ruimtes, van één verdieping of van alle. */
+export async function lijstRuimtes(verdiepingId?: number): Promise<Ruimte[]> {
+  let vraag = db().from("bouw_ruimtes").select("*");
+  if (verdiepingId !== undefined) vraag = vraag.eq("verdieping_id", verdiepingId);
+  const rijen = check(await vraag.order("naam"), "Ruimtes lezen") as Record<string, unknown>[];
+  return rijen.map(alsRuimte);
+}
+
+/**
+ * Zet de ruimtes van een verdieping zoals de bevestigde omzetting ze geeft:
+ * een ruimte met een id wordt bijgewerkt en houdt dat id, een ruimte zonder
+ * id is nieuw, en wat er niet meer bij is, verdwijnt.
+ */
+export async function schrijfRuimtes(
+  verdiepingId: number,
+  omzettingId: number,
+  rijen: Ruimterij[],
+): Promise<{ bijgewerkt: number; nieuw: number; verwijderd: number }> {
+  const bestaand = await lijstRuimtes(verdiepingId);
+  const ids = new Set(bestaand.map((ruimte) => ruimte.id));
+  for (const rij of rijen) {
+    if (rij.id !== null && !ids.has(rij.id)) throw new Bouwfout("Een ruimte hoort niet (meer) bij deze verdieping.");
+  }
+  const velden = (rij: Ruimterij) => ({
+    naam: rij.naam,
+    soort: rij.soort,
+    veelhoek: rij.veelhoek,
+    oppervlakte_m2: rij.oppervlakte_m2,
+    oppervlakte_plan_m2: rij.oppervlakte_plan_m2,
+    plafondhoogte_m: rij.plafondhoogte_m,
+    vloerpeil_m: rij.vloerpeil_m,
+    omzetting_id: omzettingId,
+  });
+
+  let bijgewerkt = 0;
+  let nieuw = 0;
+  for (const rij of rijen) {
+    if (rij.id !== null) {
+      check(await db().from("bouw_ruimtes").update(velden(rij)).eq("id", rij.id), "Ruimte bewaren");
+      bijgewerkt++;
+    } else {
+      check(await db().from("bouw_ruimtes").insert({ ...velden(rij), verdieping_id: verdiepingId }), "Ruimte toevoegen");
+      nieuw++;
+    }
+  }
+  const blijven = new Set(rijen.map((rij) => rij.id).filter((id): id is number => id !== null));
+  const weg = bestaand.filter((ruimte) => !blijven.has(ruimte.id)).map((ruimte) => ruimte.id);
+  if (weg.length > 0) check(await db().from("bouw_ruimtes").delete().in("id", weg), "Ruimtes verwijderen");
+  return { bijgewerkt, nieuw, verwijderd: weg.length };
 }
 
 // ---------------------------------------------------------------------------

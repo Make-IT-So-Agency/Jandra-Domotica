@@ -173,6 +173,30 @@ export interface Planversie {
   created_at: string;
 }
 
+/** Een ruimte van een verdieping; de veelhoek in meter, in het assenstelsel van het gebouw. */
+export interface Ruimte {
+  id: number;
+  verdieping_id: number;
+  naam: string;
+  soort: SoortRuimte;
+  /** De buitenrand en de gaten, elk een lijst van [x, y]. */
+  veelhoek: [number, number][][];
+  oppervlakte_m2: number;
+  oppervlakte_plan_m2: number | null;
+  plafondhoogte_m: number | null;
+  vloerpeil_m: number | null;
+  omzetting_id: number | null;
+}
+
+/** Een bevestigde omzetting van een planversie. */
+export interface Omzetting {
+  id: number;
+  planversie_id: number;
+  werkwijze: number;
+  bevestigd_door: string | null;
+  bevestigd_op: string;
+}
+
 export type BestandStatus = "wacht" | "klaar";
 
 export interface Bestand {

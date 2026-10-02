@@ -5,6 +5,7 @@ import {
   knijp,
   paginaNaarScherm,
   passendBeeld,
+  passendStuk,
   schermNaarPagina,
   verschuif,
   zichtbaarStuk,
@@ -92,5 +93,14 @@ describe("zichtbaarStuk", () => {
 
   it("geeft null als de pagina buiten beeld ligt", () => {
     expect(zichtbaarStuk(verschuif({ x: 0, y: 0, zoom: 1 }, 5000, 0), { breedte: 400, hoogte: 300 }, { breedte: 100, hoogte: 100 })).toBeNull();
+  });
+});
+
+describe("een stuk passend in beeld", () => {
+  it("zet het stuk gecentreerd in het vak", () => {
+    const beeld = passendStuk({ breedte: 1000, hoogte: 600 }, { x: 100, y: 200, breedte: 400, hoogte: 200 }, 0);
+    expect(beeld.zoom).toBe(2.5);
+    // Het midden van het stuk komt in het midden van het vak.
+    expect(paginaNaarScherm(beeld, { x: 300, y: 300 })).toEqual({ x: 500, y: 300 });
   });
 });
