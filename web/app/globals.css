@@ -762,6 +762,115 @@ td.smal {
   display: none;
 }
 
+/* De planviewer: het vak waarin je sleept en zoomt. touch-action none houdt
+   de browser weg van onze gebaren; het blad zelf blijft wit, ook in donkere
+   modus, want zo ziet een plan eruit. */
+.viewer {
+  position: relative;
+  height: 70vh;
+  height: 70dvh;
+  min-height: 320px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--vlak);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+
+.viewer:active {
+  cursor: grabbing;
+}
+
+.viewer-leeg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--zacht);
+}
+
+.viewer.viewer-leeg {
+  height: auto;
+  min-height: 0;
+  touch-action: auto;
+  cursor: default;
+}
+
+.viewer-blad {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+.viewer-blad canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+.viewer-detail {
+  display: none;
+}
+
+.viewer-balk {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.viewer-balk button {
+  min-width: 42px;
+  background: var(--achtergrond);
+}
+
+.viewer-info {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-size: 12px;
+  color: var(--zacht);
+  background: var(--achtergrond);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+}
+
+.viewer-kop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.keuzerij {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.keuzerij legend {
+  margin-bottom: 6px;
+}
+
+.voortgang {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* =========================================================================
    Op een telefoon
    =========================================================================
@@ -851,6 +960,11 @@ td.smal {
   .submenu a {
     white-space: nowrap;
     padding: 9px 12px;
+  }
+
+  .viewer {
+    height: 60vh;
+    height: 60dvh;
   }
 
   /* --- Aanraakvlakken --------------------------------------------------- */

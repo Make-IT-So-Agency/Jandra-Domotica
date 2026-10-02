@@ -7,6 +7,10 @@
  * Met `fouten` laat je een bewerking op een tabel mislukken, bv.
  * { "bouw_verdiepingen:delete": { code: "23503", message: "..." } } voor een
  * verdieping waar nog iets aan hangt.
+ *
+ * `storage` bootst Supabase Storage na: `objecten` houdt per pad de inhoud
+ * bij. Een ondertekende URL wijst naar https://opslag.test/<pad>; een test die
+ * fetch nabootst, kan daar de inhoud uit `objecten` voor teruggeven.
  */
 
 type Rij = Record<string, unknown>;
@@ -126,7 +130,33 @@ export function nepSupabase(begin: Record<string, Rij[]> = {}, fouten: Record<st
     return bouwer;
   }
 
-  return { client: { from }, tabellen };
+  const objecten = new Map<string, { inhoud: Uint8Array; type: string }>();
+  const verwijderd: string[] = [];
+
+  const storage = {
+    from: (emmer: string) => ({
+      createSignedUploadUrl: async (pad: string) => ({
+        data: { signedUrl: `https://opslag.test/upload/${emmer}/${pad}?token=nep`, token: "nep", path: pad },
+        error: null,
+      }),
+      info: async (pad: string) => {
+        const object = objecten.get(pad);
+        return object
+          ? { data: { size: object.inhoud.length, contentType: object.type }, error: null }
+          : { data: null, error: { message: "Object not found" } };
+      },
+      createSignedUrl: async (pad: string) => ({ data: { signedUrl: `https://opslag.test/${pad}` }, error: null }),
+      remove: async (paden: string[]) => {
+        for (const pad of paden) {
+          objecten.delete(pad);
+          verwijderd.push(pad);
+        }
+        return { data: [], error: null };
+      },
+    }),
+  };
+
+  return { client: { from, storage }, tabellen, objecten, verwijderd };
 }
 
 function standaard(tabel: string): Rij {

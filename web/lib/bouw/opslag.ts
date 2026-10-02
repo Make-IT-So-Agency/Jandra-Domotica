@@ -261,6 +261,14 @@ export async function leesBestand(id: number): Promise<Bestand | null> {
   ) as Bestand | null;
 }
 
+export async function leesBestanden(ids: number[]): Promise<Bestand[]> {
+  if (ids.length === 0) return [];
+  return check(
+    await db().from("bouw_bestanden").select("*").in("id", ids),
+    "Bestanden lezen",
+  ) as Bestand[];
+}
+
 export async function markeerKlaar(id: number, grootte: number): Promise<void> {
   check(
     await db()
