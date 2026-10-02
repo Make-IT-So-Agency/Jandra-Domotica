@@ -51,6 +51,19 @@ export async function haalPdfBytes(bestandId: number, vraagUrl: () => Promise<st
 }
 
 /**
+ * Bewaart een PDF die de browser al heeft, bv. net opgeladen, zodat de viewer
+ * hem niet nog eens moet ophalen.
+ */
+export async function bewaarPdfBytes(bestandId: number, bytes: Uint8Array): Promise<void> {
+  try {
+    const cache = await caches.open(PLANCACHE);
+    await cache.put(sleutel(bestandId), new Response(new Blob([new Uint8Array(bytes)]), { headers: { "content-type": "application/pdf" } }));
+  } catch {
+    // Geen Cache API: dan haalt de viewer hem later gewoon op.
+  }
+}
+
+/**
  * Opent een PDF. pdf.js neemt de buffer over, dus het krijgt een kopie. Wie
  * klaar is, roept destroy() op de taak aan; dat ruimt ook de worker op.
  */

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { lijstGebouwen, lijstPlannen, lijstVerdiepingen, type PlanMetVersies } from "@/lib/bouw/opslag";
 import { PLANNAMEN, SOORTEN_PLAN, type Gebouw, type Verdieping } from "@/lib/bouw/types";
+import { alsBestaand } from "@/lib/bouw/dossier-inlezen";
 import { sorteerPlannen, sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
 import { datum } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
@@ -10,6 +11,7 @@ import { vereistGebruiker } from "@/lib/toegang";
 
 import { Melding } from "../melding";
 import { voegPlanToeActie } from "./acties";
+import { DossierLader } from "./dossier-lader";
 
 export const dynamic = "force-dynamic";
 
@@ -43,15 +45,16 @@ export default async function Plannenpagina({
     <>
       <h1>Plannen</h1>
       <p className="inleiding">
-        De plannen van de architect, elk met zijn versies. Een PDF met alle bladen kan je één keer
-        opladen en dan per blad als versie gebruiken.
+        De plannen van de architect, elk met zijn versies. Het dossier met alle bladen lees je in
+        één keer in: de app stelt per blad een plan voor, en een volgend dossier wordt een nieuwe
+        versie van dezelfde plannen.
       </p>
 
       <Melding soort={soort} melding={melding} />
 
       {plannen.length === 0 ? (
         <div className="kaart">
-          <p className="leeg">Nog geen plannen. Maak er hieronder een aan, en laad dan de PDF op.</p>
+          <p className="leeg">Nog geen plannen. Lees hieronder het dossier van de architect in.</p>
         </div>
       ) : (
         <div className="tabel-omhulsel">
@@ -95,9 +98,18 @@ export default async function Plannenpagina({
         </div>
       )}
 
+      <h2>Dossier inlezen</h2>
+      <DossierLader
+        bestaand={{
+          plannen: alsBestaand(plannen, gebouwen),
+          gebouwen: gebouwen.map((g) => g.naam),
+          verdiepingen: verdiepingen.map((v) => ({ gebouw: gebouwVan.get(v.gebouw_id) ?? "", naam: v.naam })),
+        }}
+      />
+
       <hr className="scheiding" />
 
-      <h2>Plan toevoegen</h2>
+      <h2>Eén plan toevoegen</h2>
       <form action={voegPlanToeActie} className="kaart">
         <div className="veldenrij">
           <div>

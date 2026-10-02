@@ -274,6 +274,13 @@ export async function wijzigPlan(id: number, plan: NieuwPlan): Promise<void> {
   check(await db().from("bouw_plannen").update(volledig).eq("id", id), "Plan bewaren", planmeldingen(volledig));
 }
 
+/** Zet de bladcode van een plan dat er al was, bv. als het dossier het herkent op zijn titel. */
+export async function zetBladcode(id: number, bladcode: string): Promise<void> {
+  check(await db().from("bouw_plannen").update({ bladcode }).eq("id", id), "Bladcode bewaren", {
+    uniek: `Er is al een plan met bladcode ${bladcode}.`,
+  });
+}
+
 /** Verwijdert het plan en, via de databank, al zijn versies. De bestanden ruimt opladen.ts op. */
 export async function verwijderPlan(id: number): Promise<number[]> {
   const versies = check(

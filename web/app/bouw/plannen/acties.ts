@@ -1,8 +1,11 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { Aanbod } from "@/lib/bouw/bestanden";
+import { bekijkDossier, leesDossierIn } from "@/lib/bouw/dossier-inlezen";
+import { controleerAanvraag, type Dossieraanvraag, type Dossieruitkomst } from "@/lib/bouw/dossierregels";
 import { datum, id, tekst } from "@/lib/bouw/invoer";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import {
@@ -213,4 +216,65 @@ export async function vraagPlanUrl(versieId: number): Promise<Uitkomst<{ url: st
   } catch (fout) {
     return mislukt(foutmelding(fout, "Het plan openen is mislukt."));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Een dossier inlezen: alle bladen van één PDF in één keer
+// ---------------------------------------------------------------------------
+
+export interface Dossieruploadvraag {
+  aanbod: Aanbod;
+  aanvraag: Dossieraanvraag;
+}
+
+/**
+ * Stap 1: kijkt het nagekeken voorstel na (labels die al bestaan, bladen die
+ * bij hetzelfde plan horen), nog voor de PDF opgeladen wordt.
+ */
+export async function vraagDossierUploadAan(vraag: Dossieruploadvraag): Promise<Uitkomst<Gestart>> {
+  const ik = await bouwgebruiker();
+  if (!ik) return mislukt(GEEN_TOEGANG);
+
+  const aanvraag = controleerAanvraag(vraag?.aanvraag);
+  if (!aanvraag.ok) return aanvraag;
+  try {
+    const { fouten } = await bekijkDossier(aanvraag.data);
+    if (fouten.length > 0) return mislukt(fouten.join(" "));
+    const aanbod = vraag.aanbod ?? {};
+    return await startUpload(
+      { naam: String(aanbod.naam ?? ""), type: String(aanbod.type ?? ""), grootte: Number(aanbod.grootte) },
+      "plan",
+      ik.email,
+    );
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
+  }
+}
+
+/** Stap 3: het bestand nakijken en het dossier wegschrijven. */
+export async function leesDossierInActie(vraag: {
+  bestandId: number;
+  aanvraag: Dossieraanvraag;
+}): Promise<Uitkomst<Dossieruitkomst>> {
+  const ik = await bouwgebruiker();
+  if (!ik) return mislukt(GEEN_TOEGANG);
+
+  const aanvraag = controleerAanvraag(vraag?.aanvraag);
+  if (!aanvraag.ok) return aanvraag;
+  const bestandId = id(String(vraag?.bestandId));
+  if (!bestandId) return mislukt("Onbekend bestand.");
+
+  let uitkomst: Uitkomst<Dossieruitkomst>;
+  try {
+    const afgerond = await rondUploadAf(bestandId);
+    if (!afgerond.ok) return afgerond;
+    if (afgerond.data.doel !== "plan") return mislukt("Dit bestand is geen plan.");
+    uitkomst = await leesDossierIn(aanvraag.data, bestandId);
+  } catch (fout) {
+    uitkomst = mislukt(foutmelding(fout, "Het dossier inlezen is mislukt."));
+  }
+  // Een PDF waar geen enkele versie uit kwam, mag niet blijven rondslingeren.
+  if (!uitkomst.ok) await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+  revalidatePath("/bouw", "layout");
+  return uitkomst;
 }

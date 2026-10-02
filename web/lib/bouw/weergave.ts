@@ -46,3 +46,9 @@ export function sorteerPlannen<T extends Pick<Plan, "gebouw_id" | "bladcode" | "
       natuurlijk.compare(a.titel, b.titel),
   );
 }
+
+/** Het volgende label: v1, v2, … na het hoogste vN dat er al is. */
+export function volgendLabel(labels: string[]): string {
+  const nummers = labels.map((label) => label.match(/^v(\d+)$/i)?.[1]).filter(Boolean).map(Number);
+  return `v${(nummers.length > 0 ? Math.max(...nummers) : 0) + 1}`;
+}

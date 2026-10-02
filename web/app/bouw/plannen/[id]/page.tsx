@@ -6,7 +6,7 @@ import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { leesBestanden, leesPlan, lijstGebouwen, lijstPlanbestanden, lijstVerdiepingen } from "@/lib/bouw/opslag";
 import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping } from "@/lib/bouw/types";
-import { sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
+import { sorteerVerdiepingen, verdiepingNaam, volgendLabel } from "@/lib/bouw/weergave";
 import { datum, datumTijd } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
@@ -18,12 +18,6 @@ import { NieuweVersie } from "./nieuwe-versie";
 import { ViewerLader } from "./viewer-lader";
 
 export const dynamic = "force-dynamic";
-
-/** Het volgende label: v1, v2, … na het hoogste vN dat er al is. */
-function volgendLabel(labels: string[]): string {
-  const nummers = labels.map((label) => label.match(/^v(\d+)$/i)?.[1]).filter(Boolean).map(Number);
-  return `v${(nummers.length > 0 ? Math.max(...nummers) : 0) + 1}`;
-}
 
 export default async function Plandetail({
   params,

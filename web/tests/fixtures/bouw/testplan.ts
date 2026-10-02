@@ -211,21 +211,28 @@ function tekstbreedte(tekst: string): number {
 }
 
 /** Het titelblok rechtsonder, zoals op elk blad van het dossier. */
-function titelblok(titel: string[], bladcode: string | null, schaaltekst: string | null, datum?: string): string[] {
+function titelblok(
+  breedte: number,
+  titel: string[],
+  bladcode: string | null,
+  schaaltekst: string | null,
+  datum?: string,
+): string[] {
+  const x = breedte - 410;
   const regels = [
     pdf.bewaar(),
     pdf.vulkleur("#ffffff"),
     pdf.lijnkleur("#000000"),
     pdf.dikte(0.5),
-    pdf.rechthoek(520, 20, 302, 150),
+    pdf.rechthoek(x, 20, 390, 150),
     pdf.vulEnTrek(),
     pdf.vulkleur("#000000"),
-    pdf.tekst(530, 150, 12, "OMGEVINGSDOSSIER"),
-    ...titel.map((regel, i) => pdf.tekst(530, 120 - i * 24, 19.9, regel)),
+    pdf.tekst(x + 10, 150, 12, "OMGEVINGSDOSSIER"),
+    ...titel.map((regel, i) => pdf.tekst(x + 10, 120 - i * 24, 19.9, regel)),
   ];
-  if (bladcode) regels.push(pdf.tekst(530, 40, 8.9, bladcode));
-  if (schaaltekst) regels.push(pdf.tekst(700, 40, 8, schaaltekst));
-  if (datum) regels.push(pdf.tekst(750, 40, 8, datum));
+  if (bladcode) regels.push(pdf.tekst(x + 10, 40, 8.9, bladcode));
+  if (schaaltekst) regels.push(pdf.tekst(x + 230, 40, 8, schaaltekst));
+  if (datum) regels.push(pdf.tekst(x + 300, 40, 8, datum));
   regels.push(pdf.herstel());
   return regels;
 }
@@ -312,7 +319,7 @@ export function grondplanblad(plan: Testgrondplan): Bladzijde {
   inhoud.push(pdf.vulkleur("#000000"));
   for (const raam of plan.ramen) inhoud.push(...tekstMidden(raam.label, 7, raam.op, 0));
 
-  inhoud.push(...titelblok(plan.titel, plan.bladcode, plan.schaaltekst, plan.datum));
+  inhoud.push(...titelblok(A3.breedte, plan.titel, plan.bladcode, plan.schaaltekst, plan.datum));
   return { ...A3, inhoud, draai: plan.draai };
 }
 
@@ -326,7 +333,7 @@ export function anderBlad(titel: string[], bladcode: string | null, schaaltekst:
       pdf.dikte(0.72),
       pdf.rechthoek(100, 300, 500, 250),
       pdf.trek(),
-      ...titelblok(titel, bladcode, schaaltekst, "01/10/2026"),
+      ...titelblok(maat.breedte, titel, bladcode, schaaltekst, "01/10/2026"),
     ],
   };
 }
