@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isGeldigeRol,
+  magBouwZien,
   magGebruikerBeheren,
   magGebruikerVerwijderen,
   magGebruikerWijzigen,
@@ -255,5 +256,17 @@ describe("hulpfuncties", () => {
 
   it("normaliseert e-mailadressen", () => {
     expect(normaliseerEmail("  Jan@MakeITSo.BE ")).toBe("jan@makeitso.be");
+  });
+});
+
+describe("het bouwproject", () => {
+  it("is enkel voor de hoofdbeheerder", () => {
+    expect(magBouwZien(HOOFD)).toBe(true);
+    expect(magBouwZien(BEHEERDER_A)).toBe(false);
+    expect(magBouwZien(KIJKER_B)).toBe(false);
+  });
+
+  it("geldt ook voor het vaste beheerdersadres", () => {
+    expect(magBouwZien({ ...HOOFD, vasteBeheerder: true })).toBe(true);
   });
 });

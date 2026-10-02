@@ -15,7 +15,7 @@ export default async function Inloggen({
   return (
     <div className="inlogscherm">
       <div className="inlogkaart">
-        <h1>Laadkosten</h1>
+        <h1>Jandra</h1>
         <p className="inleiding" style={{ marginBottom: 24 }}>
           Meld je aan met het Google-account dat toegang heeft gekregen.
         </p>
