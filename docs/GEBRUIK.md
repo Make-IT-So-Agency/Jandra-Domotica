@@ -71,13 +71,20 @@ beginscherm staan tot je het regelt.
 ### Wat er verstuurd is, en wat niet
 
 Onder de referentie van elk kwartaalrapport staat of het vertrokken is en naar
-welk adres. Staat er **Niet verstuurd**, dan is er iets dat je zelf kan
-regelen: meestal ontbreekt het e-mailadres bij de vennootschap. Vul het in en
-stuur dat rapport met de hand door — de taak stuurt een bestaand rapport niet
-alsnog na.
+welk adres. Staat er **Niet verstuurd**, dan is er meestal iets kleins aan de
+hand: het e-mailadres bij de vennootschap ontbrak op dat moment.
 
-Een rapport dat je zelf maakt, wordt nooit automatisch gemaild. Alleen wat de
-taak zelf aanmaakt, gaat de deur uit.
+Naast elk rapport staat een knop **Versturen**. Die stuurt het alsnog, of nog
+eens, naar het adres dat nu bij die vennootschap staat. Er komt eerst een
+bevestiging met dat adres erin, zodat je het ziet voor er iets vertrekt. Staat
+de knop grijs, dan wijst zijn tekstballon de reden aan: geen e-mailadres bij
+de vennootschap, of het versturen staat uit op de server.
+
+Opnieuw versturen mag. De regel "Verstuurd naar ..." wordt dan bijgewerkt naar
+de nieuwste poging.
+
+Een rapport dat je zelf maakt, wordt nooit vanzelf gemaild. Alleen wat de taak
+zelf aanmaakt, gaat automatisch de deur uit — de rest stuur je met die knop.
 
 ## Meldingen die je kan tegenkomen
 

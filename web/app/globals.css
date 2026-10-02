@@ -316,6 +316,17 @@ button.stil,
   border-color: var(--lijn);
 }
 
+/* Een knop die niets doet, moet er ook zo uitzien. Waaróm hij uitstaat, staat
+   in zijn title -- de reden verschilt per rij en past niet op de knop zelf. */
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  filter: none;
+}
+
 button.gevaar {
   background: transparent;
   color: var(--fout);
@@ -326,6 +337,16 @@ button.gevaar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* In een tabelcel staan knoppen naast elkaar de breedte in de weg: een cel
+   krijgt zoveel ruimte als ze vraagt, dus de tabel schuift voorbij de rand in
+   plaats van dat de knoppen afbreken. Onder elkaar blijft de cel zo smal als
+   de breedste knop. */
+.knoppenrij.onder-elkaar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
 
 /* --- Meldingen ---------------------------------------------------------- */
@@ -467,6 +488,15 @@ button.gevaar {
 }
 
 /* Of het rapport bij de vennootschap geraakt is. */
+.hulp.verstuurd,
+.hulp.niet-verstuurd {
+  /* Tabelcellen breken standaard niet af. Met een e-mailadres én een datum op
+     één regel rekt deze kolom de hele tabel voorbij de schermrand, en moet je
+     zijwaarts scrollen om bij de knoppen te geraken. */
+  white-space: normal;
+  max-width: 30ch;
+}
+
 .hulp.verstuurd {
   color: var(--goed);
 }

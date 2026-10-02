@@ -123,6 +123,19 @@ jobs:
         # herhaalbaar is, valt hier door de mand en niet pas op productie.
         run: scripts/test-migraties.sh
 
+  omgeving:
+    name: Omgevingsvariabelen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Manifest en uitrolworkflow moeten gelijklopen
+        # Een geheim dat wel in infra/vercel-omgeving.json staat maar niet in
+        # het env-blok van de uitrol, wordt stilzwijgend overgeslagen: de
+        # uitrol blijft groen en de variabele geraakt nooit bij de app. Je
+        # merkt dat pas als de functie die erop steunt stil blijft.
+        run: node scripts/controleer-omgevingsnamen.mjs
+
   geheimen:
     name: Geen sleutels in de code
     runs-on: ubuntu-latest
