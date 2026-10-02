@@ -161,6 +161,19 @@ describe("takenVoorBouw", () => {
     ]);
   });
 
+  it("vraagt om na te kijken wat een aannemer hersteld meldde", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 1,
+      plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
+      partijen: [{ soort: "architect" }],
+      nakijken: 2,
+    });
+    expect(taken).toEqual([
+      { tekst: "2 opleverpunten zijn hersteld gemeld: kijk ze na.", link: "/bouw/werf/oplevering", knop: "Nakijken" },
+    ]);
+  });
+
   it("is leeg als alles klaarstaat", () => {
     expect(
       takenVoorBouw({

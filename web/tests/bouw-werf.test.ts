@@ -6,6 +6,7 @@ const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 
 import { exifDatum } from "@/lib/bouw/exif";
+import { maakOpleverPdf } from "@/lib/bouw/oplevering-pdf";
 import { ruimOngebruikteBestandenOp } from "@/lib/bouw/opladen";
 import {
   CHECKLIST_DICHT,
@@ -161,6 +162,16 @@ function jpegMetExif({ origineel, zone, bestand }: { origineel?: string; zone?: 
   const app1 = [0xff, 0xe1, ...[(tiff.length + 8) >> 8, (tiff.length + 8) & 0xff], ...ascii("Exif"), 0, ...tiff];
   return new Uint8Array([0xff, 0xd8, ...app1, 0xff, 0xda, 0x00, 0x02, 0xff, 0xd9]).buffer;
 }
+
+describe("de PDF met opleverpunten", () => {
+  it("is een PDF, ook als er niets meer te herstellen is", async () => {
+    const regel = { nummer: 1, titel: "Barst in de voeg", omschrijving: "Naast de voordeur", waar: "Inkom", ronde: "Voorlopige oplevering", status: "te herstellen", opmerking: null, foto: null };
+    const pdf = await maakOpleverPdf({ partij: "Bouwbedrijf Voorbeeld", project: "Ons huis", regels: [regel], metLink: true, opgemaakt: NU });
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    const leeg = await maakOpleverPdf({ partij: "Bouwbedrijf Voorbeeld", project: null, regels: [], metLink: false, opgemaakt: NU });
+    expect(leeg.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
 
 describe("de datum uit de EXIF van een foto", () => {
   it("leest de opnamedatum, met de tijdzone als de foto die kent", () => {

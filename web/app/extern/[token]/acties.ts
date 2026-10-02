@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { adresVanApp } from "@/lib/bouw/adres";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
@@ -24,6 +25,9 @@ import { leesInstelling } from "@/lib/bouw/regie-opslag";
 import { CHAT_SLEUTEL } from "@/lib/bouw/ronde";
 import { stuurBouwbericht } from "@/lib/bouw/telegram";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
+import { pasStapToe } from "@/lib/bouw/werf";
+import { laadPlaatsen, ruimtenaamIn } from "@/lib/bouw/werf-laden";
+import { leesOpleverpunt, zetOpleverstap } from "@/lib/bouw/werf-opslag";
 import { verbergToken } from "@/lib/opvang/telegram";
 
 /**
@@ -124,4 +128,44 @@ async function verwittig(tekstVanMelding: string, pad: string): Promise<void> {
   } catch (fout) {
     console.error("Bouw: melding van een inzending niet verstuurd:", verbergToken(String(fout), token));
   }
+}
+
+/**
+ * De aannemer meldt dat een opleverpunt hersteld is. Daarmee is het nog niet
+ * af: wij kijken het na. Voor een formulier op zijn linkpagina, met het token
+ * vooraf gebonden.
+ */
+export async function meldHersteldActie(token: string, formulier: FormData): Promise<void> {
+  const pagina = `/extern/${token}`;
+  // Een gewone functie, geen pijl: enkel zo snapt TypeScript dat hierna niets meer volgt.
+  function naar(soort: "goed" | "fout", melding: string): never {
+    revalidatePath(pagina);
+    redirect(`${pagina}?soort=${soort}&melding=${encodeURIComponent(melding)}`);
+  }
+  const externe = await leesLink(String(token ?? "")).catch(() => null);
+  if (!externe || !externe.rechten.includes("oplevering")) naar("fout", ONGELDIG);
+  const puntId = id(formulier.get("punt_id"));
+  const punt = puntId ? await leesOpleverpunt(puntId) : null;
+  // Enkel een punt van deze partij.
+  if (!punt || punt.partij_id !== externe.partijId) naar("fout", "Dit punt bestaat niet (meer).");
+  const opmerking = tekst(String(formulier.get("opmerking") ?? "").slice(0, 1000));
+  const stap = pasStapToe(punt, "hersteld", "aannemer", externe.partijnaam, new Date(), opmerking);
+  if (!stap.ok) naar("fout", "Dit punt staat al als hersteld, of is al nagekeken.");
+  let bewaard = false;
+  try {
+    bewaard = await zetOpleverstap(punt.id, punt.status, stap.waarde);
+  } catch {
+    naar("fout", "Bewaren mislukt. Probeer het opnieuw.");
+  }
+  if (!bewaard) naar("fout", "Dit punt werd net aangepast. Kijk het opnieuw na.");
+
+  const waar = await laadPlaatsen()
+    .then((plaatsen) => ruimtenaamIn(plaatsen)(punt.ruimte_id))
+    .catch(() => null);
+  await verwittig(
+    `🔧 ${externe.partijnaam} meldt hersteld: ${punt.titel}${waar ? ` (${waar})` : ""}.${opmerking ? `\n\n"${opmerking}"` : ""}\n\nKijk het na voor je het afvinkt.`,
+    `/bouw/werf/oplevering?partij=${externe.partijId}`,
+  );
+  revalidatePath("/bouw/werf/oplevering");
+  naar("goed", `Dank je. "${punt.titel}" staat als hersteld; wij kijken het na.`);
 }

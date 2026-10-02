@@ -24,10 +24,13 @@ export function Plaatskeuze({
   plaatsen,
   start,
   uitleg = "Tik op de tekening waar het is.",
+  voorvoegsel = "plaats",
 }: {
   plaatsen: Plaats[];
   start: { verdieping_id: number | null; ruimte_id: number | null; x_m: number | null; y_m: number | null };
   uitleg?: string;
+  /** Voor de id's van de velden, als er twee op één pagina staan. */
+  voorvoegsel?: string;
 }) {
   const verdiepingVanRuimte = (ruimte: number | null) => plaatsen.find((p) => p.ruimtes.some((r) => r.id === ruimte))?.id ?? null;
   const [verdiepingId, setVerdiepingId] = useState<number | null>(
@@ -58,9 +61,9 @@ export function Plaatskeuze({
       <input type="hidden" name="y_m" value={punt ? String(punt[1]) : ""} />
       <div className="veldenrij">
         <div>
-          <label htmlFor="plaats-verdieping">Verdieping</label>
+          <label htmlFor={`${voorvoegsel}-verdieping`}>Verdieping</label>
           <select
-            id="plaats-verdieping"
+            id={`${voorvoegsel}-verdieping`}
             value={verdiepingId ?? ""}
             onChange={(g) => {
               const nieuw = g.currentTarget.value ? Number(g.currentTarget.value) : null;
@@ -78,9 +81,9 @@ export function Plaatskeuze({
           </select>
         </div>
         <div>
-          <label htmlFor="plaats-ruimte">Ruimte</label>
+          <label htmlFor={`${voorvoegsel}-ruimte`}>Ruimte</label>
           <select
-            id="plaats-ruimte"
+            id={`${voorvoegsel}-ruimte`}
             name="ruimte_id"
             value={ruimteId ?? ""}
             onChange={(g) => setRuimteId(g.currentTarget.value ? Number(g.currentTarget.value) : null)}

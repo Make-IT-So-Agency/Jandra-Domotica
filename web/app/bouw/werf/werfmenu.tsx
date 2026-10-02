@@ -4,6 +4,8 @@ const TABS = [
   { pad: "/bouw/werf", naam: "Foto's" },
   { pad: "/bouw/werf/dagboek", naam: "Dagboek" },
   { pad: "/bouw/werf/actiepunten", naam: "Actiepunten" },
+  { pad: "/bouw/werf/oplevering", naam: "Oplevering" },
+  { pad: "/bouw/werf/checklist", naam: "Checklist" },
 ] as const;
 
 /** De tabs bovenaan de werf. */

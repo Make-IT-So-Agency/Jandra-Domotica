@@ -8,9 +8,17 @@ import { korteNaam } from "@/lib/bouw/keuzes";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
+import { isChecksleutel, isRonde, isStap, pasStapToe } from "@/lib/bouw/werf";
 import {
+  leesOpleverpunt,
   leesWerffoto,
+  lijstOpleverpunten,
   verwijderActiepunt,
+  verwijderOpleverpunt,
+  voegOpleverpuntToe,
+  wijzigOpleverpunt,
+  zetOpleverstap,
+  zetVinkje,
   verwijderDagboekdag,
   verwijderWerffoto,
   voegActiepuntToe,
@@ -26,6 +34,7 @@ import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 const FOTOS = "/bouw/werf";
 const DAGBOEK = "/bouw/werf/dagboek";
 const ACTIEPUNTEN = "/bouw/werf/actiepunten";
+const OPLEVERING = "/bouw/werf/oplevering";
 const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
 
 // ---------------------------------------------------------------------------
@@ -257,4 +266,126 @@ export async function verwijderActiepuntActie(formulier: FormData): Promise<void
     terug(ACTIEPUNTEN, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
   terug(ACTIEPUNTEN, "goed", "Actiepunt verwijderd.");
+}
+
+// ---------------------------------------------------------------------------
+// Opleverpunten
+// ---------------------------------------------------------------------------
+
+/** Waar een formulier van de oplevering naar terug wil: de lijst, eventueel gefilterd. */
+function opleverpad(formulier: FormData): string {
+  const pad = String(formulier.get("terug") ?? "");
+  return /^\/bouw\/werf\/oplevering(\?[a-z_=&0-9-]*)?$/.test(pad) ? pad : OPLEVERING;
+}
+
+function leesOpleverformulier(formulier: FormData, terugNaar: string) {
+  const titel = tekst(formulier.get("titel"));
+  if (!titel) terug(terugNaar, "fout", "Zeg wat er niet in orde is, bv. Barst in de voeg.");
+  const ronde = String(formulier.get("ronde") ?? "voorlopig");
+  if (!isRonde(ronde)) terug(terugNaar, "fout", "Kies een ronde.");
+  return {
+    titel: titel.slice(0, 200),
+    omschrijving: tekst(formulier.get("omschrijving")),
+    partij_id: id(formulier.get("partij_id")),
+    ronde,
+    ...leesPlaats(formulier, terugNaar),
+  };
+}
+
+export async function voegOpleverpuntToeActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const terugNaar = opleverpad(formulier);
+  const punt = leesOpleverformulier(formulier, terugNaar);
+  try {
+    await voegOpleverpuntToe({ ...punt, door: korteNaam(ik.naam, ik.email) });
+  } catch (fout) {
+    terug(terugNaar, "fout", foutmelding(fout, "Toevoegen mislukt."));
+  }
+  terug(terugNaar, "goed", "Opleverpunt toegevoegd. Een foto zet je erbij in de lijst.");
+}
+
+export async function wijzigOpleverpuntActie(formulier: FormData): Promise<void> {
+  await vereistBouwrechten();
+  const puntId = id(formulier.get("punt_id"));
+  if (!puntId) terug(OPLEVERING, "fout", "Onbekend opleverpunt.");
+  const opnieuw = `${OPLEVERING}?punt=${puntId}`;
+  const punt = leesOpleverformulier(formulier, opnieuw);
+  try {
+    await wijzigOpleverpunt(puntId, punt);
+  } catch (fout) {
+    terug(opnieuw, "fout", foutmelding(fout, "Bewaren mislukt."));
+  }
+  terug(OPLEVERING, "goed", "Opleverpunt bewaard.");
+}
+
+export async function verwijderOpleverpuntActie(formulier: FormData): Promise<void> {
+  await vereistBouwrechten();
+  const puntId = id(formulier.get("punt_id"));
+  if (!puntId) terug(OPLEVERING, "fout", "Onbekend opleverpunt.");
+  try {
+    await verwijderOpleverpunt(puntId);
+  } catch (fout) {
+    terug(OPLEVERING, "fout", foutmelding(fout, "Verwijderen mislukt."));
+  }
+  terug(OPLEVERING, "goed", "Opleverpunt verwijderd. Zijn foto's blijven bij de werf.");
+}
+
+/** Een stap op een opleverpunt; de knop zegt welke (name="stap"). */
+export async function zetOpleverstapActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const terugNaar = opleverpad(formulier);
+  const puntId = id(formulier.get("punt_id"));
+  const stap = String(formulier.get("stap") ?? "");
+  const punt = puntId ? await leesOpleverpunt(puntId) : null;
+  if (!punt || !isStap(stap)) terug(terugNaar, "fout", "Dit opleverpunt bestaat niet meer.");
+  const uitkomst = pasStapToe(punt, stap, "wij", korteNaam(ik.naam, ik.email), new Date(), tekst(formulier.get("opmerking")));
+  if (!uitkomst.ok) terug(terugNaar, "fout", uitkomst.melding);
+  let gelukt = false;
+  try {
+    gelukt = await zetOpleverstap(punt.id, punt.status, uitkomst.waarde);
+  } catch (fout) {
+    terug(terugNaar, "fout", foutmelding(fout, "Bewaren mislukt."));
+  }
+  if (!gelukt) terug(terugNaar, "fout", "Iemand anders paste dit punt net aan. Kijk het opnieuw na.");
+  terug(terugNaar, "goed", `"${punt.titel}": ${uitkomst.waarde.status === "gecontroleerd" ? "in orde" : uitkomst.waarde.status}.`);
+}
+
+/** Alles wat van één aannemer nog open staat, op gemeld zetten: als je hem de lijst bezorgt. */
+export async function meldAllesActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const terugNaar = opleverpad(formulier);
+  const partijId = id(formulier.get("partij_id"));
+  if (!partijId) terug(terugNaar, "fout", "Kies een aannemer.");
+  let aantal = 0;
+  try {
+    const nu = new Date();
+    for (const punt of await lijstOpleverpunten({ partijId })) {
+      if (punt.status !== "open") continue;
+      const stap = pasStapToe(punt, "melden", "wij", korteNaam(ik.naam, ik.email), nu);
+      if (stap.ok && (await zetOpleverstap(punt.id, "open", stap.waarde))) aantal++;
+    }
+  } catch (fout) {
+    terug(terugNaar, "fout", foutmelding(fout, "Melden mislukt."));
+  }
+  terug(terugNaar, "goed", aantal === 0 ? "Er stond niets open." : `${aantal === 1 ? "1 punt" : `${aantal} punten`} op gemeld gezet.`);
+}
+
+// ---------------------------------------------------------------------------
+// De checklist vóór alles dichtgaat
+// ---------------------------------------------------------------------------
+
+/** Een vinkje zetten of weghalen; de browser roept dit zelf aan. */
+export async function zetVinkjeActie(vraag: { ruimteId: number; sleutel: string; aan: boolean }): Promise<Uitkomst<null>> {
+  const ik = await bouwgebruiker();
+  if (!ik) return mislukt(GEEN_TOEGANG);
+  const ruimteId = id(String(vraag?.ruimteId ?? ""));
+  const sleutel = String(vraag?.sleutel ?? "");
+  if (!ruimteId || !isChecksleutel(sleutel)) return mislukt("Onbekend punt van de checklist.");
+  try {
+    await zetVinkje(ruimteId, sleutel, vraag?.aan === true, korteNaam(ik.naam, ik.email));
+    revalidatePath("/bouw/werf/checklist");
+    return gelukt(null);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
 }

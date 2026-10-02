@@ -1,12 +1,16 @@
 import "server-only";
 
+import { standVanLink } from "./linkregels";
+import { lijstLinks } from "./links";
 import { kaderVan } from "./omzetting/geometrie";
 import type { Kader, Xy } from "./omzetting/types";
-import { leesBestanden, lijstGebouwen, lijstRuimtes, lijstVerdiepingen } from "./opslag";
+import type { Opleverregel } from "./oplevering-pdf";
+import { leesBestanden, leesProject, lijstGebouwen, lijstPartijen, lijstRuimtes, lijstVerdiepingen } from "./opslag";
 import { tijdelijkeUrls } from "./opslagruimte";
 import type { SoortRuimte } from "./types";
 import { sorteerVerdiepingen, verdiepingNaam } from "./weergave";
-import type { Werffoto } from "./werf-opslag";
+import { RONDENAMEN, type StatusOpleverpunt } from "./werf";
+import { lijstOpleverpunten, lijstWerffotos, type Werffoto } from "./werf-opslag";
 
 /** Een verdieping met haar ruimtes, om een foto of opleverpunt op te plaatsen. */
 export interface Plaatsverdieping {
@@ -58,4 +62,71 @@ export async function fotoUrls(fotos: Werffoto[], groot = false): Promise<Map<nu
     if (url) uit.set(foto.id, url);
   }
   return uit;
+}
+
+/** Wat de aannemer bij elk punt leest: voor hem is open of gemeld hetzelfde. */
+const VOOR_DE_AANNEMER: Record<StatusOpleverpunt, string> = {
+  open: "te herstellen",
+  gemeld: "te herstellen",
+  hersteld: "hersteld, wij kijken het na",
+  gecontroleerd: "in orde",
+};
+
+/** Zoveel foto's samen mogen in de PDF: een functie op Vercel geeft hoogstens 4,5 MB terug. */
+const MAX_FOTOBYTES = 3 * 1024 * 1024;
+
+/** De opleverpunten van één aannemer die nog niet in orde zijn, klaar voor de PDF. */
+export async function laadOpleverlijst(partijId: number): Promise<{
+  partij: string;
+  project: string | null;
+  regels: Opleverregel[];
+  metLink: boolean;
+} | null> {
+  const [partijen, punten, plaatsen, project, links] = await Promise.all([
+    lijstPartijen(),
+    lijstOpleverpunten({ partijId }),
+    laadPlaatsen(),
+    leesProject(),
+    lijstLinks(),
+  ]);
+  const partij = partijen.find((p) => p.id === partijId);
+  if (!partij) return null;
+  const open = punten.filter((punt) => punt.status !== "gecontroleerd");
+  const fotos = await lijstWerffotos({ opleverpuntIds: open.map((punt) => punt.id) });
+  // Per punt de eerste foto: die toont meestal wat er mis is.
+  const eerste = new Map<number, Werffoto>();
+  for (const foto of [...fotos].sort((a, b) => a.genomen_op.localeCompare(b.genomen_op))) {
+    if (foto.opleverpunt_id !== null && !eerste.has(foto.opleverpunt_id)) eerste.set(foto.opleverpunt_id, foto);
+  }
+  const urls = await fotoUrls([...eerste.values()]);
+  const ruimtenaam = ruimtenaamIn(plaatsen);
+
+  let bytes = 0;
+  const regels: Opleverregel[] = [];
+  for (const [index, punt] of open.entries()) {
+    const foto = eerste.get(punt.id);
+    const url = foto ? urls.get(foto.id) : undefined;
+    let inhoud: Buffer | null = null;
+    if (url && bytes < MAX_FOTOBYTES) {
+      inhoud = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+        .then(async (antwoord) => (antwoord.ok ? Buffer.from(await antwoord.arrayBuffer()) : null))
+        .catch(() => null);
+      bytes += inhoud?.length ?? 0;
+    }
+    regels.push({
+      nummer: index + 1,
+      titel: punt.titel,
+      omschrijving: punt.omschrijving,
+      waar: ruimtenaam(punt.ruimte_id),
+      ronde: RONDENAMEN[punt.ronde],
+      status: VOOR_DE_AANNEMER[punt.status],
+      opmerking: punt.herstelopmerking,
+      foto: inhoud,
+    });
+  }
+  const nu = new Date();
+  const metLink = links.some(
+    (link) => link.partij_id === partijId && link.rechten.includes("oplevering") && standVanLink(link, nu) === "actief",
+  );
+  return { partij: partij.naam, project: project.projectnaam, regels, metLink };
 }

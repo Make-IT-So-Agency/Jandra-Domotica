@@ -6,7 +6,7 @@ dat plan, de keuzes, de planning, het geld, de werf, en iedereen met wie we te
 maken hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b, 2, 3, 4 en 5 zijn klaar; zie
+een digitaal plan van. Fase 1a, 1b, 2 tot en met 6 zijn klaar; zie
 [Wat nog komt](#wat-nog-komt).
 
 ```
@@ -53,7 +53,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   elkaar, meer- en minwerken, de facturen met hun vervaldag, het bouwkrediet,
   een kasplanning per maand en alles als Excel; zie [Geld](#geld).
 - **Werf** (`/bouw/werf`): foto's met de gsm, per dag en per ruimte, het
-  werfdagboek en de actiepunten; zie [De werf](#de-werf).
+  werfdagboek, de actiepunten, de opleverpunten per aannemer en de checklist
+  vóór alles dichtgaat; zie [De werf](#de-werf).
 - **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
@@ -282,6 +283,22 @@ Op de gsm, op de werf zelf.
   en tegen wanneer, bv. uit de werfvergadering. De bot herinnert de dag
   ervoor, op de dag zelf en de dag erna; wat binnen twee dagen moet, staat
   bij "nog te doen".
+- **Oplevering** (`/bouw/werf/oplevering`): wat een aannemer nog moet
+  herstellen, met een foto, de ruimte en de ronde (tijdens de werf,
+  voorlopige of definitieve oplevering). Een punt gaat van **open** over
+  **gemeld** en **hersteld** naar **in orde**. Het is pas in orde als jullie
+  het nagekeken hebben, niet als de aannemer zegt dat het hersteld is:
+  **Niet in orde** stuurt het terug, met de reden erbij.
+  - Per aannemer een **PDF** met zijn punten en per punt een foto, om mee te
+    geven. **Alles gemeld** zet zijn open punten op gemeld.
+  - Met het recht "oplevering" op zijn link ziet een aannemer zijn eigen
+    punten met de foto's, en meldt hij zelf wat hersteld is. De bot meldt
+    dat meteen, en "nog te doen" vraagt om het na te kijken.
+- **Checklist** (`/bouw/werf/checklist`): per ruimte wat je nakijkt en
+  fotografeert vóór het pleisterwerk en de chape: elke muur met de leidingen,
+  dozen en hoogtes, netwerk, versterking voor zware dingen, sanitair op lekken
+  getest, ventilatie, de vloer vóór de chape, luchtdichting. De lijst past bij
+  de soort ruimte. Elk vinkje wordt meteen bewaard, met wie en wanneer.
 
 ## De bot van Bouw
 
@@ -316,10 +333,11 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
 
 - **Wat ze mag**, vink je per link aan: de plannen bekijken en downloaden,
   een dossier of plan insturen, een offerte insturen, een factuur insturen,
-  de keuzes lezen, de planning lezen, de wensenlijst lezen. Standaard krijgt
-  een architect de plannen, insturen, facturen, de keuzes en de planning; een
-  aannemer de plannen, offertes, facturen en de planning; een leverancier of
-  adviseur de plannen, offertes en facturen.
+  de eigen opleverpunten zien en melden wat hersteld is, de keuzes lezen, de
+  planning lezen, de wensenlijst lezen. Standaard krijgt een architect de
+  plannen, insturen, facturen, de keuzes en de planning; een aannemer de
+  plannen, offertes, facturen, de oplevering en de planning; een leverancier
+  of adviseur de plannen, offertes en facturen.
 - **Wat hij nooit ziet:** prijzen, het adres, de opmerkingen in de planning en
   het beslissingslog in vrije tekst. Van de keuzes ziet hij enkel wat gekozen
   is (naam, leverancier, kleur) en wat nog open staat.
@@ -426,7 +444,8 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002900000_bouw_werf.sql` | Het werfdagboek, werffoto's, actiepunten, opleverpunten en de checklist |
 | `web/app/bouw/werf/` | Foto's opladen en bekijken, prikken op de tekening, het dagboek, de actiepunten |
 | `web/lib/bouw/werf.ts`, `exif.ts` | De stappen van een opleverpunt, de checklist, foto's per dag, en de datum uit een foto; puur, met tests |
-| `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen en foto-URL's voor de schermen |
+| `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen, foto-URL's en opleverlijst voor de schermen |
+| `web/lib/bouw/oplevering-pdf.tsx`, `web/app/api/bouw/oplevering/` | De opleverpunten van een aannemer als PDF |
 | `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
 | `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte of factuur openen |
 | `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
@@ -549,7 +568,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
      en een factuur mee insturen, en ze bij Geld inboeken;
    - op een gsm de plannen en de ruimtes bekijken;
    - op een gsm een paar foto's nemen bij Werf, en er één op de tekening
-     prikken.
+     prikken;
+   - een opleverpunt met foto maken voor een aannemer, de PDF downloaden,
+     en het via zijn link (in een privévenster) hersteld melden.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
    ontbrekende apikey bij Storage. De melding in het scherm zegt welke HTTP-fout
@@ -575,8 +596,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       facturen insturen via de link van een aannemer
 - [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
       een doorsnede en rondwandelen
-- [ ] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
-      het werfdagboek en actiepunten zijn klaar. Nog te doen: de
-      opleverpunten per aannemer, en de checklist per ruimte vóór alles
-      dichtgaat.
+- [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
+      het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
+      via zijn link), en de checklist per ruimte vóór alles dichtgaat
 - [ ] **7** Woningdossier en nazorg

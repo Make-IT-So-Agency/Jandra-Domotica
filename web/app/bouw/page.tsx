@@ -5,7 +5,7 @@ import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { factuurWat, openFacturen, poststanden, totalen } from "@/lib/bouw/geld";
 import { lijstFacturen, lijstMeerwerken, lijstOffertes, lijstPosten } from "@/lib/bouw/geld-opslag";
 import { lijstInzendingen } from "@/lib/bouw/links";
-import { lijstActiepunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
+import { lijstActiepunten, lijstOpleverpunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { leesBouwstand } from "@/lib/bouw/opslag";
@@ -36,8 +36,8 @@ export default async function Bouwoverzicht({
   let planning;
   let cijfers;
   try {
-    let posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos;
-    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos] = await Promise.all([
+    let posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos, opleverpunten;
+    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos, opleverpunten] = await Promise.all([
       leesBouwstand(),
       lijstKeuzes(),
       lijstPlanning(),
@@ -48,6 +48,7 @@ export default async function Bouwoverzicht({
       lijstInzendingen({ status: "nieuw" }),
       lijstActiepunten(),
       lijstWerffotos(),
+      lijstOpleverpunten(),
     ]);
     cijfers = {
       posten,
@@ -59,6 +60,7 @@ export default async function Bouwoverzicht({
       },
       actiepunten: actiepunten.filter((punt) => punt.status === "open"),
       fotos: fotos.length,
+      nakijken: opleverpunten.filter((punt) => punt.status === "hersteld").length,
     };
   } catch (fout) {
     return (
@@ -91,6 +93,7 @@ export default async function Bouwoverzicht({
         ? [{ puntId: punt.id, titel: punt.titel, wie: partijnaam(punt.partij_id), dagen: dagenTussen(nu, punt.deadline) }]
         : [],
     ),
+    nakijken: cijfers.nakijken,
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;

@@ -11,8 +11,14 @@ import { lijstKeuzes, lijstOpties, lijstPlanning } from "@/lib/bouw/regie-opslag
 import { PLANNAMEN } from "@/lib/bouw/types";
 import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
 import { sorteerPlannen } from "@/lib/bouw/weergave";
+import { STATUSNAMEN_OPLEVERPUNT, RONDENAMEN } from "@/lib/bouw/werf";
+import { fotoUrls, laadPlaatsen, ruimtenaamIn } from "@/lib/bouw/werf-laden";
+import { lijstOpleverpunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
 import { datum, datumTijd } from "@/lib/format";
 
+import { Melding } from "@/app/bouw/melding";
+
+import { meldHersteldActie } from "./acties";
 import { GeldInzenden } from "./geld-inzenden";
 import { Inzenden } from "./inzenden";
 
@@ -25,8 +31,14 @@ const INZENDSTATUS = { nieuw: "ontvangen", verwerkt: "ingelezen", genegeerd: "ni
  * prijzen, geen adres, geen opmerkingen uit de planning, geen beslissingslog
  * in vrije tekst.
  */
-export default async function Externepagina({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default async function Externepagina({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ melding?: string; soort?: string }>;
+}) {
+  const [{ token }, { melding, soort }] = await Promise.all([params, searchParams]);
   const externe = await leesLink(token).catch(() => null);
   if (!externe) {
     return (
@@ -52,6 +64,9 @@ export default async function Externepagina({ params }: { params: Promise<{ toke
         hem heeft, ziet wat jij hier ziet.
       </p>
 
+      <Melding soort={soort} melding={melding} />
+
+      {mag("oplevering") ? <Oplevering token={token} partijId={externe.partijId} /> : null}
       {mag("inzenden") ? <Insturen token={token} linkId={externe.linkId} /> : null}
       {mag("offertes") || mag("facturen") ? (
         <GeldInsturen
@@ -137,6 +152,95 @@ async function GeldInsturen({
             </li>
           ))}
         </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * De opleverpunten van deze partij, met hun foto's: wat nog te herstellen is,
+ * wat wij nog moeten nakijken, en wat in orde is. Niets van andere partijen.
+ */
+async function Oplevering({ token, partijId }: { token: string; partijId: number }) {
+  const [punten, plaatsen] = await Promise.all([lijstOpleverpunten({ partijId }), laadPlaatsen()]);
+  if (punten.length === 0) return null;
+  const fotos = await lijstWerffotos({ opleverpuntIds: punten.map((punt) => punt.id) });
+  const [klein, groot] = await Promise.all([fotoUrls(fotos), fotoUrls(fotos, true)]);
+  const ruimtenaam = ruimtenaamIn(plaatsen);
+  const teDoen = punten.filter((punt) => punt.status === "open" || punt.status === "gemeld");
+  const nakijken = punten.filter((punt) => punt.status === "hersteld");
+  const inOrde = punten.filter((punt) => punt.status === "gecontroleerd");
+  const actie = meldHersteldActie.bind(null, token);
+
+  const Fotos = ({ puntId }: { puntId: number }) => {
+    const eigen = fotos.filter((foto) => foto.opleverpunt_id === puntId);
+    if (eigen.length === 0) return null;
+    return (
+      <ul className="galerij">
+        {eigen.map((foto) => (
+          <li key={foto.id}>
+            <a href={groot.get(foto.id) ?? klein.get(foto.id)} target="_blank" rel="noopener noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={klein.get(foto.id)} alt={foto.onderschrift ?? "Foto van het punt"} loading="lazy" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  return (
+    <section id="oplevering">
+      <h2>Opleverpunten</h2>
+      <p className="hulp">
+        Wat nog hersteld moet worden. Meld het als het in orde is; wij kijken het daarna na.
+      </p>
+      {teDoen.length === 0 ? (
+        <div className="kaart">
+          <p className="leeg">Niets meer te herstellen. Dank je!</p>
+        </div>
+      ) : (
+        <ol className="opleverpunten">
+          {teDoen.map((punt) => (
+            <li key={punt.id} className="kaart">
+              <strong>{punt.titel}</strong>
+              <p className="hulp">{[ruimtenaam(punt.ruimte_id), RONDENAMEN[punt.ronde]].filter(Boolean).join(" · ")}</p>
+              {punt.omschrijving ? <p>{punt.omschrijving}</p> : null}
+              {punt.herstelopmerking ? <p className="hulp">&quot;{punt.herstelopmerking}&quot;</p> : null}
+              <Fotos puntId={punt.id} />
+              <form action={actie} className="knoppenrij" style={{ marginTop: 8 }}>
+                <input type="hidden" name="punt_id" value={punt.id} />
+                <input name="opmerking" aria-label="Wat heb je gedaan" placeholder="Wat heb je gedaan? (mag leeg)" maxLength={1000} />
+                <button type="submit">Hersteld</button>
+              </form>
+            </li>
+          ))}
+        </ol>
+      )}
+      {nakijken.length > 0 ? (
+        <>
+          <h3>Wij kijken het na</h3>
+          <ul className="wijzigingen">
+            {nakijken.map((punt) => (
+              <li key={punt.id}>
+                {punt.titel}
+                {punt.hersteld_op ? <span className="hulp"> · hersteld gemeld {datumTijd(punt.hersteld_op)}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {inOrde.length > 0 ? (
+        <details>
+          <summary className="hulp">
+            {STATUSNAMEN_OPLEVERPUNT.gecontroleerd}: {inOrde.length}
+          </summary>
+          <ul className="wijzigingen">
+            {inOrde.map((punt) => (
+              <li key={punt.id}>{punt.titel}</li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </section>
   );

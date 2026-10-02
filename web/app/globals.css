@@ -1907,6 +1907,70 @@ tr.deze-maand td {
   display: inline;
 }
 
+/* Opleverpunten: een kaartje per punt, met zijn foto's en de knoppen voor de stappen. */
+.opleverpunten {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.opleverpunten p {
+  margin: 4px 0;
+}
+
+.opleverpunten input[name="opmerking"] {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+/* De checklist: per ruimte een kaartje; wat af is, krijgt een groene rand. */
+.checklijsten {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+}
+
+.checklijst h3 {
+  margin: 0 0 6px;
+}
+
+.checklijst ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.checklijst li.gedaan {
+  color: var(--zacht);
+}
+
+.checklijst .keuzevak {
+  align-items: flex-start;
+  font-weight: 400;
+}
+
+.checklijst .keuzevak input {
+  margin-top: 3px;
+}
+
+/* Een filter boven een lijst: op een laptop alles naast elkaar. */
+.knoppenrij.filter {
+  align-items: center;
+}
+
+.knoppenrij.filter select {
+  width: auto;
+  min-width: 170px;
+}
+
+.checklijst.af {
+  border-color: var(--goed);
+}
+
 /* Op een gsm worden de tabellen kaartjes: daar valt een cel met enkel een
    streepje weg, en een cel met een leeg label staat links. */
 @media (max-width: 680px) {

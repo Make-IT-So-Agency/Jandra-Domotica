@@ -27,6 +27,8 @@ export interface Bouwstand {
   inzendingen?: { plannen: number; geld: number };
   /** De open actiepunten met een deadline: wat, wie, en het aantal dagen tot de deadline. */
   actiepunten?: { puntId: number; titel: string; wie: string | null; dagen: number }[];
+  /** Opleverpunten die een aannemer hersteld meldde, en die wij nog moeten nakijken. */
+  nakijken?: number;
 }
 
 /** Zo ver vooruit komt een deadline bij "nog te doen". */
@@ -83,6 +85,17 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
           : `${wat}: klaar tegen ${dagenTekst(punt.dagen)}.`,
       link: "/bouw/werf/actiepunten",
       knop: "Bekijken",
+    });
+  }
+
+  if (stand.nakijken) {
+    taken.push({
+      tekst:
+        stand.nakijken === 1
+          ? "Een opleverpunt is hersteld gemeld: kijk het na."
+          : `${stand.nakijken} opleverpunten zijn hersteld gemeld: kijk ze na.`,
+      link: "/bouw/werf/oplevering",
+      knop: "Nakijken",
     });
   }
 

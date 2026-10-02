@@ -5,9 +5,14 @@ import { nepSupabase } from "./stubs/nep-supabase";
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`NAAR ${url}`);
+  },
+}));
 
 import { GET as openBestand } from "@/app/extern/[token]/bestand/[bestandId]/route";
-import { rondInzendingAfActie, startInzendingActie } from "@/app/extern/[token]/acties";
+import { meldHersteldActie, rondInzendingAfActie, startInzendingActie } from "@/app/extern/[token]/acties";
 import {
   MAX_INZENDINGEN_PER_DAG,
   TOKENVORM,
@@ -251,6 +256,45 @@ describe("een offerte of factuur insturen via een link", () => {
         velden: { bedrag: "100", datum: "2026-10-01" },
       }),
     ).toEqual({ ok: false, melding: "Onbekend bestand." });
+  });
+});
+
+describe("opleverpunten via de link van een aannemer", () => {
+  const formulier = (velden: Record<string, string>) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(velden)) f.set(k, v);
+    return f;
+  };
+  const punt = (id: number, partij: number, status: string) => ({
+    id, titel: `Punt ${id}`, omschrijving: null, partij_id: partij, verdieping_id: null, ruimte_id: null, x_m: null, y_m: null,
+    ronde: "voorlopig", status, gemeld_op: "2026-10-01T08:00:00Z", hersteld_op: null, hersteld_door: null, herstelopmerking: null,
+    gecontroleerd_op: null, gecontroleerd_door: null,
+  });
+
+  it("laat de aannemer melden wat hersteld is, en enkel van zijn eigen punten", async () => {
+    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "654321:nep-token-voor-de-bouwbot");
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
+    db.tabellen.bouw_opleverpunten = [punt(1, 2, "gemeld"), punt(2, 1, "open")];
+    const { token } = await maakLink({ partijId: 2, rechten: ["oplevering"], vervaltOp: morgen(), door: "jan" });
+
+    await expect(meldHersteldActie(token, formulier({ punt_id: "1", opmerking: "Voeg opnieuw gezet" }))).rejects.toThrow(
+      `NAAR /extern/${token}?soort=goed`,
+    );
+    expect(db.tabellen.bouw_opleverpunten[0]).toMatchObject({ status: "hersteld", hersteld_door: "Bouwbedrijf Voorbeeld", herstelopmerking: "Voeg opnieuw gezet" });
+    expect(String(verstuurd[0].text)).toContain("Bouwbedrijf Voorbeeld meldt hersteld: Punt 1.");
+
+    // Een punt van een andere partij: niets aan te doen.
+    await expect(meldHersteldActie(token, formulier({ punt_id: "2" }))).rejects.toThrow("soort=fout");
+    expect(db.tabellen.bouw_opleverpunten[1]).toMatchObject({ status: "open" });
+    // Al hersteld gemeld: niet nog eens.
+    await expect(meldHersteldActie(token, formulier({ punt_id: "1" }))).rejects.toThrow("soort=fout");
+  });
+
+  it("vraagt het recht om de oplevering te zien", async () => {
+    db.tabellen.bouw_opleverpunten = [punt(1, 2, "gemeld")];
+    const { token } = await maakLink({ partijId: 2, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
+    await expect(meldHersteldActie(token, formulier({ punt_id: "1" }))).rejects.toThrow("soort=fout");
+    expect(db.tabellen.bouw_opleverpunten[0]).toMatchObject({ status: "gemeld" });
   });
 });
 
