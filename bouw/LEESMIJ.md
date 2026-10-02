@@ -1,11 +1,12 @@
 # Bouw
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
-versies, omgezet naar ruimtes per verdieping, en iedereen met wie we te maken
-hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
+versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
+dat plan, en iedereen met wie we te maken hebben. Op de laptop, de tablet en
+de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a en 1b zijn klaar; zie
+een digitaal plan van. Fase 1a, 1b en 2 zijn klaar; zie
 [Wat nog komt](#wat-nog-komt).
 
 ```
@@ -33,7 +34,12 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
     scherp tot in het detail.
   - Op een grondplan: **Omzetten naar ruimtes**.
 - **Ruimtes** (`/bouw/ruimtes`): per gebouw en verdieping een tekening en een
-  lijst met de oppervlakte en de plafondhoogte. Ook op de gsm.
+  lijst met de oppervlakte, de plafondhoogte en het aantal punten. Ook op de
+  gsm.
+- **Punten** (`/bouw/punten`): lichtpunten, schakelaars, stopcontacten,
+  netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
+  voor de elektricien, als PDF en Excel; zie
+  [Punten en de wensenlijst](#punten-en-de-wensenlijst).
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
   nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
@@ -92,6 +98,34 @@ gekend punt aanduiden of een andere mogelijkheid kiezen kan altijd.
 ruimte die op dezelfde plaats blijft, houdt haar id: wat er later aan hangt
 (punten, keuzes, foto's), blijft mee.
 
+## Punten en de wensenlijst
+
+**Punten zetten.** Op een laptop of tablet, per verdieping, op het omgezette
+grondplan met de ruimtes er licht over. Kies rechts een soort en tik op het
+plan: elke tik zet er een bij. Tik op een punt om het te wijzigen: soort,
+hoogte, aantal, label, opmerking en status (gewenst, in de offerte, geplaatst,
+getest), verplaatsen of verwijderen. Op de gsm staat enkel de lijst.
+
+**De catalogus** staat in `web/lib/bouw/punten.ts`: 31 soorten in acht
+groepen (verlichting, bediening, stopcontacten, data en media, sensoren en
+veiligheid, klimaat, zonwering, andere). Elke soort heeft een korte code zoals
+een elektricien ze leest (`L`, `S`, `2WC`, `UTP`, `PIR`, `RM`) en een gewone
+hoogte: een schakelaar op 1,10 m, een stopcontact op 0,30 m, een lichtpunt
+aan het plafond. Een soort erbij is één regel code, zonder migratie.
+
+**Waar een punt ligt.** In meter, in het assenstelsel van het gebouw. Een
+nieuwe versie van het plan wordt op dezelfde plaats uitgelijnd, dus de punten
+blijven liggen. De ruimte volgt uit de veelhoeken: in de ruimte, of tot 35 cm
+ernaast, want een schakelaar zit in de muur. Wat daarbuiten ligt, zoals een
+buitenstopcontact, staat onder "Buiten of zonder ruimte".
+
+**De wensenlijst** (`/bouw/punten/wensenlijst`): per verdieping en ruimte wat
+er moet komen, met de aantallen, de hoogtes en de opmerkingen, en het totaal
+per soort. Als PDF en als Excel (een blad per ruimte en een blad met het
+totaal), voor de elektricien en de domotica-installateur. Een download is een
+momentopname, met de datum erop. Later dient dezelfde lijst om hun offertes
+te vergelijken.
+
 ## Privacy: de repository is publiek
 
 - De straatnaam, het adres, de plannen en later de foto's en facturen staan
@@ -107,6 +141,8 @@ ruimte die op dezelfde plaats blijft, houdt haar id: wat er later aan hangt
 - Een omzetting bewaart enkel de namen, oppervlaktes en hoogtes van de
   ruimtes, de openingen en het bewijs voor de schaal. Geen andere teksten van
   het blad: het titelblok bevat namen en adressen.
+- De wensenlijst wordt bij elke download op dat moment gemaakt en nergens
+  bewaard. Er staat de projectnaam op, niet het adres.
 - De tests maken hun eigen plannen met een kleine PDF-schrijver
   (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
 
@@ -136,13 +172,18 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | --- | --- |
 | `supabase/migrations/20261002100000_bouw.sql` | De tabellen `bouw_*` en de privé-bucket `bouw` |
 | `supabase/migrations/20261002200000_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
+| `supabase/migrations/20261002300000_bouw_punten.sql` | De punten op het plan |
 | `web/app/bouw/` | De schermen en hun serveracties |
 | `web/app/bouw/plannen/dossier.tsx` | Een dossier inlezen |
 | `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
 | `web/app/bouw/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
 | `web/app/bouw/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
+| `web/app/bouw/punten/` | Punten zetten, en de wensenlijst |
+| `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
 | `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
 | `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
+| `web/lib/bouw/punten.ts` | De catalogus, in welke ruimte een punt ligt, en de wensenlijst |
+| `web/lib/bouw/wensenlijst-bestanden.tsx`, `wensenlijst-laden.ts` | De wensenlijst opmaken als PDF en Excel |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
@@ -179,6 +220,15 @@ Een muur bestaat wel uit lagen van 10 tot 17 cm, en een gevel kan twee
 vlakken hebben: daarom worden meerdere plaatsen fijn nagekeken, en staan de
 andere mogelijkheden erbij.
 
+**Waarom een punt niet weet in welke ruimte het ligt.** Een ruimte kan bij
+een nieuwe versie van het plan groter of kleiner worden, of gesplitst. Een
+punt dat zijn ruimte zelf bijhoudt, zou dan in de verkeerde staan. Daarom
+volgt de ruimte telkens uit de plaats van het punt en de veelhoeken van nu.
+
+**Waarom de catalogus in de code staat.** De lijst groeit met wat we onderweg
+tegenkomen, en de code, de wensenlijst en het plan moeten dezelfde codes en
+kleuren gebruiken. De databank kijkt enkel de vorm van de soort na.
+
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer
 anders, dus de gewone HTTP-cache helpt niet. Een bestand verandert nooit (een
@@ -188,8 +238,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er twee:
-   `20261002100000_bouw.sql` en `20261002200000_bouw_omzetting.sql`.
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er drie:
+   `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql` en
+   `20261002300000_bouw_punten.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **Na het uitrollen nakijken:**
@@ -197,6 +248,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
      of iPad;
+   - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
    - op een gsm de plannen en de ruimtes bekijken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
@@ -209,9 +261,13 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **1b** Van PDF naar plan: het dossier inlezen, de schaal, de ruimtes en
       de deuren en ramen uit de PDF lezen, nakijken en bevestigen, en versies
       en verdiepingen uitlijnen. De muren volgen bij het 3D-model.
-- [ ] **1c** AI-hulp op aanvraag bij het omzetten
-- [ ] **2** Punten op het plan (stopcontacten, licht, netwerk, sensoren) en de
-      wensenlijst voor de elektricien
+- [ ] **1c** AI-hulp op aanvraag bij het omzetten. Uitgesteld: het dossier
+      van onze architect geeft alle ruimtes zonder hulp (17 van de 17). Ze
+      komt pas als een plan zonder witte ruimtevlakken opduikt, van een ander
+      tekenpakket of een scan.
+- [x] **2** Punten op het plan (licht, bediening, stopcontacten, netwerk,
+      sensoren, klimaat, zonwering) en de wensenlijst voor de elektricien, als
+      PDF en Excel
 - [ ] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
 - [ ] **4** Geld: posten, offertes, facturen, bouwkrediet, en links voor de

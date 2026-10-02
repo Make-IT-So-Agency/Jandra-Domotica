@@ -4,6 +4,7 @@ import { db } from "@/lib/supabase";
 
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
+import type { Nieuwpunt, Punt, StatusPunt } from "./punten";
 import type {
   Bestand,
   Gebouw,
@@ -454,6 +455,54 @@ export async function schrijfRuimtes(
   const weg = bestaand.filter((ruimte) => !blijven.has(ruimte.id)).map((ruimte) => ruimte.id);
   if (weg.length > 0) check(await db().from("bouw_ruimtes").delete().in("id", weg), "Ruimtes verwijderen");
   return { bijgewerkt, nieuw, verwijderd: weg.length };
+}
+
+// ---------------------------------------------------------------------------
+// Punten op het plan
+// ---------------------------------------------------------------------------
+
+function alsPunt(rij: Record<string, unknown>): Punt {
+  return {
+    id: Number(rij.id),
+    verdieping_id: Number(rij.verdieping_id),
+    soort: String(rij.soort),
+    x_m: Number(rij.x_m),
+    y_m: Number(rij.y_m),
+    hoogte_m: rij.hoogte_m === null || rij.hoogte_m === undefined ? null : Number(rij.hoogte_m),
+    aantal: Number(rij.aantal ?? 1),
+    label: (rij.label as string | null) ?? null,
+    opmerking: (rij.opmerking as string | null) ?? null,
+    status: (rij.status as StatusPunt) ?? "gewenst",
+  };
+}
+
+/** De punten, van één verdieping of van alle. */
+export async function lijstPunten(verdiepingId?: number): Promise<Punt[]> {
+  let vraag = db().from("bouw_punten").select("*");
+  if (verdiepingId !== undefined) vraag = vraag.eq("verdieping_id", verdiepingId);
+  const rijen = check(await vraag.order("id"), "Punten lezen") as Record<string, unknown>[];
+  return rijen.map(alsPunt);
+}
+
+export async function voegPuntToe(verdiepingId: number, punt: Nieuwpunt): Promise<Punt> {
+  const rij = check(
+    await db().from("bouw_punten").insert({ ...punt, verdieping_id: verdiepingId }).select("*").single(),
+    "Punt toevoegen",
+    { inGebruik: "Deze verdieping bestaat niet meer." },
+  ) as Record<string, unknown>;
+  return alsPunt(rij);
+}
+
+export async function wijzigPunt(id: number, punt: Nieuwpunt): Promise<Punt | null> {
+  const rijen = check(
+    await db().from("bouw_punten").update(punt).eq("id", id).select("*"),
+    "Punt bewaren",
+  ) as Record<string, unknown>[];
+  return rijen[0] ? alsPunt(rijen[0]) : null;
+}
+
+export async function verwijderPunt(id: number): Promise<void> {
+  check(await db().from("bouw_punten").delete().eq("id", id), "Punt verwijderen");
 }
 
 // ---------------------------------------------------------------------------

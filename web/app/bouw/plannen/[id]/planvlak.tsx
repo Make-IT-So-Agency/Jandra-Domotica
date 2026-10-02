@@ -64,8 +64,8 @@ export function Planvlak({
   blad: Geladenblad;
   /** Iets in paginapunten over het blad. Krijgt de zoom mee, om tekst en lijnen leesbaar te houden. */
   laag?: (zoom: number) => ReactNode;
-  /** Een tik zonder te slepen, met het punt in paginapunten. */
-  opTik?: (punt: Punt) => void;
+  /** Een tik zonder te slepen, met het punt in paginapunten en de zoom van dat moment. */
+  opTik?: (punt: Punt, zoom: number) => void;
   /** Extra knoppen naast inzoomen en uitzoomen. */
   balk?: ReactNode;
   info?: ReactNode;
@@ -92,7 +92,7 @@ export function Planvlak({
   const tik = useCallback(
     (punt: Punt) => {
       const huidig = beeldRef.current;
-      if (huidig && opTik) opTik(schermNaarPagina(huidig, punt));
+      if (huidig && opTik) opTik(schermNaarPagina(huidig, punt), huidig.zoom);
     },
     [opTik],
   );

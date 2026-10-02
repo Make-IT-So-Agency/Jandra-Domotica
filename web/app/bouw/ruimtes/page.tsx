@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
 import { kaderVan } from "@/lib/bouw/omzetting/geometrie";
-import { lijstGebouwen, lijstPlannen, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import { lijstGebouwen, lijstPlannen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import { CATEGORIEKLEUREN, ruimteVan, soortVan, type Punt } from "@/lib/bouw/punten";
 import { RUIMTENAMEN, type Gebouw, type Ruimte, type Verdieping } from "@/lib/bouw/types";
 import { sorteerVerdiepingen } from "@/lib/bouw/weergave";
 import { magBouwZien } from "@/lib/rollen";
@@ -29,12 +30,20 @@ export default async function Ruimtespagina({
   let verdiepingen: Verdieping[];
   let ruimtes: Ruimte[];
   let grondplannen: { id: number; verdieping_id: number | null }[];
+  let punten: Punt[];
   try {
-    const [g, v, r, p] = await Promise.all([lijstGebouwen(), lijstVerdiepingen(), lijstRuimtes(), lijstPlannen()]);
+    const [g, v, r, p, pt] = await Promise.all([
+      lijstGebouwen(),
+      lijstVerdiepingen(),
+      lijstRuimtes(),
+      lijstPlannen(),
+      lijstPunten(),
+    ]);
     gebouwen = g;
     verdiepingen = sorteerVerdiepingen(v, g);
     ruimtes = r;
     grondplannen = p.filter((plan) => plan.soort === "grondplan" && plan.versies.length > 0);
+    punten = pt;
   } catch (fout) {
     return (
       <>
@@ -76,6 +85,12 @@ export default async function Ruimtespagina({
                 .sort((a, b) => b.oppervlakte_m2 - a.oppervlakte_m2);
               const totaal = lijst.reduce((som, r) => som + r.oppervlakte_m2, 0);
               const grondplan = grondplannen.find((plan) => plan.verdieping_id === verdieping.id);
+              const eigenPunten = punten.filter((p) => p.verdieping_id === verdieping.id);
+              const puntenPerRuimte = new Map<number | null, number>();
+              for (const punt of eigenPunten) {
+                const ruimte = ruimteVan(punt, lijst);
+                puntenPerRuimte.set(ruimte, (puntenPerRuimte.get(ruimte) ?? 0) + punt.aantal);
+              }
               return (
                 <div key={verdieping.id} id={`verdieping-${verdieping.id}`} className="kaart verdiepingkaart">
                   <h3>
@@ -98,7 +113,22 @@ export default async function Ruimtespagina({
                     </p>
                   ) : (
                     <>
-                      {kader ? <Ruimteplan ruimtes={lijst} kader={kader} /> : null}
+                      {kader ? (
+                        <Ruimteplan
+                          ruimtes={lijst}
+                          kader={kader}
+                          punten={eigenPunten.map((punt) => {
+                            const soort = soortVan(punt.soort);
+                            return {
+                              id: punt.id,
+                              x_m: punt.x_m,
+                              y_m: punt.y_m,
+                              kleur: CATEGORIEKLEUREN[soort?.categorie ?? "andere"],
+                              naam: soort?.naam ?? punt.soort,
+                            };
+                          })}
+                        />
+                      ) : null}
                       <div className="tabel-omhulsel">
                         <table>
                           <thead>
@@ -108,6 +138,7 @@ export default async function Ruimtespagina({
                               <th className="getal">Oppervlakte</th>
                               <th className="getal">Volgens plan</th>
                               <th className="getal">Plafondhoogte</th>
+                              <th className="getal">Punten</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -124,6 +155,9 @@ export default async function Ruimtespagina({
                                 <td data-label="Plafondhoogte" className="getal">
                                   {meter(ruimte.plafondhoogte_m ?? verdieping.plafondhoogte_m)}
                                 </td>
+                                <td data-label="Punten" className="getal">
+                                  {puntenPerRuimte.get(ruimte.id) ?? 0}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -136,15 +170,22 @@ export default async function Ruimtespagina({
                               </td>
                               <td />
                               <td />
+                              <td data-label="Punten" className="getal">
+                                {eigenPunten.reduce((som, p) => som + p.aantal, 0)}
+                              </td>
                             </tr>
                           </tfoot>
                         </table>
                       </div>
-                      {grondplan ? (
-                        <p className="hulp" style={{ marginTop: 8 }}>
-                          <Link href={`/bouw/plannen/${grondplan.id}/omzetten`}>Ruimtes verbeteren bij het grondplan</Link>
-                        </p>
-                      ) : null}
+                      <p className="hulp" style={{ marginTop: 8 }}>
+                        <Link href={`/bouw/punten?verdieping=${verdieping.id}`}>Punten zetten</Link>
+                        {grondplan ? (
+                          <>
+                            {" · "}
+                            <Link href={`/bouw/plannen/${grondplan.id}/omzetten`}>Ruimtes verbeteren bij het grondplan</Link>
+                          </>
+                        ) : null}
+                      </p>
                     </>
                   )}
                 </div>

@@ -102,3 +102,24 @@ export function kiesReferentie(
     });
   return kandidaten[0] ? alsReferentie(kandidaten[0].plan, kandidaten[0].versie, "verdieping") : null;
 }
+
+/**
+ * De bevestigde versie van het grondplan van een verdieping: daarop staan de
+ * ruimtes, en daarop komen de punten. De nieuwste als er meer zijn.
+ */
+export function bevestigdGrondplan(
+  plannen: Planinfo[],
+  verdiepingId: number,
+  bevestigd: Set<number>,
+): { plan: Planinfo; versie: Planinfo["versies"][number]; kalibratie: Kalibratie } | null {
+  let beste: { plan: Planinfo; versie: Planinfo["versies"][number]; kalibratie: Kalibratie } | null = null;
+  for (const plan of plannen) {
+    if (plan.soort !== "grondplan" || plan.verdieping_id !== verdiepingId) continue;
+    for (const versie of plan.versies) {
+      const kalibratie = leesKalibratie(versie.kalibratie);
+      if (!bevestigd.has(versie.id) || !kalibratie) continue;
+      if (!beste || versie.created_at > beste.versie.created_at) beste = { plan, versie, kalibratie };
+    }
+  }
+  return beste;
+}

@@ -13,7 +13,16 @@ const m2 = (waarde: number) => `${waarde.toFixed(2).replace(".", ",")} m²`;
  * een gebouw krijgen hetzelfde kader, zodat ze onder elkaar op dezelfde
  * plaats staan. Gewone SVG, zonder JavaScript: ook op de gsm.
  */
-export function Ruimteplan({ ruimtes, kader }: { ruimtes: Ruimte[]; kader: Kader }) {
+export function Ruimteplan({
+  ruimtes,
+  kader,
+  punten = [],
+}: {
+  ruimtes: Ruimte[];
+  kader: Kader;
+  /** De punten op deze verdieping, als bolletjes in de kleur van hun categorie. */
+  punten?: { id: number; x_m: number; y_m: number; kleur: string; naam: string }[];
+}) {
   const marge = 0.4;
   const x = kader.x0 - marge;
   const y = kader.y0 - marge;
@@ -37,6 +46,11 @@ export function Ruimteplan({ ruimtes, kader }: { ruimtes: Ruimte[]; kader: Kader
             {ruimte.naam}, {m2(ruimte.oppervlakte_m2)}
           </title>
         </path>
+      ))}
+      {punten.map((punt) => (
+        <circle key={`p${punt.id}`} cx={punt.x_m} cy={punt.y_m} r={0.11} fill={punt.kleur} stroke="#ffffff" strokeWidth={0.03}>
+          <title>{punt.naam}</title>
+        </circle>
       ))}
       {ruimtes.map((ruimte) => {
         const [mx, my] = middenVan(ruimte.veelhoek);

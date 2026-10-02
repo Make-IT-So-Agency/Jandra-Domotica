@@ -1153,6 +1153,100 @@ button.link {
   font-weight: 400;
 }
 
+/* Tabs, bv. de verdiepingen boven het puntenscherm. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.tabs a {
+  padding: 6px 12px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  color: var(--tekst);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.tabs a.actief {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Het palet met soorten punten. */
+.palet {
+  margin-bottom: 10px;
+}
+
+.palet-kop {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.palet-knoppen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+button.palet-knop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 4px 6px;
+  min-height: 0;
+}
+
+button.palet-knop.gekozen {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+}
+
+.palet-code {
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.laag-ruimte.licht {
+  fill: rgba(29, 78, 216, 0.04);
+  stroke: rgba(29, 78, 216, 0.35);
+}
+
+.laag-puntsymbool text {
+  fill: #ffffff;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.laag-puntsymbool.gekozen circle {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-puntsymbool text.laag-puntaantal {
+  fill: #111827;
+  text-anchor: start;
+}
+
 /* Het dossier nakijken: een tabel met velden in de cellen. */
 .dossier table input:not([type="checkbox"]),
 .dossier table select {
