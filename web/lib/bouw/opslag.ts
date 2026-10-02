@@ -544,25 +544,50 @@ export async function lijstPlanbestanden(): Promise<Bestand[]> {
 export interface Bouwstand {
   project: Project;
   verdiepingen: number;
-  plannen: { id: number; titel: string; versies: number }[];
+  plannen: { id: number; titel: string; versies: number; soort: SoortPlan; omgezet: "geen" | "oud" | "laatste" }[];
   partijen: { soort: SoortPartij }[];
   bytes: number;
+  ruimtes: { aantal: number; oppervlakte: number };
 }
 
 export async function leesBouwstand(): Promise<Bouwstand> {
-  const [project, verdiepingen, plannen, partijen, bestanden] = await Promise.all([
+  const [project, verdiepingen, plannen, partijen, bestanden, ruimtes, omzettingen] = await Promise.all([
     leesProject(),
     db().from("bouw_verdiepingen").select("id"),
     lijstPlannen(),
     db().from("bouw_partijen").select("soort"),
     db().from("bouw_bestanden").select("grootte_bytes").eq("status", "klaar"),
+    db().from("bouw_ruimtes").select("oppervlakte_m2"),
+    db().from("bouw_omzettingen").select("planversie_id"),
   ]);
   const grootten = check(bestanden, "Bestanden tellen") as { grootte_bytes: number | null }[];
+  const oppervlaktes = check(ruimtes, "Ruimtes tellen") as { oppervlakte_m2: number | string }[];
+  const omgezet = new Set(
+    (check(omzettingen, "Omzettingen lezen") as { planversie_id: number }[]).map((o) => Number(o.planversie_id)),
+  );
   return {
     project,
     verdiepingen: (check(verdiepingen, "Verdiepingen tellen") as unknown[]).length,
-    plannen: plannen.map((plan) => ({ id: plan.id, titel: plan.titel, versies: plan.versies.length })),
+    plannen: plannen.map((plan) => {
+      const laatste = plan.versies.at(-1);
+      return {
+        id: plan.id,
+        titel: plan.titel,
+        versies: plan.versies.length,
+        soort: plan.soort,
+        omgezet:
+          laatste && omgezet.has(laatste.id)
+            ? ("laatste" as const)
+            : plan.versies.some((versie) => omgezet.has(versie.id))
+              ? ("oud" as const)
+              : ("geen" as const),
+      };
+    }),
     partijen: check(partijen, "Partijen lezen") as { soort: SoortPartij }[],
     bytes: grootten.reduce((som, rij) => som + Number(rij.grootte_bytes ?? 0), 0),
+    ruimtes: {
+      aantal: oppervlaktes.length,
+      oppervlakte: oppervlaktes.reduce((som, rij) => som + Number(rij.oppervlakte_m2), 0),
+    },
   };
 }

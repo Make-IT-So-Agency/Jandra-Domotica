@@ -62,6 +62,24 @@ describe("takenVoorBouw", () => {
     ]);
   });
 
+  it("vraagt een grondplan om te zetten, en ook een nieuwere versie", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 2,
+      plannen: [
+        { id: 3, titel: "Gelijkvloers", versies: 1, soort: "grondplan", omgezet: "geen" },
+        { id: 4, titel: "Verdieping", versies: 2, soort: "grondplan", omgezet: "oud" },
+        { id: 5, titel: "Voorgevel", versies: 1, soort: "gevel", omgezet: "geen" },
+        { id: 6, titel: "Bijgebouw", versies: 1, soort: "grondplan", omgezet: "laatste" },
+      ],
+      partijen: [{ soort: "architect" }],
+    });
+    expect(taken).toEqual([
+      { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/bouw/plannen/3/omzetten", knop: "Omzetten" },
+      { tekst: 'De nieuwste versie van "Verdieping" is nog niet omgezet.', link: "/bouw/plannen/4/omzetten", knop: "Nakijken" },
+    ]);
+  });
+
   it("is leeg als alles klaarstaat", () => {
     expect(
       takenVoorBouw({

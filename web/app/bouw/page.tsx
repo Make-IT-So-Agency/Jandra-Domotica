@@ -45,8 +45,8 @@ export default async function Bouwoverzicht({
     <>
       <h1>{stand.project.projectnaam ?? "Bouw"}</h1>
       <p className="inleiding">
-        Ons bouwproject: de plannen van de architect, de verdiepingen en iedereen met wie we te
-        maken hebben. Hier komt later ook het omzetten van de plannen naar een digitaal plan bij.
+        Ons bouwproject: de plannen van de architect, omgezet naar ruimtes per verdieping, en
+        iedereen met wie we te maken hebben.
       </p>
 
       <Melding soort={soort} melding={melding} />
@@ -73,8 +73,13 @@ export default async function Bouwoverzicht({
           <div className="bij">{versies === 1 ? "1 versie" : `${versies} versies`}</div>
         </div>
         <div className="tegel">
-          <div className="label">Verdiepingen</div>
-          <div className="waarde">{stand.verdiepingen}</div>
+          <div className="label">Ruimtes</div>
+          <div className="waarde">{stand.ruimtes.aantal}</div>
+          <div className="bij">
+            {stand.ruimtes.aantal > 0
+              ? `samen ${stand.ruimtes.oppervlakte.toFixed(1).replace(".", ",")} m² netto`
+              : `${stand.verdiepingen} ${stand.verdiepingen === 1 ? "verdieping" : "verdiepingen"}`}
+          </div>
         </div>
         <div className="tegel">
           <div className="label">Partijen</div>

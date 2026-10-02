@@ -1,4 +1,4 @@
-import type { SoortPartij } from "./types";
+import type { SoortPartij, SoortPlan } from "./types";
 
 /**
  * Wat er nog moet gebeuren voor het bouwproject klaarstaat, voor de lijst
@@ -9,7 +9,14 @@ import type { SoortPartij } from "./types";
 export interface Bouwstand {
   projectnaam: string | null;
   verdiepingen: number;
-  plannen: { id: number; titel: string; versies: number }[];
+  plannen: {
+    id: number;
+    titel: string;
+    versies: number;
+    soort?: SoortPlan;
+    /** Is een versie omgezet naar ruimtes: geen, enkel een oudere, of de laatste? */
+    omgezet?: "geen" | "oud" | "laatste";
+  }[];
   partijen: { soort: SoortPartij }[];
 }
 
@@ -41,6 +48,18 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         tekst: `"${plan.titel}" heeft nog geen versie.`,
         link: `/bouw/plannen/${plan.id}`,
         knop: "Versie opladen",
+      });
+    } else if (plan.soort === "grondplan" && plan.omgezet === "geen") {
+      taken.push({
+        tekst: `Zet "${plan.titel}" om naar ruimtes.`,
+        link: `/bouw/plannen/${plan.id}/omzetten`,
+        knop: "Omzetten",
+      });
+    } else if (plan.soort === "grondplan" && plan.omgezet === "oud") {
+      taken.push({
+        tekst: `De nieuwste versie van "${plan.titel}" is nog niet omgezet.`,
+        link: `/bouw/plannen/${plan.id}/omzetten`,
+        knop: "Nakijken",
       });
     }
   }

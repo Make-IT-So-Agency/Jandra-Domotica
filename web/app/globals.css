@@ -1085,6 +1085,74 @@ button.link {
   font-size: 14px;
 }
 
+/* De ruimtes van een verdieping als tekening. De vlakken krijgen een kleur
+   per soort; de tekst staat op die lichte kleur, ook in donkere modus. */
+.verdiepingkaart h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.ruimteplan {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  margin: 0 auto 14px;
+}
+
+.ruimteplan-vlak {
+  fill: #f5f5f4;
+  stroke: #4b5563;
+  stroke-width: 0.04;
+}
+
+.ruimteplan-vlak.soort-leefruimte,
+.ruimteplan-vlak.soort-keuken {
+  fill: #fde68a;
+}
+
+.ruimteplan-vlak.soort-slaapkamer {
+  fill: #bfdbfe;
+}
+
+.ruimteplan-vlak.soort-badkamer,
+.ruimteplan-vlak.soort-wc {
+  fill: #a5f3fc;
+}
+
+.ruimteplan-vlak.soort-inkom,
+.ruimteplan-vlak.soort-nachthal,
+.ruimteplan-vlak.soort-trap {
+  fill: #e5e7eb;
+}
+
+.ruimteplan-vlak.soort-berging,
+.ruimteplan-vlak.soort-technieken,
+.ruimteplan-vlak.soort-wasplaats,
+.ruimteplan-vlak.soort-garage {
+  fill: #d9f99d;
+}
+
+.ruimteplan-vlak.soort-bureau,
+.ruimteplan-vlak.soort-dressing {
+  fill: #ddd6fe;
+}
+
+.ruimteplan-vlak.soort-terras {
+  fill: #bbf7d0;
+}
+
+.ruimteplan-naam {
+  fill: #111827;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.ruimteplan-maat {
+  font-weight: 400;
+}
+
 /* Het dossier nakijken: een tabel met velden in de cellen. */
 .dossier table input:not([type="checkbox"]),
 .dossier table select {

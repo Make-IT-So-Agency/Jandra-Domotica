@@ -56,6 +56,11 @@ function begin(fouten = {}) {
         { id: 33, pad: "plannen/d.pdf", status: "wacht", grootte_bytes: 99, created_at: "2026-10-02T09:00:00Z" },
       ],
       bouw_partijen: [{ id: 40, soort: "architect", naam: "Architect" }],
+      bouw_omzettingen: [{ id: 50, planversie_id: 20 }],
+      bouw_ruimtes: [
+        { id: 60, verdieping_id: 2, oppervlakte_m2: "25.250" },
+        { id: 61, verdieping_id: 2, oppervlakte_m2: "12.250" },
+      ],
     },
     fouten,
   );
@@ -188,9 +193,10 @@ describe("de stand voor het overzicht", () => {
     const stand = await leesBouwstand();
     expect(stand.verdiepingen).toBe(3);
     expect(stand.plannen).toEqual([
-      { id: 11, titel: "Gevels", versies: 1 },
-      { id: 10, titel: "Grondplan gelijkvloers", versies: 2 },
+      { id: 11, titel: "Gevels", versies: 1, soort: "gevel", omgezet: "geen" },
+      { id: 10, titel: "Grondplan gelijkvloers", versies: 2, soort: "grondplan", omgezet: "oud" },
     ]);
+    expect(stand.ruimtes).toEqual({ aantal: 2, oppervlakte: 37.5 });
     expect(stand.partijen.map((partij) => partij.soort)).toEqual(["architect"]);
     // Enkel bestanden die klaar zijn tellen mee.
     expect(stand.bytes).toBe(3500);
