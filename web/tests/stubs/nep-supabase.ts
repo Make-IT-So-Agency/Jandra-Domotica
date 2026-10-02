@@ -36,6 +36,7 @@ const SLEUTELS: Record<string, string[]> = {
   bouw_planversies: ["plan_id", "label"],
   bouw_keuze_ruimtes: ["keuze_id", "ruimte_id"],
   bouw_checklist: ["ruimte_id", "sleutel"],
+  bouw_onderhoudsbeurten: ["onderhoud_id", "datum"],
   bouw_voorkeuren: ["keuze_id", "wie"],
   bouw_meldingen: ["sleutel"],
 };

@@ -1971,6 +1971,43 @@ tr.deze-maand td {
   border-color: var(--goed);
 }
 
+/* Het woningdossier: per soort een lijst, een document per regel. */
+.documentenlijst {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+}
+
+.documentenlijst li {
+  padding: 10px 14px;
+  border-top: 1px solid var(--lijn);
+  overflow-wrap: anywhere;
+}
+
+.documentenlijst li:first-child {
+  border-top: none;
+}
+
+/* De beurten van een onderhoud: de datum links, schrappen rechts. */
+.beurtenlijst {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.beurtenlijst form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--lijn);
+}
+
 /* Op een gsm worden de tabellen kaartjes: daar valt een cel met enkel een
    streepje weg, en een cel met een leeg label staat links. */
 @media (max-width: 680px) {

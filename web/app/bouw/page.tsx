@@ -8,6 +8,8 @@ import { lijstInzendingen } from "@/lib/bouw/links";
 import { lijstActiepunten, lijstOpleverpunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
+import { nazorgstand } from "@/lib/bouw/nazorg";
+import { lijstDocumenten, lijstGaranties, lijstOnderhoud } from "@/lib/bouw/nazorg-opslag";
 import { leesBouwstand } from "@/lib/bouw/opslag";
 import { tweeWeken } from "@/lib/bouw/planning";
 import { lijstKeuzes, lijstPlanning } from "@/lib/bouw/regie-opslag";
@@ -36,8 +38,23 @@ export default async function Bouwoverzicht({
   let planning;
   let cijfers;
   try {
-    let posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos, opleverpunten;
-    [stand, keuzes, planning, posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos, opleverpunten] = await Promise.all([
+    let posten, offertes, meerwerken, facturen, inzendingen, actiepunten, fotos, opleverpunten, documenten, onderhoud, garanties;
+    [
+      stand,
+      keuzes,
+      planning,
+      posten,
+      offertes,
+      meerwerken,
+      facturen,
+      inzendingen,
+      actiepunten,
+      fotos,
+      opleverpunten,
+      documenten,
+      onderhoud,
+      garanties,
+    ] = await Promise.all([
       leesBouwstand(),
       lijstKeuzes(),
       lijstPlanning(),
@@ -49,6 +66,9 @@ export default async function Bouwoverzicht({
       lijstActiepunten(),
       lijstWerffotos(),
       lijstOpleverpunten(),
+      lijstDocumenten(),
+      lijstOnderhoud(),
+      lijstGaranties(),
     ]);
     cijfers = {
       posten,
@@ -61,6 +81,9 @@ export default async function Bouwoverzicht({
       actiepunten: actiepunten.filter((punt) => punt.status === "open"),
       fotos: fotos.length,
       nakijken: opleverpunten.filter((punt) => punt.status === "hersteld").length,
+      documenten: documenten.length,
+      onderhoud,
+      garanties,
     };
   } catch (fout) {
     return (
@@ -72,6 +95,7 @@ export default async function Bouwoverzicht({
   }
 
   const nu = vandaag();
+  const nazorg = nazorgstand(cijfers.onderhoud, cijfers.garanties, nu);
   const deadlines = openDeadlines(keuzes, planning, nu);
   const teBetalen = openFacturen(cijfers.facturen, nu);
   const partijnaam = (partijId: number | null) =>
@@ -94,8 +118,11 @@ export default async function Bouwoverzicht({
         : [],
     ),
     nakijken: cijfers.nakijken,
+    ...nazorg,
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
+  const onderhoudTeLaat = nazorg.onderhoud.filter((item) => item.dagen < 0).length;
+  const volgendOnderhoud = Math.min(...nazorg.onderhoud.map((item) => item.dagen));
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;
   const mijlpaal = planning.find((item) => item.soort === "mijlpaal" && item.begindatum >= nu && item.status !== "klaar");
   const week = tweeWeken(
@@ -176,6 +203,19 @@ export default async function Bouwoverzicht({
               : cijfers.actiepunten.length === 1
                 ? "1 actiepunt open"
                 : `${cijfers.actiepunten.length} actiepunten open`}
+          </div>
+        </div>
+        <div className="tegel">
+          <div className="label">Dossier</div>
+          <div className="waarde">{cijfers.documenten === 1 ? "1 document" : `${cijfers.documenten} documenten`}</div>
+          <div className="bij">
+            {cijfers.onderhoud.length === 0
+              ? "nog geen onderhoud gepland"
+              : onderhoudTeLaat > 0
+                ? `${onderhoudTeLaat === 1 ? "1 onderhoudsbeurt" : `${onderhoudTeLaat} onderhoudsbeurten`} te laat`
+                : nazorg.onderhoud.length > 0
+                  ? `volgend onderhoud ${dagenTekst(volgendOnderhoud)}`
+                  : "onderhoud: nog niets genoteerd"}
           </div>
         </div>
         <div className="tegel">

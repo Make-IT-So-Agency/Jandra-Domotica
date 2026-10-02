@@ -2,12 +2,12 @@
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
-dat plan, de keuzes, de planning, het geld, de werf, en iedereen met wie we te
-maken hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
+dat plan, de keuzes, de planning, het geld, de werf, het woningdossier, en
+iedereen met wie we te maken hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b, 2 tot en met 6 zijn klaar; zie
-[Wat nog komt](#wat-nog-komt).
+een digitaal plan van. Fase 1a, 1b en 2 tot en met 7 zijn klaar; enkel 1c
+(AI-hulp bij het omzetten) is uitgesteld. Zie [Wat nog komt](#wat-nog-komt).
 
 ```
 Browser (Jan, Sandra)
@@ -25,8 +25,9 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 
 - **Overzicht** (`/bouw`): wat er nog moet gebeuren (een keuze waarvan de
   deadline binnen twee weken valt, een factuur die binnen de week vervalt, een
-  grondplan dat nog omgezet moet worden), de stand in tegels, wat er deze en
-  volgende week gebeurt, en de naam en het adres van het project.
+  grondplan dat nog omgezet moet worden, onderhoud dat deze week aan de beurt
+  is, een garantie die binnen de maand afloopt), de stand in tegels, wat er
+  deze en volgende week gebeurt, en de naam en het adres van het project.
 - **Plannen** (`/bouw/plannen`): elk plan met zijn versies, per gebouw.
   - **Dossier inlezen**: één PDF met alle bladen. De app stelt per blad een
     plan voor en per gebouw de verdiepingen; zie
@@ -55,6 +56,10 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 - **Werf** (`/bouw/werf`): foto's met de gsm, per dag en per ruimte, het
   werfdagboek, de actiepunten, de opleverpunten per aannemer en de checklist
   vóór alles dichtgaat; zie [De werf](#de-werf).
+- **Dossier** (`/bouw/dossier`): de documenten van het huis (as-built, AREI,
+  EPB, postinterventiedossier, handleidingen, garantiebewijzen), de garanties
+  met hun einde en het onderhoud dat terugkomt; zie
+  [Woningdossier en nazorg](#woningdossier-en-nazorg).
 - **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
@@ -300,6 +305,34 @@ Op de gsm, op de werf zelf.
   getest, ventilatie, de vloer vóór de chape, luchtdichting. De lijst past bij
   de soort ruimte. Elk vinkje wordt meteen bewaard, met wie en wanneer.
 
+## Woningdossier en nazorg
+
+Voor na de oplevering, en voor wie later aan het huis werkt.
+
+- **Documenten** (`/bouw/dossier`): de PDF's die bij het huis horen, per
+  soort: as-built-plannen, de AREI-keuring met het eendraad- en
+  situatieschema, de EPB-aangifte, het postinterventiedossier, de vergunning,
+  andere attesten, handleidingen en garantiebewijzen. Ze staan in dezelfde
+  privé-bucket als de offertes en facturen, onder `documenten/`, tot 20 MB per
+  PDF. Wat in elk woningdossier hoort en nog ontbreekt, staat bovenaan. Een
+  plan zoals er gebouwd is, zet je best ook bij Plannen als nieuwe versie:
+  dan kan je het omzetten en vergelijken met wat gepland was.
+- **Garanties** (`/bouw/dossier/garanties`): waarop, van wie, vanaf wanneer en
+  hoe lang, met het garantiebewijs uit de documenten. De app rekent het einde
+  uit; wat binnen 90 dagen afloopt, valt op. Een product heeft wettelijk 2 jaar
+  garantie; voor de ruwbouw geldt de tienjarige aansprakelijkheid van
+  aannemer en architect, vanaf de aanvaarding.
+- **Onderhoud** (`/bouw/dossier/onderhoud`): wat regelmatig moet gebeuren, om
+  de hoeveel maanden en door wie. **Begin met het gewone onderhoud** zet tien
+  gangbare taken klaar (ventilatiefilters, warmtepomp, rookmelders, dakgoten,
+  sifons...); wat je niet hebt, verwijder je. **Vandaag gedaan** noteert een
+  beurt met één tik; een beurt van een andere dag kan ook, maar niet in de
+  toekomst. Eén beurt per dag: een dubbele tik telt één keer. Elke beurt
+  blijft bewaard, en "laatst gedaan" is altijd de laatste: wie een oude beurt
+  nog invult, zet de volgende niet terug in de tijd, en een beurt bij het
+  verkeerde onderhoud schrap je bij **Wijzigen**. Wat nog nooit gebeurde,
+  krijgt een volgende datum na de eerste beurt.
+
 ## De bot van Bouw
 
 Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
@@ -315,6 +348,11 @@ knop naar het juiste scherm.
     zelf, en één keer de dag erna als ze nog niet betaald is;
   - een herinnering de dag vóór de deadline van een actiepunt, op de dag
     zelf, en de dag erna;
+  - een herinnering een week vóór een onderhoudsbeurt en op de dag zelf, en
+    elke dertig dagen zolang ze te laat is (enkel voor onderhoud dat al eens
+    gebeurde);
+  - een herinnering twee maanden, een maand en een week vóór een garantie
+    afloopt;
   - wat morgen begint, en een mijlpaal van vandaag;
   - op maandag wat er deze en volgende week gebeurt.
 - Elke melding vertrekt maar één keer (`bouw_meldingen`), ook als de ronde
@@ -397,14 +435,15 @@ van de browser naar Storage:
    en of het met `%PDF-` begint (`lib/bouw/opladen.ts`). Pas dan wordt de rij
    `klaar` en de versie aangemaakt. Is het geen PDF, dan verdwijnt het.
 
-Foto's (`fotos/`, verkleind in de browser) en de PDF's van offertes en
-facturen (`documenten/`, tot 20 MB) gaan langs dezelfde drie stappen.
+Foto's (`fotos/`, verkleind in de browser) en de PDF's van offertes,
+facturen en het woningdossier (`documenten/`, tot 20 MB) gaan langs dezelfde
+drie stappen.
 
 Bij stap 3 leest de server enkel de eerste bytes van het bestand. Die fetch
 krijgt een eigen `signal`: binnen een serveractie bewaart React elke
 GET-fetch en geeft het een kopie, en wie van die kopie maar een stuk leest en
 dan afbreekt, wacht anders eeuwig op de andere kopie. Bij een
-offerte of factuur gebeurt stap 2 zodra je de PDF kiest; het formulier wacht
+offerte, factuur of document gebeurt stap 2 zodra je de PDF kiest; het formulier wacht
 tot het bestand er staat, en de serveractie rondt het af.
 
 Uploads die drie uur op `wacht` blijven staan, worden opgeruimd bij de
@@ -446,8 +485,12 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/werf.ts`, `exif.ts` | De stappen van een opleverpunt, de checklist, foto's per dag, en de datum uit een foto; puur, met tests |
 | `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen, foto-URL's en opleverlijst voor de schermen |
 | `web/lib/bouw/oplevering-pdf.tsx`, `web/app/api/bouw/oplevering/` | De opleverpunten van een aannemer als PDF |
+| `supabase/migrations/20261003000000_bouw_dossier.sql` | Het woningdossier, de garanties, het onderhoud en zijn beurten |
+| `web/app/bouw/dossier/` | Documenten, garanties en onderhoud |
+| `web/lib/bouw/nazorg.ts` | Soorten documenten, het einde van een garantie, de volgende onderhoudsbeurt en de herinneringen; puur, met tests |
+| `web/lib/bouw/nazorg-opslag.ts` | Het dossier, de garanties, het onderhoud en de beurten in de databank |
 | `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
-| `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte of factuur openen |
+| `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte, factuur of dossierdocument openen |
 | `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
 | `web/lib/bouw/geld-opslag.ts`, `geld-laden.ts`, `geld-excel.ts` | Het geld in de databank, alles in één keer laden, en de Excel |
 | `web/app/bouw/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
@@ -527,12 +570,12 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er negen:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er tien:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
    `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
    `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql`,
-   `20261002700000_bouw_geld.sql`, `20261002800000_bouw_inzendingen_geld.sql`
-   en `20261002900000_bouw_werf.sql`.
+   `20261002700000_bouw_geld.sql`, `20261002800000_bouw_inzendingen_geld.sql`,
+   `20261002900000_bouw_werf.sql` en `20261003000000_bouw_dossier.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -570,7 +613,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - op een gsm een paar foto's nemen bij Werf, en er één op de tekening
      prikken;
    - een opleverpunt met foto maken voor een aannemer, de PDF downloaden,
-     en het via zijn link (in een privévenster) hersteld melden.
+     en het via zijn link (in een privévenster) hersteld melden;
+   - een document met PDF in het dossier zetten en openen, en bij Onderhoud
+     met het gewone onderhoud beginnen.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
    ontbrekende apikey bij Storage. De melding in het scherm zegt welke HTTP-fout
@@ -599,4 +644,6 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat
-- [ ] **7** Woningdossier en nazorg
+- [x] **7** Woningdossier en nazorg: de documenten van het huis, de
+      garanties met hun einde, en het onderhoud met wat wanneer opnieuw moet,
+      met herinneringen van de bot

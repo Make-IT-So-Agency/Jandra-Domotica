@@ -29,6 +29,10 @@ export interface Bouwstand {
   actiepunten?: { puntId: number; titel: string; wie: string | null; dagen: number }[];
   /** Opleverpunten die een aannemer hersteld meldde, en die wij nog moeten nakijken. */
   nakijken?: number;
+  /** Het onderhoud dat al eens gebeurde: wat, en het aantal dagen tot de volgende beurt. */
+  onderhoud?: { onderhoudId: number; wat: string; dagen: number }[];
+  /** De garanties: waarop, en het aantal dagen tot ze aflopen. */
+  garanties?: { garantieId: number; wat: string; dagen: number }[];
 }
 
 /** Zo ver vooruit komt een deadline bij "nog te doen". */
@@ -39,6 +43,12 @@ export const FACTUUR_VOORUIT_DAGEN = 7;
 
 /** Zo ver vooruit komt een actiepunt bij "nog te doen". */
 export const ACTIEPUNT_VOORUIT_DAGEN = 2;
+
+/** Zo ver vooruit komt een onderhoudsbeurt bij "nog te doen". */
+export const ONDERHOUD_VOORUIT_DAGEN = 7;
+
+/** Zo ver vooruit komt een garantie die afloopt bij "nog te doen": tijd genoeg om nog iets te melden. */
+export const GARANTIE_VOORUIT_DAGEN = 30;
 
 export interface Taak {
   tekst: string;
@@ -84,6 +94,27 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
           ? `${wat}: ${-punt.dagen === 1 ? "1 dag" : `${-punt.dagen} dagen`} over tijd.`
           : `${wat}: klaar tegen ${dagenTekst(punt.dagen)}.`,
       link: "/bouw/werf/actiepunten",
+      knop: "Bekijken",
+    });
+  }
+
+  for (const item of [...(stand.onderhoud ?? [])].sort((a, b) => a.dagen - b.dagen)) {
+    if (item.dagen > ONDERHOUD_VOORUIT_DAGEN) continue;
+    taken.push({
+      tekst:
+        item.dagen < 0
+          ? `${item.wat}: ${-item.dagen === 1 ? "1 dag" : `${-item.dagen} dagen`} te laat.`
+          : `${item.wat}: ${dagenTekst(item.dagen)}.`,
+      link: "/bouw/dossier/onderhoud",
+      knop: "Noteren",
+    });
+  }
+
+  for (const garantie of [...(stand.garanties ?? [])].sort((a, b) => a.dagen - b.dagen)) {
+    if (garantie.dagen < 0 || garantie.dagen > GARANTIE_VOORUIT_DAGEN) continue;
+    taken.push({
+      tekst: `De garantie op ${garantie.wat} loopt af ${dagenTekst(garantie.dagen)}: meld nog wat niet in orde is.`,
+      link: "/bouw/dossier/garanties",
       knop: "Bekijken",
     });
   }

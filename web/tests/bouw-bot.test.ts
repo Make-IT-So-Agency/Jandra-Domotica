@@ -242,6 +242,23 @@ describe("de dagelijkse ronde", () => {
     expect(JSON.stringify(herinnering.reply_markup)).toContain("/bouw/werf/actiepunten");
   });
 
+  it("herinnert aan onderhoud een week vooraf, en aan een garantie een maand voor ze afloopt", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    db.tabellen.bouw_onderhoud = [
+      { id: 3, wat: "Rookmelders testen", interval_maanden: 6, laatst_gedaan: "2026-04-12", partij_id: null, opmerking: null },
+      { id: 4, wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null },
+    ];
+    db.tabellen.bouw_garanties = [
+      { id: 2, wat: "de ramen", partij_id: 4, begin: "2024-11-04", duur_maanden: 24, document_id: null, opmerking: null },
+    ];
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 6, alGemeld: 0 });
+    expect(verstuurd.slice(-2).map((b) => b.text)).toEqual([
+      "🧰 Rookmelders testen: over 7 dagen (12 okt).",
+      "🛡️ De garantie op de ramen (Bouwbedrijf Voorbeeld) loopt af over 4 weken (4 nov). Is er nog iets te melden?",
+    ]);
+    expect(JSON.stringify(verstuurd.at(-1)!.reply_markup)).toContain("/bouw/dossier/garanties");
+  });
+
   it("probeert het de volgende keer opnieuw als Telegram faalde", async () => {
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
     telegramFaalt = true;

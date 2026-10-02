@@ -151,8 +151,10 @@ export default async function Keuzespagina({
                       <td data-label="Beslissen tegen">
                         {deadline && resterend !== null ? (
                           <>
-                            {korteDatum(deadline.datum, nu)}{" "}
-                            <span className={vlag ? `label-vlag ${vlag}` : "hulp"}>{dagenTekst(resterend)}</span>
+                            <span>
+                              {korteDatum(deadline.datum, nu)}{" "}
+                              <span className={vlag ? `label-vlag ${vlag}` : "hulp"}>{dagenTekst(resterend)}</span>
+                            </span>
                             {deadline.bron === "planning" ? <div className="hulp">volgt uit de planning</div> : null}
                           </>
                         ) : (

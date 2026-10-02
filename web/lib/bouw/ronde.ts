@@ -7,6 +7,8 @@ import { actiepuntherinneringen } from "./werf";
 import { lijstActiepunten } from "./werf-opslag";
 import { vandaag } from "./kalender";
 import { openDeadlines } from "./keuzes";
+import { nazorgherinneringen } from "./nazorg";
+import { lijstGaranties, lijstOnderhoud } from "./nazorg-opslag";
 import { lijstPartijen } from "./opslag";
 import { tweeWeken } from "./planning";
 import { leesInstelling, lijstKeuzes, lijstPlanning, meldEenKeer, vergeetMelding } from "./regie-opslag";
@@ -21,12 +23,14 @@ import { stuurBouwbericht } from "./telegram";
 export const CHAT_SLEUTEL = "telegram_chat_id";
 
 export async function laadBotstand(dag: string) {
-  const [keuzes, planning, partijen, facturen, actiepunten] = await Promise.all([
+  const [keuzes, planning, partijen, facturen, actiepunten, onderhoud, garanties] = await Promise.all([
     lijstKeuzes(),
     lijstPlanning(),
     lijstPartijen(),
     lijstFacturen(),
     lijstActiepunten(),
+    lijstOnderhoud(),
+    lijstGaranties(),
   ]);
   const open = openDeadlines(keuzes, planning, dag);
   const deadlines: Openstaand[] = open.map(({ keuze, deadline, dagen }) => ({
@@ -41,6 +45,8 @@ export async function laadBotstand(dag: string) {
     deadlines,
     facturen,
     actiepunten,
+    onderhoud,
+    garanties,
     partijnaam,
     /** De facturen die nog betaald moeten worden, de eerste vervaldag eerst. */
     teBetalen: openFacturen(facturen, dag).map(({ factuur, vervaldag, dagen }) => ({
@@ -81,6 +87,7 @@ export async function dagelijkseRonde(token: string, nu: Date, adres: string): P
     ...herinneringen(stand.deadlines, stand.planning, stand.week, dag),
     ...factuurherinneringen(stand.facturen, stand.partijnaam, dag),
     ...actiepuntherinneringen(stand.actiepunten, stand.partijnaam, dag),
+    ...nazorgherinneringen(stand.onderhoud, stand.garanties, stand.partijnaam, dag),
   ];
   for (const herinnering of teMelden) {
     if (!(await meldEenKeer(herinnering.sleutel))) {

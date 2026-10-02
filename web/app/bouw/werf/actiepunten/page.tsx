@@ -119,9 +119,9 @@ export default async function Actiepuntenpagina({
                     <td data-label="Wie">{partijnaam(punt.partij_id) ?? "—"}</td>
                     <td data-label="Tegen">
                       {punt.deadline && dagen !== null ? (
-                        <>
+                        <span>
                           {korteDatum(punt.deadline, nu)} <span className={vlag ? `label-vlag ${vlag}` : "hulp"}>{dagenTekst(dagen)}</span>
-                        </>
+                        </span>
                       ) : (
                         <span className="hulp">geen datum</span>
                       )}

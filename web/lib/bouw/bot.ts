@@ -6,6 +6,7 @@ import { heeftToegang, toegelatenIds } from "@/lib/opvang/toegang";
 import { HULP, deadlinebericht, factuurbericht, weekbericht } from "./berichten";
 import { dagenTussen, vandaag } from "./kalender";
 import { lijstInzendingen } from "./links";
+import { nazorgstand } from "./nazorg";
 import { lijstOpleverpunten } from "./werf-opslag";
 import { leesBouwstand } from "./opslag";
 import { zetInstelling } from "./regie-opslag";
@@ -52,7 +53,7 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       await stuurBouwbericht(
         token,
         chat,
-        "👍 Vanaf nu stuur ik de herinneringen voor de keuzes en de facturen, wat morgen begint en op maandag de week naar deze chat.",
+        "👍 Vanaf nu stuur ik mijn herinneringen naar deze chat: keuzes, facturen, actiepunten, onderhoud en garanties, wat morgen begint, en op maandag de week.",
       );
       return;
     case "week": {
@@ -71,7 +72,7 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       return;
     }
     case "taken": {
-      const [stand, { deadlines, teBetalen, actiepunten, partijnaam }, inzendingen, opleverpunten] = await Promise.all([
+      const [stand, { deadlines, teBetalen, actiepunten, onderhoud, garanties, partijnaam }, inzendingen, opleverpunten] = await Promise.all([
         leesBouwstand(),
         laadBotstand(dag),
         lijstInzendingen({ status: "nieuw" }),
@@ -94,6 +95,7 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
             : [],
         ),
         nakijken: opleverpunten.filter((punt) => punt.status === "hersteld").length,
+        ...nazorgstand(onderhoud, garanties, dag),
       });
       await stuurBouwbericht(
         token,

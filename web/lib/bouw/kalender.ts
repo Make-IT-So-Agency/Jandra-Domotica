@@ -29,6 +29,17 @@ export function plusDagen(datum: string, dagen: number): string {
   return alsDatum(alsUtc(datum) + dagen * DAG_MS);
 }
 
+/**
+ * Zoveel maanden later, op dezelfde dag; bestaat die dag niet in die maand,
+ * dan de laatste dag ervan: 31 januari plus een maand is 28 of 29 februari.
+ */
+export function plusMaanden(datum: string, maanden: number): string {
+  const [jaar, maand, dag] = datum.split("-").map(Number);
+  const doel = new Date(Date.UTC(jaar, maand - 1 + maanden, 1));
+  const laatste = new Date(Date.UTC(doel.getUTCFullYear(), doel.getUTCMonth() + 1, 0)).getUTCDate();
+  return alsDatum(Date.UTC(doel.getUTCFullYear(), doel.getUTCMonth(), Math.min(dag, laatste)));
+}
+
 /** Hoeveel dagen van `van` tot `tot`: negatief als `tot` al voorbij is. */
 export function dagenTussen(van: string, tot: string): number {
   return Math.round((alsUtc(tot) - alsUtc(van)) / DAG_MS);
