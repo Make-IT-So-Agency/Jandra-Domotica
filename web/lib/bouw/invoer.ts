@@ -1,0 +1,47 @@
+/**
+ * Waarden uit een formulier lezen. Puur, zodat elke regel apart te testen
+ * valt.
+ */
+
+/** Een tekstveld, zonder witruimte rond. Leeg wordt null. */
+export function tekst(waarde: FormDataEntryValue | null | undefined): string | null {
+  const schoon = String(waarde ?? "").trim();
+  return schoon.length > 0 ? schoon : null;
+}
+
+export type Getal = { ok: true; waarde: number | null } | { ok: false; melding: string };
+
+/**
+ * Een getal zoals iemand het in België intikt: "2,7" of "2.7", eventueel met
+ * spaties. Leeg is geen fout maar null: de meeste getallen zijn optioneel.
+ */
+export function getal(waarde: FormDataEntryValue | null | undefined, veld: string): Getal {
+  const ruw = String(waarde ?? "").replace(/\s/g, "");
+  if (ruw === "") return { ok: true, waarde: null };
+
+  // Eén komma of punt als decimaalteken. "1.234,5" (duizendtallen) laten we
+  // bewust niet toe: bij een hoogte of peil is dat eerder een tikfout.
+  if (!/^-?\d+([.,]\d+)?$/.test(ruw)) {
+    return { ok: false, melding: `${veld}: "${String(waarde).trim()}" is geen getal.` };
+  }
+  return { ok: true, waarde: Number(ruw.replace(",", ".")) };
+}
+
+/** Een positief geheel getal uit een verborgen veld of een URL, bv. een id. */
+export function id(waarde: FormDataEntryValue | string | null | undefined): number | null {
+  const ruw = String(waarde ?? "").trim();
+  if (!/^\d{1,15}$/.test(ruw)) return null;
+  const getalWaarde = Number(ruw);
+  return getalWaarde > 0 && Number.isSafeInteger(getalWaarde) ? getalWaarde : null;
+}
+
+/** Een datum uit een datumveld (YYYY-MM-DD). Leeg wordt null, onzin ook. */
+export function datum(waarde: FormDataEntryValue | null | undefined): string | null {
+  const ruw = String(waarde ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ruw)) return null;
+  const [jaar, maand, dag] = ruw.split("-").map(Number);
+  const moment = new Date(Date.UTC(jaar, maand - 1, dag));
+  return moment.getUTCFullYear() === jaar && moment.getUTCMonth() === maand - 1 && moment.getUTCDate() === dag
+    ? ruw
+    : null;
+}
