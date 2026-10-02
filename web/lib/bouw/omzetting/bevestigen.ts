@@ -37,6 +37,8 @@ export interface Bevestiging {
   kalibratie: Bevestigkalibratie;
   ruimtes: Bevestigruimte[];
   openingen: Opening[];
+  /** De muren, in paginapunten: de grijze vlakken van het blad. Voor het 3D-model. */
+  muren: Xy[][];
   verdieping: { bijwerken: boolean; vloerpeil: number | null; plafondhoogte: number | null };
   schaal: Pick<Schaal, "noemer" | "bron" | "titelblok" | "kloppend" | "getoetst"> | null;
 }
@@ -142,6 +144,13 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
     });
   }
 
+  // Muren die niet kloppen, vallen gewoon weg: zonder muren is er nog altijd een plan.
+  const muren: Xy[][] = [];
+  for (const muur of (Array.isArray(b.muren) ? b.muren : []).slice(0, 3000)) {
+    const ring = ringen([muur]);
+    if (ring && ring[0].length <= 500) muren.push(ring[0]);
+  }
+
   const v = (b.verdieping ?? {}) as Record<string, unknown>;
   const vloerpeil = optioneel(v.vloerpeil, -100, 100);
   const plafondhoogte = optioneel(v.plafondhoogte, 0, 20);
@@ -164,6 +173,7 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
     kalibratie,
     ruimtes,
     openingen,
+    muren,
     verdieping: { bijwerken: v.bijwerken === true, vloerpeil, plafondhoogte },
     schaal,
   });
@@ -200,8 +210,8 @@ export function naarRuimterijen(bevestiging: Bevestiging): Uitkomst<Ruimterij[]>
 
 /**
  * Wat bewaard wordt als bewijs van de omzetting: de schaal, de kalibratie,
- * de ruimtes in het kort en de openingen in meter (voor het 3D-model later).
- * Geen andere teksten van het blad.
+ * de ruimtes in het kort, en de openingen en de muren in meter (voor het
+ * 3D-model). Geen andere teksten van het blad.
  */
 export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[]): Record<string, unknown> {
   const k = bevestiging.kalibratie;
@@ -227,5 +237,6 @@ export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[])
         hoogte: o.hoogte,
       };
     }),
+    muren: bevestiging.muren.map((ring) => inMeter(ring, k)),
   };
 }

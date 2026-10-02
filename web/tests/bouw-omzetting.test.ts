@@ -1,7 +1,9 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 
+import { oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import { leesBlad } from "@/lib/bouw/omzetting/lezen";
+import { isMuurkleur } from "@/lib/bouw/omzetting/muren";
 import { isScan, zetOm } from "@/lib/bouw/omzetting/pijplijn";
 import { METER_PER_PUNT, bewijs } from "@/lib/bouw/omzetting/schaal";
 import type { Blad, Voorstel } from "@/lib/bouw/omzetting/types";
@@ -121,6 +123,26 @@ describe("het gelijkvloers omzetten", () => {
     // Het huis begint 2 m in het tekenvak, dat 60 punten van de rand ligt; de ruimtes 0,4 m verder.
     expect(voorstel.gebied!.x0).toBeCloseTo(60 + (2 + 0.4 - 1.5) * perMeter, 0);
     expect(voorstel.meldingen).toEqual([]);
+  });
+
+  it("vindt de muren: de grijze vlakken rond en tussen de ruimtes", async () => {
+    const voorstel = await omgezet(gelijkvloers());
+    const m2 = (50 * METER_PER_PUNT) ** 2;
+    const oppervlaktes = voorstel.muren.map((ring) => Math.abs(oppervlakte(ring)) * m2).sort((a, b) => b - a);
+    // Vier buitenmuren van 40 cm en vier binnenmuren van 14 cm.
+    expect(oppervlaktes).toHaveLength(8);
+    expect(oppervlaktes[0]).toBeCloseTo(4, 2);
+    expect(oppervlaktes.reduce((som, o) => som + o, 0)).toBeCloseTo(13.76 + 2.2568, 2);
+  });
+
+  it("houdt een grijs meubel in een ruimte niet voor een muur", () => {
+    expect(isMuurkleur("#c8c8c8")).toBe(true);
+    expect(isMuurkleur("#7f7f7f")).toBe(true);
+    expect(isMuurkleur("#000000")).toBe(true);
+    expect(isMuurkleur("#eeeeee")).toBe(false);
+    expect(isMuurkleur("#dae0dc")).toBe(false);
+    expect(isMuurkleur("#a6815e")).toBe(false);
+    expect(isMuurkleur("patroon")).toBe(false);
   });
 
   it("de verdieping: andere ruimtes, ander peil", async () => {

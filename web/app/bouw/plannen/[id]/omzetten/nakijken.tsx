@@ -428,6 +428,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
         vloerpeil: r.vloerpeil,
       })),
       openingen: voorstel.openingen,
+      muren: voorstel.muren,
       verdieping: {
         bijwerken: verdiepingBijwerken,
         vloerpeil: voorstel.verdieping.vloerpeil,
@@ -469,6 +470,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
 
   const laag = (zoom: number) => (
     <>
+      {voorstel.muren.length > 0 ? <path className="laag-muur" d={pad(voorstel.muren)} /> : null}
       {ruimtes.map((r) => (
         <path
           key={r.sleutel}

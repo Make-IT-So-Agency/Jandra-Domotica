@@ -127,6 +127,27 @@ describe("een bevestiging nakijken", () => {
     ]);
   });
 
+  it("neemt de muren mee in meter, en laat een kapotte muur gewoon weg", () => {
+    const uitkomst = controleerBevestiging(
+      bevestiging({ muren: [vierkant(0, 0, 0.8, 20)[0], [[0, 0], [1, 1]], "rommel", [[0, 0], [1, Number.NaN], [2, 2]]] }),
+    );
+    if (!uitkomst.ok) throw new Error(uitkomst.melding);
+    expect(uitkomst.data.muren).toHaveLength(1);
+    const rijen = naarRuimterijen(uitkomst.data);
+    if (!rijen.ok) throw new Error(rijen.melding);
+    expect(omzettingsvoorstel(uitkomst.data, rijen.data).muren).toEqual([
+      [
+        [1, 2],
+        [1.4, 2],
+        [1.4, 12],
+        [1, 12],
+      ],
+    ]);
+    // Zonder muren gaat het ook: een plan van een ander tekenpakket heeft er misschien geen.
+    const zonder = controleerBevestiging(bevestiging());
+    expect(zonder.ok && zonder.data.muren).toEqual([]);
+  });
+
   it("weigert een ruimte die te klein is om een ruimte te zijn", () => {
     const uitkomst = controleerBevestiging(
       bevestiging({ ruimtes: [{ ...bevestiging().ruimtes[0], ringen: vierkant(0, 0, 0.5) }] }),

@@ -138,6 +138,8 @@ export interface Voorstel {
   ruimtes: Ruimtevoorstel[];
   kandidaten: Kandidaat[];
   openingen: Opening[];
+  /** De doorgesneden muren: de grijze vlakken tussen en rond de ruimtes. Voor het 3D-model. */
+  muren: Xy[][];
   /** Het peil en de plafondhoogte die het meest op het blad staan, in meter. */
   verdieping: { vloerpeil: number | null; plafondhoogte: number | null };
   /** Waar het gebouw op het blad ligt: de ruimtes, met wat marge. */

@@ -1,3 +1,4 @@
+import { vindMuren } from "./muren";
 import { vindOpeningen } from "./openingen";
 import { vindRuimtes } from "./ruimtes";
 import { bepaalSchaal, handmatigeSchaal } from "./schaal";
@@ -5,13 +6,13 @@ import type { Blad, Voorstel } from "./types";
 import { witteVlakken } from "./vlakken";
 
 /**
- * Van een blad naar een voorstel: de schaal, de ruimtes, de kandidaten en de
- * openingen. Puur en snel (milliseconden), dus het draait gewoon in de
+ * Van een blad naar een voorstel: de schaal, de ruimtes, de kandidaten, de
+ * openingen en de muren. Puur en snel (milliseconden), dus het draait gewoon in de
  * browser; pdf.js leest de PDF al in zijn eigen worker.
  */
 
 /** Verhoog dit als de regels veranderen, zodat een bewaarde omzetting zegt met welke regels ze gemaakt is. */
-export const WERKWIJZE = 1;
+export const WERKWIJZE = 2;
 
 export interface Opties {
   /** Een schaal die iemand zelf aanduidde, in meter per punt. */
@@ -31,6 +32,7 @@ export function zetOm(blad: Blad, opties: Opties = {}): Voorstel {
     ruimtes: [],
     kandidaten: [],
     openingen: [],
+    muren: [],
     verdieping: { vloerpeil: null, plafondhoogte: null },
     gebied: null,
     meldingen: [],
@@ -69,6 +71,7 @@ export function zetOm(blad: Blad, opties: Opties = {}): Voorstel {
     ruimtes: gevonden.ruimtes,
     kandidaten: gevonden.kandidaten,
     openingen: vindOpeningen(blad, schaal, gevonden.ruimtes),
+    muren: vindMuren(blad, gevonden.ruimtes, schaal.meterPerPunt, gevonden.gebied),
     verdieping: gevonden.verdieping,
     gebied: gevonden.gebied,
     meldingen,

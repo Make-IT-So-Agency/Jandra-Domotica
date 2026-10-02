@@ -998,6 +998,13 @@ td.smal {
   vector-effect: non-scaling-stroke;
 }
 
+/* De muren die de omzetting vond, voor het 3D-model: zacht, onder de ruimtes. */
+.laag-muur {
+  fill: #7c3aed;
+  fill-opacity: 0.28;
+  stroke: none;
+}
+
 .laag-referentie {
   fill: none;
   stroke: #2563eb;
