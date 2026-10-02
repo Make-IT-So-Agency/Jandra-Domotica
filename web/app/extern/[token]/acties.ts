@@ -23,6 +23,7 @@ import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } f
 import { leesBestand } from "@/lib/bouw/opslag";
 import { leesInstelling } from "@/lib/bouw/regie-opslag";
 import { CHAT_SLEUTEL } from "@/lib/bouw/ronde";
+import { leesBottoken } from "@/lib/bouw/telegram-koppeling";
 import { stuurBouwbericht } from "@/lib/bouw/telegram";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
 import { pasStapToe } from "@/lib/bouw/werf";
@@ -119,14 +120,15 @@ function watIngestuurd(soort: SoortInzending, gegevens: Inzendgegevens, naam: st
 
 /** Via de bot van Bouw, als die er is. Een melding die niet vertrekt, mag de inzending niet tegenhouden. */
 async function verwittig(tekstVanMelding: string, pad: string): Promise<void> {
-  const token = process.env.BOUW_TELEGRAM_BOT_TOKEN;
-  if (!token) return;
+  let token: string | null = null;
   try {
+    token = await leesBottoken();
+    if (!token) return;
     const chat = Number(await leesInstelling(CHAT_SLEUTEL));
     if (!Number.isSafeInteger(chat) || chat === 0) return;
     await stuurBouwbericht(token, chat, tekstVanMelding, `${await adresVanApp()}${pad}`);
   } catch (fout) {
-    console.error("Bouw: melding van een inzending niet verstuurd:", verbergToken(String(fout), token));
+    console.error("Bouw: melding van een inzending niet verstuurd:", verbergToken(String(fout), token ?? ""));
   }
 }
 

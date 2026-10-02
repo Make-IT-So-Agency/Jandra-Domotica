@@ -13,14 +13,15 @@ import { lijstPartijen } from "./opslag";
 import { tweeWeken } from "./planning";
 import { leesInstelling, lijstKeuzes, lijstPlanning, meldEenKeer, vergeetMelding } from "./regie-opslag";
 import { stuurBouwbericht } from "./telegram";
+import { CHAT_SLEUTEL } from "./telegramregels";
 
 /**
  * De dagelijkse ronde van de bot van Bouw, en wat de commando's nodig hebben.
  * Vercel roept de ronde elke ochtend aan via /api/cron/bouw.
  */
 
-/** In bouw_instellingen: de chat waar de bot zijn herinneringen heen stuurt, gekozen met /hier. */
-export const CHAT_SLEUTEL = "telegram_chat_id";
+/** In bouw_instellingen: de chat waar de bot zijn herinneringen heen stuurt, gekozen in de app of met /hier. */
+export { CHAT_SLEUTEL };
 
 export async function laadBotstand(dag: string) {
   const [keuzes, planning, partijen, facturen, actiepunten, onderhoud, garanties] = await Promise.all([
@@ -76,7 +77,7 @@ export interface Rondeverslag {
 export async function dagelijkseRonde(token: string, nu: Date, adres: string): Promise<Rondeverslag> {
   const chat = Number(await leesInstelling(CHAT_SLEUTEL));
   if (!Number.isSafeInteger(chat) || chat === 0) {
-    return { verstuurd: 0, alGemeld: 0, reden: "Nog geen chat gekozen: stuur /hier in de groep van Bouw." };
+    return { verstuurd: 0, alGemeld: 0, reden: "Nog geen chat gekozen: kies er een bij Bouw → Telegram, of stuur /hier in de groep." };
   }
 
   const dag = vandaag(nu);

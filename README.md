@@ -27,7 +27,10 @@ met haar eigen stukje in elk van die lagen en haar eigen tests.
   workflow in GitHub Actions.
 - **Geen sleutels in de code of in de repository.** Elk geheim staat bij
   GitHub, in de omgeving `productie`, en wordt van daaruit naar Vercel gezet
-  (zie `infra/vercel-omgeving.json`).
+  (zie `infra/vercel-omgeving.json`). Eén uitzondering: het token van de bot
+  van Bouw vul je in de app in, zodat je hem kan koppelen zonder de app te
+  verlaten. Het staat versleuteld in de databank, met een sleutel uit
+  `AUTH_SECRET` (zie [`bouw/LEESMIJ.md`](bouw/LEESMIJ.md)).
 - **Bestanden in een privé-bucket per module** in Supabase Storage, met een
   UUID als pad en nooit de oorspronkelijke naam. De browser laadt ze op en
   bekijkt ze via een ondertekende URL, rechtstreeks bij Storage: een functie

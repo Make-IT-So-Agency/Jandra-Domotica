@@ -21,8 +21,11 @@ de samenvatting.
 `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_TOKEN`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`,
 `AUTH_GOOGLE_SECRET`, `AUTH_URL`, `TOEGELATEN_EMAILS`, `INGEST_API_KEY`,
 `CRON_SECRET`, `TELEGRAM_BOT_TOKEN`, `TOEGELATEN_TELEGRAM_IDS`,
-`BOUW_TELEGRAM_BOT_TOKEN`, `BOUW_TOEGELATEN_TELEGRAM_IDS`, `IACTIVE_EMAIL`,
-`IACTIVE_WACHTWOORD`
+`IACTIVE_EMAIL`, `IACTIVE_WACHTWOORD`
+
+De bot van Bouw staat niet in deze lijst: zijn token vul je in de app in, bij
+**Bouw → Telegram**, en het staat versleuteld in de databank (zie
+[bouw/LEESMIJ.md](../bouw/LEESMIJ.md)).
 
 **Variables** — verwijzingen, geen geheimen:
 

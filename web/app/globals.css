@@ -1991,6 +1991,38 @@ tr.deze-maand td {
   border-top: none;
 }
 
+/* Stappen met uitleg, zoals bij Telegram koppelen. */
+.stappen {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 8px;
+}
+
+/* Wie de bot van Bouw mag gebruiken, of erom vroeg: naam links, knoppen rechts. */
+.chatlijst {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+}
+
+.chatlijst form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+
+.chatlijst li + li form {
+  border-top: 1px solid var(--lijn);
+}
+
 /* De beurten van een onderhoud: de datum links, schrappen rechts. */
 .beurtenlijst {
   list-style: none;

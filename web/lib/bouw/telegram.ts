@@ -2,19 +2,14 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { TelegramFout, roepAan } from "@/lib/opvang/telegram";
+import { roepAan } from "@/lib/opvang/telegram";
 
 /**
  * De eigen bot van Bouw: een andere bot dan Opvang_bot, met een eigen token,
- * een eigen lijst toegelaten id's en een eigen webhookgeheim. Het aanroepen
- * van Telegram zelf komt ongewijzigd uit lib/opvang/telegram.ts.
+ * een eigen lijst toegelaten id's en een eigen webhookgeheim. Het token en de
+ * lijst komen uit de app (zie telegram-koppeling.ts). Het aanroepen van
+ * Telegram zelf komt ongewijzigd uit lib/opvang/telegram.ts.
  */
-
-export function bouwBotToken(): string {
-  const token = process.env.BOUW_TELEGRAM_BOT_TOKEN;
-  if (!token) throw new TelegramFout("BOUW_TELEGRAM_BOT_TOKEN is niet ingesteld op de server.");
-  return token;
-}
 
 /**
  * Het geheim dat Telegram bij elke webhook-aanroep meestuurt. Afgeleid van het

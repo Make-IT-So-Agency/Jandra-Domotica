@@ -10,6 +10,7 @@ import { deadlinebericht, factuurbericht, herinneringen, weekbericht } from "@/l
 import { tweeWeken } from "@/lib/bouw/planning";
 import { dagelijkseRonde } from "@/lib/bouw/ronde";
 import { bouwWebhookGeheim } from "@/lib/bouw/telegram";
+import { bewaarBottoken, laatToe, leesToegang } from "@/lib/bouw/telegram-koppeling";
 import { webhookGeheim } from "@/lib/opvang/telegram";
 
 const TOKEN = "654321:nep-token-voor-de-bouwbot";
@@ -21,12 +22,12 @@ let verstuurd: Record<string, unknown>[];
 let db: ReturnType<typeof nepSupabase>;
 let telegramFaalt: boolean;
 
-beforeEach(() => {
+beforeEach(async () => {
   verstuurd = [];
   telegramFaalt = false;
   vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-05T07:00:00Z") }); // maandag
-  vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", TOKEN);
-  vi.stubEnv("BOUW_TOEGELATEN_TELEGRAM_IDS", `${JAN}, ${GROEP}`);
+  vi.stubEnv("AUTH_SECRET", "bouwbot-testgeheim-0123456789abcdef");
+  vi.stubEnv("VERCEL_ENV", "");
   vi.stubEnv("AUTH_URL", "https://jandra.voorbeeld.be/");
   vi.stubGlobal(
     "fetch",
@@ -52,6 +53,15 @@ beforeEach(() => {
     bouw_meldingen: [],
   });
   nep.client = db.client;
+  // Zoals na het koppelen in de app: het token versleuteld, Jan en de groep toegelaten.
+  await bewaarBottoken(TOKEN, "JandraBouwBot");
+  db.tabellen.bouw_instellingen.push({
+    sleutel: "telegram_toegelaten",
+    waarde: JSON.stringify([
+      { id: JAN, naam: "Jan", soort: "persoon" },
+      { id: GROEP, naam: "Bouw", soort: "groep" },
+    ]),
+  });
 });
 
 afterEach(() => {
@@ -82,29 +92,63 @@ describe("de webhook van de bot van Bouw", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("antwoordt 503 zolang er geen token is", async () => {
-    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "");
+  it("antwoordt 503 zolang er geen bot gekoppeld is", async () => {
+    db.tabellen.bouw_instellingen = db.tabellen.bouw_instellingen.filter((rij) => rij.sleutel !== "telegram_token");
     expect((await stuurUpdate(bericht("/start"))).status).toBe(503);
   });
 
-  it("geeft een onbekende enkel haar id, en zwijgt verder", async () => {
-    await stuurUpdate(bericht("/id", VREEMDE));
-    expect(String(verstuurd[0].text)).toContain(`Jouw Telegram-id: ${VREEMDE}`);
-    expect(String(verstuurd[0].text)).toContain("BOUW_TOEGELATEN_TELEGRAM_IDS");
-    await stuurUpdate(bericht("/week", VREEMDE));
-    expect(verstuurd).toHaveLength(1);
+  it("leest de databank niet voor een header die geen geheim kan zijn", async () => {
+    const leesfout = nepSupabase({}, { "bouw_instellingen:select": { code: "XX000", message: "databank weg" } });
+    nep.client = leesfout.client;
+    expect((await stuurUpdate(bericht("/start"), "verkeerd")).status).toBe(401);
+    // Een header die er wel zo uitziet: dan pas de databank, en die faalt.
+    expect((await stuurUpdate(bericht("/start"))).status).toBe(503);
   });
 
-  it("aanvaardt een groep enkel als de groep zelf toegelaten is", async () => {
-    await stuurUpdate(bericht("/start", JAN, { id: -100999, type: "group" }));
-    expect(String(verstuurd[0].text)).toContain("Deze bot is privé");
+  it("geeft een onbekende haar id, zet haar vraag in de app, en zwijgt verder", async () => {
+    await stuurUpdate({
+      update_id: 1,
+      message: { message_id: 1, text: "/start", from: { id: VREEMDE, first_name: "Sandra" }, chat: { id: VREEMDE, type: "private" } },
+    });
+    expect(String(verstuurd[0].text)).toContain("Deze bot is privé. De vraag om toegang staat klaar in Jandra");
+    expect(String(verstuurd[0].text)).toContain(`Jouw Telegram-id: ${VREEMDE}`);
+    expect((await leesToegang()).aanvragen).toEqual([expect.objectContaining({ id: VREEMDE, naam: "Sandra", soort: "persoon" })]);
+    await stuurUpdate(bericht("/week", VREEMDE));
+    expect(verstuurd).toHaveLength(1);
+
+    // Toegelaten in de app: nu antwoordt de bot wel, en de vraag is weg.
+    await laatToe({ id: VREEMDE, naam: "Sandra", soort: "persoon" });
+    await stuurUpdate(bericht("/week", VREEMDE));
+    expect(String(verstuurd[1].text)).toContain("Deze en volgende week");
+    expect((await leesToegang()).aanvragen).toEqual([]);
+  });
+
+  it("aanvaardt een groep enkel als de groep zelf toegelaten is, en zet de groep bij de vragen", async () => {
+    await stuurUpdate({
+      update_id: 1,
+      message: { message_id: 1, text: "/start", from: { id: JAN, first_name: "Jan" }, chat: { id: -100999, type: "group", title: "Ons huis" } },
+    });
+    expect(String(verstuurd[0].text)).toContain("Deze groep heeft nog geen toegang");
+    // Jan mag al: enkel de groep vraagt.
+    expect((await leesToegang()).aanvragen).toEqual([expect.objectContaining({ id: -100999, naam: "Ons huis", soort: "groep" })]);
     await stuurUpdate(bericht("/start@JandraBouwBot", JAN, { id: GROEP, type: "supergroup" }));
     expect(String(verstuurd[1].text)).toContain("De bot van Bouw is actief");
   });
 
+  it("zet in een vreemde groep zowel de groep als wie typte bij de vragen", async () => {
+    await stuurUpdate({
+      update_id: 1,
+      message: { message_id: 1, text: "/id", from: { id: VREEMDE, first_name: "Iemand" }, chat: { id: -100777, type: "supergroup", title: "Buren" } },
+    });
+    expect((await leesToegang()).aanvragen.map((aanvraag) => [aanvraag.id, aanvraag.soort])).toEqual([
+      [-100777, "groep"],
+      [VREEMDE, "persoon"],
+    ]);
+  });
+
   it("onthoudt met /hier de chat voor de herinneringen", async () => {
     await stuurUpdate(bericht("/hier", JAN, { id: GROEP, type: "supergroup" }));
-    expect(db.tabellen.bouw_instellingen).toEqual([expect.objectContaining({ sleutel: "telegram_chat_id", waarde: String(GROEP) })]);
+    expect(db.tabellen.bouw_instellingen).toContainEqual(expect.objectContaining({ sleutel: "telegram_chat_id", waarde: String(GROEP) }));
   });
 
   it("toont de week en de deadlines, met een knop naar het scherm", async () => {

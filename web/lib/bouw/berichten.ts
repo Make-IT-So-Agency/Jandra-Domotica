@@ -1,5 +1,6 @@
 import { dagMetWeekdag, dagenTekst, korteDatum, plusDagen } from "./kalender";
 import type { Weekregel } from "./planning";
+import { COMMANDOS } from "./telegramregels";
 
 /**
  * Wat de bot van Bouw zegt: de weekplanning, de deadlines en de herinneringen
@@ -134,11 +135,4 @@ export function herinneringen(
   return uit;
 }
 
-export const HULP = [
-  "/week: wat er deze en volgende week gebeurt",
-  "/deadlines: welke keuzes nog open staan, en tegen wanneer",
-  "/facturen: welke facturen nog betaald moeten worden",
-  "/taken: wat er in de app nog te doen is",
-  "/hier: stuur mijn herinneringen voortaan naar deze chat",
-  "/id: je Telegram-id",
-].join("\n");
+export const HULP = COMMANDOS.map(({ commando, uitleg }) => `/${commando}: ${uitleg}`).join("\n");

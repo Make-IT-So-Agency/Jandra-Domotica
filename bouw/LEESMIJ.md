@@ -338,7 +338,41 @@ Voor na de oplevering, en voor wie later aan het huis werkt.
 Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
 toegelaten id's, een eigen webhook (`/api/bouw/telegram`) met een eigen
 geheim. Hij meldt; het werk gebeurt in de webapp, en elk bericht heeft een
-knop naar het juiste scherm.
+knop naar het juiste scherm. Hij is niet nodig: zonder bot werkt de rest van
+Bouw gewoon.
+
+**Koppelen gebeurt in de app**, bij **Bouw → Telegram** (`/bouw/telegram`),
+met de uitleg erbij. Enkel de bot zelf maak je in Telegram, bij BotFather.
+
+1. Maak bij @BotFather een bot met `/newbot`, met een neutrale naam zonder
+   straatnaam, en kopieer het token.
+2. Plak het token op de pagina en tik op **Koppelen**. De app:
+   - kijkt het token na bij Telegram (`getMe`);
+   - weigert het token van de bot van Opvang;
+   - zet de webhook naar `AUTH_URL` + `/api/bouw/telegram`, met het eigen
+     geheim, en de commando's;
+   - bewaart het token versleuteld.
+3. Wie de bot `/start` stuurt, of `/start` typt in een groep met de bot, komt
+   onder **Wacht op toegang**. **Toelaten** is één tik, en de bot stuurt meteen
+   een welkom. In een groep moeten de groep en elke persoon toegelaten zijn.
+4. Kies de chat voor de herinneringen met **Herinneringen hierheen** (of
+   `/hier` in de groep), en stuur een **testbericht**.
+
+De pagina toont ook wat Telegram over de webhook zegt (komen de berichten
+toe, wacht er iets, de laatste fout), met **Opnieuw koppelen** en
+**Ontkoppelen**. Een id met de hand toevoegen kan ook.
+
+**Het token** staat in `bouw_instellingen` (`telegram_token`), versleuteld met
+AES-256-GCM. De sleutel komt met HKDF uit `AUTH_SECRET`, met het label
+`bouw-bot:token`, zodat een dump van de databank alleen het token niet
+prijsgeeft. Dat is een bewuste uitzondering op de regel "elk geheim bij
+GitHub": zo kunnen jullie koppelen zonder de app te verlaten. Verandert
+`AUTH_SECRET`, dan vraagt de pagina het token opnieuw.
+
+**Enkel in productie.** Een preview-uitrol gebruikt dezelfde databank. Daarom
+gebruikt de app het token enkel waar `VERCEL_ENV` `production` is (of niet
+bestaat, lokaal), en wijst de webhook altijd naar `AUTH_URL`, nooit naar het
+adres van een aanvraag. Een preview kan de bot dus niet omleggen.
 
 - **Elke ochtend** (Vercel, 6.30 uur UTC: 8.30 uur in de zomer, 7.30 uur in de
   winter) stuurt hij naar de gekozen chat:
@@ -361,9 +395,14 @@ knop naar het juiste scherm.
   het opnieuw.
 - **Commando's:** `/week`, `/deadlines`, `/facturen` (wat nog betaald moet
   worden), `/taken` (wat er in de app nog te doen is), `/hier` (stuur je
-  herinneringen naar deze chat) en `/id`.
-- Wie niet op de lijst staat, krijgt enkel op `/start` en `/id` een antwoord:
-  zijn id. In een groep moet ook de groep zelf op de lijst staan.
+  herinneringen naar deze chat) en `/id`. Bij het koppelen krijgt Telegram
+  dezelfde lijst, zodat het menu klopt; komt er een commando bij, tik dan op
+  Opnieuw koppelen.
+- Wie niet toegelaten is, krijgt enkel op `/start` en `/id` een antwoord: dat
+  de vraag klaarstaat in de app, en zijn id. De vraag komt in de lijst
+  (hoogstens 10, na 30 dagen weg); alle andere berichten: stilte.
+- Zolang er geen bot gekoppeld is, doet de dagelijkse ronde niets en meldt ze
+  waarom.
 
 ## Een link voor een partij
 
@@ -474,8 +513,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/keuzes.ts`, `planning.ts`, `kalender.ts` | Hoeveelheid, meerprijs, deadlines, de planning en rekenen met dagen; puur, met tests |
 | `web/lib/bouw/regie-opslag.ts` | De planning, de keuzes en het log in de databank |
 | `web/lib/bouw/verklein.ts` | Een foto verkleinen in de browser |
+| `web/app/bouw/telegram/` | De bot koppelen, wie hem mag gebruiken, en de uitleg |
+| `web/lib/bouw/telegram-koppeling.ts`, `telegramregels.ts`, `geheim.ts` | Het token versleuteld bewaren, de webhook zetten, de aanvragen en wie toegelaten is |
 | `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
-| `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook en de setup van de bot, en de dagelijkse ronde |
+| `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook van de bot, en de dagelijkse ronde |
 | `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
 | `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
 | `supabase/migrations/20261002700000_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
@@ -576,24 +617,11 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql`,
    `20261002700000_bouw_geld.sql`, `20261002800000_bouw_inzendingen_geld.sql`,
    `20261002900000_bouw_werf.sql` en `20261003000000_bouw_dossier.sql`.
-2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
+2. **Sandra moet hoofdbeheerder zijn** (bij Gebruikers), anders ziet ze Bouw
    niet.
-3. **De bot van Bouw** (mag later):
-   1. Maak bij **@BotFather** een nieuwe bot met `/newbot`, met een neutrale
-      naam zonder straatnaam, bv. "Jandra Bouw".
-   2. Zet in GitHub (**Settings → Environments → productie**) de secrets
-      `BOUW_TELEGRAM_BOT_TOKEN` (het token van BotFather) en
-      `BOUW_TOEGELATEN_TELEGRAM_IDS` (je eigen id; stuur `/id` naar de bot
-      als je het niet kent).
-   3. Rol uit, meld je aan en open `/api/bouw/telegram/setup`. Je krijgt
-      `"ok": true` met de naam van de bot en de webhook.
-   4. Maak een groep met Jan, Sandra en de bot. Stuur er `/id`: zet het id
-      van Sandra en dat van de groep (negatief) erbij in
-      `BOUW_TOEGELATEN_TELEGRAM_IDS`, met komma's, en rol opnieuw uit.
-   5. Stuur `/hier` in de groep. Vanaf dan komen de herinneringen daar.
-
-   Komt er later een commando bij (zoals `/facturen`), open dan
-   `/api/bouw/telegram/setup` opnieuw: dan kent Telegram het ook.
+3. **De bot van Bouw** (mag later, of nooit): in de app, bij **Bouw →
+   Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
+   Er hoeft niets bij GitHub of Vercel.
 4. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;

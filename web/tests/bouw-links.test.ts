@@ -23,6 +23,7 @@ import {
 } from "@/lib/bouw/linkregels";
 import { hashVan, leesLink, lijstInzendingen, maakLink, telUploadsVanLink, trekLinkIn } from "@/lib/bouw/links";
 import { ruimOngebruikteBestandenOp } from "@/lib/bouw/opladen";
+import { bewaarBottoken } from "@/lib/bouw/telegram-koppeling";
 
 let db: ReturnType<typeof nepSupabase>;
 let verstuurd: Record<string, unknown>[];
@@ -47,6 +48,7 @@ beforeEach(() => {
   });
   nep.client = db.client;
   vi.stubEnv("AUTH_URL", "https://jandra.voorbeeld.be");
+  vi.stubEnv("AUTH_SECRET", "links-testgeheim-0123456789abcdef");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -154,7 +156,7 @@ describe("insturen via een link", () => {
   });
 
   it("zet een PDF in de inbox en verwittigt de bot", async () => {
-    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "654321:nep-token-voor-de-bouwbot");
+    await bewaarBottoken("654321:nep-token-voor-de-bouwbot", "JandraBouwBot");
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
     const { token, id } = await link(["inzenden"]);
 
@@ -203,7 +205,7 @@ describe("een offerte of factuur insturen via een link", () => {
   }
 
   it("zet een offerte met haar bedrag bij Geld, en verwittigt de bot", async () => {
-    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "654321:nep-token-voor-de-bouwbot");
+    await bewaarBottoken("654321:nep-token-voor-de-bouwbot", "JandraBouwBot");
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
     const { token, id } = await link(["offertes"]);
     const velden = { bedrag: "12.100", datum: "2026-09-30" };
@@ -272,7 +274,7 @@ describe("opleverpunten via de link van een aannemer", () => {
   });
 
   it("laat de aannemer melden wat hersteld is, en enkel van zijn eigen punten", async () => {
-    vi.stubEnv("BOUW_TELEGRAM_BOT_TOKEN", "654321:nep-token-voor-de-bouwbot");
+    await bewaarBottoken("654321:nep-token-voor-de-bouwbot", "JandraBouwBot");
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
     db.tabellen.bouw_opleverpunten = [punt(1, 2, "gemeld"), punt(2, 1, "open")];
     const { token } = await maakLink({ partijId: 2, rechten: ["oplevering"], vervaltOp: morgen(), door: "jan" });

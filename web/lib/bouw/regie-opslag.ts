@@ -406,3 +406,7 @@ export async function zetInstelling(sleutel: string, waarde: string): Promise<vo
     "Instelling bewaren",
   );
 }
+
+export async function verwijderInstelling(sleutel: string): Promise<void> {
+  check(await db().from("bouw_instellingen").delete().eq("sleutel", sleutel), "Instelling verwijderen");
+}
