@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { datum, datumTijd, euro, kwh, tariefPerKwh } from "@/lib/format";
+import { mailStaatAan } from "@/lib/mail";
 import { periodeKeuzes } from "@/lib/periods";
 import { bereidRapportVoor, type RapportVoorbereiding } from "@/lib/reports";
 import {
@@ -12,8 +13,9 @@ import { db } from "@/lib/supabase";
 import { vereistGebruiker } from "@/lib/toegang";
 import type { Vennootschap } from "@/lib/types";
 
-import { maakRapport, verwijderRapport } from "./acties";
+import { maakRapport, verstuurRapportNu, verwijderRapport } from "./acties";
 import { PeriodeKiezer } from "./periode-kiezer";
+import { VerstuurKnop } from "./verstuur-knop";
 import { periodeUitFormulier } from "./periode";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,7 @@ interface BewaardRapportRij {
   generated_at: string;
   emailed_at: string | null;
   emailed_to: string | null;
-  companies: { name: string } | null;
+  companies: { name: string; email: string | null } | null;
 }
 
 export default async function Rapportenpagina({
@@ -43,6 +45,8 @@ export default async function Rapportenpagina({
   const nu = new Date();
 
   const magMaken = magRapportenMaken(ik);
+  // Eén keer bepalen in plaats van per rij: het is een serverinstelling.
+  const mailAan = mailStaatAan();
   const beperking = zichtbareVennootschappen(ik);
 
   let vennQuery = db().from("companies").select("*").eq("is_active", true).order("name");
@@ -50,7 +54,7 @@ export default async function Rapportenpagina({
     .from("reports")
     .select(
       "id, reference, period_start, period_end, period_kind, session_count, " +
-        "total_kwh, total_incl_vat, generated_at, emailed_at, emailed_to, companies(name)",
+        "total_kwh, total_incl_vat, generated_at, emailed_at, emailed_to, companies(name, email)",
     )
     .order("generated_at", { ascending: false })
     .limit(50);
@@ -223,12 +227,22 @@ export default async function Rapportenpagina({
                   </td>
                   {magMaken ? (
                     <td>
-                      <form action={verwijderRapport}>
-                        <input type="hidden" name="id" value={rapport.id} />
-                        <button className="gevaar" type="submit">
-                          Verwijderen
-                        </button>
-                      </form>
+                      <div className="knoppenrij onder-elkaar">
+                        <VerstuurKnop
+                          id={rapport.id}
+                          referentie={rapport.reference}
+                          adres={rapport.companies?.email ?? null}
+                          verstuurdOp={rapport.emailed_at}
+                          mailStaatAan={mailAan}
+                          actie={verstuurRapportNu}
+                        />
+                        <form action={verwijderRapport}>
+                          <input type="hidden" name="id" value={rapport.id} />
+                          <button className="gevaar" type="submit">
+                            Verwijderen
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   ) : null}
                 </tr>
