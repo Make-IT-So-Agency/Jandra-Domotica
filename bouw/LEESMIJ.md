@@ -6,7 +6,7 @@ dat plan, de keuzes en de planning, en iedereen met wie we te maken hebben. Op
 de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b en 2 zijn klaar; zie
+een digitaal plan van. Fase 1a, 1b, 2 en 3 zijn klaar; zie
 [Wat nog komt](#wat-nog-komt).
 
 ```
@@ -52,6 +52,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
 - **Partijen** (`/bouw/partijen`): architect, aannemers, leveranciers,
   adviseurs, nutsbedrijven, de bank. Telefoon en e-mail zijn links.
+- **Toegang** (`/bouw/toegang`): een persoonlijke link voor de architect, en
+  later de aannemers; zie [Een link voor de architect](#een-link-voor-de-architect).
 
 ## Van PDF naar plan
 
@@ -196,6 +198,31 @@ knop naar het juiste scherm.
 - Wie niet op de lijst staat, krijgt enkel op `/start` en `/id` een antwoord:
   zijn id. In een groep moet ook de groep zelf op de lijst staan.
 
+## Een link voor de architect
+
+Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
+
+- **Wat hij mag**, vink je per link aan: de plannen bekijken en downloaden,
+  een dossier of plan insturen, de keuzes lezen, de planning lezen, de
+  wensenlijst lezen. Een architect krijgt standaard de eerste vier.
+- **Wat hij nooit ziet:** prijzen, het adres, de opmerkingen in de planning en
+  het beslissingslog in vrije tekst. Van de keuzes ziet hij enkel wat gekozen
+  is (naam, leverancier, kleur) en wat nog open staat.
+- **Insturen.** Een PDF tot 50 MB gaat rechtstreeks naar de privé-opslag,
+  zoals bij ons. Ze komt niet meteen bij de plannen, maar bovenaan **Plannen**
+  onder "Ingestuurd via een link": **Inlezen** opent ze in het gewone
+  dossierformulier, **Negeren** verwijdert ze. De bot van Bouw meldt elke
+  inzending. Hoogstens 20 bestanden per link per etmaal.
+- **Veilig.** Het token is 32 willekeurige bytes. De databank bewaart enkel de
+  SHA-256 ervan: de link zie je één keer, bij het maken, met een knop om te
+  kopiëren of te mailen. Een link vervalt altijd (standaard na een half jaar,
+  hoogstens na twee jaar) en is meteen in te trekken. Elke pagina, actie en
+  download kijkt het token zelf na. De pagina's vragen zoekmachines om weg te
+  blijven en sturen geen Referer mee, zodat het token niet meereist naar
+  Storage of een andere site.
+- Een verlopen, ingetrokken of fout token geeft dezelfde melding: wie de link
+  heeft, hoeft niet te weten welke van de drie.
+
 ## Privacy: de repository is publiek
 
 - De straatnaam, het adres, de plannen en later de foto's en facturen staan
@@ -261,6 +288,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/verklein.ts` | Een foto verkleinen in de browser |
 | `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
 | `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook en de setup van de bot, en de dagelijkse ronde |
+| `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
+| `web/app/bouw/toegang/` | Links maken en intrekken |
+| `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
+| `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
@@ -315,9 +346,10 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er vier:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er vijf:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
-   `20261002300000_bouw_punten.sql` en `20261002400000_bouw_regie.sql`.
+   `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql` en
+   `20261002500000_bouw_links.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -341,6 +373,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
    - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
      optie zetten met de gsm;
+   - bij Toegang een link voor jezelf maken (als architect), hem in een
+     privévenster openen, een PDF insturen en die bij Plannen inlezen;
    - op een gsm de plannen en de ruimtes bekijken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
@@ -360,7 +394,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **2** Punten op het plan (licht, bediening, stopcontacten, netwerk,
       sensoren, klimaat, zonwering) en de wensenlijst voor de elektricien, als
       PDF en Excel
-- [ ] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
+- [x] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
 - [ ] **4** Geld: posten, offertes, facturen, bouwkrediet, en links voor de
       aannemers

@@ -1,16 +1,27 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
-import { lijstGebouwen, lijstPlannen, lijstVerdiepingen, type PlanMetVersies } from "@/lib/bouw/opslag";
-import { PLANNAMEN, SOORTEN_PLAN, type Gebouw, type Verdieping } from "@/lib/bouw/types";
+import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { alsBestaand } from "@/lib/bouw/dossier-inlezen";
+import { id as leesId } from "@/lib/bouw/invoer";
+import { lijstInzendingen, type Inzending } from "@/lib/bouw/links";
+import {
+  leesBestanden,
+  lijstGebouwen,
+  lijstPartijen,
+  lijstPlannen,
+  lijstVerdiepingen,
+  type PlanMetVersies,
+} from "@/lib/bouw/opslag";
+import { PLANNAMEN, SOORTEN_PLAN, type Bestand, type Gebouw, type Partij, type Verdieping } from "@/lib/bouw/types";
 import { sorteerPlannen, sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
-import { datum } from "@/lib/format";
+import { datum, datumTijd } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
+import { BevestigKnop } from "../bevestig-knop";
 import { Melding } from "../melding";
-import { voegPlanToeActie } from "./acties";
+import { downloadInzendingActie, negeerInzendingActie, voegPlanToeActie } from "./acties";
 import { DossierLader } from "./dossier-lader";
 
 export const dynamic = "force-dynamic";
@@ -18,17 +29,27 @@ export const dynamic = "force-dynamic";
 export default async function Plannenpagina({
   searchParams,
 }: {
-  searchParams: Promise<{ melding?: string; soort?: string }>;
+  searchParams: Promise<{ melding?: string; soort?: string; inzending?: string }>;
 }) {
-  const { melding, soort } = await searchParams;
+  const { melding, soort, inzending: gevraagd } = await searchParams;
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   let plannen: PlanMetVersies[];
   let verdiepingen: Verdieping[];
   let gebouwen: Gebouw[];
+  let inzendingen: Inzending[];
+  let partijen: Partij[];
+  let bestanden: Bestand[];
   try {
-    [plannen, verdiepingen, gebouwen] = await Promise.all([lijstPlannen(), lijstVerdiepingen(), lijstGebouwen()]);
+    [plannen, verdiepingen, gebouwen, inzendingen, partijen] = await Promise.all([
+      lijstPlannen(),
+      lijstVerdiepingen(),
+      lijstGebouwen(),
+      lijstInzendingen({ status: "nieuw" }),
+      lijstPartijen(),
+    ]);
+    bestanden = await leesBestanden(inzendingen.map((inzending) => inzending.bestand_id));
   } catch (fout) {
     return (
       <>
@@ -40,6 +61,9 @@ export default async function Plannenpagina({
   const verdiepingVan = new Map(verdiepingen.map((v) => [v.id, v]));
   const gebouwVan = new Map(gebouwen.map((g) => [g.id, g.naam]));
   const gesorteerd = sorteerPlannen(plannen, gebouwen);
+  const partijnaam = (partijId: number | null) => partijen.find((partij) => partij.id === partijId)?.naam ?? "Een partij";
+  const bestandVan = new Map(bestanden.map((bestand) => [bestand.id, bestand]));
+  const gekozen = inzendingen.find((inzending) => inzending.id === leesId(gevraagd ?? ""));
 
   return (
     <>
@@ -51,6 +75,44 @@ export default async function Plannenpagina({
       </p>
 
       <Melding soort={soort} melding={melding} />
+
+      {inzendingen.length > 0 ? (
+        <section id="inzendingen" className="melding info">
+          <p>
+            <strong>Ingestuurd via een link</strong>
+          </p>
+          <ul className="inzendingen">
+            {inzendingen.map((inzending) => {
+              const bestand = bestandVan.get(inzending.bestand_id);
+              return (
+                <li key={inzending.id}>
+                  <div>
+                    {partijnaam(inzending.partij_id)}: <strong>{bestand?.oorspronkelijke_naam ?? "bestand"}</strong>
+                    <span className="hulp">
+                      {" "}
+                      · {datumTijd(inzending.created_at)}
+                      {bestand?.grootte_bytes ? ` · ${leesbareGrootte(bestand.grootte_bytes)}` : ""}
+                    </span>
+                  </div>
+                  {inzending.opmerking ? <div className="hulp">"{inzending.opmerking}"</div> : null}
+                  <form className="knoppenrij">
+                    <input type="hidden" name="id" value={inzending.id} />
+                    <Link className="knop" href={`/bouw/plannen?inzending=${inzending.id}#dossier`}>
+                      Inlezen
+                    </Link>
+                    <button type="submit" className="stil" formAction={downloadInzendingActie} formNoValidate>
+                      Downloaden
+                    </button>
+                    <BevestigKnop vraag="Deze inzending negeren? Het bestand wordt verwijderd." formAction={negeerInzendingActie} className="stil">
+                      Negeren
+                    </BevestigKnop>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {plannen.length === 0 ? (
         <div className="kaart">
@@ -98,8 +160,18 @@ export default async function Plannenpagina({
         </div>
       )}
 
-      <h2>Dossier inlezen</h2>
+      <h2 id="dossier">Dossier inlezen</h2>
       <DossierLader
+        key={gekozen?.id ?? "eigen"}
+        inzending={
+          gekozen
+            ? {
+                id: gekozen.id,
+                naam: bestandVan.get(gekozen.bestand_id)?.oorspronkelijke_naam ?? "dossier.pdf",
+                door: partijnaam(gekozen.partij_id),
+              }
+            : undefined
+        }
         bestaand={{
           plannen: alsBestaand(plannen, gebouwen),
           gebouwen: gebouwen.map((g) => g.naam),

@@ -1471,6 +1471,13 @@ a.tl-naam:hover {
   text-decoration: underline;
 }
 
+.tl-naam .tl-tekst {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tl-vak {
   flex: 1;
   min-width: 0;
@@ -1583,6 +1590,34 @@ a.tl-naam:hover {
 .weeklijst .hulp {
   display: inline-block;
   min-width: 6.5em;
+}
+
+/* Wat via een link binnenkwam, bovenaan Plannen. */
+.inzendingen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.inzendingen .knoppenrij {
+  margin-top: 6px;
+}
+
+/* Wat een partij via haar link ziet. */
+.extern section {
+  margin-bottom: 26px;
+}
+
+.kleurbolletje {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--lijn);
+  margin-right: 6px;
+  vertical-align: -1px;
 }
 
 /* =========================================================================

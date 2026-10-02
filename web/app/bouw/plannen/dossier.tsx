@@ -13,12 +13,27 @@ import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping, isSoortPlan } from "@/lib/
 import { volgendLabel } from "@/lib/bouw/weergave";
 import { zetOp } from "@/lib/bouw/zet-op";
 
-import { leesDossierInActie, vraagDossierUploadAan } from "./acties";
+import { leesDossierInActie, leesInzendingInActie, vraagDossierUploadAan, vraagInzendingUrl } from "./acties";
 
 export interface Bestaand {
   plannen: Bestaandplan[];
   gebouwen: string[];
   verdiepingen: { gebouw: string; naam: string }[];
+}
+
+/** Een dossier dat een partij via haar link instuurde: het staat al in de opslag. */
+export interface Ingestuurd {
+  id: number;
+  naam: string;
+  door: string;
+}
+
+/** Waar de PDF vandaan komt: een bestand op dit toestel, of een inzending. */
+interface Bron {
+  naam: string;
+  type: string;
+  grootte: number;
+  bestand?: File;
 }
 
 type Fase =
@@ -56,11 +71,11 @@ function alsDossierbladen(rijen: Rij[]): Dossierblad[] {
  * plan voor. Jan en Sandra kijken dat na; pas dan gaat de PDF naar de
  * privé-opslag en worden de plannen, versies en verdiepingen aangemaakt.
  */
-export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
+export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; inzending?: Ingestuurd }) {
   const router = useRouter();
   const [fase, setFase] = useState<Fase>({ soort: "kiezen" });
   const [fout, setFout] = useState<string | null>(null);
-  const [bestand, setBestand] = useState<File | null>(null);
+  const [bron, setBron] = useState<Bron | null>(null);
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [rijen, setRijen] = useState<Rij[]>([]);
   const [hoogtes, setHoogtes] = useState<Record<string, Partial<Hoogtes>>>({});
@@ -87,6 +102,27 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
 
     setFase({ soort: "lezen", tekst: "De PDF openen…" });
     const inhoud = new Uint8Array(await gekozen.arrayBuffer());
+    await leesInhoud(inhoud, { naam: gekozen.name, type: gekozen.type, grootte: gekozen.size, bestand: gekozen });
+  }
+
+  /** Een ingestuurd dossier staat al in de opslag: ophalen en lezen, zonder het opnieuw op te laden. */
+  async function leesInzending(ingestuurd: Ingestuurd) {
+    setFout(null);
+    setFase({ soort: "lezen", tekst: "Het ingestuurde dossier ophalen…" });
+    try {
+      const toelating = await vraagInzendingUrl(ingestuurd.id);
+      if (!toelating.ok) throw new Error(toelating.melding);
+      const antwoord = await fetch(toelating.data.url);
+      if (!antwoord.ok) throw new Error(`Ophalen mislukt (HTTP ${antwoord.status}).`);
+      const inhoud = new Uint8Array(await antwoord.arrayBuffer());
+      await leesInhoud(inhoud, { naam: ingestuurd.naam, type: "application/pdf", grootte: inhoud.length });
+    } catch (oorzaak) {
+      setFout(oorzaak instanceof Error ? oorzaak.message : "Ophalen mislukt.");
+      setFase({ soort: "kiezen" });
+    }
+  }
+
+  async function leesInhoud(inhoud: Uint8Array, gelezenBron: Bron) {
     const taak = openPdf(inhoud);
     try {
       const pdf = await taak.promise;
@@ -109,7 +145,7 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
       setRijen(nieuweRijen);
       setHoogtes({});
       setBytes(inhoud);
-      setBestand(gekozen);
+      setBron(gelezenBron);
       setFase({ soort: "nakijken" });
     } catch (oorzaak) {
       setFout(pdfFout(oorzaak));
@@ -126,13 +162,13 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
   function opnieuw() {
     setFase({ soort: "kiezen" });
     setRijen([]);
-    setBestand(null);
+    setBron(null);
     setBytes(null);
     setFout(null);
   }
 
   async function inlezen() {
-    if (!bestand || !bytes) return;
+    if (!bron || !bytes) return;
     setFout(null);
 
     // De verdiepingen, met wat er zelf aangepast werd.
@@ -162,36 +198,51 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
     const aanvraag = controleerAanvraag({ label, datum: datum || null, bladen, verdiepingen: lijst });
     if (!aanvraag.ok) return setFout(aanvraag.melding);
 
-    setFase({ soort: "bezig", tekst: "Voorbereiden…" });
-    const toelating = await vraagDossierUploadAan({
-      aanbod: { naam: bestand.name, type: bestand.type, grootte: bestand.size },
-      aanvraag: aanvraag.data,
-    }).catch(() => null);
-    if (!toelating || !toelating.ok) {
-      setFase({ soort: "nakijken" });
-      return setFout(toelating ? toelating.melding : "Geen verbinding met de app. Probeer opnieuw.");
-    }
+    let bestandId: number;
+    let uitkomst;
+    if (inzending && !bron.bestand) {
+      // Een inzending staat al in de opslag: enkel nog inlezen.
+      setFase({ soort: "bezig", tekst: "Inlezen…" });
+      uitkomst = await leesInzendingInActie({ inzendingId: inzending.id, aanvraag: aanvraag.data }).catch(() => null);
+      if (!uitkomst || !uitkomst.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
+      bestandId = uitkomst.data.bestandId;
+    } else {
+      if (!bron.bestand) return;
+      setFase({ soort: "bezig", tekst: "Voorbereiden…" });
+      const toelating = await vraagDossierUploadAan({
+        aanbod: { naam: bron.naam, type: bron.type, grootte: bron.grootte },
+        aanvraag: aanvraag.data,
+      }).catch(() => null);
+      if (!toelating || !toelating.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(toelating ? toelating.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
 
-    try {
-      await zetOp(toelating.data.uploadUrl, bestand, toelating.data.contentType, (voortgang) =>
-        setFase({ soort: "bezig", tekst: "Opladen…", voortgang }),
+      try {
+        await zetOp(toelating.data.uploadUrl, bron.bestand, toelating.data.contentType, (voortgang) =>
+          setFase({ soort: "bezig", tekst: "Opladen…", voortgang }),
+        );
+      } catch (oorzaak) {
+        setFase({ soort: "nakijken" });
+        return setFout(oorzaak instanceof Error ? oorzaak.message : "Opladen mislukt.");
+      }
+
+      setFase({ soort: "bezig", tekst: "Nakijken en inlezen…" });
+      uitkomst = await leesDossierInActie({ bestandId: toelating.data.bestandId, aanvraag: aanvraag.data }).catch(
+        () => null,
       );
-    } catch (oorzaak) {
-      setFase({ soort: "nakijken" });
-      return setFout(oorzaak instanceof Error ? oorzaak.message : "Opladen mislukt.");
-    }
-
-    setFase({ soort: "bezig", tekst: "Nakijken en inlezen…" });
-    const uitkomst = await leesDossierInActie({ bestandId: toelating.data.bestandId, aanvraag: aanvraag.data }).catch(
-      () => null,
-    );
-    if (!uitkomst || !uitkomst.ok) {
-      setFase({ soort: "nakijken" });
-      return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      if (!uitkomst || !uitkomst.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
+      bestandId = toelating.data.bestandId;
     }
 
     // De PDF staat al in de browser: de viewer hoeft hem niet nog eens op te halen.
-    await bewaarPdfBytes(toelating.data.bestandId, bytes);
+    await bewaarPdfBytes(bestandId, bytes);
     const { plannen, nieuwePlannen, verdiepingen: nieuweVerdiepingen, gebouwen } = uitkomst.data;
     const delen = [
       `${plannen} ${plannen === 1 ? "blad" : "bladen"} ingelezen`,
@@ -202,6 +253,34 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
     opnieuw();
     router.push(`/bouw/plannen?soort=goed&melding=${encodeURIComponent(`${delen.join(", ")}.`)}`);
     router.refresh();
+  }
+
+  if ((fase.soort === "kiezen" || fase.soort === "lezen") && inzending) {
+    return (
+      <div className="kaart">
+        <p style={{ marginTop: 0 }}>
+          Ingestuurd door <strong>{inzending.door}</strong>: {inzending.naam}
+        </p>
+        <div className="knoppenrij">
+          <button type="button" disabled={bezig} onClick={() => void leesInzending(inzending)}>
+            Lezen en voorstellen
+          </button>
+          <a className="knop stil" href="/bouw/plannen#dossier">
+            Een andere PDF kiezen
+          </a>
+        </div>
+        <p className="hulp">
+          De app leest wat op elk blad staat en stelt per blad een plan voor, zoals bij een dossier dat je zelf kiest.
+          De PDF staat al in onze privé-opslag.
+        </p>
+        {fase.soort === "lezen" ? (
+          <div className="melding info" role="status">
+            {fase.tekst}
+          </div>
+        ) : null}
+        {fout ? <div className="melding fout">{fout}</div> : null}
+      </div>
+    );
   }
 
   if (fase.soort === "kiezen" || fase.soort === "lezen") {
@@ -240,7 +319,7 @@ export default function Dossier({ bestaand }: { bestaand: Bestaand }) {
   return (
     <div className="kaart dossier">
       <p className="hulp" style={{ marginTop: 0 }}>
-        {bestand?.name} · {rijen.length} {rijen.length === 1 ? "blad" : "bladen"}. Kijk na wat de app voorstelt en
+        {bron?.naam} · {rijen.length} {rijen.length === 1 ? "blad" : "bladen"}. Kijk na wat de app voorstelt en
         pas aan wat niet klopt.
       </p>
 

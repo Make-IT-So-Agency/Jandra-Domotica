@@ -34,11 +34,14 @@ export function Tijdlijn({
   partijnamen,
   deadlines,
   vandaag,
+  alleenLezen = false,
 }: {
   items: Planningsitem[];
   partijnamen: Map<number, string>;
   deadlines: Markering[];
   vandaag: string;
+  /** Voor wie via een link kijkt: geen links naar schermen die enkel wij zien. */
+  alleenLezen?: boolean;
 }) {
   const rijen: Rij[] = [];
   for (const groep of groepeer(items)) {
@@ -67,6 +70,13 @@ export function Tijdlijn({
           rij.soort === "kop" ? (
             <div key="los" className="tl-naam fase" style={{ height: RIJ }}>
               {rij.tekst}
+            </div>
+          ) : alleenLezen ? (
+            <div key={rij.item.id} className={`tl-naam${rij.fase ? " fase" : ""}`} style={{ height: RIJ }} title={rij.item.titel}>
+              <span className="tl-tekst">
+                {rij.item.soort === "mijlpaal" ? "◆ " : ""}
+                {rij.item.titel}
+              </span>
             </div>
           ) : (
             <a
@@ -131,7 +141,7 @@ export function Tijdlijn({
                 : korteDatum(item.begindatum);
             const stand = standVan(item, vandaag);
             return (
-              <a key={item.id} href={link(item)}>
+              <a key={item.id} href={alleenLezen ? undefined : link(item)}>
                 <title>{[item.titel, periode, partij].filter(Boolean).join(" · ")}</title>
                 {item.soort === "mijlpaal" ? (
                   <path className={`tl-mijlpaal ${stand}`} d={`M ${begin + px / 2} ${boven + 5} l 8 8 l -8 8 l -8 -8 z`} />

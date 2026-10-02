@@ -7,6 +7,8 @@ import type { Aanbod } from "@/lib/bouw/bestanden";
 import { bekijkDossier, leesDossierIn } from "@/lib/bouw/dossier-inlezen";
 import { controleerAanvraag, type Dossieraanvraag, type Dossieruitkomst } from "@/lib/bouw/dossierregels";
 import { datum, id, tekst } from "@/lib/bouw/invoer";
+import { korteNaam } from "@/lib/bouw/keuzes";
+import { leesInzending, zetInzendingStatus } from "@/lib/bouw/links";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import {
   leesBestand,
@@ -278,3 +280,84 @@ export async function leesDossierInActie(vraag: {
   revalidatePath("/bouw", "layout");
   return uitkomst;
 }
+
+// ---------------------------------------------------------------------------
+// Wat een partij via haar link instuurde
+// ---------------------------------------------------------------------------
+
+/** Een URL om een ingestuurd dossier in de browser te lezen, een minuut geldig. */
+export async function vraagInzendingUrl(inzendingId: number): Promise<Uitkomst<{ url: string }>> {
+  const ik = await bouwgebruiker();
+  if (!ik) return mislukt(GEEN_TOEGANG);
+  const inzending = await leesInzending(Number(inzendingId));
+  const bestand = inzending ? await leesBestand(inzending.bestand_id) : null;
+  if (!inzending || !bestand || bestand.status !== "klaar") return mislukt("Dit bestand is er niet meer.");
+  try {
+    return gelukt({ url: await tijdelijkeUrl(bestand.pad, 60) });
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Ophalen mislukt."));
+  }
+}
+
+/**
+ * Een ingestuurd dossier inlezen. Zoals leesDossierInActie, maar het bestand
+ * staat er al: niets op te laden, en niets weg te gooien als het mislukt.
+ */
+export async function leesInzendingInActie(vraag: {
+  inzendingId: number;
+  aanvraag: Dossieraanvraag;
+}): Promise<Uitkomst<Dossieruitkomst & { bestandId: number }>> {
+  const ik = await bouwgebruiker();
+  if (!ik) return mislukt(GEEN_TOEGANG);
+
+  const aanvraag = controleerAanvraag(vraag?.aanvraag);
+  if (!aanvraag.ok) return aanvraag;
+  const inzending = await leesInzending(Number(vraag?.inzendingId));
+  if (!inzending) return mislukt("Deze inzending bestaat niet meer.");
+  if (inzending.status !== "nieuw") return mislukt("Deze inzending is al ingelezen of genegeerd.");
+
+  try {
+    const { fouten } = await bekijkDossier(aanvraag.data);
+    if (fouten.length > 0) return mislukt(fouten.join(" "));
+    const uitkomst = await leesDossierIn(aanvraag.data, inzending.bestand_id);
+    if (!uitkomst.ok) return uitkomst;
+    await zetInzendingStatus(inzending.id, "verwerkt", korteNaam(ik.naam, ik.email));
+    revalidatePath("/bouw", "layout");
+    return gelukt({ ...uitkomst.data, bestandId: inzending.bestand_id });
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Het dossier inlezen is mislukt."));
+  }
+}
+
+/** Downloaden zoals een versie, onder de naam waaronder het ingestuurd werd. */
+export async function downloadInzendingActie(formulier: FormData): Promise<void> {
+  await vereistBouwrechten();
+  const inzendingId = id(formulier.get("id"));
+  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  const bestand = inzending ? await leesBestand(inzending.bestand_id) : null;
+  if (!inzending || !bestand || bestand.status !== "klaar") terug(LIJST, "fout", "Dit bestand is er niet meer.");
+
+  let url: string;
+  try {
+    url = await tijdelijkeUrl(bestand.pad, 60, bestand.oorspronkelijke_naam);
+  } catch (fout) {
+    terug(LIJST, "fout", foutmelding(fout, "Downloaden mislukt."));
+  }
+  redirect(url);
+}
+
+/** Niet nodig: weg ermee, ook uit de opslag. */
+export async function negeerInzendingActie(formulier: FormData): Promise<void> {
+  const ik = await vereistBouwrechten();
+  const inzendingId = id(formulier.get("id"));
+  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  if (!inzending) terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
+  try {
+    await zetInzendingStatus(inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
+    await ruimOngebruikteBestandenOp([inzending.bestand_id]);
+  } catch (fout) {
+    terug(LIJST, "fout", foutmelding(fout, "Negeren mislukt."));
+  }
+  terug(LIJST, "goed", "De inzending is genegeerd en verwijderd.");
+}
+
