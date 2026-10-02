@@ -732,6 +732,1326 @@ td.smal {
   padding: 32px;
 }
 
+/* --- Bouw ----------------------------------------------------------------- */
+
+/* Het submenu van een module: dezelfde links als het hoofdmenu, maar als
+   tabs onder elkaar gezet. */
+.submenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -8px 0 22px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lijn);
+}
+
+.submenu a {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--zacht);
+  font-size: 14px;
+}
+
+.submenu a:hover {
+  background: var(--vlak);
+  color: var(--tekst);
+}
+
+.submenu a[aria-current="page"] {
+  color: var(--tekst);
+  font-weight: 600;
+  background: var(--vlak);
+}
+
+.partij summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.partij[open] summary {
+  margin-bottom: 12px;
+}
+
+.partij-naam {
+  font-weight: 600;
+}
+
+.partij-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+.partij-contact:empty {
+  display: none;
+}
+
+/* De planviewer: het vak waarin je sleept en zoomt. touch-action none houdt
+   de browser weg van onze gebaren; het blad zelf blijft wit, ook in donkere
+   modus, want zo ziet een plan eruit. */
+.viewer {
+  position: relative;
+  height: 70vh;
+  height: 70dvh;
+  min-height: 320px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--vlak);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+
+.viewer:active {
+  cursor: grabbing;
+}
+
+.viewer-leeg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--zacht);
+}
+
+.viewer.viewer-leeg {
+  height: auto;
+  min-height: 0;
+  touch-action: auto;
+  cursor: default;
+}
+
+.viewer-blad {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+
+.viewer-blad canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+.viewer-detail {
+  display: none;
+}
+
+.viewer-balk {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.viewer-balk button {
+  min-width: 42px;
+  background: var(--achtergrond);
+}
+
+.viewer-info {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-size: 12px;
+  color: var(--zacht);
+  background: var(--achtergrond);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+}
+
+.viewer-kop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.viewer-kop .omzetknop {
+  margin-left: auto;
+}
+
+.keuzerij {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.keuzerij legend {
+  margin-bottom: 6px;
+}
+
+.voortgang {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Een omzetting nakijken: het plan links, de stappen rechts. Op een tablet
+   in staande stand komen de stappen onder het plan. */
+.omzetten {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.omzetten .viewer {
+  height: calc(100vh - 200px);
+  height: calc(100dvh - 200px);
+  min-height: 460px;
+}
+
+.omzetten-zijbalk {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.omzetten-zijbalk .kaart {
+  margin-bottom: 0;
+}
+
+.omzetten-zijbalk h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+@media (max-width: 1000px) {
+  .omzetten {
+    grid-template-columns: 1fr;
+  }
+
+  .omzetten-zijbalk {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+.viewer.tikken {
+  cursor: crosshair;
+}
+
+/* De laag over het blad: in paginapunten, dus ze zoomt mee. De lijnen blijven
+   even dik dankzij non-scaling-stroke. Het blad is altijd wit, dus de kleuren
+   hier ook. */
+.viewer-laag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.laag-ruimte {
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-ruimte.goed {
+  fill: rgba(4, 120, 87, 0.16);
+  stroke: #047857;
+}
+
+.laag-ruimte.nakijken {
+  fill: rgba(180, 83, 9, 0.2);
+  stroke: #b45309;
+}
+
+.laag-ruimte.uit {
+  fill: rgba(107, 114, 128, 0.08);
+  stroke: #9ca3af;
+  stroke-dasharray: 4 3;
+}
+
+.laag-ruimte.gekozen {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+}
+
+.laag-kandidaat {
+  fill: rgba(124, 58, 237, 0.12);
+  stroke: #7c3aed;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* De muren die de omzetting vond, voor het 3D-model: zacht, onder de ruimtes. */
+.laag-muur {
+  fill: #7c3aed;
+  fill-opacity: 0.28;
+  stroke: none;
+}
+
+.laag-referentie {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.laag-naam {
+  fill: #111827;
+  stroke: #ffffff;
+  paint-order: stroke;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.laag-deur {
+  fill: #0891b2;
+}
+
+.laag-raam {
+  fill: #7c3aed;
+}
+
+.laag-punt {
+  fill: #dc2626;
+}
+
+.laag-lijn {
+  stroke: #dc2626;
+  stroke-width: 2px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.status-goed {
+  color: var(--goed);
+}
+
+.status-nakijken {
+  color: var(--let-op);
+}
+
+.ruimtelijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ruimtelijst li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ruimtelijst li > input {
+  width: auto;
+}
+
+.ruimtelijst button.rij {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--tekst);
+  border: 1px solid var(--lijn);
+  font-weight: 400;
+  padding: 6px 10px;
+}
+
+.ruimtelijst li.gekozen button.rij {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+}
+
+.ruimtedetail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+}
+
+.schuifknoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.schuifknoppen button {
+  min-width: 42px;
+}
+
+.schuifknoppen select {
+  width: auto;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wijzigingen {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+/* De ruimtes van een verdieping als tekening. De vlakken krijgen een kleur
+   per soort; de tekst staat op die lichte kleur, ook in donkere modus. */
+.verdiepingkaart h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.ruimteplan {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  margin: 0 auto 14px;
+}
+
+.ruimteplan-vlak {
+  fill: #f5f5f4;
+  stroke: #4b5563;
+  stroke-width: 0.04;
+}
+
+.ruimteplan-vlak.soort-leefruimte,
+.ruimteplan-vlak.soort-keuken {
+  fill: #fde68a;
+}
+
+.ruimteplan-vlak.soort-slaapkamer {
+  fill: #bfdbfe;
+}
+
+.ruimteplan-vlak.soort-badkamer,
+.ruimteplan-vlak.soort-wc {
+  fill: #a5f3fc;
+}
+
+.ruimteplan-vlak.soort-inkom,
+.ruimteplan-vlak.soort-nachthal,
+.ruimteplan-vlak.soort-trap {
+  fill: #e5e7eb;
+}
+
+.ruimteplan-vlak.soort-berging,
+.ruimteplan-vlak.soort-technieken,
+.ruimteplan-vlak.soort-wasplaats,
+.ruimteplan-vlak.soort-garage {
+  fill: #d9f99d;
+}
+
+.ruimteplan-vlak.soort-bureau,
+.ruimteplan-vlak.soort-dressing {
+  fill: #ddd6fe;
+}
+
+.ruimteplan-vlak.soort-terras {
+  fill: #bbf7d0;
+}
+
+.ruimteplan-naam {
+  fill: #111827;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.ruimteplan-maat {
+  font-weight: 400;
+}
+
+/* Tabs, bv. de verdiepingen boven het puntenscherm. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.tabs a {
+  padding: 6px 12px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  color: var(--tekst);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.tabs a.actief {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Het palet met soorten punten. */
+.palet {
+  margin-bottom: 10px;
+}
+
+.palet-kop {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.palet-knoppen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+button.palet-knop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 4px 6px;
+  min-height: 0;
+}
+
+button.palet-knop.gekozen {
+  border-color: var(--accent);
+  background: var(--accent-zacht);
+}
+
+.palet-code {
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.laag-ruimte.licht {
+  fill: rgba(29, 78, 216, 0.04);
+  stroke: rgba(29, 78, 216, 0.35);
+}
+
+.laag-puntsymbool text {
+  fill: #ffffff;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.laag-puntsymbool.gekozen circle {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-puntsymbool text.laag-puntaantal {
+  fill: #111827;
+  text-anchor: start;
+}
+
+/* Het dossier nakijken: een tabel met velden in de cellen. */
+.dossier table input:not([type="checkbox"]),
+.dossier table select {
+  min-width: 8em;
+  padding: 6px 8px;
+}
+
+.dossier table input[type="checkbox"] {
+  width: auto;
+}
+
+.dossier tr.uit td {
+  opacity: 0.5;
+}
+
+.dossier h3 {
+  margin: 20px 0 4px;
+  font-size: 16px;
+}
+
+/* Keuzes: elke optie een kaartje met foto, prijs en voorkeur. */
+.label-vlag.fout {
+  background: var(--fout-zacht);
+  color: var(--fout);
+}
+
+.label-vlag:not(.goed):not(.let-op):not(.fout) {
+  background: var(--vlak);
+  color: var(--zacht);
+  border: 1px solid var(--lijn);
+}
+
+.opties {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.optie {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.optie.gekozen {
+  border-color: var(--goed);
+  box-shadow: 0 0 0 1px var(--goed);
+}
+
+.optie h3 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+
+.optie p {
+  margin: 0;
+}
+
+.optie-foto {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--vlak);
+}
+
+.optie-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Zonder foto is een kleur genoeg als strook. */
+.optie-foto.kleurstaal {
+  aspect-ratio: auto;
+  height: 40px;
+  border: 1px solid var(--lijn);
+}
+
+.meerprijs {
+  font-weight: 600;
+}
+
+.voorkeuren {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--fout);
+  font-size: 14px;
+  min-height: 1em;
+}
+
+.fotoknop .knop {
+  cursor: pointer;
+}
+
+.fotoknop .knop.bezig {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.fotoknop .melding {
+  margin-top: 6px;
+}
+
+.optie-wijzigen summary {
+  cursor: pointer;
+  color: var(--zacht);
+  font-size: 14px;
+}
+
+.optie-wijzigen form {
+  margin-top: 10px;
+}
+
+.optie-wijzigen .veldenrij {
+  grid-template-columns: 1fr;
+}
+
+.kleurveld {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kleurveld input[type="checkbox"] {
+  width: auto;
+}
+
+.kleurveld input[type="color"] {
+  width: 48px;
+  height: 34px;
+  padding: 2px;
+}
+
+.ruimtekeuze {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+}
+
+.ruimtekeuze > .hulp {
+  flex-basis: 100%;
+}
+
+/* De planning als tijdlijn: links de namen, die blijven staan, rechts de
+   tekening, die zijwaarts scrolt. Elke naam is precies één rij hoog, zodat ze
+   gelijk loopt met haar balk. */
+.tijdlijn {
+  display: flex;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.tl-namen {
+  flex: none;
+  width: 230px;
+  border-right: 1px solid var(--lijn);
+  font-size: 13px;
+}
+
+.tl-naam {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tekst);
+  text-decoration: none;
+}
+
+/* Een flexbox kapt geen tekst af met een beletselteken; een blok wel. */
+a.tl-naam {
+  display: block;
+  line-height: 26px;
+}
+
+.tl-naam.fase {
+  padding-left: 8px;
+  font-weight: 600;
+}
+
+a.tl-naam:hover {
+  text-decoration: underline;
+}
+
+.tl-naam .tl-tekst {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-vak {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tl-vak svg {
+  display: block;
+  font-size: 12px;
+}
+
+.tl-maand {
+  fill: var(--vlak);
+}
+
+.tl-raster {
+  stroke: var(--lijn);
+  stroke-width: 1;
+}
+
+.tl-maandnaam {
+  fill: var(--zacht);
+}
+
+.tl-jaar {
+  fill: var(--tekst);
+  font-weight: 600;
+}
+
+.tl-partij {
+  fill: var(--zacht);
+  font-size: 11px;
+}
+
+.tl-fase {
+  fill: var(--zacht);
+  opacity: 0.35;
+}
+
+.tl-balk {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+
+.tl-balk.bezig {
+  opacity: 1;
+}
+
+.tl-balk.klaar,
+.tl-mijlpaal.klaar {
+  fill: var(--goed);
+  opacity: 0.8;
+}
+
+.tl-balk.te_laat,
+.tl-mijlpaal.te_laat {
+  fill: var(--fout);
+  opacity: 0.85;
+}
+
+.tl-mijlpaal {
+  fill: var(--tekst);
+}
+
+.tl-deadline {
+  fill: var(--let-op);
+  stroke: var(--achtergrond);
+  stroke-width: 2;
+}
+
+.tl-vandaag {
+  stroke: var(--fout);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.schuifop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+  font-size: 14px;
+}
+
+.schuifop input {
+  width: 5em;
+}
+
+.schuifop select {
+  width: auto;
+}
+
+.planningsgroep h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.weeklijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.weeklijst .hulp {
+  display: inline-block;
+  min-width: 6.5em;
+}
+
+/* Het huis in 3D. */
+.drie-vak {
+  position: relative;
+  width: 100%;
+  height: min(72vh, 760px);
+  min-height: 360px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #cfe3f2;
+  touch-action: none;
+}
+
+.drie-vak canvas {
+  display: block;
+}
+
+.drie-vak.wandel {
+  cursor: grab;
+}
+
+.wandelknoppen {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  gap: 6px;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.wandelknoppen button {
+  height: 48px;
+  font-size: 20px;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.drie .omzetten-zijbalk input[type="range"] {
+  width: 100%;
+}
+
+/* Wat via een link binnenkwam, bovenaan Plannen. */
+.inzendingen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.inzendingen .knoppenrij {
+  margin-top: 6px;
+}
+
+/* Wat een partij via haar link ziet. */
+.extern section {
+  margin-bottom: 26px;
+}
+
+.kleurbolletje {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--lijn);
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+/* Geld: een PDF bij een offerte of factuur. */
+.documentveld-rij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.documentveld .knop.bezig {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* De stand van het bouwkrediet: label en bedrag naast elkaar. */
+.kredietstand {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 18px;
+  margin: 0;
+}
+
+.kredietstand dt {
+  color: var(--zacht);
+}
+
+.kredietstand dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* De kasplanning: per maand een gestapelde staaf. Te breed voor een gsm:
+   dan schuift de grafiek opzij, zoals de tijdlijn. */
+.kasgrafiek {
+  overflow-x: auto;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  padding: 10px 8px 4px;
+  background: var(--achtergrond);
+}
+
+.kas-vlak {
+  display: flex;
+  align-items: flex-start;
+}
+
+.kas-vlak svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.kas-vlak .kas-staven {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.kas-raster {
+  stroke: var(--lijn);
+  stroke-width: 1;
+}
+
+.kas-as {
+  fill: var(--zacht);
+  font-size: 11px;
+}
+
+.kas-nu {
+  fill: var(--accent-zacht);
+}
+
+.kas-betaald {
+  fill: var(--goed);
+  background: var(--goed);
+}
+
+.kas-te-betalen {
+  fill: var(--let-op);
+  background: var(--let-op);
+}
+
+.kas-gepland {
+  fill: var(--accent);
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.kas-legende {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+.kas-blokje {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin: 0 5px 0 12px;
+  vertical-align: -1px;
+}
+
+.kas-blokje:first-child {
+  margin-left: 0;
+}
+
+tr.deze-maand td {
+  font-weight: 600;
+}
+
+/* De werf: een grote knop om foto's te nemen, ook met handschoenen. */
+.knop.groot {
+  padding: 14px 20px;
+  font-size: 17px;
+}
+
+.werffotoknop .knop.bezig {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.werffotoknop.compact {
+  display: inline-block;
+}
+
+/* Foto's als tegels: vierkant, zo veel naast elkaar als er passen. */
+.galerij {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.galerij a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.galerij img,
+.galerij-leeg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--vlak);
+  border: 1px solid var(--lijn);
+}
+
+.galerij-leeg {
+  display: grid;
+  place-items: center;
+  color: var(--zacht);
+}
+
+.galerij-bij {
+  display: block;
+  font-size: 12px;
+  color: var(--zacht);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.werffoto {
+  margin: 0 0 10px;
+}
+
+.werffoto img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  border-radius: var(--radius);
+  border: 1px solid var(--lijn);
+}
+
+.bladeren {
+  justify-content: space-between;
+}
+
+/* Prikken op de tekening van de ruimtes: in meter, net als de ruimtes. */
+.prikplan {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  margin-top: 10px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+.prikplan path {
+  fill: var(--vlak);
+  stroke: var(--zacht);
+  stroke-width: 0.04;
+}
+
+.prikplan path.gekozen {
+  fill: var(--accent-zacht);
+  stroke: var(--accent);
+}
+
+.prik circle {
+  fill: var(--fout);
+  stroke: #ffffff;
+  stroke-width: 0.05;
+}
+
+.prik .prik-halo {
+  fill: var(--fout);
+  opacity: 0.25;
+  stroke: none;
+}
+
+.dagboek {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.dagboek h2 {
+  margin: 0;
+}
+
+.dagboek-tekst {
+  white-space: pre-wrap;
+}
+
+.regelformulier {
+  display: inline;
+}
+
+/* Opleverpunten: een kaartje per punt, met zijn foto's en de knoppen voor de stappen. */
+.opleverpunten {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.opleverpunten p {
+  margin: 4px 0;
+}
+
+.opleverpunten input[name="opmerking"] {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+/* De checklist: per ruimte een kaartje; wat af is, krijgt een groene rand. */
+.checklijsten {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+}
+
+.checklijst h3 {
+  margin: 0 0 6px;
+}
+
+.checklijst ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.checklijst li.gedaan {
+  color: var(--zacht);
+}
+
+.checklijst .keuzevak {
+  align-items: flex-start;
+  font-weight: 400;
+}
+
+.checklijst .keuzevak input {
+  margin-top: 3px;
+}
+
+/* Een filter boven een lijst: op een laptop alles naast elkaar. */
+.knoppenrij.filter {
+  align-items: center;
+}
+
+.knoppenrij.filter select {
+  width: auto;
+  min-width: 170px;
+}
+
+.checklijst.af {
+  border-color: var(--goed);
+}
+
+/* Het woningdossier: per soort een lijst, een document per regel. */
+.documentenlijst {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+}
+
+.documentenlijst li {
+  padding: 10px 14px;
+  border-top: 1px solid var(--lijn);
+  overflow-wrap: anywhere;
+}
+
+.documentenlijst li:first-child {
+  border-top: none;
+}
+
+/* Stappen met uitleg, zoals bij Telegram koppelen. */
+.stappen {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 8px;
+}
+
+/* Wie de bot van Bouw mag gebruiken, of erom vroeg: naam links, knoppen rechts. */
+.chatlijst {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+}
+
+.chatlijst form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+
+.chatlijst li + li form {
+  border-top: 1px solid var(--lijn);
+}
+
+/* De beurten van een onderhoud: de datum links, schrappen rechts. */
+.beurtenlijst {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.beurtenlijst form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--lijn);
+}
+
+/* Op een gsm worden de tabellen kaartjes: daar valt een cel met enkel een
+   streepje weg, en een cel met een leeg label staat links. */
+@media (max-width: 680px) {
+  .tabel-omhulsel td:has(> .geen:only-child) {
+    display: none;
+  }
+
+  .tabel-omhulsel td[data-label=""] {
+    justify-content: flex-start;
+  }
+}
+
 /* =========================================================================
    Op een telefoon
    =========================================================================
@@ -804,6 +2124,28 @@ td.smal {
   .mobielmenu .hoofdmenu a {
     white-space: nowrap;
     padding: 9px 13px;
+  }
+
+  /* Het submenu schuift opzij, net als het hoofdmenu. */
+  .submenu {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-top: -12px;
+  }
+
+  .submenu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .submenu a {
+    white-space: nowrap;
+    padding: 9px 12px;
+  }
+
+  .viewer {
+    height: 60vh;
+    height: 60dvh;
   }
 
   /* --- Aanraakvlakken --------------------------------------------------- */
@@ -944,6 +2286,15 @@ td.smal {
 
   .kaart {
     padding: 14px;
+  }
+
+  .tl-namen {
+    width: 132px;
+    font-size: 12px;
+  }
+
+  .tl-naam {
+    padding-left: 12px;
   }
 }
 

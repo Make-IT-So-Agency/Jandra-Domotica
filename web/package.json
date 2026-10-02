@@ -16,14 +16,18 @@
     "exceljs": "^4.4.0",
     "next": "^15.1.6",
     "next-auth": "^5.0.0-beta.25",
+    "pdfjs-dist": "6.3.289",
+    "polygon-clipping": "^0.15.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "0.186.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "@types/three": "0.186.0",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

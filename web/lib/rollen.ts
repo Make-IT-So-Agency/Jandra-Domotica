@@ -5,7 +5,8 @@
  * Drie rollen:
  *
  * - hoofdbeheerder          ziet en beheert alles, over de vennootschappen
- *                           heen, en maakt de rapporten
+ *                           heen, maakt de rapporten, en ziet het
+ *                           bouwproject
  * - vennootschapsbeheerder  ziet enkel de eigen vennootschap en nodigt daar
  *                           zelf mensen voor uit
  * - kijker                  ziet enkel de eigen vennootschap, wijzigt niets
@@ -23,7 +24,7 @@ export const ROLNAMEN: Record<Rol, string> = {
 
 export const ROLUITLEG: Record<Rol, string> = {
   hoofdbeheerder:
-    "Ziet alle vennootschappen, beheert laadpalen, tarieven en instellingen, en maakt de rapporten.",
+    "Ziet alle vennootschappen, beheert laadpalen, tarieven en instellingen, maakt de rapporten, en ziet het bouwproject met de plannen van ons huis.",
   vennootschapsbeheerder:
     "Ziet enkel de eigen vennootschap en kan daar zelf mensen voor uitnodigen.",
   kijker: "Ziet enkel de rapporten en sessies van de eigen vennootschap.",
@@ -89,6 +90,18 @@ export function magInstellingenBeheren(gebruiker: Gebruiker): boolean {
  * mag wel, zie magVennootschapZien.
  */
 export function magRapportenMaken(gebruiker: Gebruiker): boolean {
+  return isHoofdbeheerder(gebruiker);
+}
+
+/**
+ * Het bouwproject zien en beheren: de plannen van ons huis, het adres, de
+ * partijen.
+ *
+ * Enkel de hoofdbeheerder, dus het gezin. Een vennootschapsbeheerder of een
+ * boekhouder heeft daar niets te zoeken. Wie hoofdbeheerder wordt, ziet
+ * voortaan ook het huis.
+ */
+export function magBouwZien(gebruiker: Gebruiker): boolean {
   return isHoofdbeheerder(gebruiker);
 }
 

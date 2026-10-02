@@ -10,8 +10,8 @@ import { huidigeGebruiker } from "@/lib/toegang";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Laadkosten",
-  description: "Overzicht en rapportage van laadkosten per vennootschap",
+  title: { default: "Jandra", template: "%s · Jandra" },
+  description: "Automatisering voor ons gezin: laadkosten, opvang en ons bouwproject",
 };
 
 export const viewport: Viewport = {
@@ -34,7 +34,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <header className="balk">
               <div className="balk-binnen">
                 <a className="merk" href="/">
-                  Laadkosten
+                  Jandra
                 </a>
                 <div className="menu-breed">
                   <Navigatie paginas={zichtbarePaginas(gebruiker)} />

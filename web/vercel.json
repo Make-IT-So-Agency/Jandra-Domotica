@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/opvang",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/bouw",
+      "schedule": "30 6 * * *"
     }
   ]
 }

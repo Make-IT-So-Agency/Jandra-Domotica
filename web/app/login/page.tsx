@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 
 import { auth, signIn } from "@/auth";
 
+import { WisPlancache } from "./wis-plancache";
+
 export default async function Inloggen({
   searchParams,
 }: {
@@ -14,8 +16,9 @@ export default async function Inloggen({
 
   return (
     <div className="inlogscherm">
+      <WisPlancache />
       <div className="inlogkaart">
-        <h1>Laadkosten</h1>
+        <h1>Jandra</h1>
         <p className="inleiding" style={{ marginBottom: 24 }}>
           Meld je aan met het Google-account dat toegang heeft gekregen.
         </p>

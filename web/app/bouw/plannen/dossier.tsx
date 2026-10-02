@@ -1,0 +1,533 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import { controleerUpload } from "@/lib/bouw/bestanden";
+import { controleerAanvraag, koppelBladen, type Bestaandplan, type Dossierblad } from "@/lib/bouw/dossierregels";
+import { getal, sleutelVan } from "@/lib/bouw/invoer";
+import { stelDossierVoor, verdiepingenUit, type Bladvoorstel } from "@/lib/bouw/omzetting/dossier";
+import { leesBladteksten } from "@/lib/bouw/omzetting/lezen";
+import { bewaarPdfBytes, openPdf, pdfFout } from "@/lib/bouw/pdf";
+import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping, isSoortPlan } from "@/lib/bouw/types";
+import { volgendLabel } from "@/lib/bouw/weergave";
+import { zetOp } from "@/lib/bouw/zet-op";
+
+import { leesDossierInActie, leesInzendingInActie, vraagDossierUploadAan, vraagInzendingUrl } from "./acties";
+
+export interface Bestaand {
+  plannen: Bestaandplan[];
+  gebouwen: string[];
+  verdiepingen: { gebouw: string; naam: string }[];
+}
+
+/** Een dossier dat een partij via haar link instuurde: het staat al in de opslag. */
+export interface Ingestuurd {
+  id: number;
+  naam: string;
+  door: string;
+}
+
+/** Waar de PDF vandaan komt: een bestand op dit toestel, of een inzending. */
+interface Bron {
+  naam: string;
+  type: string;
+  grootte: number;
+  bestand?: File;
+}
+
+type Fase =
+  | { soort: "kiezen" }
+  | { soort: "lezen"; tekst: string }
+  | { soort: "nakijken" }
+  | { soort: "bezig"; tekst: string; voortgang?: number };
+
+interface Rij extends Bladvoorstel {
+  mee: boolean;
+}
+
+type Hoogtes = { vloerpeil: string; plafondhoogte: string; verdiepingshoogte: string };
+
+const komma = (waarde: number | null) => (waarde === null ? "" : String(waarde).replace(".", ","));
+const verdiepingsleutel = (gebouw: string, naam: string) => `${sleutelVan(gebouw)}|${sleutelVan(naam)}`;
+
+/** De bladen zoals ze naar de server gaan: enkel wat aangevinkt is, netjes ingevuld. */
+function alsDossierbladen(rijen: Rij[]): Dossierblad[] {
+  return rijen
+    .filter((rij) => rij.mee)
+    .map((rij) => ({
+      pagina: rij.pagina,
+      titel: rij.titel.trim(),
+      soort: rij.soort,
+      gebouw: rij.gebouw?.trim() || null,
+      verdieping: hoortBijVerdieping(rij.soort) && rij.gebouw?.trim() ? rij.verdieping?.trim() || null : null,
+      bladcode: rij.bladcode,
+    }));
+}
+
+/**
+ * Een dossier inlezen: één PDF met alle bladen. De browser leest eerst de
+ * teksten van elk blad (pdf.js, nog vóór het opladen) en stelt per blad een
+ * plan voor. Jan en Sandra kijken dat na; pas dan gaat de PDF naar de
+ * privé-opslag en worden de plannen, versies en verdiepingen aangemaakt.
+ */
+export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; inzending?: Ingestuurd }) {
+  const router = useRouter();
+  const [fase, setFase] = useState<Fase>({ soort: "kiezen" });
+  const [fout, setFout] = useState<string | null>(null);
+  const [bron, setBron] = useState<Bron | null>(null);
+  const [bytes, setBytes] = useState<Uint8Array | null>(null);
+  const [rijen, setRijen] = useState<Rij[]>([]);
+  const [hoogtes, setHoogtes] = useState<Record<string, Partial<Hoogtes>>>({});
+  const [label, setLabel] = useState("v1");
+  const [datum, setDatum] = useState("");
+  const bezig = fase.soort === "lezen" || fase.soort === "bezig";
+
+  const bladen = useMemo(() => alsDossierbladen(rijen), [rijen]);
+  const koppeling = useMemo(() => koppelBladen({ label: label.trim(), bladen }, bestaand.plannen), [label, bladen, bestaand]);
+  const verdiepingen = useMemo(
+    () =>
+      verdiepingenUit(
+        rijen
+          .filter((rij) => rij.mee && rij.gebouw?.trim())
+          .map((rij) => ({ ...rij, gebouw: rij.gebouw!.trim(), verdieping: rij.verdieping?.trim() || null })),
+      ),
+    [rijen],
+  );
+
+  async function lees(gekozen: File) {
+    setFout(null);
+    const controle = controleerUpload({ naam: gekozen.name, type: gekozen.type, grootte: gekozen.size }, "plan");
+    if (!controle.ok) return setFout(controle.melding);
+
+    setFase({ soort: "lezen", tekst: "De PDF openen…" });
+    const inhoud = new Uint8Array(await gekozen.arrayBuffer());
+    await leesInhoud(inhoud, { naam: gekozen.name, type: gekozen.type, grootte: gekozen.size, bestand: gekozen });
+  }
+
+  /** Een ingestuurd dossier staat al in de opslag: ophalen en lezen, zonder het opnieuw op te laden. */
+  async function leesInzending(ingestuurd: Ingestuurd) {
+    setFout(null);
+    setFase({ soort: "lezen", tekst: "Het ingestuurde dossier ophalen…" });
+    try {
+      const toelating = await vraagInzendingUrl(ingestuurd.id);
+      if (!toelating.ok) throw new Error(toelating.melding);
+      const antwoord = await fetch(toelating.data.url);
+      if (!antwoord.ok) throw new Error(`Ophalen mislukt (HTTP ${antwoord.status}).`);
+      const inhoud = new Uint8Array(await antwoord.arrayBuffer());
+      await leesInhoud(inhoud, { naam: ingestuurd.naam, type: "application/pdf", grootte: inhoud.length });
+    } catch (oorzaak) {
+      setFout(oorzaak instanceof Error ? oorzaak.message : "Ophalen mislukt.");
+      setFase({ soort: "kiezen" });
+    }
+  }
+
+  async function leesInhoud(inhoud: Uint8Array, gelezenBron: Bron) {
+    const taak = openPdf(inhoud);
+    try {
+      const pdf = await taak.promise;
+      const gelezen = [];
+      for (let pagina = 1; pagina <= pdf.numPages; pagina++) {
+        setFase({ soort: "lezen", tekst: `Blad ${pagina} van ${pdf.numPages} lezen…` });
+        const blad = await pdf.getPage(pagina);
+        gelezen.push({ pagina, teksten: (await leesBladteksten(blad)).teksten });
+        blad.cleanup();
+      }
+      const voorstel = stelDossierVoor(gelezen);
+      const nieuweRijen = voorstel.bladen.map((blad) => ({ ...blad, mee: true }));
+      const gekoppeld = koppelBladen({ label: "", bladen: alsDossierbladen(nieuweRijen) }, bestaand.plannen);
+      setLabel(
+        volgendLabel(
+          gekoppeld.bladen.flatMap((blad) => bestaand.plannen.find((plan) => plan.id === blad.plan?.id)?.labels ?? []),
+        ),
+      );
+      setDatum(voorstel.datum ?? "");
+      setRijen(nieuweRijen);
+      setHoogtes({});
+      setBytes(inhoud);
+      setBron(gelezenBron);
+      setFase({ soort: "nakijken" });
+    } catch (oorzaak) {
+      setFout(pdfFout(oorzaak));
+      setFase({ soort: "kiezen" });
+    } finally {
+      void taak.destroy();
+    }
+  }
+
+  function wijzig(pagina: number, velden: Partial<Rij>) {
+    setRijen((huidig) => huidig.map((rij) => (rij.pagina === pagina ? { ...rij, ...velden } : rij)));
+  }
+
+  function opnieuw() {
+    setFase({ soort: "kiezen" });
+    setRijen([]);
+    setBron(null);
+    setBytes(null);
+    setFout(null);
+  }
+
+  async function inlezen() {
+    if (!bron || !bytes) return;
+    setFout(null);
+
+    // De verdiepingen, met wat er zelf aangepast werd.
+    const lijst = [];
+    for (const verdieping of verdiepingen) {
+      const eigen = hoogtes[verdiepingsleutel(verdieping.gebouw, verdieping.naam)] ?? {};
+      const waarde = (veld: keyof Hoogtes, standaard: number | null, wat: string) => {
+        if (eigen[veld] === undefined) return standaard;
+        const uitkomst = getal(eigen[veld], `${verdieping.gebouw} · ${verdieping.naam}, ${wat}`);
+        if (!uitkomst.ok) throw new Error(uitkomst.melding);
+        return uitkomst.waarde;
+      };
+      try {
+        lijst.push({
+          gebouw: verdieping.gebouw,
+          naam: verdieping.naam,
+          volgorde: verdieping.volgorde,
+          vloerpeil_m: waarde("vloerpeil", verdieping.vloerpeil, "vloerpeil"),
+          plafondhoogte_m: waarde("plafondhoogte", verdieping.plafondhoogte, "plafondhoogte"),
+          verdiepingshoogte_m: waarde("verdiepingshoogte", verdieping.verdiepingshoogte, "verdiepingshoogte"),
+        });
+      } catch (oorzaak) {
+        return setFout(oorzaak instanceof Error ? oorzaak.message : "Een hoogte klopt niet.");
+      }
+    }
+
+    const aanvraag = controleerAanvraag({ label, datum: datum || null, bladen, verdiepingen: lijst });
+    if (!aanvraag.ok) return setFout(aanvraag.melding);
+
+    let bestandId: number;
+    let uitkomst;
+    if (inzending && !bron.bestand) {
+      // Een inzending staat al in de opslag: enkel nog inlezen.
+      setFase({ soort: "bezig", tekst: "Inlezen…" });
+      uitkomst = await leesInzendingInActie({ inzendingId: inzending.id, aanvraag: aanvraag.data }).catch(() => null);
+      if (!uitkomst || !uitkomst.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
+      bestandId = uitkomst.data.bestandId;
+    } else {
+      if (!bron.bestand) return;
+      setFase({ soort: "bezig", tekst: "Voorbereiden…" });
+      const toelating = await vraagDossierUploadAan({
+        aanbod: { naam: bron.naam, type: bron.type, grootte: bron.grootte },
+        aanvraag: aanvraag.data,
+      }).catch(() => null);
+      if (!toelating || !toelating.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(toelating ? toelating.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
+
+      try {
+        await zetOp(toelating.data.uploadUrl, bron.bestand, toelating.data.contentType, (voortgang) =>
+          setFase({ soort: "bezig", tekst: "Opladen…", voortgang }),
+        );
+      } catch (oorzaak) {
+        setFase({ soort: "nakijken" });
+        return setFout(oorzaak instanceof Error ? oorzaak.message : "Opladen mislukt.");
+      }
+
+      setFase({ soort: "bezig", tekst: "Nakijken en inlezen…" });
+      uitkomst = await leesDossierInActie({ bestandId: toelating.data.bestandId, aanvraag: aanvraag.data }).catch(
+        () => null,
+      );
+      if (!uitkomst || !uitkomst.ok) {
+        setFase({ soort: "nakijken" });
+        return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
+      }
+      bestandId = toelating.data.bestandId;
+    }
+
+    // De PDF staat al in de browser: de viewer hoeft hem niet nog eens op te halen.
+    await bewaarPdfBytes(bestandId, bytes);
+    const { plannen, nieuwePlannen, verdiepingen: nieuweVerdiepingen, gebouwen } = uitkomst.data;
+    const delen = [
+      `${plannen} ${plannen === 1 ? "blad" : "bladen"} ingelezen`,
+      nieuwePlannen > 0 ? `${nieuwePlannen} ${nieuwePlannen === 1 ? "nieuw plan" : "nieuwe plannen"}` : null,
+      nieuweVerdiepingen > 0 ? `${nieuweVerdiepingen} ${nieuweVerdiepingen === 1 ? "nieuwe verdieping" : "nieuwe verdiepingen"}` : null,
+      gebouwen > 0 ? `${gebouwen} ${gebouwen === 1 ? "nieuw gebouw" : "nieuwe gebouwen"}` : null,
+    ].filter(Boolean);
+    opnieuw();
+    router.push(`/bouw/plannen?soort=goed&melding=${encodeURIComponent(`${delen.join(", ")}.`)}`);
+    router.refresh();
+  }
+
+  if ((fase.soort === "kiezen" || fase.soort === "lezen") && inzending) {
+    return (
+      <div className="kaart">
+        <p style={{ marginTop: 0 }}>
+          Ingestuurd door <strong>{inzending.door}</strong>: {inzending.naam}
+        </p>
+        <div className="knoppenrij">
+          <button type="button" disabled={bezig} onClick={() => void leesInzending(inzending)}>
+            Lezen en voorstellen
+          </button>
+          <a className="knop stil" href="/bouw/plannen#dossier">
+            Een andere PDF kiezen
+          </a>
+        </div>
+        <p className="hulp">
+          De app leest wat op elk blad staat en stelt per blad een plan voor, zoals bij een dossier dat je zelf kiest.
+          De PDF staat al in onze privé-opslag.
+        </p>
+        {fase.soort === "lezen" ? (
+          <div className="melding info" role="status">
+            {fase.tekst}
+          </div>
+        ) : null}
+        {fout ? <div className="melding fout">{fout}</div> : null}
+      </div>
+    );
+  }
+
+  if (fase.soort === "kiezen" || fase.soort === "lezen") {
+    return (
+      <div className="kaart">
+        <label htmlFor="dossier">PDF met alle bladen</label>
+        <input
+          id="dossier"
+          type="file"
+          accept="application/pdf,.pdf"
+          disabled={bezig}
+          onChange={(gebeurtenis) => {
+            const gekozen = gebeurtenis.currentTarget.files?.[0];
+            if (gekozen) void lees(gekozen);
+          }}
+        />
+        <p className="hulp">
+          De app leest eerst in de browser wat op elk blad staat, en stelt per blad een plan voor. Pas als jullie
+          dat nagekeken hebben, gaat de PDF naar onze privé-opslag.
+        </p>
+        {fase.soort === "lezen" ? (
+          <div className="melding info" role="status">
+            {fase.tekst}
+          </div>
+        ) : null}
+        {fout ? <div className="melding fout">{fout}</div> : null}
+      </div>
+    );
+  }
+
+  const bestaandeVerdieping = (gebouw: string, naam: string) =>
+    bestaand.verdiepingen.some((v) => verdiepingsleutel(v.gebouw, v.naam) === verdiepingsleutel(gebouw, naam));
+  const gebouwnamen = [...new Set([...bestaand.gebouwen, ...rijen.map((rij) => rij.gebouw ?? "").filter(Boolean)])];
+  const verdiepingnamen = [...new Set([...bestaand.verdiepingen.map((v) => v.naam), ...rijen.map((r) => r.verdieping ?? "").filter(Boolean)])];
+
+  return (
+    <div className="kaart dossier">
+      <p className="hulp" style={{ marginTop: 0 }}>
+        {bron?.naam} · {rijen.length} {rijen.length === 1 ? "blad" : "bladen"}. Kijk na wat de app voorstelt en
+        pas aan wat niet klopt.
+      </p>
+
+      <datalist id="dossier-gebouwen">
+        {gebouwnamen.map((naam) => (
+          <option key={naam} value={naam} />
+        ))}
+      </datalist>
+      <datalist id="dossier-verdiepingen">
+        {verdiepingnamen.map((naam) => (
+          <option key={naam} value={naam} />
+        ))}
+      </datalist>
+
+      <div className="tabel-omhulsel">
+        <table>
+          <thead>
+            <tr>
+              <th aria-label="Meenemen" />
+              <th className="getal">Blad</th>
+              <th>Titel</th>
+              <th>Soort</th>
+              <th>Gebouw</th>
+              <th>Verdieping</th>
+              <th>Wordt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rijen.map((rij) => {
+              const plan = koppeling.bladen.find((b) => b.pagina === rij.pagina)?.plan ?? null;
+              return (
+                <tr key={rij.pagina} className={rij.mee ? undefined : "uit"}>
+                  <td data-label="Meenemen">
+                    <input
+                      type="checkbox"
+                      checked={rij.mee}
+                      disabled={bezig}
+                      onChange={(g) => wijzig(rij.pagina, { mee: g.currentTarget.checked })}
+                      aria-label={`Blad ${rij.pagina} meenemen`}
+                    />
+                  </td>
+                  <td data-label="Blad" className="getal">
+                    {rij.pagina}
+                  </td>
+                  <td data-label="Titel">
+                    <input
+                      value={rij.titel}
+                      maxLength={120}
+                      disabled={bezig || !rij.mee}
+                      onChange={(g) => wijzig(rij.pagina, { titel: g.currentTarget.value })}
+                      aria-label={`Titel van blad ${rij.pagina}`}
+                    />
+                    {rij.bladcode ? <div className="hulp">{rij.bladcode}</div> : null}
+                  </td>
+                  <td data-label="Soort">
+                    <select
+                      value={rij.soort}
+                      disabled={bezig || !rij.mee}
+                      onChange={(g) => {
+                        const soort = g.currentTarget.value;
+                        if (isSoortPlan(soort)) wijzig(rij.pagina, { soort });
+                      }}
+                      aria-label={`Soort van blad ${rij.pagina}`}
+                    >
+                      {SOORTEN_PLAN.map((soort) => (
+                        <option key={soort} value={soort}>
+                          {PLANNAMEN[soort]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td data-label="Gebouw">
+                    <input
+                      value={rij.gebouw ?? ""}
+                      list="dossier-gebouwen"
+                      placeholder="hele project"
+                      maxLength={60}
+                      disabled={bezig || !rij.mee}
+                      onChange={(g) => wijzig(rij.pagina, { gebouw: g.currentTarget.value || null })}
+                      aria-label={`Gebouw van blad ${rij.pagina}`}
+                    />
+                  </td>
+                  <td data-label="Verdieping">
+                    {hoortBijVerdieping(rij.soort) ? (
+                      <input
+                        value={rij.verdieping ?? ""}
+                        list="dossier-verdiepingen"
+                        maxLength={60}
+                        disabled={bezig || !rij.mee}
+                        onChange={(g) => wijzig(rij.pagina, { verdieping: g.currentTarget.value || null })}
+                        aria-label={`Verdieping van blad ${rij.pagina}`}
+                      />
+                    ) : (
+                      <span className="hulp">—</span>
+                    )}
+                  </td>
+                  <td data-label="Wordt">{!rij.mee ? "overgeslagen" : plan ? `nieuwe versie van ${plan.titel}` : "nieuw plan"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {verdiepingen.length > 0 ? (
+        <>
+          <h3>Verdiepingen</h3>
+          <p className="hulp">
+            Uit de grondplannen: het vloerpeil uit NIVO, de plafondhoogte uit PH, en de verdiepingshoogte tot het
+            peil erboven. Van een verdieping die er al is, vult de app enkel aan wat nog leeg is.
+          </p>
+          <div className="tabel-omhulsel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Gebouw</th>
+                  <th>Verdieping</th>
+                  <th>Vloerpeil (m)</th>
+                  <th>Plafondhoogte (m)</th>
+                  <th>Verdiepingshoogte (m)</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {verdiepingen.map((verdieping) => {
+                  const k = verdiepingsleutel(verdieping.gebouw, verdieping.naam);
+                  const eigen = hoogtes[k] ?? {};
+                  const veld = (naam: keyof Hoogtes, standaard: number | null, wat: string) => (
+                    <input
+                      inputMode="decimal"
+                      value={eigen[naam] ?? komma(standaard)}
+                      disabled={bezig}
+                      onChange={(g) => {
+                        const waarde = g.currentTarget.value;
+                        setHoogtes((huidig) => ({ ...huidig, [k]: { ...huidig[k], [naam]: waarde } }));
+                      }}
+                      aria-label={`${wat} van ${verdieping.gebouw} ${verdieping.naam}`}
+                    />
+                  );
+                  return (
+                    <tr key={k}>
+                      <td data-label="Gebouw">{verdieping.gebouw}</td>
+                      <td data-label="Verdieping">{verdieping.naam}</td>
+                      <td data-label="Vloerpeil (m)">{veld("vloerpeil", verdieping.vloerpeil, "Vloerpeil")}</td>
+                      <td data-label="Plafondhoogte (m)">{veld("plafondhoogte", verdieping.plafondhoogte, "Plafondhoogte")}</td>
+                      <td data-label="Verdiepingshoogte (m)">
+                        {veld("verdiepingshoogte", verdieping.verdiepingshoogte, "Verdiepingshoogte")}
+                      </td>
+                      <td data-label="Stand">{bestaandeVerdieping(verdieping.gebouw, verdieping.naam) ? "bestaat al" : "nieuw"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      <div className="veldenrij" style={{ marginTop: 16 }}>
+        <div>
+          <label htmlFor="dossier-label">Label van de versie</label>
+          <input
+            id="dossier-label"
+            value={label}
+            maxLength={40}
+            disabled={bezig}
+            onChange={(g) => setLabel(g.currentTarget.value)}
+          />
+        </div>
+        <div>
+          <label htmlFor="dossier-datum">Datum van de plannen</label>
+          <input
+            id="dossier-datum"
+            type="date"
+            value={datum}
+            disabled={bezig}
+            onChange={(g) => setDatum(g.currentTarget.value)}
+          />
+        </div>
+      </div>
+
+      {koppeling.fouten.length > 0 ? (
+        <div className="melding fout">
+          {koppeling.fouten.map((tekst) => (
+            <p key={tekst}>{tekst}</p>
+          ))}
+        </div>
+      ) : null}
+      {fout ? <div className="melding fout">{fout}</div> : null}
+      {fase.soort === "bezig" ? (
+        <div className="melding info" role="status">
+          {fase.tekst}
+          {fase.voortgang !== undefined ? (
+            <progress className="voortgang" max={1} value={fase.voortgang}>
+              {Math.round(fase.voortgang * 100)} %
+            </progress>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="knoppenrij">
+        <button type="button" onClick={() => void inlezen()} disabled={bezig || bladen.length === 0 || koppeling.fouten.length > 0}>
+          {bezig ? "Even geduld…" : `${bladen.length} ${bladen.length === 1 ? "blad" : "bladen"} inlezen`}
+        </button>
+        <button type="button" className="stil" onClick={opnieuw} disabled={bezig}>
+          Ander bestand
+        </button>
+      </div>
+    </div>
+  );
+}

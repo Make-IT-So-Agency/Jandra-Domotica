@@ -88,7 +88,16 @@ toepassen "tweede keer"
 echo "Controleren of de verwachte tabellen er staan…"
 ontbreekt=0
 for tabel in companies loadpoints sessions tariffs meter_readings \
-             reports app_settings app_users ingest_log; do
+             reports app_settings app_users ingest_log \
+             bouw_instellingen bouw_partijen bouw_bestanden bouw_verdiepingen \
+             bouw_referentiepunten bouw_plannen bouw_planversies \
+             bouw_gebouwen bouw_omzettingen bouw_ruimtes bouw_punten \
+             bouw_planning bouw_keuzes bouw_opties bouw_keuze_ruimtes \
+             bouw_voorkeuren bouw_beslissingen bouw_meldingen \
+             bouw_links bouw_inzendingen \
+             bouw_posten bouw_offertes bouw_meerwerken bouw_facturen bouw_kredietopnames \
+             bouw_dagboek bouw_werffotos bouw_actiepunten bouw_opleverpunten bouw_checklist \
+             bouw_documenten bouw_garanties bouw_onderhoud bouw_onderhoudsbeurten; do
   aanwezig="$(psql -h "$SOCKET" -U postgres -d proef -tAc \
     "select to_regclass('public.$tabel') is not null")"
   if [ "$aanwezig" = "t" ]; then
