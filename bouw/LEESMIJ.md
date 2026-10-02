@@ -1,12 +1,12 @@
 # Bouw
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
-versies, de verdiepingen, en iedereen met wie we te maken hebben. Op de
-laptop, de tablet en de gsm, onder **Bouw** in het menu.
+versies, omgezet naar ruimtes per verdieping, en iedereen met wie we te maken
+hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
-Dit is fase 1a. Hierna komt het omzetten van een plan-PDF naar een digitaal
-plan (muren, ramen, deuren, ruimtes met hun oppervlakte), zodat we niets van
-nul moeten tekenen. Zie [Wat nog komt](#wat-nog-komt).
+We tekenen niets van nul: de app leest de PDF van de architect en maakt er
+een digitaal plan van. Fase 1a en 1b zijn klaar; zie
+[Wat nog komt](#wat-nog-komt).
 
 ```
 Browser (Jan, Sandra)
@@ -22,16 +22,75 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 
 ## Wat het doet
 
-- **Overzicht** (`/bouw`): wat er nog moet gebeuren, de stand in tegels, en de
-  naam en het adres van het project.
-- **Plannen** (`/bouw/plannen`): elk plan met zijn versies. Een PDF met alle
-  bladen laad je één keer op en gebruik je per blad als versie. De viewer
-  zoomt met het muiswiel, twee vingers of de knoppen, en blijft scherp tot in
-  het detail.
-- **Verdiepingen** (`/bouw/verdiepingen`): naam, volgorde, vloerpeil en
-  hoogtes. De hoogtes dienen later voor het 3D-model.
+- **Overzicht** (`/bouw`): wat er nog moet gebeuren (ook welk grondplan nog
+  omgezet moet worden), de stand in tegels, en de naam en het adres van het
+  project.
+- **Plannen** (`/bouw/plannen`): elk plan met zijn versies, per gebouw.
+  - **Dossier inlezen**: één PDF met alle bladen. De app stelt per blad een
+    plan voor en per gebouw de verdiepingen; zie
+    [Van PDF naar plan](#van-pdf-naar-plan).
+  - De viewer zoomt met het muiswiel, twee vingers of de knoppen, en blijft
+    scherp tot in het detail.
+  - Op een grondplan: **Omzetten naar ruimtes**.
+- **Ruimtes** (`/bouw/ruimtes`): per gebouw en verdieping een tekening en een
+  lijst met de oppervlakte en de plafondhoogte. Ook op de gsm.
+- **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
+  bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
+  nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
 - **Partijen** (`/bouw/partijen`): architect, aannemers, leveranciers,
   adviseurs, nutsbedrijven, de bank. Telefoon en e-mail zijn links.
+
+## Van PDF naar plan
+
+Alles gebeurt in de browser: de PDF verlaat de webapp niet. pdf.js leest de
+vlakken, lijnen en teksten van een blad; de rest zijn pure functies in
+`web/lib/bouw/omzetting/`, met tests.
+
+**Een dossier inlezen.** De browser leest de teksten van elk blad, nog vóór
+het opladen, en stelt per blad een plan voor:
+
+- de bladcode uit het titelblok, bv. `BA_woning_P_N_1`, geeft het gebouw en
+  de soort (G gevel, P plan, S snede, I inplanting, D detail, L legende,
+  T terreinprofiel);
+- de titel is de grootste tekst op het blad;
+- uit de grondplannen komen de verdiepingen: het peil uit `NIVO 320`, de
+  plafondhoogte uit `PH = 260`, de verdiepingshoogte tot het peil erboven.
+
+Jullie kijken dat na in een tabel en klikken op Inlezen. Een volgend dossier
+wordt een nieuwe versie van dezelfde plannen (op bladcode). Wat er al is,
+wordt nooit overschreven.
+
+**Een grondplan omzetten.**
+
+- **Ruimtes.** Een tekenpakket als Vectorworks vult elke ruimte met wit, met
+  precies de oppervlakte van haar label. Het vlak rond een label dat op de
+  juiste schaal die oppervlakte heeft, is de ruimte; de grootste andere tekst
+  erin is de naam. Achter een label ligt vaak een klein wit tekstvlak: dat is
+  geen ruimte.
+- **Schaal.** "1:50" uit het titelblok, nagekeken met de oppervlaktes. Klopt
+  het titelblok niet (een plan op een ander formaat afgedrukt), dan volgt de
+  schaal uit de oppervlaktes. Zonder beide duid je twee punten aan.
+- **Kandidaten.** Witte vlakken zonder label die op een ruimte lijken, zoals
+  een trapbordes, voeg je toe met een tik.
+- **Deuren en ramen.** Een deur is een kwartcirkel, een raam een label als
+  `205 x 275`. Ze worden bewaard voor het 3D-model.
+
+**Nakijken.** Op een laptop of tablet. Groen klopt, oranje is na te kijken.
+Je kan hernoemen (de soort volgt de naam), splitsen met een lijn, een
+kandidaat toevoegen en een plafondhoogte geven.
+
+**Uitlijnen.** Elk gebouw heeft één assenstelsel in meter. De eerste
+bevestigde verdieping legt het vast; al de rest wordt daarop gelegd:
+
+- een nieuwe versie eerst op de namen van de ruimtes, dan op de muren;
+- een andere verdieping op de lange, dikke lijnen: de muren.
+
+De vorige ligt er in het blauw over. Bijschuiven, een kwartslag draaien, één
+gekend punt aanduiden of een andere mogelijkheid kiezen kan altijd.
+
+**Bevestigen.** De server rekent zelf de meters en oppervlaktes uit. Een
+ruimte die op dezelfde plaats blijft, houdt haar id: wat er later aan hangt
+(punten, keuzes, foto's), blijft mee.
 
 ## Privacy: de repository is publiek
 
@@ -45,6 +104,11 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   workflow SQL uitvoeren is publiek.
 - De browser bewaart een geopend plan in de Cache API, om dataverkeer te
   sparen. Op de loginpagina, dus na het afmelden, wordt die cache gewist.
+- Een omzetting bewaart enkel de namen, oppervlaktes en hoogtes van de
+  ruimtes, de openingen en het bewijs voor de schaal. Geen andere teksten van
+  het blad: het titelblok bevat namen en adressen.
+- De tests maken hun eigen plannen met een kleine PDF-schrijver
+  (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
 
 ## Hoe opladen werkt
 
@@ -71,9 +135,14 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | Waar | Wat |
 | --- | --- |
 | `supabase/migrations/20261002100000_bouw.sql` | De tabellen `bouw_*` en de privé-bucket `bouw` |
+| `supabase/migrations/20261002200000_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
 | `web/app/bouw/` | De schermen en hun serveracties |
-| `web/app/bouw/plannen/[id]/viewer.tsx` | De planviewer (pdf.js, enkel in de browser) |
-| `web/app/bouw/plannen/[id]/gebaren.ts` | Verschuiven en zoomen met muis, vinger en pen |
+| `web/app/bouw/plannen/dossier.tsx` | Een dossier inlezen |
+| `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
+| `web/app/bouw/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
+| `web/app/bouw/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
+| `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
+| `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
@@ -96,6 +165,20 @@ boven ongeveer 16,7 miljoen pixels. Het blad wordt één keer gerenderd tot
 8 miljoen pixels; wie verder inzoomt, krijgt daarbovenop een scherp beeld van
 enkel het stuk dat in beeld is.
 
+**Waarom de ruimtes uit de witte vlakken komen.** Het eerste idee was de muren
+op een raster tekenen en de vlakken ertussen vullen. Het echte dossier toonde
+dat het niet nodig is: elke ruimte staat er als vlak in, met exact de
+oppervlakte van haar label (17 van de 17). Dat is nauwkeuriger dan elk
+raster. Een PDF zonder zulke vlakken (een ander pakket, een scan) geeft
+enkel de schaal; daar helpt later de AI-hulp.
+
+**Waarom uitlijnen op de dikke lijnen.** De teksten (maten, sectiemarkeringen)
+zet een architect per blad op een andere plaats, en de dunne lijnen
+(meubels, arcering) verschillen per verdieping. De muren liggen op elkaar.
+Een muur bestaat wel uit lagen van 10 tot 17 cm, en een gevel kan twee
+vlakken hebben: daarom worden meerdere plaatsen fijn nagekeken, en staan de
+andere mogelijkheden erbij.
+
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer
 anders, dus de gewone HTTP-cache helpt niet. Een bestand verandert nooit (een
@@ -105,13 +188,16 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md).
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er twee:
+   `20261002100000_bouw.sql` en `20261002200000_bouw_omzetting.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
-   - een kleine PDF opladen lukt;
-   - op een iPad en een gsm tonen en zoomen.
+   - het dossier van de architect inlezen bij Plannen;
+   - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
+     of iPad;
+   - op een gsm de plannen en de ruimtes bekijken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een
    ontbrekende apikey bij Storage. De melding in het scherm zegt welke HTTP-fout
@@ -120,8 +206,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 ## Wat nog komt
 
 - [x] **1a** Plannen opladen en bekijken, verdiepingen, partijen
-- [ ] **1b** Van PDF naar plan: schaal, muren, ramen, deuren en ruimtes uit de
-      PDF lezen, nakijken en bevestigen, en versies en verdiepingen uitlijnen
+- [x] **1b** Van PDF naar plan: het dossier inlezen, de schaal, de ruimtes en
+      de deuren en ramen uit de PDF lezen, nakijken en bevestigen, en versies
+      en verdiepingen uitlijnen. De muren volgen bij het 3D-model.
 - [ ] **1c** AI-hulp op aanvraag bij het omzetten
 - [ ] **2** Punten op het plan (stopcontacten, licht, netwerk, sensoren) en de
       wensenlijst voor de elektricien
