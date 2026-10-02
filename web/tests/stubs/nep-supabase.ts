@@ -35,6 +35,7 @@ const SLEUTELS: Record<string, string[]> = {
   bouw_referentiepunten: ["code"],
   bouw_planversies: ["plan_id", "label"],
   bouw_keuze_ruimtes: ["keuze_id", "ruimte_id"],
+  bouw_checklist: ["ruimte_id", "sleutel"],
   bouw_voorkeuren: ["keuze_id", "wie"],
   bouw_meldingen: ["sleutel"],
 };
@@ -180,6 +181,19 @@ function standaard(tabel: string): Rij {
   if (tabel === "bouw_bestanden") return { status: "wacht", grootte_bytes: null, klaar_op: null };
   if (tabel === "bouw_planversies") return { pagina: 1, datum: null, kalibratie: null, opmerking: null };
   if (tabel === "bouw_inzendingen") return { status: "nieuw", soort: "plan", verwerkt_op: null, verwerkt_door: null };
+  if (tabel === "bouw_opleverpunten") {
+    return {
+      status: "open",
+      ronde: "voorlopig",
+      gemeld_op: null,
+      hersteld_op: null,
+      hersteld_door: null,
+      herstelopmerking: null,
+      gecontroleerd_op: null,
+      gecontroleerd_door: null,
+    };
+  }
+  if (tabel === "bouw_actiepunten") return { status: "open", klaar_op: null };
   if (tabel === "bouw_links") return { ingetrokken_op: null, laatst_gebruikt_op: null };
   return {};
 }

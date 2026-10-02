@@ -5,10 +5,10 @@ import type { SoortPartij } from "./types";
  * De regels van een persoonlijke link voor een partij: welke rechten er zijn,
  * welke een architect of aannemer standaard krijgt, en of een link nog werkt.
  * Puur, voor de server, de browser en de tests. De rechten horen bij de
- * check-constraint in supabase/migrations/20261002800000_bouw_inzendingen_geld.sql.
+ * check-constraint in supabase/migrations/20261002900000_bouw_werf.sql.
  */
 
-export const RECHTEN_LINK = ["plannen", "inzenden", "offertes", "facturen", "keuzes", "planning", "wensenlijst"] as const;
+export const RECHTEN_LINK = ["plannen", "inzenden", "offertes", "facturen", "oplevering", "keuzes", "planning", "wensenlijst"] as const;
 
 export type RechtLink = (typeof RECHTEN_LINK)[number];
 
@@ -17,6 +17,7 @@ export const RECHTNAMEN: Record<RechtLink, string> = {
   inzenden: "Een dossier of plan insturen",
   offertes: "Een offerte insturen",
   facturen: "Een factuur insturen",
+  oplevering: "De eigen opleverpunten zien en melden wat hersteld is",
   keuzes: "De keuzes en beslissingen lezen, zonder prijzen",
   planning: "De planning lezen",
   wensenlijst: "De wensenlijst voor de elektricien lezen",
@@ -32,7 +33,7 @@ export function standaardRechten(soort: SoortPartij): RechtLink[] {
     case "architect":
       return ["plannen", "inzenden", "facturen", "keuzes", "planning"];
     case "aannemer":
-      return ["plannen", "offertes", "facturen", "planning"];
+      return ["plannen", "offertes", "facturen", "oplevering", "planning"];
     case "leverancier":
     case "adviseur":
       return ["plannen", "offertes", "facturen"];

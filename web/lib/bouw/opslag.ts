@@ -626,6 +626,7 @@ export async function wordtGebruikt(bestandId: number): Promise<boolean> {
     db().from("bouw_offertes").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_facturen").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_inzendingen").select("id").eq("bestand_id", bestandId).eq("status", "nieuw").limit(1),
+    db().from("bouw_werffotos").select("id").eq("bestand_id", bestandId).limit(1),
   ]);
   return antwoorden.some((antwoord) => (check(antwoord, "Gebruik van een bestand nakijken") as unknown[]).length > 0);
 }

@@ -67,7 +67,7 @@ const morgen = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 describe("de regels van een link", () => {
   it("geeft elke soort partij wat ze nodig heeft", () => {
     expect(standaardRechten("architect")).toEqual(["plannen", "inzenden", "facturen", "keuzes", "planning"]);
-    expect(standaardRechten("aannemer")).toEqual(["plannen", "offertes", "facturen", "planning"]);
+    expect(standaardRechten("aannemer")).toEqual(["plannen", "offertes", "facturen", "oplevering", "planning"]);
     expect(standaardRechten("leverancier")).toEqual(["plannen", "offertes", "facturen"]);
     expect(standaardRechten("bank")).toEqual(["plannen"]);
   });
