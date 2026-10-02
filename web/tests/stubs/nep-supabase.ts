@@ -29,7 +29,9 @@ const SLEUTELS: Record<string, string[]> = {
   opvang_slots: ["kind_id", "datum", "moment", "locatie"],
   bouw_instellingen: ["sleutel"],
   bouw_bestanden: ["pad"],
-  bouw_verdiepingen: ["naam"],
+  bouw_gebouwen: ["naam"],
+  bouw_verdiepingen: ["gebouw_id", "naam"],
+  bouw_omzettingen: ["planversie_id"],
   bouw_referentiepunten: ["code"],
   bouw_planversies: ["plan_id", "label"],
 };

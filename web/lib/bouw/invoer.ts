@@ -3,6 +3,14 @@
  * valt.
  */
 
+/**
+ * Een naam om te vergelijken: zonder hoofdletters en dubbele spaties. Zo is
+ * "woning" uit een bladcode dezelfde als de Woning die er al staat.
+ */
+export function sleutelVan(naam: string): string {
+  return naam.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("nl-BE");
+}
+
 /** Een tekstveld, zonder witruimte rond. Leeg wordt null. */
 export function tekst(waarde: FormDataEntryValue | null | undefined): string | null {
   const schoon = String(waarde ?? "").trim();

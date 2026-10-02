@@ -2,9 +2,9 @@
  * De vaste lijsten en de vorm van de rijen van de module Bouw. Puur, zonder
  * databank: zowel de server als de browser gebruikt dit bestand.
  *
- * De tabellen staan in supabase/migrations/20261002100000_bouw.sql. Een lijst
- * hier en een check-constraint daar horen bij elkaar: wie er een aanpast, past
- * de andere mee aan.
+ * De tabellen staan in supabase/migrations/20261002100000_bouw.sql en
+ * 20261002200000_bouw_omzetting.sql. Een lijst hier en een check-constraint
+ * daar horen bij elkaar: wie er een aanpast, past de andere mee aan.
  */
 
 export const SOORTEN_PARTIJ = [
@@ -35,6 +35,8 @@ export const PARTIJNAMEN: Record<SoortPartij, string> = {
 
 export const SOORTEN_PLAN = [
   "grondplan",
+  "dakplan",
+  "funderingsplan",
   "gevel",
   "doorsnede",
   "inplanting",
@@ -47,6 +49,8 @@ export type SoortPlan = (typeof SOORTEN_PLAN)[number];
 
 export const PLANNAMEN: Record<SoortPlan, string> = {
   grondplan: "Grondplan",
+  dakplan: "Dakplan",
+  funderingsplan: "Funderingsplan",
   gevel: "Gevel",
   doorsnede: "Doorsnede",
   inplanting: "Inplantingsplan",
@@ -54,6 +58,51 @@ export const PLANNAMEN: Record<SoortPlan, string> = {
   detail: "Detail",
   andere: "Andere",
 };
+
+/** Wat voor ruimte het is. De omzetting raadt het uit de naam; zie omzetting/soorten.ts. */
+export const SOORTEN_RUIMTE = [
+  "leefruimte",
+  "keuken",
+  "slaapkamer",
+  "badkamer",
+  "wc",
+  "inkom",
+  "nachthal",
+  "berging",
+  "technieken",
+  "bureau",
+  "dressing",
+  "wasplaats",
+  "garage",
+  "terras",
+  "trap",
+  "andere",
+] as const;
+
+export type SoortRuimte = (typeof SOORTEN_RUIMTE)[number];
+
+export const RUIMTENAMEN: Record<SoortRuimte, string> = {
+  leefruimte: "Leefruimte",
+  keuken: "Keuken",
+  slaapkamer: "Slaapkamer",
+  badkamer: "Badkamer",
+  wc: "Wc",
+  inkom: "Inkom",
+  nachthal: "Nachthal",
+  berging: "Berging",
+  technieken: "Technieken",
+  bureau: "Bureau",
+  dressing: "Dressing",
+  wasplaats: "Wasplaats",
+  garage: "Garage",
+  terras: "Terras",
+  trap: "Trap",
+  andere: "Andere",
+};
+
+export function isSoortRuimte(waarde: string): waarde is SoortRuimte {
+  return (SOORTEN_RUIMTE as readonly string[]).includes(waarde);
+}
 
 export function isSoortPartij(waarde: string): waarde is SoortPartij {
   return (SOORTEN_PARTIJ as readonly string[]).includes(waarde);
@@ -82,8 +131,16 @@ export interface Partij {
   opmerking: string | null;
 }
 
+/** Een gebouw met zijn eigen verdiepingen en assenstelsel: de woning, een bijgebouw. */
+export interface Gebouw {
+  id: number;
+  naam: string;
+  volgorde: number;
+}
+
 export interface Verdieping {
   id: number;
+  gebouw_id: number;
   naam: string;
   volgorde: number;
   vloerpeil_m: number | null;
@@ -95,7 +152,11 @@ export interface Plan {
   id: number;
   titel: string;
   soort: SoortPlan;
+  /** Leeg voor wat over het hele project gaat, zoals het inplantingsplan. */
+  gebouw_id: number | null;
   verdieping_id: number | null;
+  /** De code uit het titelblok, bv. BA_woning_P_N_1. Daarmee herkent een volgend dossier het plan. */
+  bladcode: string | null;
   opmerking: string | null;
   created_at: string;
 }

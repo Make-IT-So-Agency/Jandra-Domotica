@@ -1,11 +1,18 @@
 import { GeenToegang } from "@/components/geen-toegang";
-import { lijstVerdiepingen } from "@/lib/bouw/opslag";
-import type { Verdieping } from "@/lib/bouw/types";
+import { lijstGebouwen, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import type { Gebouw, Verdieping } from "@/lib/bouw/types";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
+import { BevestigKnop } from "../bevestig-knop";
 import { Melding } from "../melding";
-import { verwijderVerdiepingActie, voegVerdiepingToeActie, wijzigVerdiepingActie } from "./acties";
+import {
+  verwijderGebouwActie,
+  verwijderVerdiepingActie,
+  voegVerdiepingToeActie,
+  wijzigGebouwActie,
+  wijzigVerdiepingActie,
+} from "./acties";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +21,17 @@ function veld(waarde: number | null): string {
   return waarde === null ? "" : String(waarde).replace(".", ",");
 }
 
-function Velden({ verdieping, voorvoegsel }: { verdieping?: Verdieping; voorvoegsel: string }) {
+const GEBOUWLIJST = "gebouwnamen";
+
+function Velden({
+  verdieping,
+  gebouw,
+  voorvoegsel,
+}: {
+  verdieping?: Verdieping;
+  gebouw: string;
+  voorvoegsel: string;
+}) {
   return (
     <>
       <div className="veldenrij">
@@ -25,6 +42,18 @@ function Velden({ verdieping, voorvoegsel }: { verdieping?: Verdieping; voorvoeg
             name="naam"
             defaultValue={verdieping?.naam ?? ""}
             placeholder="Gelijkvloers"
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor={`${voorvoegsel}-gebouw`}>Gebouw</label>
+          <input
+            id={`${voorvoegsel}-gebouw`}
+            name="gebouw"
+            list={GEBOUWLIJST}
+            defaultValue={gebouw}
+            placeholder="Woning"
+            maxLength={60}
             required
           />
         </div>
@@ -75,6 +104,42 @@ function Velden({ verdieping, voorvoegsel }: { verdieping?: Verdieping; voorvoeg
   );
 }
 
+function Gebouwbeheer({ gebouw, leeg }: { gebouw: Gebouw; leeg: boolean }) {
+  return (
+    <details className="kaart">
+      <summary>
+        <strong>{gebouw.naam} wijzigen</strong>
+      </summary>
+      <form action={wijzigGebouwActie} style={{ marginTop: 14 }}>
+        <input type="hidden" name="id" value={gebouw.id} />
+        <div className="veldenrij">
+          <div>
+            <label htmlFor={`g${gebouw.id}-naam`}>Naam van het gebouw</label>
+            <input id={`g${gebouw.id}-naam`} name="naam" defaultValue={gebouw.naam} maxLength={60} required />
+          </div>
+          <div>
+            <label htmlFor={`g${gebouw.id}-volgorde`}>Volgorde</label>
+            <input
+              id={`g${gebouw.id}-volgorde`}
+              name="volgorde"
+              inputMode="numeric"
+              defaultValue={veld(gebouw.volgorde)}
+            />
+          </div>
+        </div>
+        <div className="knoppenrij">
+          <button type="submit">Bewaren</button>
+          {leeg ? (
+            <BevestigKnop vraag={`${gebouw.naam} verwijderen?`} formAction={verwijderGebouwActie}>
+              Gebouw verwijderen
+            </BevestigKnop>
+          ) : null}
+        </div>
+      </form>
+    </details>
+  );
+}
+
 export default async function Verdiepingenpagina({
   searchParams,
 }: {
@@ -85,8 +150,9 @@ export default async function Verdiepingenpagina({
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   let verdiepingen: Verdieping[];
+  let gebouwen: Gebouw[];
   try {
-    verdiepingen = await lijstVerdiepingen();
+    [verdiepingen, gebouwen] = await Promise.all([lijstVerdiepingen(), lijstGebouwen()]);
   } catch (fout) {
     return (
       <>
@@ -100,37 +166,59 @@ export default async function Verdiepingenpagina({
     <>
       <h1>Verdiepingen</h1>
       <p className="inleiding">
-        Elk grondplan hoort bij een verdieping. Het peil is de hoogte van de afgewerkte vloer
-        tegenover het nulpunt van de architect; de hoogtes dienen later voor het 3D-model. Die mag
-        je gerust leeg laten tot je ze kent.
+        Elk grondplan hoort bij een verdieping, en elke verdieping bij een gebouw: de woning, een
+        bijgebouw. Het peil is de hoogte van de afgewerkte vloer tegenover het nulpunt van de
+        architect; de hoogtes dienen later voor het 3D-model. Het dossier inlezen bij{" "}
+        <a href="/bouw/plannen">Plannen</a> vult ze in uit de plannen.
       </p>
 
       <Melding soort={soort} melding={melding} />
 
-      {verdiepingen.length === 0 ? (
-        <div className="kaart">
-          <p className="leeg">Nog geen verdiepingen. Voeg er hieronder een toe.</p>
-        </div>
-      ) : (
-        verdiepingen.map((verdieping) => (
-          <form key={verdieping.id} action={wijzigVerdiepingActie} className="kaart">
-            <input type="hidden" name="id" value={verdieping.id} />
-            <Velden verdieping={verdieping} voorvoegsel={`v${verdieping.id}`} />
-            <div className="knoppenrij">
-              <button type="submit">Bewaren</button>
-              <button type="submit" className="gevaar" formAction={verwijderVerdiepingActie} formNoValidate>
-                Verwijderen
-              </button>
-            </div>
-          </form>
-        ))
-      )}
+      <datalist id={GEBOUWLIJST}>
+        {gebouwen.map((gebouw) => (
+          <option key={gebouw.id} value={gebouw.naam} />
+        ))}
+      </datalist>
+
+      {gebouwen.map((gebouw) => {
+        const eigen = verdiepingen.filter((verdieping) => verdieping.gebouw_id === gebouw.id);
+        return (
+          <section key={gebouw.id} aria-label={gebouw.naam}>
+            <h2>{gebouw.naam}</h2>
+            {eigen.length === 0 ? (
+              <div className="kaart">
+                <p className="leeg">Nog geen verdiepingen in {gebouw.naam.toLowerCase()}.</p>
+              </div>
+            ) : (
+              eigen.map((verdieping) => (
+                <form key={verdieping.id} action={wijzigVerdiepingActie} className="kaart">
+                  <input type="hidden" name="id" value={verdieping.id} />
+                  <Velden verdieping={verdieping} gebouw={gebouw.naam} voorvoegsel={`v${verdieping.id}`} />
+                  <div className="knoppenrij">
+                    <button type="submit">Bewaren</button>
+                    <BevestigKnop
+                      vraag={`${verdieping.naam} verwijderen? De ruimtes van deze verdieping verdwijnen mee.`}
+                      formAction={verwijderVerdiepingActie}
+                    >
+                      Verwijderen
+                    </BevestigKnop>
+                  </div>
+                </form>
+              ))
+            )}
+            <Gebouwbeheer gebouw={gebouw} leeg={eigen.length === 0} />
+          </section>
+        );
+      })}
 
       <hr className="scheiding" />
 
       <h2>Verdieping toevoegen</h2>
       <form action={voegVerdiepingToeActie} className="kaart">
-        <Velden voorvoegsel="nieuw" />
+        <Velden gebouw={gebouwen[0]?.naam ?? "Woning"} voorvoegsel="nieuw" />
+        <p className="hulp" style={{ marginBottom: 12 }}>
+          Een nieuwe naam bij Gebouw maakt dat gebouw aan, bv. Bijgebouw.
+        </p>
         <button type="submit">Toevoegen</button>
       </form>
     </>

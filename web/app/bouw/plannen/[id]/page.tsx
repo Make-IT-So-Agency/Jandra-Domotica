@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { id as leesId } from "@/lib/bouw/invoer";
-import { leesBestanden, leesPlan, lijstPlanbestanden, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import { leesBestanden, leesPlan, lijstGebouwen, lijstPlanbestanden, lijstVerdiepingen } from "@/lib/bouw/opslag";
 import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping } from "@/lib/bouw/types";
+import { sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
 import { datum, datumTijd } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
@@ -40,13 +41,15 @@ export default async function Plandetail({
   const plan = await leesPlan(planId);
   if (!plan) notFound();
 
-  const [verdiepingen, bestanden, allePdfs] = await Promise.all([
+  const [verdiepingen, gebouwen, bestanden, allePdfs] = await Promise.all([
     lijstVerdiepingen(),
+    lijstGebouwen(),
     leesBestanden([...new Set(plan.versies.map((v) => v.bestand_id))]),
     lijstPlanbestanden(),
   ]);
   const bestandVan = new Map(bestanden.map((b) => [b.id, b]));
   const verdieping = verdiepingen.find((v) => v.id === plan.verdieping_id);
+  const gebouw = gebouwen.find((g) => g.id === plan.gebouw_id);
 
   const getoond = plan.versies.find((v) => String(v.id) === gekozen) ?? plan.versies.at(-1);
 
@@ -58,7 +61,9 @@ export default async function Plandetail({
       <h1>{plan.titel}</h1>
       <p className="inleiding">
         {PLANNAMEN[plan.soort]}
+        {gebouw && gebouwen.length > 1 ? ` · ${gebouw.naam}` : ""}
         {verdieping ? ` · ${verdieping.naam}` : ""}
+        {plan.bladcode ? ` · ${plan.bladcode}` : ""}
         {plan.opmerking ? ` · ${plan.opmerking}` : ""}
       </p>
 
@@ -186,12 +191,23 @@ export default async function Plandetail({
               </select>
             </div>
             <div>
+              <label htmlFor="gebouw_id">Gebouw</label>
+              <select id="gebouw_id" name="gebouw_id" defaultValue={plan.gebouw_id ?? ""}>
+                {gebouwen.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.naam}
+                  </option>
+                ))}
+                <option value="">Hele project</option>
+              </select>
+            </div>
+            <div>
               <label htmlFor="verdieping_id">Verdieping</label>
               <select id="verdieping_id" name="verdieping_id" defaultValue={plan.verdieping_id ?? ""}>
                 <option value="">Geen</option>
-                {verdiepingen.map((v) => (
+                {sorteerVerdiepingen(verdiepingen, gebouwen).map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.naam}
+                    {verdiepingNaam(v, gebouwen)}
                   </option>
                 ))}
               </select>

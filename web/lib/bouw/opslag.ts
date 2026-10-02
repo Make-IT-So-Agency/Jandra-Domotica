@@ -2,12 +2,14 @@ import "server-only";
 
 import { db } from "@/lib/supabase";
 
-import type { Bestand, Partij, Plan, Planversie, SoortPartij, SoortPlan, Verdieping } from "./types";
+import { sleutelVan } from "./invoer";
+import type { Bestand, Gebouw, Partij, Plan, Planversie, SoortPartij, SoortPlan, Verdieping } from "./types";
 
 /**
  * Alles wat de module Bouw in de databank leest en schrijft. De tabellen staan
- * in supabase/migrations/20261002100000_bouw.sql. De bestanden zelf staan in
- * Storage; zie opslagruimte.ts.
+ * in supabase/migrations/20261002100000_bouw.sql en
+ * 20261002200000_bouw_omzetting.sql. De bestanden zelf staan in Storage; zie
+ * opslagruimte.ts.
  */
 
 interface Databankfout {
@@ -72,6 +74,47 @@ export async function bewaarProject(project: Project): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Gebouwen
+// ---------------------------------------------------------------------------
+
+export async function lijstGebouwen(): Promise<Gebouw[]> {
+  const rijen = check(
+    await db().from("bouw_gebouwen").select("*").order("volgorde").order("naam"),
+    "Gebouwen lezen",
+  ) as Record<string, unknown>[];
+  return rijen.map((rij) => ({ id: Number(rij.id), naam: String(rij.naam), volgorde: Number(rij.volgorde ?? 0) }));
+}
+
+/**
+ * Het gebouw met die naam, of een nieuw achteraan. Hoofdletters en witruimte
+ * tellen niet mee, zodat "woning" uit een bladcode de bestaande Woning vindt.
+ */
+export async function zoekOfMaakGebouw(naam: string): Promise<number> {
+  const gebouwen = await lijstGebouwen();
+  const bestaand = gebouwen.find((gebouw) => sleutelVan(gebouw.naam) === sleutelVan(naam));
+  if (bestaand) return bestaand.id;
+  const volgorde = gebouwen.reduce((hoogste, gebouw) => Math.max(hoogste, gebouw.volgorde + 1), 0);
+  const rij = check(
+    await db().from("bouw_gebouwen").insert({ naam: naam.trim(), volgorde }).select("id").single(),
+    "Gebouw toevoegen",
+    { uniek: `Er bestaat al een gebouw "${naam.trim()}".` },
+  ) as { id: number };
+  return Number(rij.id);
+}
+
+export async function wijzigGebouw(id: number, gebouw: Omit<Gebouw, "id">): Promise<void> {
+  check(await db().from("bouw_gebouwen").update(gebouw).eq("id", id), "Gebouw bewaren", {
+    uniek: `Er bestaat al een gebouw "${gebouw.naam}".`,
+  });
+}
+
+export async function verwijderGebouw(id: number): Promise<void> {
+  check(await db().from("bouw_gebouwen").delete().eq("id", id), "Gebouw verwijderen", {
+    inGebruik: "Aan dit gebouw hangen nog verdiepingen of plannen. Verwijder of verplaats die eerst.",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Verdiepingen
 // ---------------------------------------------------------------------------
 
@@ -82,6 +125,7 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
   const getal = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
   return {
     id: Number(rij.id),
+    gebouw_id: Number(rij.gebouw_id),
     naam: String(rij.naam),
     volgorde: Number(rij.volgorde ?? 0),
     vloerpeil_m: getal(rij.vloerpeil_m),
@@ -98,16 +142,35 @@ export async function lijstVerdiepingen(): Promise<Verdieping[]> {
   return rijen.map(alsVerdieping);
 }
 
-export async function voegVerdiepingToe(verdieping: NieuweVerdieping): Promise<void> {
-  check(await db().from("bouw_verdiepingen").insert(verdieping), "Verdieping toevoegen", {
-    uniek: `Er bestaat al een verdieping "${verdieping.naam}".`,
-  });
+export async function leesVerdieping(id: number): Promise<Verdieping | null> {
+  const rij = check(
+    await db().from("bouw_verdiepingen").select("*").eq("id", id).maybeSingle(),
+    "Verdieping lezen",
+  ) as Record<string, unknown> | null;
+  return rij ? alsVerdieping(rij) : null;
 }
 
-export async function wijzigVerdieping(id: number, verdieping: NieuweVerdieping): Promise<void> {
+export async function voegVerdiepingToe(verdieping: NieuweVerdieping): Promise<number> {
+  const rij = check(
+    await db().from("bouw_verdiepingen").insert(verdieping).select("id").single(),
+    "Verdieping toevoegen",
+    { uniek: `Er bestaat al een verdieping "${verdieping.naam}" in dit gebouw.`, inGebruik: "Dat gebouw bestaat niet meer." },
+  ) as { id: number };
+  return Number(rij.id);
+}
+
+export async function wijzigVerdieping(id: number, verdieping: Partial<NieuweVerdieping>): Promise<void> {
   check(await db().from("bouw_verdiepingen").update(verdieping).eq("id", id), "Verdieping bewaren", {
-    uniek: `Er bestaat al een verdieping "${verdieping.naam}".`,
+    uniek: `Er bestaat al een verdieping "${verdieping.naam ?? ""}" in dit gebouw.`,
+    inGebruik: "Dat gebouw bestaat niet meer.",
   });
+  // Een grondplan volgt het gebouw van zijn verdieping.
+  if (verdieping.gebouw_id !== undefined) {
+    check(
+      await db().from("bouw_plannen").update({ gebouw_id: verdieping.gebouw_id }).eq("verdieping_id", id),
+      "Plannen van de verdieping bijwerken",
+    );
+  }
 }
 
 export async function verwijderVerdieping(id: number): Promise<void> {
@@ -148,8 +211,11 @@ export async function verwijderPartij(id: number): Promise<void> {
 export interface NieuwPlan {
   titel: string;
   soort: SoortPlan;
+  gebouw_id: number | null;
   verdieping_id: number | null;
   opmerking: string | null;
+  /** Enkel het dossier vult dit in; wie het weglaat, laat de bladcode ongemoeid. */
+  bladcode?: string | null;
 }
 
 export interface PlanMetVersies extends Plan {
@@ -178,17 +244,34 @@ export async function leesPlan(id: number): Promise<PlanMetVersies | null> {
   return { ...plan, versies };
 }
 
+/** Een plan op een verdieping hoort bij het gebouw van die verdieping, wat er ook gekozen werd. */
+async function metGebouwVanVerdieping(plan: NieuwPlan): Promise<NieuwPlan> {
+  if (!plan.verdieping_id) return plan;
+  const verdieping = await leesVerdieping(plan.verdieping_id);
+  if (!verdieping) throw new Bouwfout("Die verdieping bestaat niet meer.");
+  return { ...plan, gebouw_id: verdieping.gebouw_id };
+}
+
+function planmeldingen(plan: NieuwPlan): Meldingen {
+  return {
+    inGebruik: "Die verdieping of dat gebouw bestaat niet meer.",
+    uniek: plan.bladcode ? `Er is al een plan met bladcode ${plan.bladcode}.` : undefined,
+  };
+}
+
 export async function voegPlanToe(plan: NieuwPlan): Promise<number> {
-  const rij = check(await db().from("bouw_plannen").insert(plan).select("id").single(), "Plan toevoegen", {
-    inGebruik: "Die verdieping bestaat niet meer.",
-  }) as { id: number };
-  return rij.id;
+  const volledig = await metGebouwVanVerdieping(plan);
+  const rij = check(
+    await db().from("bouw_plannen").insert(volledig).select("id").single(),
+    "Plan toevoegen",
+    planmeldingen(volledig),
+  ) as { id: number };
+  return Number(rij.id);
 }
 
 export async function wijzigPlan(id: number, plan: NieuwPlan): Promise<void> {
-  check(await db().from("bouw_plannen").update(plan).eq("id", id), "Plan bewaren", {
-    inGebruik: "Die verdieping bestaat niet meer.",
-  });
+  const volledig = await metGebouwVanVerdieping(plan);
+  check(await db().from("bouw_plannen").update(volledig).eq("id", id), "Plan bewaren", planmeldingen(volledig));
 }
 
 /** Verwijdert het plan en, via de databank, al zijn versies. De bestanden ruimt opladen.ts op. */

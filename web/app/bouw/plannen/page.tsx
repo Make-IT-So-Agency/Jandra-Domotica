@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
-import { lijstPlannen, lijstVerdiepingen, type PlanMetVersies } from "@/lib/bouw/opslag";
-import { PLANNAMEN, SOORTEN_PLAN, type Verdieping } from "@/lib/bouw/types";
+import { lijstGebouwen, lijstPlannen, lijstVerdiepingen, type PlanMetVersies } from "@/lib/bouw/opslag";
+import { PLANNAMEN, SOORTEN_PLAN, type Gebouw, type Verdieping } from "@/lib/bouw/types";
+import { sorteerPlannen, sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
 import { datum } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
@@ -23,8 +24,9 @@ export default async function Plannenpagina({
 
   let plannen: PlanMetVersies[];
   let verdiepingen: Verdieping[];
+  let gebouwen: Gebouw[];
   try {
-    [plannen, verdiepingen] = await Promise.all([lijstPlannen(), lijstVerdiepingen()]);
+    [plannen, verdiepingen, gebouwen] = await Promise.all([lijstPlannen(), lijstVerdiepingen(), lijstGebouwen()]);
   } catch (fout) {
     return (
       <>
@@ -33,7 +35,9 @@ export default async function Plannenpagina({
       </>
     );
   }
-  const verdiepingNaam = new Map(verdiepingen.map((v) => [v.id, v.naam]));
+  const verdiepingVan = new Map(verdiepingen.map((v) => [v.id, v]));
+  const gebouwVan = new Map(gebouwen.map((g) => [g.id, g.naam]));
+  const gesorteerd = sorteerPlannen(plannen, gebouwen);
 
   return (
     <>
@@ -56,13 +60,14 @@ export default async function Plannenpagina({
               <tr>
                 <th>Plan</th>
                 <th>Soort</th>
+                <th>Gebouw</th>
                 <th>Verdieping</th>
                 <th>Laatste versie</th>
                 <th className="getal">Versies</th>
               </tr>
             </thead>
             <tbody>
-              {plannen.map((plan) => {
+              {gesorteerd.map((plan) => {
                 const laatste = plan.versies.at(-1);
                 return (
                   <tr key={plan.id}>
@@ -70,8 +75,11 @@ export default async function Plannenpagina({
                       <Link href={`/bouw/plannen/${plan.id}`}>{plan.titel}</Link>
                     </td>
                     <td data-label="Soort">{PLANNAMEN[plan.soort]}</td>
+                    <td data-label="Gebouw">
+                      {plan.gebouw_id ? (gebouwVan.get(plan.gebouw_id) ?? "—") : "hele project"}
+                    </td>
                     <td data-label="Verdieping">
-                      {plan.verdieping_id ? (verdiepingNaam.get(plan.verdieping_id) ?? "—") : "—"}
+                      {plan.verdieping_id ? (verdiepingVan.get(plan.verdieping_id)?.naam ?? "—") : "—"}
                     </td>
                     <td data-label="Laatste versie">
                       {laatste ? `${laatste.label}${laatste.datum ? ` · ${datum(laatste.datum)}` : ""}` : "nog geen"}
@@ -107,12 +115,23 @@ export default async function Plannenpagina({
             </select>
           </div>
           <div>
+            <label htmlFor="gebouw_id">Gebouw</label>
+            <select id="gebouw_id" name="gebouw_id" defaultValue={gebouwen[0]?.id ?? ""}>
+              {gebouwen.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.naam}
+                </option>
+              ))}
+              <option value="">Hele project</option>
+            </select>
+          </div>
+          <div>
             <label htmlFor="verdieping_id">Verdieping</label>
             <select id="verdieping_id" name="verdieping_id" defaultValue="">
               <option value="">Geen</option>
-              {verdiepingen.map((v) => (
+              {sorteerVerdiepingen(verdiepingen, gebouwen).map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.naam}
+                  {verdiepingNaam(v, gebouwen)}
                 </option>
               ))}
             </select>
@@ -124,12 +143,16 @@ export default async function Plannenpagina({
             <input id="opmerking" name="opmerking" />
           </div>
         </div>
-        {verdiepingen.length === 0 ? (
-          <p className="hulp" style={{ marginBottom: 12 }}>
-            Een grondplan hoort bij een verdieping. Maak die eerst aan bij{" "}
-            <Link href="/bouw/verdiepingen">Verdiepingen</Link>.
-          </p>
-        ) : null}
+        <p className="hulp" style={{ marginBottom: 12 }}>
+          {verdiepingen.length === 0 ? (
+            <>
+              Een grondplan hoort bij een verdieping. Maak die eerst aan bij{" "}
+              <Link href="/bouw/verdiepingen">Verdiepingen</Link>.
+            </>
+          ) : (
+            "Bij een plan op een verdieping volgt het gebouw uit de verdieping."
+          )}
+        </p>
         <button type="submit">Plan aanmaken</button>
       </form>
     </>

@@ -36,6 +36,8 @@ function leesPlanformulier(formulier: FormData, terugNaar: string): NieuwPlan {
   return {
     titel,
     soort,
+    // Bij een plan op een verdieping volgt het gebouw uit de verdieping; zie opslag.ts.
+    gebouw_id: id(formulier.get("gebouw_id")),
     verdieping_id: id(formulier.get("verdieping_id")),
     opmerking: tekst(formulier.get("opmerking")),
   };
