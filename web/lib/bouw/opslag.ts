@@ -616,12 +616,15 @@ export async function markeerKlaar(id: number, grootte: number): Promise<void> {
 
 /**
  * Gebruikt nog iets dit bestand: een planversie, een optie van een keuze (als
- * foto), of een inzending die nog niet ingelezen of genegeerd is?
+ * foto), een offerte, een factuur, of een inzending die nog niet ingelezen of
+ * genegeerd is?
  */
 export async function wordtGebruikt(bestandId: number): Promise<boolean> {
   const antwoorden = await Promise.all([
     db().from("bouw_planversies").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_opties").select("id").eq("foto_bestand_id", bestandId).limit(1),
+    db().from("bouw_offertes").select("id").eq("bestand_id", bestandId).limit(1),
+    db().from("bouw_facturen").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_inzendingen").select("id").eq("bestand_id", bestandId).eq("status", "nieuw").limit(1),
   ]);
   return antwoorden.some((antwoord) => (check(antwoord, "Gebruik van een bestand nakijken") as unknown[]).length > 0);

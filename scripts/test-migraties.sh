@@ -94,7 +94,8 @@ for tabel in companies loadpoints sessions tariffs meter_readings \
              bouw_gebouwen bouw_omzettingen bouw_ruimtes bouw_punten \
              bouw_planning bouw_keuzes bouw_opties bouw_keuze_ruimtes \
              bouw_voorkeuren bouw_beslissingen bouw_meldingen \
-             bouw_links bouw_inzendingen; do
+             bouw_links bouw_inzendingen \
+             bouw_posten bouw_offertes bouw_meerwerken bouw_facturen bouw_kredietopnames; do
   aanwezig="$(psql -h "$SOCKET" -U postgres -d proef -tAc \
     "select to_regclass('public.$tabel') is not null")"
   if [ "$aanwezig" = "t" ]; then

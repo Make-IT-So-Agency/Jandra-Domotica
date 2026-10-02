@@ -10,7 +10,7 @@ export const EMMER = "bouw";
 /** Zelfde limiet als de bucket, en als het gratis niveau van Supabase. */
 export const MAX_GROOTTE = 50 * 1024 * 1024;
 
-export const DOELEN = ["plan", "foto"] as const;
+export const DOELEN = ["plan", "foto", "document"] as const;
 export type Doel = (typeof DOELEN)[number];
 
 /**
@@ -20,6 +20,8 @@ export type Doel = (typeof DOELEN)[number];
 const TOEGELATEN: Record<Doel, { types: string[]; extensie: string; map: string; max: number }> = {
   plan: { types: ["application/pdf"], extensie: "pdf", map: "plannen", max: MAX_GROOTTE },
   foto: { types: ["image/jpeg"], extensie: "jpg", map: "fotos", max: 10 * 1024 * 1024 },
+  /** Een offerte of factuur. */
+  document: { types: ["application/pdf"], extensie: "pdf", map: "documenten", max: 20 * 1024 * 1024 },
 };
 
 export interface Aanbod {
