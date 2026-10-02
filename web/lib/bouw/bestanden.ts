@@ -10,11 +10,16 @@ export const EMMER = "bouw";
 /** Zelfde limiet als de bucket, en als het gratis niveau van Supabase. */
 export const MAX_GROOTTE = 50 * 1024 * 1024;
 
-export const DOELEN = ["plan"] as const;
+export const DOELEN = ["plan", "foto"] as const;
 export type Doel = (typeof DOELEN)[number];
 
-const TOEGELATEN: Record<Doel, { types: string[]; extensie: string; map: string }> = {
-  plan: { types: ["application/pdf"], extensie: "pdf", map: "plannen" },
+/**
+ * Een foto verkleint de browser eerst tot een JPEG van hoogstens 1600 pixels
+ * (zie verklein.ts). Een origineel van een gsm komt hier dus nooit binnen.
+ */
+const TOEGELATEN: Record<Doel, { types: string[]; extensie: string; map: string; max: number }> = {
+  plan: { types: ["application/pdf"], extensie: "pdf", map: "plannen", max: MAX_GROOTTE },
+  foto: { types: ["image/jpeg"], extensie: "jpg", map: "fotos", max: 10 * 1024 * 1024 },
 };
 
 export interface Aanbod {
@@ -27,6 +32,11 @@ export type Controle = { ok: true; contentType: string } | { ok: false; melding:
 
 export function isDoel(waarde: string): waarde is Doel {
   return (DOELEN as readonly string[]).includes(waarde);
+}
+
+/** Hoe groot een bestand voor dit doel mag zijn. Een onbekend doel krijgt de limiet van de bucket. */
+export function maxVoor(doel: string): number {
+  return isDoel(doel) ? TOEGELATEN[doel].max : MAX_GROOTTE;
 }
 
 /** "52,4 MB", "830 kB": voor meldingen en lijsten. */
@@ -48,10 +58,10 @@ export function controleerUpload(aanbod: Aanbod, doel: Doel): Controle {
   if (!Number.isFinite(aanbod.grootte) || aanbod.grootte <= 0) {
     return { ok: false, melding: "Dit bestand is leeg." };
   }
-  if (aanbod.grootte > MAX_GROOTTE) {
+  if (aanbod.grootte > regel.max) {
     return {
       ok: false,
-      melding: `Dit bestand is ${leesbareGrootte(aanbod.grootte)}; meer dan ${leesbareGrootte(MAX_GROOTTE)} kan niet.`,
+      melding: `Dit bestand is ${leesbareGrootte(aanbod.grootte)}; meer dan ${leesbareGrootte(regel.max)} kan niet.`,
     };
   }
 
@@ -92,6 +102,11 @@ export function isPdfBegin(bytes: Uint8Array): boolean {
     if (kop.every((b, j) => bytes[i + j] === b)) return true;
   }
   return false;
+}
+
+/** Begint dit als een JPEG? Dat is altijd FF D8 FF. */
+export function isJpegBegin(bytes: Uint8Array): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
 }
 
 /**

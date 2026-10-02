@@ -1,3 +1,4 @@
+import { dagenTekst } from "./kalender";
 import type { SoortPartij, SoortPlan } from "./types";
 
 /**
@@ -18,7 +19,12 @@ export interface Bouwstand {
     omgezet?: "geen" | "oud" | "laatste";
   }[];
   partijen: { soort: SoortPartij }[];
+  /** De open keuzes met een deadline, met het aantal dagen tot die deadline. */
+  deadlines?: { keuzeId: number; titel: string; dagen: number }[];
 }
+
+/** Zo ver vooruit komt een deadline bij "nog te doen". */
+export const DEADLINE_VOORUIT_DAGEN = 14;
 
 export interface Taak {
   tekst: string;
@@ -28,6 +34,19 @@ export interface Taak {
 
 export function takenVoorBouw(stand: Bouwstand): Taak[] {
   const taken: Taak[] = [];
+
+  // Wat een datum heeft, eerst: een levertermijn wacht niet.
+  for (const deadline of [...(stand.deadlines ?? [])].sort((a, b) => a.dagen - b.dagen)) {
+    if (deadline.dagen > DEADLINE_VOORUIT_DAGEN) continue;
+    taken.push({
+      tekst:
+        deadline.dagen < 0
+          ? `"${deadline.titel}": de deadline is ${-deadline.dagen === 1 ? "1 dag" : `${-deadline.dagen} dagen`} voorbij.`
+          : `"${deadline.titel}": beslissen ${dagenTekst(deadline.dagen)}.`,
+      link: `/bouw/keuzes/${deadline.keuzeId}`,
+      knop: "Kiezen",
+    });
+  }
 
   if (!stand.projectnaam) {
     taken.push({ tekst: "Geef het project een naam.", link: "/bouw#project", knop: "Invullen" });

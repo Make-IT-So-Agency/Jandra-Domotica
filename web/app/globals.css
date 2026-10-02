@@ -1297,6 +1297,294 @@ button.palet-knop.gekozen {
   font-size: 16px;
 }
 
+/* Keuzes: elke optie een kaartje met foto, prijs en voorkeur. */
+.label-vlag.fout {
+  background: var(--fout-zacht);
+  color: var(--fout);
+}
+
+.label-vlag:not(.goed):not(.let-op):not(.fout) {
+  background: var(--vlak);
+  color: var(--zacht);
+  border: 1px solid var(--lijn);
+}
+
+.opties {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.optie {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.optie.gekozen {
+  border-color: var(--goed);
+  box-shadow: 0 0 0 1px var(--goed);
+}
+
+.optie h3 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+
+.optie p {
+  margin: 0;
+}
+
+.optie-foto {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--vlak);
+}
+
+.optie-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Zonder foto is een kleur genoeg als strook. */
+.optie-foto.kleurstaal {
+  aspect-ratio: auto;
+  height: 40px;
+  border: 1px solid var(--lijn);
+}
+
+.meerprijs {
+  font-weight: 600;
+}
+
+.voorkeuren {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--fout);
+  font-size: 14px;
+  min-height: 1em;
+}
+
+.fotoknop .knop {
+  cursor: pointer;
+}
+
+.fotoknop .knop.bezig {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.fotoknop .melding {
+  margin-top: 6px;
+}
+
+.optie-wijzigen summary {
+  cursor: pointer;
+  color: var(--zacht);
+  font-size: 14px;
+}
+
+.optie-wijzigen form {
+  margin-top: 10px;
+}
+
+.optie-wijzigen .veldenrij {
+  grid-template-columns: 1fr;
+}
+
+.kleurveld {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kleurveld input[type="checkbox"] {
+  width: auto;
+}
+
+.kleurveld input[type="color"] {
+  width: 48px;
+  height: 34px;
+  padding: 2px;
+}
+
+.ruimtekeuze {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+}
+
+.ruimtekeuze > .hulp {
+  flex-basis: 100%;
+}
+
+/* De planning als tijdlijn: links de namen, die blijven staan, rechts de
+   tekening, die zijwaarts scrolt. Elke naam is precies één rij hoog, zodat ze
+   gelijk loopt met haar balk. */
+.tijdlijn {
+  display: flex;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: var(--achtergrond);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.tl-namen {
+  flex: none;
+  width: 230px;
+  border-right: 1px solid var(--lijn);
+  font-size: 13px;
+}
+
+.tl-naam {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tekst);
+  text-decoration: none;
+}
+
+/* Een flexbox kapt geen tekst af met een beletselteken; een blok wel. */
+a.tl-naam {
+  display: block;
+  line-height: 26px;
+}
+
+.tl-naam.fase {
+  padding-left: 8px;
+  font-weight: 600;
+}
+
+a.tl-naam:hover {
+  text-decoration: underline;
+}
+
+.tl-vak {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tl-vak svg {
+  display: block;
+  font-size: 12px;
+}
+
+.tl-maand {
+  fill: var(--vlak);
+}
+
+.tl-raster {
+  stroke: var(--lijn);
+  stroke-width: 1;
+}
+
+.tl-maandnaam {
+  fill: var(--zacht);
+}
+
+.tl-jaar {
+  fill: var(--tekst);
+  font-weight: 600;
+}
+
+.tl-partij {
+  fill: var(--zacht);
+  font-size: 11px;
+}
+
+.tl-fase {
+  fill: var(--zacht);
+  opacity: 0.35;
+}
+
+.tl-balk {
+  fill: var(--accent);
+  opacity: 0.55;
+}
+
+.tl-balk.bezig {
+  opacity: 1;
+}
+
+.tl-balk.klaar,
+.tl-mijlpaal.klaar {
+  fill: var(--goed);
+  opacity: 0.8;
+}
+
+.tl-balk.te_laat,
+.tl-mijlpaal.te_laat {
+  fill: var(--fout);
+  opacity: 0.85;
+}
+
+.tl-mijlpaal {
+  fill: var(--tekst);
+}
+
+.tl-deadline {
+  fill: var(--let-op);
+  stroke: var(--achtergrond);
+  stroke-width: 2;
+}
+
+.tl-vandaag {
+  stroke: var(--fout);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.schuifop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+  font-size: 14px;
+}
+
+.schuifop input {
+  width: 5em;
+}
+
+.schuifop select {
+  width: auto;
+}
+
+.planningsgroep h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.weeklijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.weeklijst .hulp {
+  display: inline-block;
+  min-width: 6.5em;
+}
+
 /* =========================================================================
    Op een telefoon
    =========================================================================
@@ -1531,6 +1819,15 @@ button.palet-knop.gekozen {
 
   .kaart {
     padding: 14px;
+  }
+
+  .tl-namen {
+    width: 132px;
+    font-size: 12px;
+  }
+
+  .tl-naam {
+    padding-left: 12px;
   }
 }
 

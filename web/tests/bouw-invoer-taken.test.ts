@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { datum, getal, id, tekst } from "@/lib/bouw/invoer";
+import { bedrag, datum, getal, id, tekst } from "@/lib/bouw/invoer";
 import { takenVoorBouw } from "@/lib/bouw/taken";
 
 describe("invoer", () => {
@@ -31,6 +31,19 @@ describe("invoer", () => {
     expect(id("1e3")).toBeNull();
     expect(id("12abc")).toBeNull();
     expect(id(null)).toBeNull();
+  });
+
+  it("leest bedragen zoals we ze in België schrijven", () => {
+    expect(bedrag("1.250", "Prijs")).toEqual({ ok: true, waarde: 1250 });
+    expect(bedrag("1 250,50", "Prijs")).toEqual({ ok: true, waarde: 1250.5 });
+    expect(bedrag("€ 12.345,6", "Prijs")).toEqual({ ok: true, waarde: 12345.6 });
+    expect(bedrag("45,90", "Prijs")).toEqual({ ok: true, waarde: 45.9 });
+    expect(bedrag("45.90", "Prijs")).toEqual({ ok: true, waarde: 45.9 });
+    expect(bedrag("1250 EUR", "Prijs")).toEqual({ ok: true, waarde: 1250 });
+    expect(bedrag("", "Prijs")).toEqual({ ok: true, waarde: null });
+    expect(bedrag("1,2,3", "Prijs")).toEqual({ ok: false, melding: 'Prijs: "1,2,3" is geen bedrag.' });
+    expect(bedrag("-5", "Prijs").ok).toBe(false);
+    expect(bedrag("12.3456", "Prijs").ok).toBe(false);
   });
 
   it("leest enkel bestaande datums", () => {
@@ -77,6 +90,24 @@ describe("takenVoorBouw", () => {
     expect(taken).toEqual([
       { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/bouw/plannen/3/omzetten", knop: "Omzetten" },
       { tekst: 'De nieuwste versie van "Verdieping" is nog niet omgezet.', link: "/bouw/plannen/4/omzetten", knop: "Nakijken" },
+    ]);
+  });
+
+  it("zet dringende deadlines bovenaan, en laat wat later komt weg", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 1,
+      plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
+      partijen: [{ soort: "architect" }],
+      deadlines: [
+        { keuzeId: 7, titel: "Keuken", dagen: 5 },
+        { keuzeId: 8, titel: "Gevelsteen", dagen: -2 },
+        { keuzeId: 9, titel: "Ramen", dagen: 40 },
+      ],
+    });
+    expect(taken).toEqual([
+      { tekst: '"Gevelsteen": de deadline is 2 dagen voorbij.', link: "/bouw/keuzes/8", knop: "Kiezen" },
+      { tekst: '"Keuken": beslissen over 5 dagen.', link: "/bouw/keuzes/7", knop: "Kiezen" },
     ]);
   });
 

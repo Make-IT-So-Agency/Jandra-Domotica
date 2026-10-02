@@ -2,7 +2,11 @@ import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
+import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
+import { openDeadlines } from "@/lib/bouw/keuzes";
 import { leesBouwstand } from "@/lib/bouw/opslag";
+import { tweeWeken } from "@/lib/bouw/planning";
+import { lijstKeuzes, lijstPlanning } from "@/lib/bouw/regie-opslag";
 import { takenVoorBouw } from "@/lib/bouw/taken";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
@@ -11,6 +15,8 @@ import { bewaarProjectActie } from "./acties";
 import { Melding } from "./melding";
 
 export const dynamic = "force-dynamic";
+
+const WEEKSOORTEN = { loopt: "loopt nog:", begint: "begint:", eindigt: "eindigt:", mijlpaal: "◆", deadline: "beslissen:" } as const;
 
 export default async function Bouwoverzicht({
   searchParams,
@@ -22,8 +28,10 @@ export default async function Bouwoverzicht({
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   let stand;
+  let keuzes;
+  let planning;
   try {
-    stand = await leesBouwstand();
+    [stand, keuzes, planning] = await Promise.all([leesBouwstand(), lijstKeuzes(), lijstPlanning()]);
   } catch (fout) {
     return (
       <>
@@ -33,20 +41,30 @@ export default async function Bouwoverzicht({
     );
   }
 
+  const nu = vandaag();
+  const deadlines = openDeadlines(keuzes, planning, nu);
   const taken = takenVoorBouw({
     projectnaam: stand.project.projectnaam,
     verdiepingen: stand.verdiepingen,
     plannen: stand.plannen,
     partijen: stand.partijen,
+    deadlines: deadlines.map(({ keuze, dagen }) => ({ keuzeId: keuze.id, titel: keuze.titel, dagen })),
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
+  const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;
+  const mijlpaal = planning.find((item) => item.soort === "mijlpaal" && item.begindatum >= nu && item.status !== "klaar");
+  const week = tweeWeken(
+    planning,
+    deadlines.map(({ keuze, deadline }) => ({ titel: keuze.titel, datum: deadline.datum })),
+    nu,
+  );
 
   return (
     <>
       <h1>{stand.project.projectnaam ?? "Bouw"}</h1>
       <p className="inleiding">
-        Ons bouwproject: de plannen van de architect, omgezet naar ruimtes per verdieping, en
-        iedereen met wie we te maken hebben.
+        Ons bouwproject: de plannen van de architect, omgezet naar ruimtes per verdieping, de keuzes en de
+        planning, en iedereen met wie we te maken hebben.
       </p>
 
       <Melding soort={soort} melding={melding} />
@@ -82,6 +100,18 @@ export default async function Bouwoverzicht({
           </div>
         </div>
         <div className="tegel">
+          <div className="label">Keuzes</div>
+          <div className="waarde">{keuzes.length - beslist}</div>
+          <div className="bij">
+            {keuzes.length === 0 ? "nog geen" : `te beslissen, ${beslist} beslist`}
+          </div>
+        </div>
+        <div className="tegel">
+          <div className="label">Planning</div>
+          <div className="waarde">{mijlpaal ? dagenTekst(dagenTussen(nu, mijlpaal.begindatum)) : "—"}</div>
+          <div className="bij">{mijlpaal ? mijlpaal.titel : planning.length === 0 ? "nog geen planning" : "geen mijlpaal meer"}</div>
+        </div>
+        <div className="tegel">
           <div className="label">Partijen</div>
           <div className="waarde">{stand.partijen.length}</div>
         </div>
@@ -92,6 +122,24 @@ export default async function Bouwoverzicht({
           <div className="bij">van 1 GB</div>
         </div>
       </div>
+
+      {week.regels.length > 0 ? (
+        <>
+          <h2>Deze en volgende week</h2>
+          <div className="kaart">
+            <ul className="weeklijst">
+              {week.regels.map((regel) => (
+                <li key={`${regel.datum}-${regel.soort}-${regel.tekst}`}>
+                  <span className="hulp">{dagMetWeekdag(regel.datum)}</span> {WEEKSOORTEN[regel.soort]} {regel.tekst}
+                </li>
+              ))}
+            </ul>
+            <p className="hulp" style={{ marginTop: 8 }}>
+              <Link href="/bouw/planning">Naar de planning</Link>
+            </p>
+          </div>
+        </>
+      ) : null}
 
       <h2 id="project">Project</h2>
       <form action={bewaarProjectActie} className="kaart">

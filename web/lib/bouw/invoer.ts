@@ -35,6 +35,34 @@ export function getal(waarde: FormDataEntryValue | null | undefined, veld: strin
   return { ok: true, waarde: Number(ruw.replace(",", ".")) };
 }
 
+/**
+ * Een bedrag zoals iemand het in België intikt: "1.250", "1 250", "1250,50",
+ * "€ 1.250,50". Een komma is altijd het decimaalteken; punten en spaties zijn
+ * dan duizendtallen. Zonder komma is "1.250" duizend tweehonderdvijftig, maar
+ * "12.5" twaalf en een half: met één of twee cijfers na de punt is dat geen
+ * duizendtal. Leeg is null.
+ */
+export function bedrag(waarde: FormDataEntryValue | null | undefined, veld: string): Getal {
+  const ruw = String(waarde ?? "")
+    .replace(/€|eur(o)?/gi, "")
+    .replace(/[\s\u00a0]/g, "");
+  if (ruw === "") return { ok: true, waarde: null };
+  const fout = { ok: false as const, melding: `${veld}: "${String(waarde).trim()}" is geen bedrag.` };
+
+  let getalTekst: string;
+  if (ruw.includes(",")) {
+    if (!/^\d{1,3}(\.\d{3})*,\d{1,2}$|^\d+,\d{1,2}$/.test(ruw)) return fout;
+    getalTekst = ruw.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(ruw)) {
+    getalTekst = ruw.replace(/\./g, "");
+  } else if (/^\d+(\.\d{1,2})?$/.test(ruw)) {
+    getalTekst = ruw;
+  } else {
+    return fout;
+  }
+  return { ok: true, waarde: Number(getalTekst) };
+}
+
 /** Een positief geheel getal uit een verborgen veld of een URL, bv. een id. */
 export function id(waarde: FormDataEntryValue | string | null | undefined): number | null {
   const ruw = String(waarde ?? "").trim();

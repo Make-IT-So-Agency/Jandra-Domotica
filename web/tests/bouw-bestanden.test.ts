@@ -4,9 +4,11 @@ import {
   MAX_GROOTTE,
   controleerUpload,
   isGeldigPad,
+  isJpegBegin,
   isPdfBegin,
   leesbareGrootte,
   maakPad,
+  maxVoor,
   vertaalOpslagfout,
 } from "@/lib/bouw/bestanden";
 
@@ -60,6 +62,33 @@ describe("paden", () => {
     expect(isGeldigPad(`plannen/sub/${UUID}.pdf`)).toBe(false);
     expect(isGeldigPad(`fotos/${UUID}.pdf`)).toBe(false);
     expect(isGeldigPad("plannen/Kerkstraat 1.pdf")).toBe(false);
+  });
+});
+
+describe("foto's", () => {
+  it("aanvaardt enkel een verkleinde JPEG, tot 10 MB", () => {
+    expect(controleerUpload({ naam: "foto.jpg", type: "image/jpeg", grootte: 300_000 }, "foto")).toEqual({
+      ok: true,
+      contentType: "image/jpeg",
+    });
+    expect(controleerUpload({ naam: "foto.png", type: "image/png", grootte: 300_000 }, "foto").ok).toBe(false);
+    expect(controleerUpload({ naam: "foto.jpg", type: "image/jpeg", grootte: 11 * 1024 * 1024 }, "foto")).toEqual({
+      ok: false,
+      melding: "Dit bestand is 11 MB; meer dan 10 MB kan niet.",
+    });
+    expect(maxVoor("foto")).toBe(10 * 1024 * 1024);
+    expect(maxVoor("iets anders")).toBe(MAX_GROOTTE);
+  });
+
+  it("legt een foto onder fotos/, met enkel een UUID", () => {
+    expect(maakPad("foto", UUID)).toBe(`fotos/${UUID}.jpg`);
+    expect(isGeldigPad(`fotos/${UUID}.jpg`)).toBe(true);
+  });
+
+  it("herkent een JPEG aan de eerste bytes", () => {
+    expect(isJpegBegin(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
+    expect(isJpegBegin(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe(false);
+    expect(isJpegBegin(new Uint8Array([0xff, 0xd8]))).toBe(false);
   });
 });
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { MAX_GROOTTE, controleerUpload, isPdfBegin, maakPad, type Aanbod, type Doel } from "./bestanden";
+import { controleerUpload, isJpegBegin, isPdfBegin, maakPad, maxVoor, type Aanbod, type Doel } from "./bestanden";
 import {
   leesBestand,
   markeerKlaar,
@@ -21,7 +21,7 @@ import { gelukt, mislukt, type Bestand, type Uitkomst } from "./types";
  *                     "wacht" en geeft een ondertekende upload-URL
  *   2. de browser     zet het bestand met die URL rechtstreeks in Storage
  *   3. rondUploadAf   de server kijkt na of het er staat, hoe groot het is en
- *                     of het echt een PDF is, en zet de rij op "klaar"
+ *                     of het echt een PDF of JPEG is, en zet de rij op "klaar"
  *
  * Een upload die nooit afgerond wordt, blijft op "wacht" staan en wordt na
  * drie uur opgeruimd. De toelating zelf is twee uur geldig.
@@ -76,7 +76,7 @@ export async function rondUploadAf(bestandId: number): Promise<Uitkomst<Bestand>
   const info = await bestandInfo(bestand.pad);
   if (!info) return mislukt("Het bestand is niet aangekomen. Laad het opnieuw op.");
 
-  if (info.grootte <= 0 || info.grootte > MAX_GROOTTE) {
+  if (info.grootte <= 0 || info.grootte > maxVoor(bestand.doel)) {
     await gooiWeg(bestand);
     return mislukt("Het bestand is leeg of te groot, en werd niet bewaard.");
   }
@@ -88,12 +88,18 @@ export async function rondUploadAf(bestandId: number): Promise<Uitkomst<Bestand>
       return mislukt("Dit bestand is geen PDF, ook al heet het zo. Het werd niet bewaard.");
     }
   }
+  if (bestand.mime_type === "image/jpeg") {
+    if (!isJpegBegin(await leesBegin(bestand.pad, 3))) {
+      await gooiWeg(bestand);
+      return mislukt("Dit bestand is geen JPEG-foto. Het werd niet bewaard.");
+    }
+  }
 
   await markeerKlaar(bestand.id, info.grootte);
   return gelukt({ ...bestand, status: "klaar", grootte_bytes: info.grootte });
 }
 
-/** Ruimt bestanden op die geen enkele versie nog gebruikt, bv. na het verwijderen van een plan. */
+/** Ruimt bestanden op die geen versie of optie nog gebruikt, bv. na het verwijderen van een plan. */
 export async function ruimOngebruikteBestandenOp(ids: number[]): Promise<void> {
   for (const bestandId of ids) {
     if (await wordtGebruikt(bestandId)) continue;

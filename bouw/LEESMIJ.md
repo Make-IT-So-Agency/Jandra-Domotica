@@ -2,8 +2,8 @@
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
-dat plan, en iedereen met wie we te maken hebben. Op de laptop, de tablet en
-de gsm, onder **Bouw** in het menu.
+dat plan, de keuzes en de planning, en iedereen met wie we te maken hebben. Op
+de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
 een digitaal plan van. Fase 1a, 1b en 2 zijn klaar; zie
@@ -23,9 +23,10 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 
 ## Wat het doet
 
-- **Overzicht** (`/bouw`): wat er nog moet gebeuren (ook welk grondplan nog
-  omgezet moet worden), de stand in tegels, en de naam en het adres van het
-  project.
+- **Overzicht** (`/bouw`): wat er nog moet gebeuren (een keuze waarvan de
+  deadline binnen twee weken valt, een grondplan dat nog omgezet moet worden),
+  de stand in tegels, wat er deze en volgende week gebeurt, en de naam en het
+  adres van het project.
 - **Plannen** (`/bouw/plannen`): elk plan met zijn versies, per gebouw.
   - **Dossier inlezen**: één PDF met alle bladen. De app stelt per blad een
     plan voor en per gebouw de verdiepingen; zie
@@ -40,6 +41,12 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
   [Punten en de wensenlijst](#punten-en-de-wensenlijst).
+- **Keuzes** (`/bouw/keuzes`): gevelsteen, dakbedekking, ramen, vloeren,
+  keuken... met opties, foto's, onze voorkeur, de meerprijs en een deadline;
+  zie [Keuzes en planning](#keuzes-en-planning).
+- **Planning** (`/bouw/planning`): de fasen, taken en mijlpalen als tijdlijn,
+  per aannemer.
+- **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
   nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
@@ -126,6 +133,47 @@ totaal), voor de elektricien en de domotica-installateur. Een download is een
 momentopname, met de datum erop. Later dient dezelfde lijst om hun offertes
 te vergelijken.
 
+## Keuzes en planning
+
+**Een keuze** heeft opties: een product, een kleur, een uitvoering, elk met een
+leverancier, een prijs inclusief btw, een link en een foto. De prijs geldt in
+totaal, per m², per lopende meter of per stuk.
+
+- **Hoeveel.** Bij een prijs per m² volgt de hoeveelheid uit de ruimtes die je
+  aan de keuze koppelt (de vloer van de leefruimte en de keuken). Een andere
+  hoeveelheid vul je met de hand in.
+- **Meerprijs.** Eén optie kan de basis zijn: wat in de offerte staat. De
+  andere tonen hun meerprijs daartegenover, of tegenover de goedkoopste als er
+  geen basis is.
+- **Voorkeur.** Jan en Sandra duiden elk hun voorkeur aan; die staat bij de
+  optie.
+- **Beslissen.** "Kies deze" maakt de keuze definitief en schrijft een regel in
+  het beslissingslog, met de prijs. Terug open zetten kan, en komt ook in het
+  log.
+- **Foto's.** De browser verkleint een foto eerst tot een JPEG van hoogstens
+  1600 pixels, zonder de EXIF-gegevens (en dus zonder de plaats waar ze
+  genomen werd). Ze komt in dezelfde privé-bucket, onder `fotos/`.
+- **Om te beginnen** zet "Begin met de gewone keuzes" er 19 klaar, met een
+  gewone levertermijn en de ruimtes van de juiste soort gekoppeld.
+
+**De deadline** van een keuze is een vaste datum, of volgt uit de planning:
+hang de keuze aan de taak die ze nodig heeft (de ramen aan "Ramen plaatsen"),
+dan is de deadline de begindatum van die taak, min de levertermijn en een week
+om te bestellen. Schuift de taak op, dan schuift de deadline mee.
+
+**De planning** bestaat uit fasen, taken en mijlpalen, elk met een partij.
+
+- De tijdlijn opent bij vandaag. De namen blijven links staan; de tekening
+  scrolt zijwaarts, ook op een gsm. Daaronder staat dezelfde planning als
+  lijst.
+- Een taak die voorbij is en niet klaar, kleurt rood.
+- **Loopt iets uit**, dan schuif je het op met een aantal dagen, samen met
+  alles wat later begint.
+- Een lege planning kan beginnen met een **voorbeeld** voor een nieuwbouw met
+  losse aannemers: van de vergunningsaanvraag tot de voorlopige oplevering, met
+  de wachttermijn na de vergunning (die mag je pas vanaf de 36e dag na de
+  aanplakking gebruiken).
+
 ## Privacy: de repository is publiek
 
 - De straatnaam, het adres, de plannen en later de foto's en facturen staan
@@ -173,6 +221,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002100000_bouw.sql` | De tabellen `bouw_*` en de privé-bucket `bouw` |
 | `supabase/migrations/20261002200000_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
 | `supabase/migrations/20261002300000_bouw_punten.sql` | De punten op het plan |
+| `supabase/migrations/20261002400000_bouw_regie.sql` | De planning, de keuzes met opties en voorkeuren, het beslissingslog, en wat de bot al meldde |
 | `web/app/bouw/` | De schermen en hun serveracties |
 | `web/app/bouw/plannen/dossier.tsx` | Een dossier inlezen |
 | `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
@@ -180,17 +229,21 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/bouw/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
 | `web/app/bouw/punten/` | Punten zetten, en de wensenlijst |
 | `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
+| `web/app/bouw/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |
 | `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
 | `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
 | `web/lib/bouw/punten.ts` | De catalogus, in welke ruimte een punt ligt, en de wensenlijst |
 | `web/lib/bouw/wensenlijst-bestanden.tsx`, `wensenlijst-laden.ts` | De wensenlijst opmaken als PDF en Excel |
+| `web/lib/bouw/keuzes.ts`, `planning.ts`, `kalender.ts` | Hoeveelheid, meerprijs, deadlines, de planning en rekenen met dagen; puur, met tests |
+| `web/lib/bouw/regie-opslag.ts` | De planning, de keuzes en het log in de databank |
+| `web/lib/bouw/verklein.ts` | Een foto verkleinen in de browser |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
 | `web/lib/bouw/bestanden.ts`, `beeld.ts`, `invoer.ts`, `taken.ts` | Pure regels en rekenwerk, met tests |
 | `web/lib/bouw/pdf.ts`, `zet-op.ts` | Enkel voor de browser |
 
-## Keuzes
+## Waarom zo
 
 **Waarom enkel de hoofdbeheerder.** Bouw toont de plannen en het adres van ons
 huis. Een vennootschapsbeheerder of een boekhouder heeft daar niets te
@@ -238,9 +291,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er drie:
-   `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql` en
-   `20261002300000_bouw_punten.sql`.
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er vier:
+   `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
+   `20261002300000_bouw_punten.sql` en `20261002400000_bouw_regie.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **Na het uitrollen nakijken:**
@@ -249,6 +302,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
      of iPad;
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
+   - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
+     optie zetten met de gsm;
    - op een gsm de plannen en de ruimtes bekijken.
 
    Lukt het opladen niet, dan zit het waarschijnlijk in CORS of in een

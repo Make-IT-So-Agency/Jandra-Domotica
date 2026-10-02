@@ -96,6 +96,22 @@ describe("rondUploadAf", () => {
     expect(db.tabellen.bouw_bestanden.some((b) => b.id === id)).toBe(false);
   });
 
+  it("zet een foto enkel op klaar als ze echt een JPEG is", async () => {
+    const foto = async (inhoud: number[]) => {
+      const uitkomst = await startUpload({ naam: "IMG_0001.jpg", type: "image/jpeg", grootte: 100 }, "foto", "jan@voorbeeld.be");
+      if (!uitkomst.ok) throw new Error(uitkomst.melding);
+      const pad = String(db.tabellen.bouw_bestanden.find((b) => b.id === uitkomst.data.bestandId)!.pad);
+      expect(pad).toMatch(/^fotos\/[0-9a-f-]{36}\.jpg$/);
+      db.objecten.set(pad, { inhoud: new Uint8Array(inhoud), type: "image/jpeg" });
+      return uitkomst.data.bestandId;
+    };
+    expect((await rondUploadAf(await foto([0xff, 0xd8, 0xff, 0xe0, 0, 16]))).ok).toBe(true);
+    expect(await rondUploadAf(await foto([0x89, 0x50, 0x4e, 0x47, 1, 2]))).toEqual({
+      ok: false,
+      melding: "Dit bestand is geen JPEG-foto. Het werd niet bewaard.",
+    });
+  });
+
   it("is herhaalbaar: een bestand dat al klaar is, blijft klaar", async () => {
     const uitkomst = await rondUploadAf(2);
     expect(uitkomst.ok).toBe(true);
@@ -113,6 +129,12 @@ describe("opruimen", () => {
 
   it("laat recente uploads staan", async () => {
     expect(await ruimVerlatenUploadsOp(new Date("2026-10-01T02:00:00.000Z"))).toBe(0);
+  });
+
+  it("laat een foto staan die een optie van een keuze nog gebruikt", async () => {
+    db.tabellen.bouw_opties = [{ id: 5, keuze_id: 1, naam: "Eik", foto_bestand_id: 3 }];
+    await ruimOngebruikteBestandenOp([3]);
+    expect(db.verwijderd).toEqual([]);
   });
 
   it("ruimt enkel bestanden op die geen versie nog gebruikt", async () => {

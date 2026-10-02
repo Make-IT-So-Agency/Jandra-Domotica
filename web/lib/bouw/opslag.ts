@@ -550,13 +550,15 @@ export async function markeerKlaar(id: number, grootte: number): Promise<void> {
   );
 }
 
-/** Gebruikt een planversie dit bestand nog? */
+/** Gebruikt een planversie, of als foto een optie van een keuze, dit bestand nog? */
 export async function wordtGebruikt(bestandId: number): Promise<boolean> {
-  const rijen = check(
-    await db().from("bouw_planversies").select("id").eq("bestand_id", bestandId).limit(1),
-    "Gebruik van een bestand nakijken",
-  ) as unknown[];
-  return rijen.length > 0;
+  const [versies, opties] = await Promise.all([
+    db().from("bouw_planversies").select("id").eq("bestand_id", bestandId).limit(1),
+    db().from("bouw_opties").select("id").eq("foto_bestand_id", bestandId).limit(1),
+  ]);
+  const inVersies = check(versies, "Gebruik van een bestand nakijken") as unknown[];
+  const inOpties = check(opties, "Gebruik van een bestand nakijken") as unknown[];
+  return inVersies.length > 0 || inOpties.length > 0;
 }
 
 /** Uploads die al lang op "wacht" staan: de browser heeft ze nooit afgerond. */
