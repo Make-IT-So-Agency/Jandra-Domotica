@@ -702,6 +702,66 @@ td.smal {
   padding: 32px;
 }
 
+/* --- Bouw ----------------------------------------------------------------- */
+
+/* Het submenu van een module: dezelfde links als het hoofdmenu, maar als
+   tabs onder elkaar gezet. */
+.submenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -8px 0 22px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lijn);
+}
+
+.submenu a {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--zacht);
+  font-size: 14px;
+}
+
+.submenu a:hover {
+  background: var(--vlak);
+  color: var(--tekst);
+}
+
+.submenu a[aria-current="page"] {
+  color: var(--tekst);
+  font-weight: 600;
+  background: var(--vlak);
+}
+
+.partij summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.partij[open] summary {
+  margin-bottom: 12px;
+}
+
+.partij-naam {
+  font-weight: 600;
+}
+
+.partij-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+.partij-contact:empty {
+  display: none;
+}
+
 /* =========================================================================
    Op een telefoon
    =========================================================================
@@ -774,6 +834,23 @@ td.smal {
   .mobielmenu .hoofdmenu a {
     white-space: nowrap;
     padding: 9px 13px;
+  }
+
+  /* Het submenu schuift opzij, net als het hoofdmenu. */
+  .submenu {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-top: -12px;
+  }
+
+  .submenu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .submenu a {
+    white-space: nowrap;
+    padding: 9px 12px;
   }
 
   /* --- Aanraakvlakken --------------------------------------------------- */
