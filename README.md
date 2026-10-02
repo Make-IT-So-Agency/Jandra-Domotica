@@ -14,6 +14,7 @@ met haar eigen stukje in elk van die lagen en haar eigen tests.
 | --- | --- | --- | --- |
 | **Laadkosten** | Laadsessies uit evcc doorrekenen en per vennootschap rapporteren | Home Assistant, Vercel, Supabase | `custom_components/laadkosten/`, `web/`, `supabase/` |
 | **Opvang** | Buitenschoolse opvang aanduiden in Telegram en automatisch reserveren in i-Active | Vercel, Supabase, GitHub Actions | [`opvang/`](opvang/LEESMIJ.md), `web/lib/opvang/` |
+| **Bouw** | Ons bouwproject: de plannen van de architect met hun versies, de verdiepingen en de partijen | Vercel, Supabase met Storage | [`bouw/`](bouw/LEESMIJ.md), `web/lib/bouw/`, `web/app/bouw/` |
 
 ### Afspraken voor een nieuwe module
 
@@ -27,9 +28,14 @@ met haar eigen stukje in elk van die lagen en haar eigen tests.
 - **Geen sleutels in de code of in de repository.** Elk geheim staat bij
   GitHub, in de omgeving `productie`, en wordt van daaruit naar Vercel gezet
   (zie `infra/vercel-omgeving.json`).
-- **Telegram als gezamenlijke ingang** voor meldingen en vragen aan het gezin.
-  Opvang_bot is de eerste; een tweede functie kan een extra commando in
-  dezelfde bot worden in plaats van een tweede bot.
+- **Bestanden in een privé-bucket per module** in Supabase Storage, met een
+  UUID als pad en nooit de oorspronkelijke naam. De browser laadt ze op en
+  bekijkt ze via een ondertekende URL, rechtstreeks bij Storage: een functie
+  op Vercel laat maar ongeveer 4,5 MB per aanvraag door.
+- **Telegram voor meldingen en vragen aan het gezin, met één bot per module**
+  die meldingen stuurt. Zo lopen de berichten van de modules nooit door
+  elkaar. Opvang_bot is de eerste. Geef een bot een neutrale naam: een
+  botnaam is in Telegram voor iedereen te vinden.
 
 De CI-badge hierboven dekt alle modules. De mappen `custom_components/` en
 `hacs.json` blijven in de root staan: HACS verwacht ze daar.
