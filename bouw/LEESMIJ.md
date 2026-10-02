@@ -494,10 +494,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 
 | Waar | Wat |
 | --- | --- |
-| `supabase/migrations/20261002100000_bouw.sql` | De tabellen `bouw_*` en de privé-bucket `bouw` |
-| `supabase/migrations/20261002200000_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
-| `supabase/migrations/20261002300000_bouw_punten.sql` | De punten op het plan |
-| `supabase/migrations/20261002400000_bouw_regie.sql` | De planning, de keuzes met opties en voorkeuren, het beslissingslog, en wat de bot al meldde |
+| `supabase/migrations/20261002202500_bouw.sql` | De tabellen `bouw_*` en de privé-bucket `bouw` |
+| `supabase/migrations/20261002202501_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
+| `supabase/migrations/20261002202502_bouw_punten.sql` | De punten op het plan |
+| `supabase/migrations/20261002202503_bouw_regie.sql` | De planning, de keuzes met opties en voorkeuren, het beslissingslog, en wat de bot al meldde |
 | `web/app/bouw/` | De schermen en hun serveracties |
 | `web/app/bouw/plannen/dossier.tsx` | Een dossier inlezen |
 | `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
@@ -517,16 +517,16 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/telegram-koppeling.ts`, `telegramregels.ts`, `geheim.ts` | Het token versleuteld bewaren, de webhook zetten, de aanvragen en wie toegelaten is |
 | `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
 | `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook van de bot, en de dagelijkse ronde |
-| `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
-| `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
-| `supabase/migrations/20261002700000_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
-| `supabase/migrations/20261002800000_bouw_inzendingen_geld.sql` | Offertes en facturen insturen via een link: de rechten, en de soort en het bedrag van een inzending |
-| `supabase/migrations/20261002900000_bouw_werf.sql` | Het werfdagboek, werffoto's, actiepunten, opleverpunten en de checklist |
+| `supabase/migrations/20261002202504_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
+| `supabase/migrations/20261002202505_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
+| `supabase/migrations/20261002202506_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
+| `supabase/migrations/20261002202507_bouw_inzendingen_geld.sql` | Offertes en facturen insturen via een link: de rechten, en de soort en het bedrag van een inzending |
+| `supabase/migrations/20261002202508_bouw_werf.sql` | Het werfdagboek, werffoto's, actiepunten, opleverpunten en de checklist |
 | `web/app/bouw/werf/` | Foto's opladen en bekijken, prikken op de tekening, het dagboek, de actiepunten |
 | `web/lib/bouw/werf.ts`, `exif.ts` | De stappen van een opleverpunt, de checklist, foto's per dag, en de datum uit een foto; puur, met tests |
 | `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen, foto-URL's en opleverlijst voor de schermen |
 | `web/lib/bouw/oplevering-pdf.tsx`, `web/app/api/bouw/oplevering/` | De opleverpunten van een aannemer als PDF |
-| `supabase/migrations/20261003000000_bouw_dossier.sql` | Het woningdossier, de garanties, het onderhoud en zijn beurten |
+| `supabase/migrations/20261002202509_bouw_dossier.sql` | Het woningdossier, de garanties, het onderhoud en zijn beurten |
 | `web/app/bouw/dossier/` | Documenten, garanties en onderhoud |
 | `web/lib/bouw/nazorg.ts` | Soorten documenten, het einde van een garantie, de volgende onderhoudsbeurt en de herinneringen; puur, met tests |
 | `web/lib/bouw/nazorg-opslag.ts` | Het dossier, de garanties, het onderhoud en de beurten in de databank |
@@ -610,13 +610,16 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 ## Wat je zelf moet doen
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
-   Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er tien:
-   `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
-   `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
-   `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql`,
-   `20261002700000_bouw_geld.sql`, `20261002800000_bouw_inzendingen_geld.sql`,
-   `20261002900000_bouw_werf.sql` en `20261003000000_bouw_dossier.sql`.
+   Databankmigraties → Run workflow, vanaf de branch, met `productie`. Zie
+   [docs/UITROL.md](../docs/UITROL.md). Voor de eerste uitrol van Bouw deed
+   Claude dat, vlak vóór de merge. Het gaat om tien migraties:
+   `20261002202500_bouw.sql`, `20261002202501_bouw_omzetting.sql`,
+   `20261002202502_bouw_punten.sql`, `20261002202503_bouw_regie.sql`,
+   `20261002202504_bouw_links.sql`, `20261002202505_bouw_daken.sql`,
+   `20261002202506_bouw_geld.sql`, `20261002202507_bouw_inzendingen_geld.sql`,
+   `20261002202508_bouw_werf.sql` en `20261002202509_bouw_dossier.sql`.
+   Een nieuwe migratie krijgt een later nummer: de Supabase-CLI weigert er
+   een die vóór de laatste toegepaste valt.
 2. **Sandra moet hoofdbeheerder zijn** (bij Gebruikers), anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later, of nooit): in de app, bij **Bouw →

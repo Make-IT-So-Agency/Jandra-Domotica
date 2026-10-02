@@ -7,7 +7,7 @@ import type { SoortRuimte } from "./types";
  * de server, de browser en de tests.
  *
  * De lijsten horen bij de check-constraints in
- * supabase/migrations/20261002400000_bouw_regie.sql.
+ * supabase/migrations/20261002202503_bouw_regie.sql.
  */
 
 export const CATEGORIEEN_KEUZE = [

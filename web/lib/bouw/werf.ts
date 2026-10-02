@@ -6,7 +6,7 @@ import type { SoortRuimte } from "./types";
  * ruimte vóór alles dichtgaat, en de foto's per dag. Puur, voor de server,
  * de browser en de tests.
  *
- * De lijsten horen bij supabase/migrations/20261002900000_bouw_werf.sql.
+ * De lijsten horen bij supabase/migrations/20261002202508_bouw_werf.sql.
  */
 
 // ---------------------------------------------------------------------------

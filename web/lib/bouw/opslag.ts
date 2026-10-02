@@ -24,7 +24,7 @@ import type {
 
 /**
  * Alles wat de module Bouw in de databank leest en schrijft. De tabellen staan
- * in supabase/migrations/20261002100000_bouw.sql en de migraties van Bouw
+ * in supabase/migrations/20261002202500_bouw.sql en de migraties van Bouw
  * erna. De planning, de keuzes en het beslissingslog staan apart in
  * regie-opslag.ts. De bestanden zelf staan in Storage; zie opslagruimte.ts.
  */

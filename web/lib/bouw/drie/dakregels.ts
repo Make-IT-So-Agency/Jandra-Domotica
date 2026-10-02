@@ -1,7 +1,7 @@
 /**
  * De instelling van een dak, zonder rekenwerk: de databank, de server en het
  * 3D-scherm gebruiken ze. De types horen bij de check-constraint in
- * supabase/migrations/20261002600000_bouw_daken.sql.
+ * supabase/migrations/20261002202505_bouw_daken.sql.
  */
 
 export const DAKTYPES = ["plat", "zadel", "lessenaar"] as const;

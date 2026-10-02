@@ -2,8 +2,8 @@
  * De vaste lijsten en de vorm van de rijen van de module Bouw. Puur, zonder
  * databank: zowel de server als de browser gebruikt dit bestand.
  *
- * De tabellen staan in supabase/migrations/20261002100000_bouw.sql en
- * 20261002200000_bouw_omzetting.sql. Een lijst hier en een check-constraint
+ * De tabellen staan in supabase/migrations/20261002202500_bouw.sql en
+ * 20261002202501_bouw_omzetting.sql. Een lijst hier en een check-constraint
  * daar horen bij elkaar: wie er een aanpast, past de andere mee aan.
  */
 

@@ -3,7 +3,7 @@ import { beginVanMaand, dagenTussen, maandagVan, plusDagen, volgendeMaand } from
 /**
  * De planning: fasen, taken en mijlpalen, en wat er deze en volgende week
  * gebeurt. Puur. De lijsten horen bij de check-constraints in
- * supabase/migrations/20261002400000_bouw_regie.sql.
+ * supabase/migrations/20261002202503_bouw_regie.sql.
  */
 
 export const SOORTEN_PLANNING = ["fase", "taak", "mijlpaal"] as const;

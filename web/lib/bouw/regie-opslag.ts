@@ -9,7 +9,7 @@ import type { Planningsitem, SoortPlanning, StatusPlanning, Voorbeelditem } from
 /**
  * De planning, de keuzes met hun opties en voorkeuren, het beslissingslog en
  * wat de bot al gemeld heeft. De tabellen staan in
- * supabase/migrations/20261002400000_bouw_regie.sql.
+ * supabase/migrations/20261002202503_bouw_regie.sql.
  */
 
 const getalOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));

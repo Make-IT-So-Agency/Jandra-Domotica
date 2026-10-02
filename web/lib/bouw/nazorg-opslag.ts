@@ -7,7 +7,7 @@ import { check } from "./opslag";
 
 /**
  * Het woningdossier en de nazorg in de databank. De tabellen staan in
- * supabase/migrations/20261003000000_bouw_dossier.sql.
+ * supabase/migrations/20261002202509_bouw_dossier.sql.
  */
 
 const getalOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));

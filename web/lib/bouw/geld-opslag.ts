@@ -17,7 +17,7 @@ import { check } from "./opslag";
 
 /**
  * Het geld van de bouw in de databank. De tabellen staan in
- * supabase/migrations/20261002700000_bouw_geld.sql; het krediet en de eigen
+ * supabase/migrations/20261002202506_bouw_geld.sql; het krediet en de eigen
  * inbreng in bouw_instellingen.
  */
 

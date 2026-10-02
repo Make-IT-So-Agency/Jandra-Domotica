@@ -5,7 +5,7 @@ import { dagenTekst, dagenTussen, korteDatum, plusMaanden } from "./kalender";
  * wanneer een garantie loopt, en wanneer een onderhoud opnieuw moet. Puur,
  * voor de server, de browser en de tests.
  *
- * De lijsten horen bij supabase/migrations/20261003000000_bouw_dossier.sql.
+ * De lijsten horen bij supabase/migrations/20261002202509_bouw_dossier.sql.
  */
 
 export const SOORTEN_DOCUMENT = ["as_built", "arei", "epb", "pid", "vergunning", "attest", "handleiding", "garantie", "andere"] as const;

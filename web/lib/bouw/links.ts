@@ -11,7 +11,7 @@ import type { SoortPartij } from "./types";
 /**
  * Persoonlijke links voor een partij, en wat die partij via haar link
  * instuurt. De tabellen staan in
- * supabase/migrations/20261002500000_bouw_links.sql.
+ * supabase/migrations/20261002202504_bouw_links.sql.
  *
  * Het token zelf wordt nergens bewaard, enkel de SHA-256 ervan. Wie de link
  * kwijt is, krijgt een nieuwe.

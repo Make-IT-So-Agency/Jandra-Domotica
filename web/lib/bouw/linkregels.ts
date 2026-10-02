@@ -5,7 +5,7 @@ import type { SoortPartij } from "./types";
  * De regels van een persoonlijke link voor een partij: welke rechten er zijn,
  * welke een architect of aannemer standaard krijgt, en of een link nog werkt.
  * Puur, voor de server, de browser en de tests. De rechten horen bij de
- * check-constraint in supabase/migrations/20261002900000_bouw_werf.sql.
+ * check-constraint in supabase/migrations/20261002202508_bouw_werf.sql.
  */
 
 export const RECHTEN_LINK = ["plannen", "inzenden", "offertes", "facturen", "oplevering", "keuzes", "planning", "wensenlijst"] as const;

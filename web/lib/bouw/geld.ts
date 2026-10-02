@@ -6,7 +6,7 @@ import { dagenTekst, dagenTussen, korteDatum, plusDagen } from "./kalender";
  * het bouwkrediet; en een kasplanning per maand. Puur. Alle bedragen zijn
  * inclusief btw.
  *
- * De lijsten horen bij supabase/migrations/20261002700000_bouw_geld.sql.
+ * De lijsten horen bij supabase/migrations/20261002202506_bouw_geld.sql.
  */
 
 export const CATEGORIEEN_POST = ["werken", "studies", "vergunning", "nutsvoorzieningen", "inrichting", "andere"] as const;

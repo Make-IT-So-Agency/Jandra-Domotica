@@ -8,7 +8,7 @@ import type { Actiepunt, Opleverpunt, Ronde, StatusOpleverpunt, Stapwijziging } 
 /**
  * De werf in de databank: het dagboek, de foto's, de actiepunten, de
  * opleverpunten en de checklist. De tabellen staan in
- * supabase/migrations/20261002900000_bouw_werf.sql.
+ * supabase/migrations/20261002202508_bouw_werf.sql.
  */
 
 const getalOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
