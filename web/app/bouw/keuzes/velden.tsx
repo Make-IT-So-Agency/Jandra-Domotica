@@ -16,14 +16,16 @@ export function Planningskeuze({
   voorvoegsel,
   planning,
   gekozen = null,
+  label = "Nodig voor",
 }: {
   voorvoegsel: string;
   planning: Planningsitem[];
   gekozen?: number | null;
+  label?: string;
 }) {
   return (
     <div>
-      <label htmlFor={`${voorvoegsel}-planning`}>Nodig voor</label>
+      <label htmlFor={`${voorvoegsel}-planning`}>{label}</label>
       <select id={`${voorvoegsel}-planning`} name="planning_id" defaultValue={gekozen ?? ""}>
         <option value="">— geen taak —</option>
         {planning.map((item) => (

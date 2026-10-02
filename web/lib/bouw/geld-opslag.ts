@@ -121,6 +121,14 @@ export async function wijzigOfferte(id: number, offerte: Omit<NieuweOfferte, "po
   check(await db().from("bouw_offertes").update(offerte).eq("id", id), "Offerte bewaren");
 }
 
+/** Een PDF bij een bestaande offerte; geeft het vorige bestand terug, zodat het uit Storage kan. */
+export async function zetBestandVanOfferte(id: number, bestandId: number): Promise<number | null> {
+  const offerte = await leesOfferte(id);
+  if (!offerte) throw new Error("Deze offerte bestaat niet meer.");
+  check(await db().from("bouw_offertes").update({ bestand_id: bestandId }).eq("id", id), "Offerte bewaren");
+  return offerte.bestand_id !== bestandId ? offerte.bestand_id : null;
+}
+
 /** Geeft het bestand terug, zodat het uit Storage kan. */
 export async function verwijderOfferte(id: number): Promise<number | null> {
   const offerte = await leesOfferte(id);
@@ -239,6 +247,14 @@ export async function wijzigFactuur(id: number, factuur: Omit<NieuweFactuur, "be
 
 export async function zetBetaald(id: number, betaaldOp: string | null): Promise<void> {
   check(await db().from("bouw_facturen").update({ betaald_op: betaaldOp }).eq("id", id), "Betaling bewaren");
+}
+
+/** Een PDF bij een bestaande factuur; geeft het vorige bestand terug, zodat het uit Storage kan. */
+export async function zetBestandVanFactuur(id: number, bestandId: number): Promise<number | null> {
+  const factuur = await leesFactuur(id);
+  if (!factuur) throw new Error("Deze factuur bestaat niet meer.");
+  check(await db().from("bouw_facturen").update({ bestand_id: bestandId }).eq("id", id), "Factuur bewaren");
+  return factuur.bestand_id !== bestandId ? factuur.bestand_id : null;
 }
 
 /** Geeft het bestand terug, zodat het uit Storage kan. */

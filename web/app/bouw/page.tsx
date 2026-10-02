@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
+import { factuurWat, openFacturen, poststanden, totalen } from "@/lib/bouw/geld";
+import { lijstFacturen, lijstMeerwerken, lijstOffertes, lijstPosten } from "@/lib/bouw/geld-opslag";
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
-import { openDeadlines } from "@/lib/bouw/keuzes";
+import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { leesBouwstand } from "@/lib/bouw/opslag";
 import { tweeWeken } from "@/lib/bouw/planning";
 import { lijstKeuzes, lijstPlanning } from "@/lib/bouw/regie-opslag";
@@ -30,8 +32,19 @@ export default async function Bouwoverzicht({
   let stand;
   let keuzes;
   let planning;
+  let geld;
   try {
-    [stand, keuzes, planning] = await Promise.all([leesBouwstand(), lijstKeuzes(), lijstPlanning()]);
+    let posten, offertes, meerwerken, facturen;
+    [stand, keuzes, planning, posten, offertes, meerwerken, facturen] = await Promise.all([
+      leesBouwstand(),
+      lijstKeuzes(),
+      lijstPlanning(),
+      lijstPosten(),
+      lijstOffertes(),
+      lijstMeerwerken(),
+      lijstFacturen(),
+    ]);
+    geld = { posten, facturen, totaal: totalen(poststanden(posten, offertes, meerwerken, facturen), facturen) };
   } catch (fout) {
     return (
       <>
@@ -43,12 +56,20 @@ export default async function Bouwoverzicht({
 
   const nu = vandaag();
   const deadlines = openDeadlines(keuzes, planning, nu);
+  const teBetalen = openFacturen(geld.facturen, nu);
+  const partijnaam = (partijId: number | null) =>
+    partijId === null ? null : (stand.partijen.find((partij) => partij.id === partijId)?.naam ?? null);
   const taken = takenVoorBouw({
     projectnaam: stand.project.projectnaam,
     verdiepingen: stand.verdiepingen,
     plannen: stand.plannen,
     partijen: stand.partijen,
     deadlines: deadlines.map(({ keuze, dagen }) => ({ keuzeId: keuze.id, titel: keuze.titel, dagen })),
+    facturen: teBetalen.map(({ factuur, dagen }) => ({
+      factuurId: factuur.id,
+      wat: factuurWat(factuur, partijnaam(factuur.partij_id)),
+      dagen,
+    })),
   });
   const versies = stand.plannen.reduce((som, plan) => som + plan.versies, 0);
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null).length;
@@ -110,6 +131,17 @@ export default async function Bouwoverzicht({
           <div className="label">Planning</div>
           <div className="waarde">{mijlpaal ? dagenTekst(dagenTussen(nu, mijlpaal.begindatum)) : "—"}</div>
           <div className="bij">{mijlpaal ? mijlpaal.titel : planning.length === 0 ? "nog geen planning" : "geen mijlpaal meer"}</div>
+        </div>
+        <div className="tegel">
+          <div className="label">Geld</div>
+          <div className="waarde">{geld.posten.length === 0 ? "—" : euroRond(geld.totaal.verwacht)}</div>
+          <div className="bij">
+            {geld.posten.length === 0
+              ? "nog geen posten"
+              : teBetalen.length > 0
+                ? `verwacht, ${euroRond(geld.totaal.open)} te betalen`
+                : `verwacht, ${euroRond(geld.totaal.betaald)} betaald`}
+          </div>
         </div>
         <div className="tegel">
           <div className="label">Partijen</div>

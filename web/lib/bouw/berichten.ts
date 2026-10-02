@@ -42,6 +42,24 @@ export function deadlinebericht(deadlines: Openstaand[], vandaag: string, max = 
   return ["Te beslissen:", ...regels].join("\n");
 }
 
+export interface Tebetalen {
+  factuurId: number;
+  /** "factuur 2026-031 van Architect (€ 2.420,00)" */
+  wat: string;
+  vervaldag: string;
+  dagen: number;
+}
+
+export function factuurbericht(facturen: Tebetalen[], vandaag: string, max = 10): string {
+  if (facturen.length === 0) return "Geen facturen die nog betaald moeten worden.";
+  const regels = facturen.slice(0, max).map((f) => {
+    const wanneer = f.dagen < 0 ? `⚠️ ${dagenTekst(f.dagen)}` : dagenTekst(f.dagen);
+    return `• ${f.wat.charAt(0).toLocaleUpperCase("nl-BE")}${f.wat.slice(1)}: ${wanneer} (${korteDatum(f.vervaldag, vandaag)})`;
+  });
+  if (facturen.length > max) regels.push(`… en nog ${facturen.length - max}.`);
+  return ["Te betalen:", ...regels].join("\n");
+}
+
 export interface Herinnering {
   /** Uniek per melding: zo vertrekt ze maar één keer. */
   sleutel: string;
@@ -119,6 +137,7 @@ export function herinneringen(
 export const HULP = [
   "/week: wat er deze en volgende week gebeurt",
   "/deadlines: welke keuzes nog open staan, en tegen wanneer",
+  "/facturen: welke facturen nog betaald moeten worden",
   "/taken: wat er in de app nog te doen is",
   "/hier: stuur mijn herinneringen voortaan naar deze chat",
   "/id: je Telegram-id",

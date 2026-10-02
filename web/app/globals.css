@@ -1669,6 +1669,126 @@ a.tl-naam:hover {
   vertical-align: -1px;
 }
 
+/* Geld: een PDF bij een offerte of factuur. */
+.documentveld-rij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.documentveld .knop.bezig {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* De stand van het bouwkrediet: label en bedrag naast elkaar. */
+.kredietstand {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 18px;
+  margin: 0;
+}
+
+.kredietstand dt {
+  color: var(--zacht);
+}
+
+.kredietstand dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* De kasplanning: per maand een gestapelde staaf. Te breed voor een gsm:
+   dan schuift de grafiek opzij, zoals de tijdlijn. */
+.kasgrafiek {
+  overflow-x: auto;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  padding: 10px 8px 4px;
+  background: var(--achtergrond);
+}
+
+.kas-vlak {
+  display: flex;
+  align-items: flex-start;
+}
+
+.kas-vlak svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.kas-vlak .kas-staven {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.kas-raster {
+  stroke: var(--lijn);
+  stroke-width: 1;
+}
+
+.kas-as {
+  fill: var(--zacht);
+  font-size: 11px;
+}
+
+.kas-nu {
+  fill: var(--accent-zacht);
+}
+
+.kas-betaald {
+  fill: var(--goed);
+  background: var(--goed);
+}
+
+.kas-te-betalen {
+  fill: var(--let-op);
+  background: var(--let-op);
+}
+
+.kas-gepland {
+  fill: var(--accent);
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.kas-legende {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+.kas-blokje {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin: 0 5px 0 12px;
+  vertical-align: -1px;
+}
+
+.kas-blokje:first-child {
+  margin-left: 0;
+}
+
+tr.deze-maand td {
+  font-weight: 600;
+}
+
+/* Op een gsm worden de tabellen kaartjes: daar valt een cel met enkel een
+   streepje weg, en een cel met een leeg label staat links. */
+@media (max-width: 680px) {
+  .tabel-omhulsel td:has(> .geen:only-child) {
+    display: none;
+  }
+
+  .tabel-omhulsel td[data-label=""] {
+    justify-content: flex-start;
+  }
+}
+
 /* =========================================================================
    Op een telefoon
    =========================================================================

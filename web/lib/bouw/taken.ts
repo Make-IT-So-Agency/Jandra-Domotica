@@ -21,10 +21,15 @@ export interface Bouwstand {
   partijen: { soort: SoortPartij }[];
   /** De open keuzes met een deadline, met het aantal dagen tot die deadline. */
   deadlines?: { keuzeId: number; titel: string; dagen: number }[];
+  /** De facturen die nog betaald moeten worden: wat, en het aantal dagen tot de vervaldag. */
+  facturen?: { factuurId: number; wat: string; dagen: number }[];
 }
 
 /** Zo ver vooruit komt een deadline bij "nog te doen". */
 export const DEADLINE_VOORUIT_DAGEN = 14;
+
+/** Zo ver vooruit komt een factuur bij "nog te doen". */
+export const FACTUUR_VOORUIT_DAGEN = 7;
 
 export interface Taak {
   tekst: string;
@@ -45,6 +50,19 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
           : `"${deadline.titel}": beslissen ${dagenTekst(deadline.dagen)}.`,
       link: `/bouw/keuzes/${deadline.keuzeId}`,
       knop: "Kiezen",
+    });
+  }
+
+  for (const factuur of [...(stand.facturen ?? [])].sort((a, b) => a.dagen - b.dagen)) {
+    if (factuur.dagen > FACTUUR_VOORUIT_DAGEN) continue;
+    const wat = factuur.wat.charAt(0).toLocaleUpperCase("nl-BE") + factuur.wat.slice(1);
+    taken.push({
+      tekst:
+        factuur.dagen < 0
+          ? `${wat}: ${-factuur.dagen === 1 ? "1 dag" : `${-factuur.dagen} dagen`} te laat.`
+          : `${wat}: betalen ${dagenTekst(factuur.dagen)}.`,
+      link: "/bouw/geld/facturen",
+      knop: "Betalen",
     });
   }
 

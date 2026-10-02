@@ -111,6 +111,24 @@ describe("takenVoorBouw", () => {
     ]);
   });
 
+  it("meldt een factuur die binnen de week vervalt of te laat is", () => {
+    const taken = takenVoorBouw({
+      projectnaam: "Ons huis",
+      verdiepingen: 1,
+      plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
+      partijen: [{ soort: "architect" }],
+      facturen: [
+        { factuurId: 3, wat: "een factuur (€ 450,00)", dagen: 3 },
+        { factuurId: 4, wat: "factuur F-12 van Voorbeeld (€ 12.100,00)", dagen: -1 },
+        { factuurId: 5, wat: "factuur F-13 (€ 800,00)", dagen: 20 },
+      ],
+    });
+    expect(taken).toEqual([
+      { tekst: "Factuur F-12 van Voorbeeld (€ 12.100,00): 1 dag te laat.", link: "/bouw/geld/facturen", knop: "Betalen" },
+      { tekst: "Een factuur (€ 450,00): betalen over 3 dagen.", link: "/bouw/geld/facturen", knop: "Betalen" },
+    ]);
+  });
+
   it("is leeg als alles klaarstaat", () => {
     expect(
       takenVoorBouw({

@@ -2,12 +2,12 @@
 
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
-dat plan, de keuzes en de planning, en iedereen met wie we te maken hebben. Op
-de laptop, de tablet en de gsm, onder **Bouw** in het menu.
+dat plan, de keuzes, de planning, het geld, en iedereen met wie we te maken
+hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
-een digitaal plan van. Fase 1a, 1b, 2, 3 en 5 zijn klaar; zie
-[Wat nog komt](#wat-nog-komt).
+een digitaal plan van. Fase 1a, 1b, 2, 3 en 5 zijn klaar, van fase 4 het
+geld zelf; zie [Wat nog komt](#wat-nog-komt).
 
 ```
 Browser (Jan, Sandra)
@@ -24,9 +24,9 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 ## Wat het doet
 
 - **Overzicht** (`/bouw`): wat er nog moet gebeuren (een keuze waarvan de
-  deadline binnen twee weken valt, een grondplan dat nog omgezet moet worden),
-  de stand in tegels, wat er deze en volgende week gebeurt, en de naam en het
-  adres van het project.
+  deadline binnen twee weken valt, een factuur die binnen de week vervalt, een
+  grondplan dat nog omgezet moet worden), de stand in tegels, wat er deze en
+  volgende week gebeurt, en de naam en het adres van het project.
 - **Plannen** (`/bouw/plannen`): elk plan met zijn versies, per gebouw.
   - **Dossier inlezen**: één PDF met alle bladen. De app stelt per blad een
     plan voor en per gebouw de verdiepingen; zie
@@ -49,6 +49,9 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   zie [Keuzes en planning](#keuzes-en-planning).
 - **Planning** (`/bouw/planning`): de fasen, taken en mijlpalen als tijdlijn,
   per aannemer.
+- **Geld** (`/bouw/geld`): de posten met hun raming, de offertes naast
+  elkaar, meer- en minwerken, de facturen met hun vervaldag, het bouwkrediet,
+  een kasplanning per maand en alles als Excel; zie [Geld](#geld).
 - **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
 - **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
@@ -215,6 +218,42 @@ om te bestellen. Schuift de taak op, dan schuift de deadline mee.
   de wachttermijn na de vergunning (die mag je pas vanaf de 36e dag na de
   aanplakking gebruiken).
 
+## Geld
+
+Alle bedragen zijn **inclusief btw**: dat is wat we betalen.
+
+- **Posten.** Een post is een deel van de bouw dat geld kost: de architect,
+  de ruwbouw, de elektriciteit, de aansluitingen. "Begin met de gewone
+  posten" zet er 20 klaar, per categorie (werken, studies, vergunning,
+  aansluitingen, inrichting). Per post een raming, wie het uitvoert, en de
+  taak in de planning.
+- **Offertes.** Per post de offertes naast elkaar, met de PDF, tegenover de
+  goedkoopste en tegenover de raming. Een verlopen offerte staat in het rood.
+  **Kiezen** wijst de andere af, schrijft een regel in het beslissingslog en
+  maakt de partij van de offerte die van de post.
+- **Meer- en minwerken** komen bij de gekozen offerte. Ze tellen pas mee als
+  ze aanvaard zijn.
+- **Verwacht** is per post de gekozen offerte met de aanvaarde meer- en
+  minwerken; zolang er niets gekozen is, de raming. Wat al gefactureerd is,
+  telt altijd.
+- **Facturen** (`/bouw/geld/facturen`), met hun PDF. Zonder vervaldag rekent
+  de app 30 dagen na de factuurdatum. Een creditnota is een factuur met een
+  vinkje: ze telt af. Een kost die een vennootschap draagt, bv. een laadpaal,
+  duid je aan bij **Ten laste van**; de vennootschappen komen uit Laadkosten.
+  Betaald is één knop (vandaag), of een datum in het formulier.
+- **Het bouwkrediet**: het bedrag en de eigen inbreng (bij Financiering), en
+  elke opname, eventueel voor een bepaalde factuur. De app toont wat nog
+  beschikbaar is, en wat uit eigen middelen betaald is.
+- **De kasplanning** (`/bouw/geld/kasplanning`) toont per maand wat betaald
+  is, wat vervalt en wat volgens de planning nog komt: wat een post nog moet
+  factureren, spreidt ze over de maanden van haar taak. Een vervallen factuur
+  die nog open staat, telt bij deze maand. Eerst gaat de eigen inbreng op,
+  dan het krediet: zo zie je in welke maand je wat moet opnemen, en of het
+  krediet volstaat. Een post zonder taak staat apart onderaan.
+- **Excel**: de posten (met formules voor de totalen), de offertes, de meer-
+  en minwerken, de facturen, de kasplanning en het krediet, met bedragen en
+  datums als echte getallen. Ze wordt bij elke download gemaakt.
+
 ## De bot van Bouw
 
 Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
@@ -226,14 +265,17 @@ knop naar het juiste scherm.
   winter) stuurt hij naar de gekozen chat:
   - een herinnering 14, 7, 3 en 1 dag vóór de deadline van een keuze, op de
     dag zelf, en één keer de dag erna als ze nog open staat;
+  - een herinnering 3 dagen vóór de vervaldag van een factuur, op de dag
+    zelf, en één keer de dag erna als ze nog niet betaald is;
   - wat morgen begint, en een mijlpaal van vandaag;
   - op maandag wat er deze en volgende week gebeurt.
 - Elke melding vertrekt maar één keer (`bouw_meldingen`), ook als de ronde
   twee keer loopt. Schuift een taak op, dan komt er voor de nieuwe datum een
   nieuwe herinnering. Mislukt het versturen, dan probeert de volgende ronde
   het opnieuw.
-- **Commando's:** `/week`, `/deadlines`, `/taken` (wat er in de app nog te
-  doen is), `/hier` (stuur je herinneringen naar deze chat) en `/id`.
+- **Commando's:** `/week`, `/deadlines`, `/facturen` (wat nog betaald moet
+  worden), `/taken` (wat er in de app nog te doen is), `/hier` (stuur je
+  herinneringen naar deze chat) en `/id`.
 - Wie niet op de lijst staat, krijgt enkel op `/start` en `/id` een antwoord:
   zijn id. In een groep moet ook de groep zelf op de lijst staan.
 
@@ -264,9 +306,10 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
 
 ## Privacy: de repository is publiek
 
-- De straatnaam, het adres, de plannen en later de foto's en facturen staan
-  **enkel in Supabase**: in de tabellen en in de privé-bucket `bouw`. Nooit in
-  de code, in testdata, in logboeken of in artefacten van GitHub Actions.
+- De straatnaam, het adres, de plannen, de foto's, de offertes en de
+  facturen staan **enkel in Supabase**: in de tabellen en in de privé-bucket
+  `bouw`. Nooit in de code, in testdata, in logboeken of in artefacten van
+  GitHub Actions.
 - Een bestand krijgt als pad een UUID (`plannen/<uuid>.pdf`), nooit de
   oorspronkelijke naam: daar kan de straat in staan. Die naam staat enkel in
   `bouw_bestanden.oorspronkelijke_naam`.
@@ -277,8 +320,8 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
 - Een omzetting bewaart enkel de namen, oppervlaktes en hoogtes van de
   ruimtes, de openingen en het bewijs voor de schaal. Geen andere teksten van
   het blad: het titelblok bevat namen en adressen.
-- De wensenlijst wordt bij elke download op dat moment gemaakt en nergens
-  bewaard. Er staat de projectnaam op, niet het adres.
+- De wensenlijst en de Excel van het geld worden bij elke download op dat
+  moment gemaakt en nergens bewaard. Er staat geen adres op.
 - De tests maken hun eigen plannen met een kleine PDF-schrijver
   (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
 
@@ -296,6 +339,11 @@ van de browser naar Storage:
 3. **`voegVersieToeActie`** kijkt na of het bestand er staat, hoe groot het is
    en of het met `%PDF-` begint (`lib/bouw/opladen.ts`). Pas dan wordt de rij
    `klaar` en de versie aangemaakt. Is het geen PDF, dan verdwijnt het.
+
+Foto's (`fotos/`, verkleind in de browser) en de PDF's van offertes en
+facturen (`documenten/`, tot 20 MB) gaan langs dezelfde drie stappen. Bij een
+offerte of factuur gebeurt stap 2 zodra je de PDF kiest; het formulier wacht
+tot het bestand er staat, en de serveractie rondt het af.
 
 Uploads die drie uur op `wacht` blijven staan, worden opgeruimd bij de
 volgende upload. Een bestand dat geen versie meer gebruikt, verdwijnt bij het
@@ -329,6 +377,11 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook en de setup van de bot, en de dagelijkse ronde |
 | `supabase/migrations/20261002500000_bouw_links.sql` | De links (enkel de hash van het token) en de inzendingen |
 | `supabase/migrations/20261002600000_bouw_daken.sql` | Het dak van elk gebouw, voor het 3D-model |
+| `supabase/migrations/20261002700000_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
+| `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
+| `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte of factuur openen |
+| `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
+| `web/lib/bouw/geld-opslag.ts`, `geld-laden.ts`, `geld-excel.ts` | Het geld in de databank, alles in één keer laden, en de Excel |
 | `web/app/bouw/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
 | `web/lib/bouw/drie/` | Het 3D-model als gewone gegevens: muren, ramen en deuren, vloeren, platen, daken, materialen; puur, met tests |
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
@@ -391,6 +444,12 @@ meubel.
 werkt op een iPad, en heeft wat we nodig hebben: schaduw, doorzichtig glas,
 een doorsnede en texturen. De versie staat vast, zoals bij pdf.js.
 
+**Waarom de kasplanning de planning volgt.** Een aannemer factureert
+meestal in schijven, volgens de vordering van zijn werk. Wat een post nog
+moet factureren, gelijk spreiden over de maanden van zijn taak, is een ruwe
+maar eerlijke schatting, en ze schuift mee als de taak opschuift. Echte
+facturen vervangen de schatting: wat gefactureerd is, gaat van de rest af.
+
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer
 anders, dus de gewone HTTP-cache helpt niet. Een bestand verandert nooit (een
@@ -400,10 +459,11 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 
 1. **Databankmigraties** draaien vóór de code uitgerold wordt: Actions →
    Databankmigraties → Run workflow, met `productie`. Zie
-   [docs/UITROL.md](../docs/UITROL.md). Er zijn er zes:
+   [docs/UITROL.md](../docs/UITROL.md). Er zijn er zeven:
    `20261002100000_bouw.sql`, `20261002200000_bouw_omzetting.sql`,
    `20261002300000_bouw_punten.sql`, `20261002400000_bouw_regie.sql`,
-   `20261002500000_bouw_links.sql` en `20261002600000_bouw_daken.sql`.
+   `20261002500000_bouw_links.sql`, `20261002600000_bouw_daken.sql` en
+   `20261002700000_bouw_geld.sql`.
 2. **Sandra als hoofdbeheerder** toevoegen bij Gebruikers, anders ziet ze Bouw
    niet.
 3. **De bot van Bouw** (mag later):
@@ -419,6 +479,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       van Sandra en dat van de groep (negatief) erbij in
       `BOUW_TOEGELATEN_TELEGRAM_IDS`, met komma's, en rol opnieuw uit.
    5. Stuur `/hier` in de groep. Vanaf dan komen de herinneringen daar.
+
+   Komt er later een commando bij (zoals `/facturen`), open dan
+   `/api/bouw/telegram/setup` opnieuw: dan kent Telegram het ook.
 4. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
@@ -427,6 +490,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
    - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
      optie zetten met de gsm;
+   - bij Geld de gewone posten aanmaken, het krediet invullen, een offerte
+     met PDF toevoegen en kiezen, en een factuur met PDF toevoegen; de PDF
+     openen, en de Excel downloaden;
    - bij Toegang een link voor jezelf maken (als architect), hem in een
      privévenster openen, een PDF insturen en die bij Plannen inlezen;
    - op een gsm de plannen en de ruimtes bekijken.
@@ -450,8 +516,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       PDF en Excel
 - [x] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
-- [ ] **4** Geld: posten, offertes, facturen, bouwkrediet, en links voor de
-      aannemers
+- [ ] **4** Geld: posten, offertes, meer- en minwerken, facturen, bouwkrediet,
+      kasplanning en Excel zijn klaar. Nog te doen: een link voor de aannemers,
+      om zelf een offerte of factuur in te sturen.
 - [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
       een doorsnede en rondwandelen
 - [ ] **6** De werf: foto's op het plan, werfdagboek, opleveringspunten

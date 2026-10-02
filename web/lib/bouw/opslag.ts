@@ -665,7 +665,7 @@ export interface Bouwstand {
   project: Project;
   verdiepingen: number;
   plannen: { id: number; titel: string; versies: number; soort: SoortPlan; omgezet: "geen" | "oud" | "laatste" }[];
-  partijen: { soort: SoortPartij }[];
+  partijen: { id: number; naam: string; soort: SoortPartij }[];
   bytes: number;
   ruimtes: { aantal: number; oppervlakte: number };
 }
@@ -675,7 +675,7 @@ export async function leesBouwstand(): Promise<Bouwstand> {
     leesProject(),
     db().from("bouw_verdiepingen").select("id"),
     lijstPlannen(),
-    db().from("bouw_partijen").select("soort"),
+    db().from("bouw_partijen").select("id, naam, soort"),
     db().from("bouw_bestanden").select("grootte_bytes").eq("status", "klaar"),
     db().from("bouw_ruimtes").select("oppervlakte_m2"),
     db().from("bouw_omzettingen").select("planversie_id"),
@@ -703,7 +703,11 @@ export async function leesBouwstand(): Promise<Bouwstand> {
               : ("geen" as const),
       };
     }),
-    partijen: check(partijen, "Partijen lezen") as { soort: SoortPartij }[],
+    partijen: (check(partijen, "Partijen lezen") as { id: number; naam: string; soort: SoortPartij }[]).map((partij) => ({
+      id: Number(partij.id),
+      naam: String(partij.naam),
+      soort: partij.soort,
+    })),
     bytes: grootten.reduce((som, rij) => som + Number(rij.grootte_bytes ?? 0), 0),
     ruimtes: {
       aantal: oppervlaktes.length,

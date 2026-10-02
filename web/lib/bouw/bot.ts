@@ -3,7 +3,7 @@ import "server-only";
 import { commando, type Bericht } from "@/lib/opvang/telegram";
 import { heeftToegang, toegelatenIds } from "@/lib/opvang/toegang";
 
-import { HULP, deadlinebericht, weekbericht } from "./berichten";
+import { HULP, deadlinebericht, factuurbericht, weekbericht } from "./berichten";
 import { vandaag } from "./kalender";
 import { leesBouwstand } from "./opslag";
 import { zetInstelling } from "./regie-opslag";
@@ -50,7 +50,7 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       await stuurBouwbericht(
         token,
         chat,
-        "👍 Vanaf nu stuur ik de herinneringen voor de keuzes, wat morgen begint en op maandag de week naar deze chat.",
+        "👍 Vanaf nu stuur ik de herinneringen voor de keuzes en de facturen, wat morgen begint en op maandag de week naar deze chat.",
       );
       return;
     case "week": {
@@ -63,14 +63,20 @@ export async function verwerkBouwbericht(bericht: Bericht, token: string, adres:
       await stuurBouwbericht(token, chat, deadlinebericht(deadlines, dag), `${adres}/bouw/keuzes`);
       return;
     }
+    case "facturen": {
+      const { teBetalen } = await laadBotstand(dag);
+      await stuurBouwbericht(token, chat, factuurbericht(teBetalen, dag), `${adres}/bouw/geld/facturen`);
+      return;
+    }
     case "taken": {
-      const [stand, { deadlines }] = await Promise.all([leesBouwstand(), laadBotstand(dag)]);
+      const [stand, { deadlines, teBetalen }] = await Promise.all([leesBouwstand(), laadBotstand(dag)]);
       const taken = takenVoorBouw({
         projectnaam: stand.project.projectnaam,
         verdiepingen: stand.verdiepingen,
         plannen: stand.plannen,
         partijen: stand.partijen,
         deadlines: deadlines.map((d) => ({ keuzeId: d.keuzeId, titel: d.titel, dagen: d.dagen })),
+        facturen: teBetalen.map((f) => ({ factuurId: f.factuurId, wat: f.wat, dagen: f.dagen })),
       });
       await stuurBouwbericht(
         token,

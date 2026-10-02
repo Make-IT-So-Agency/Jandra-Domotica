@@ -31,6 +31,7 @@ export async function GET(request: Request) {
       commands: [
         { command: "week", description: "Wat er deze en volgende week gebeurt" },
         { command: "deadlines", description: "Welke keuzes nog open staan" },
+        { command: "facturen", description: "Welke facturen nog betaald moeten worden" },
         { command: "taken", description: "Wat er in de app nog te doen is" },
         { command: "hier", description: "Stuur herinneringen naar deze chat" },
         { command: "id", description: "Je Telegram-id" },

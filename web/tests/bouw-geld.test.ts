@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { nepSupabase } from "./stubs/nep-supabase";
@@ -8,12 +9,17 @@ vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 import {
   STANDAARDPOSTEN,
   CATEGORIEEN_POST,
+  bedragUitInstelling,
   factuurherinneringen,
   factuurstand,
   kasplanning,
+  kortBedrag,
   kredietstand,
+  mooieGrens,
+  openFacturen,
   poststanden,
   totalen,
+  vergelijkOffertes,
   vervaldagVan,
   type Factuur,
   type Meerwerk,
@@ -34,6 +40,7 @@ import {
   lijstMeerwerken,
   lijstFacturen,
 } from "@/lib/bouw/geld-opslag";
+import { maakGeldExcel } from "@/lib/bouw/geld-excel";
 
 const post = (id: number, raming: number | null, over: Partial<Post> = {}): Post => ({
   id, naam: `post ${id}`, categorie: "werken", raming, partij_id: null, planning_id: null, opmerking: null, ...over,
@@ -126,6 +133,40 @@ describe("facturen en krediet", () => {
   });
 });
 
+describe("open facturen en offertes vergelijken", () => {
+  it("zet de open facturen op vervaldag, zonder betaalde facturen of creditnota's", () => {
+    const facturen = [
+      factuur(1, null, 500, { vervaldag: "2026-10-20" }),
+      factuur(2, null, 300, { factuurdatum: "2026-08-15" }), // vervalt 14 sep
+      factuur(3, null, 900, { betaald_op: "2026-09-01" }),
+      factuur(4, null, -200),
+    ];
+    expect(openFacturen(facturen, "2026-10-02").map((o) => [o.factuur.id, o.vervaldag, o.dagen])).toEqual([
+      [2, "2026-09-14", -18],
+      [1, "2026-10-20", 18],
+    ]);
+  });
+
+  it("vergelijkt elke offerte met de goedkoopste en met de raming", () => {
+    const vergeleken = vergelijkOffertes([offerte(1, 1, 95_000), offerte(2, 1, 110_000)], 100_000);
+    expect(vergeleken.get(1)).toEqual({ tovGoedkoopste: 0, tovRaming: -5 });
+    expect(vergeleken.get(2)).toEqual({ tovGoedkoopste: 15_000, tovRaming: 10 });
+    expect(vergelijkOffertes([offerte(1, 1, 95_000)], null).get(1)).toEqual({ tovGoedkoopste: 0, tovRaming: null });
+  });
+
+  it("leest het krediet uit de instellingen", () => {
+    expect(bedragUitInstelling("300000")).toBe(300_000);
+    expect(bedragUitInstelling("")).toBeNull();
+    expect(bedragUitInstelling(null)).toBeNull();
+    expect(bedragUitInstelling("onzin")).toBeNull();
+  });
+
+  it("kiest een ronde grens en een korte tekst voor de as van de grafiek", () => {
+    expect([0, 7, 18_000, 25_000, 41_000, 100_000].map(mooieGrens)).toEqual([1, 10, 20_000, 25_000, 50_000, 100_000]);
+    expect([0, 800, 1_500, 25_000].map(kortBedrag)).toEqual(["0", "800", "1,5k", "25k"]);
+  });
+});
+
 describe("de kasplanning", () => {
   it("zet betaald, te betalen en gepland per maand, met wat het krediet moet dragen", () => {
     const planning = [{ id: 9, begindatum: "2026-11-10", einddatum: "2027-01-20" }];
@@ -207,5 +248,43 @@ describe("geld in de databank", () => {
 
   it("toont enkel de actieve vennootschappen", async () => {
     expect(await lijstVennootschappen()).toEqual([{ id: "a1", naam: "Voorbeeld BV" }]);
+  });
+});
+
+describe("de Excel van het geld", () => {
+  it("heeft een blad per onderdeel, met bedragen en datums als echte waarden", async () => {
+    const excel = await maakGeldExcel(
+      {
+        posten: [post(1, 100_000, { naam: "Ruwbouw", partij_id: 4 }), post(2, 20_000, { naam: "Elektriciteit", categorie: "werken" })],
+        offertes: [offerte(1, 1, 95_000, "gekozen")],
+        meerwerken: [meerwerk(1, 1, 2_500, "aanvaard")],
+        facturen: [factuur(1, 1, 30_000, { nummer: "F-1", partij_id: 4, betaald_op: "2026-09-20" }), factuur(2, null, -500)],
+        opnames: [{ id: 1, datum: "2026-09-19", bedrag: 30_000, factuur_id: 1, opmerking: "Schijf 1" }],
+        partijen: [{ id: 4, soort: "aannemer", naam: "Bouwbedrijf Voorbeeld", vak: null, contactpersoon: null, email: null, telefoon: null, adres: null, website: null, btw_nummer: null, opmerking: null }],
+        planning: [],
+        vennootschappen: [],
+        krediet: 250_000,
+        eigenInbreng: 50_000,
+      },
+      "2026-10-02",
+      new Date("2026-10-02T12:00:00Z"),
+    );
+    const werkmap = new ExcelJS.Workbook();
+    await werkmap.xlsx.load(excel as unknown as ArrayBuffer);
+    expect(werkmap.worksheets.map((w) => w.name)).toEqual(["Posten", "Offertes", "Meer- en minwerken", "Facturen", "Kasplanning", "Krediet"]);
+
+    const posten = werkmap.getWorksheet("Posten")!;
+    expect(posten.getRow(2).values).toEqual(
+      expect.arrayContaining(["Werken", "Ruwbouw", "Bouwbedrijf Voorbeeld", 100_000, 95_000, 2_500, 97_500, 30_000, 30_000]),
+    );
+    expect(posten.getRow(4).getCell(4).value).toMatchObject({ formula: "SUM(D2:D3)" });
+
+    const facturen = werkmap.getWorksheet("Facturen")!;
+    expect(facturen.getRow(2).getCell(1).value).toEqual(new Date("2026-09-01T00:00:00Z"));
+    expect(facturen.getRow(2).getCell(10).value).toBe("betaald");
+    expect(facturen.getRow(3).getCell(10).value).toBe("creditnota");
+
+    const krediet = werkmap.getWorksheet("Krediet")!;
+    expect([krediet.getRow(3).getCell(1).value, krediet.getRow(3).getCell(2).value]).toEqual(["Nog beschikbaar", 220_000]);
   });
 });

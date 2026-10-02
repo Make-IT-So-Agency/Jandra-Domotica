@@ -6,7 +6,7 @@ const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 
 import { POST } from "@/app/api/bouw/telegram/route";
-import { deadlinebericht, herinneringen, weekbericht } from "@/lib/bouw/berichten";
+import { deadlinebericht, factuurbericht, herinneringen, weekbericht } from "@/lib/bouw/berichten";
 import { tweeWeken } from "@/lib/bouw/planning";
 import { dagelijkseRonde } from "@/lib/bouw/ronde";
 import { bouwWebhookGeheim } from "@/lib/bouw/telegram";
@@ -127,6 +127,28 @@ describe("de webhook van de bot van Bouw", () => {
     expect(verstuurd[1].text).toBe("Te beslissen:\n• Gevelsteen: over 7 dagen (12 okt)\n• Keuken: over 8 weken (1 dec)");
   });
 
+  it("toont met /facturen wat nog betaald moet worden", async () => {
+    db.tabellen.bouw_facturen = [
+      { id: 1, post_id: null, partij_id: 4, nummer: "F-12", omschrijving: null, bedrag: 12_100, factuurdatum: "2026-09-01", vervaldag: "2026-10-01", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
+      { id: 2, post_id: null, partij_id: null, nummer: null, omschrijving: null, bedrag: 450, factuurdatum: "2026-10-01", vervaldag: "2026-10-08", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
+      { id: 3, post_id: null, partij_id: null, nummer: "F-9", omschrijving: null, bedrag: 900, factuurdatum: "2026-08-01", vervaldag: null, betaald_op: "2026-08-20", bestand_id: null, vennootschap_id: null, opmerking: null },
+    ];
+    await stuurUpdate(bericht("/facturen"));
+    expect(verstuurd[0].text).toBe(
+      [
+        "Te betalen:",
+        "• Factuur F-12 van Bouwbedrijf Voorbeeld (€\u00a012.100,00): ⚠️ 4 dagen te laat (1 okt)",
+        "• Een factuur (€\u00a0450,00): over 3 dagen (8 okt)",
+      ].join("\n"),
+    );
+    expect(verstuurd[0].reply_markup).toEqual({
+      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/bouw/geld/facturen" }]],
+    });
+
+    await stuurUpdate(bericht("/taken"));
+    expect(String(verstuurd[1].text)).toContain("Factuur F-12 van Bouwbedrijf Voorbeeld (€\u00a012.100,00): 4 dagen te laat.");
+  });
+
   it("antwoordt 200 als Telegram faalt, zonder het token in de logs", async () => {
     telegramFaalt = true;
     const fout = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -140,6 +162,7 @@ describe("de berichten", () => {
   it("zegt het als er niets gepland is", () => {
     expect(weekbericht({ van: "2026-10-05", tot: "2026-10-18", regels: [] })).toBe("Deze en volgende week (5 okt – 18 okt): niets gepland.");
     expect(deadlinebericht([], "2026-10-05")).toBe("Geen keuzes met een deadline die nog open staan.");
+    expect(factuurbericht([], "2026-10-05")).toBe("Geen facturen die nog betaald moeten worden.");
   });
 
   it("herinnert op 14, 7, 3 en 1 dag, op de dag zelf en de dag erna", () => {
@@ -191,6 +214,20 @@ describe("de dagelijkse ronde", () => {
     expect(eerste).toEqual({ verstuurd: 4, alGemeld: 0 });
     expect(verstuurd.map((b) => b.chat_id)).toEqual([GROEP, GROEP, GROEP, GROEP]);
     expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 0, alGemeld: 4 });
+  });
+
+  it("herinnert ook aan een factuur, drie dagen voor de vervaldag", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    db.tabellen.bouw_facturen = [
+      { id: 5, post_id: null, partij_id: 4, nummer: "F-12", omschrijving: null, bedrag: 2_420, factuurdatum: "2026-09-08", vervaldag: "2026-10-08", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
+    ];
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
+    const factuur = verstuurd.at(-1)!;
+    expect(factuur.text).toBe("💶 Factuur F-12 van Bouwbedrijf Voorbeeld (€\u00a02.420,00): betalen over 3 dagen (tegen 8 okt).");
+    expect(factuur.reply_markup).toEqual({
+      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/bouw/geld/facturen" }]],
+    });
+    expect(db.tabellen.bouw_meldingen.map((m) => m.sleutel)).toContain("factuur:5:2026-10-08:3");
   });
 
   it("probeert het de volgende keer opnieuw als Telegram faalde", async () => {

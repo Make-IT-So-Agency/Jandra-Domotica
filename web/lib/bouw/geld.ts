@@ -313,19 +313,40 @@ export interface Factuurherinnering {
 /** Herinneren 3 dagen vóór de vervaldag, op de dag zelf, en één keer de dag erna. */
 export const FACTUUR_HERINNEREN_OP = [3, 0, -1];
 
+/** "factuur 2026-031 van Architect (€ 2.420,00)", of "een factuur (€ 120,00)". */
+export function factuurWat(factuur: Pick<Factuur, "nummer" | "bedrag">, wie: string | null): string {
+  return `${factuur.nummer ? `factuur ${factuur.nummer}` : "een factuur"}${wie ? ` van ${wie}` : ""} (${euroBedrag(factuur.bedrag)})`;
+}
+
+export const hoofdletter = (tekst: string) => tekst.charAt(0).toLocaleUpperCase("nl-BE") + tekst.slice(1);
+
+export interface Openfactuur {
+  factuur: Factuur;
+  vervaldag: string;
+  /** Dagen tot de vervaldag; negatief is te laat. */
+  dagen: number;
+}
+
+/** De facturen die nog betaald moeten worden, de eerste vervaldag eerst. Een creditnota hoort daar niet bij. */
+export function openFacturen(facturen: readonly Factuur[], vandaag: string): Openfactuur[] {
+  return facturen
+    .filter((factuur) => !factuur.betaald_op && factuur.bedrag > 0)
+    .map((factuur) => {
+      const vervaldag = vervaldagVan(factuur);
+      return { factuur, vervaldag, dagen: dagenTussen(vandaag, vervaldag) };
+    })
+    .sort((a, b) => a.vervaldag.localeCompare(b.vervaldag) || a.factuur.id - b.factuur.id);
+}
+
 export function factuurherinneringen(
   facturen: readonly Factuur[],
   partijnaam: (partijId: number | null) => string | null,
   vandaag: string,
 ): Factuurherinnering[] {
   const uit: Factuurherinnering[] = [];
-  for (const factuur of facturen) {
-    if (factuur.betaald_op || factuur.bedrag <= 0) continue;
-    const vervalt = vervaldagVan(factuur);
-    const dagen = dagenTussen(vandaag, vervalt);
+  for (const { factuur, vervaldag: vervalt, dagen } of openFacturen(facturen, vandaag)) {
     if (!FACTUUR_HERINNEREN_OP.includes(dagen)) continue;
-    const wie = partijnaam(factuur.partij_id);
-    const wat = `${factuur.nummer ? `factuur ${factuur.nummer}` : "een factuur"}${wie ? ` van ${wie}` : ""} (${euroBedrag(factuur.bedrag)})`;
+    const wat = factuurWat(factuur, partijnaam(factuur.partij_id));
     uit.push({
       sleutel: `factuur:${factuur.id}:${vervalt}:${dagen}`,
       tekst:
@@ -338,7 +359,33 @@ export function factuurherinneringen(
   return uit;
 }
 
-const hoofdletter = (tekst: string) => tekst.charAt(0).toLocaleUpperCase("nl-BE") + tekst.slice(1);
+export interface Offertevergelijking {
+  /** Hoeveel duurder dan de goedkoopste offerte van dezelfde post: 0 voor de goedkoopste zelf. */
+  tovGoedkoopste: number;
+  /** Het verschil met de raming, in procent; null zonder raming. */
+  tovRaming: number | null;
+}
+
+/** Offertes van één post naast elkaar: tegenover de goedkoopste en tegenover de raming. */
+export function vergelijkOffertes(offertes: readonly Offerte[], raming: number | null): Map<number, Offertevergelijking> {
+  const goedkoopste = offertes.length === 0 ? 0 : Math.min(...offertes.map((offerte) => offerte.bedrag));
+  return new Map(
+    offertes.map((offerte) => [
+      offerte.id,
+      {
+        tovGoedkoopste: rond2(offerte.bedrag - goedkoopste),
+        tovRaming: raming ? Math.round(((offerte.bedrag - raming) / raming) * 1000) / 10 : null,
+      },
+    ]),
+  );
+}
+
+/** Een bedrag uit bouw_instellingen, bv. het krediet. Leeg of onzin is null. */
+export function bedragUitInstelling(waarde: string | null | undefined): number | null {
+  if (waarde === null || waarde === undefined || waarde.trim() === "") return null;
+  const getal = Number(waarde);
+  return Number.isFinite(getal) && getal >= 0 ? getal : null;
+}
 
 export interface Standaardpost {
   naam: string;
@@ -368,3 +415,17 @@ export const STANDAARDPOSTEN: readonly Standaardpost[] = [
   { naam: "Buitenaanleg", categorie: "werken" },
   { naam: "Water, elektriciteit en riolering aansluiten", categorie: "nutsvoorzieningen" },
 ];
+
+/** Een ronde bovengrens voor een grafiek: 1, 2, 2,5 of 5 maal een macht van tien. */
+export function mooieGrens(waarde: number): number {
+  if (!(waarde > 0)) return 1;
+  const macht = 10 ** Math.floor(Math.log10(waarde));
+  const stap = [1, 2, 2.5, 5, 10].find((factor) => factor * macht >= waarde * (1 - 1e-9))!;
+  return stap * macht;
+}
+
+/** "25k", "1,5k", "800": voor de as van een grafiek. */
+export function kortBedrag(bedrag: number): string {
+  if (Math.abs(bedrag) >= 1000) return `${(bedrag / 1000).toLocaleString("nl-BE", { maximumFractionDigits: 1 })}k`;
+  return Math.round(bedrag).toLocaleString("nl-BE");
+}

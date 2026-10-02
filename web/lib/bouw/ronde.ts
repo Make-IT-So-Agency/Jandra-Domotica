@@ -1,6 +1,8 @@
 import "server-only";
 
 import { herinneringen, type Openstaand } from "./berichten";
+import { factuurherinneringen, factuurWat, openFacturen } from "./geld";
+import { lijstFacturen } from "./geld-opslag";
 import { vandaag } from "./kalender";
 import { openDeadlines } from "./keuzes";
 import { lijstPartijen } from "./opslag";
@@ -17,7 +19,12 @@ import { stuurBouwbericht } from "./telegram";
 export const CHAT_SLEUTEL = "telegram_chat_id";
 
 export async function laadBotstand(dag: string) {
-  const [keuzes, planning, partijen] = await Promise.all([lijstKeuzes(), lijstPlanning(), lijstPartijen()]);
+  const [keuzes, planning, partijen, facturen] = await Promise.all([
+    lijstKeuzes(),
+    lijstPlanning(),
+    lijstPartijen(),
+    lijstFacturen(),
+  ]);
   const open = openDeadlines(keuzes, planning, dag);
   const deadlines: Openstaand[] = open.map(({ keuze, deadline, dagen }) => ({
     keuzeId: keuze.id,
@@ -26,8 +33,18 @@ export async function laadBotstand(dag: string) {
     dagen,
   }));
   const namen = new Map(partijen.map((partij) => [partij.id, partij.naam]));
+  const partijnaam = (partijId: number | null) => (partijId === null ? null : (namen.get(partijId) ?? null));
   return {
     deadlines,
+    facturen,
+    partijnaam,
+    /** De facturen die nog betaald moeten worden, de eerste vervaldag eerst. */
+    teBetalen: openFacturen(facturen, dag).map(({ factuur, vervaldag, dagen }) => ({
+      factuurId: factuur.id,
+      wat: factuurWat(factuur, partijnaam(factuur.partij_id)),
+      vervaldag,
+      dagen,
+    })),
     planning: planning.map((item) => ({
       id: item.id,
       soort: item.soort,
@@ -56,7 +73,11 @@ export async function dagelijkseRonde(token: string, nu: Date, adres: string): P
   const stand = await laadBotstand(dag);
   let verstuurd = 0;
   let alGemeld = 0;
-  for (const herinnering of herinneringen(stand.deadlines, stand.planning, stand.week, dag)) {
+  const teMelden = [
+    ...herinneringen(stand.deadlines, stand.planning, stand.week, dag),
+    ...factuurherinneringen(stand.facturen, stand.partijnaam, dag),
+  ];
+  for (const herinnering of teMelden) {
     if (!(await meldEenKeer(herinnering.sleutel))) {
       alGemeld++;
       continue;
