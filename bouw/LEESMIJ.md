@@ -37,6 +37,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   - De viewer zoomt met het muiswiel, twee vingers of de knoppen, en blijft
     scherp tot in het detail.
   - Op een grondplan: **Omzetten naar ruimtes**.
+  - Zolang er grondplannen niet omgezet zijn: **Alle grondplannen omzetten**
+    (`/bouw/plannen/omzetten`), ook vanaf Ruimtes.
 - **Ruimtes** (`/bouw/ruimtes`): per gebouw en verdieping een tekening en een
   lijst met de oppervlakte, de plafondhoogte en het aantal punten. Ook op de
   gsm.
@@ -122,6 +124,31 @@ gekend punt aanduiden of een andere mogelijkheid kiezen kan altijd.
 **Bevestigen.** De server rekent zelf de meters en oppervlaktes uit. Een
 ruimte die op dezelfde plaats blijft, houdt haar id: wat er later aan hangt
 (punten, keuzes, foto's), blijft mee.
+
+**Alle grondplannen omzetten.** Na een dossier hoef je niet elk grondplan
+apart te openen.
+
+- **Welke plannen.** Elk grondplan met een verdieping waarvan de nieuwste
+  versie nog niet bevestigd is, dus ook een nieuwe versie.
+- **De volgorde.** Per gebouw, eerst het gelijkvloers, dan naar boven en dan
+  naar beneden. Elke verdieping wordt zo op een buur gelegd die al
+  uitgelijnd is.
+- **De stappen.** Dezelfde als bij één plan:
+  - de schaal, de ruimtes en de namen die er al waren;
+  - het uitlijnen. Lukt dat niet zeker met dezelfde draaiing, dan probeert
+    de app de drie andere. Een gedraaide tekening moet je altijd nakijken,
+    want een symmetrisch huis past ook na een halve draai.
+- **De kaart per plan.** Een kleine schets met de vorige verdieping in het
+  blauw, en het oordeel:
+  - **✔ klaar**: de schaal en de uitlijning zijn zeker, elke ruimte gaat mee
+    en er verdwijnt niets. Zo'n plan staat aangevinkt.
+  - **⚠ nakijken**: de reden staat erbij. Aanvinken mag toch, maar een ruimte
+    zonder naam of met een afwijkende oppervlakte gaat dan niet mee.
+  - **✘ kan hier niet**: geen schaal, geen ruimtes met een naam, of twee
+    grondplannen op dezelfde verdieping.
+- **Bevestigen.** Plan per plan, met dezelfde actie als het nakijkscherm.
+  Vink je een plan af, dan gaan de plannen die erop uitgelijnd werden mee
+  uit. De regels staan in `omzetting/reeks.ts`, met tests.
 
 ## Punten en de wensenlijst
 
@@ -505,6 +532,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
 | `web/app/bouw/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
 | `web/app/bouw/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
+| `web/app/bouw/plannen/omzetten/` | Alle grondplannen in één keer omzetten |
 | `web/app/bouw/punten/` | Punten zetten, en de wensenlijst |
 | `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
 | `web/app/bouw/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |

@@ -159,6 +159,10 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
   if (stand.plannen.length === 0) {
     taken.push({ tekst: "Laad het eerste plan van de architect op.", link: "/bouw/plannen", knop: "Plannen" });
   }
+  // Eén grondplan om te zetten: naar dat plan. Meer: alles in één keer.
+  const teOmzetten = stand.plannen.filter(
+    (plan) => plan.versies > 0 && plan.soort === "grondplan" && (plan.omgezet === "geen" || plan.omgezet === "oud"),
+  );
   for (const plan of stand.plannen) {
     if (plan.versies === 0) {
       taken.push({
@@ -166,6 +170,8 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         link: `/bouw/plannen/${plan.id}`,
         knop: "Versie opladen",
       });
+    } else if (teOmzetten.length > 1) {
+      continue;
     } else if (plan.soort === "grondplan" && plan.omgezet === "geen") {
       taken.push({
         tekst: `Zet "${plan.titel}" om naar ruimtes.`,
@@ -179,6 +185,13 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         knop: "Nakijken",
       });
     }
+  }
+  if (teOmzetten.length > 1) {
+    taken.push({
+      tekst: `${teOmzetten.length} grondplannen zijn nog niet omgezet naar ruimtes.`,
+      link: "/bouw/plannen/omzetten",
+      knop: "Alles omzetten",
+    });
   }
   if (!stand.partijen.some((partij) => partij.soort === "architect")) {
     taken.push({ tekst: "Voeg de architect toe bij de partijen.", link: "/bouw/partijen", knop: "Partijen" });

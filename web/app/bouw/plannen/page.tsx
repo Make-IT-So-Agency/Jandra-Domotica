@@ -5,9 +5,11 @@ import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { alsBestaand } from "@/lib/bouw/dossier-inlezen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { lijstInzendingen, type Inzending } from "@/lib/bouw/links";
+import { teDoen } from "@/lib/bouw/omzetting/reeks";
 import {
   leesBestanden,
   lijstGebouwen,
+  lijstOmzettingen,
   lijstPartijen,
   lijstPlannen,
   lijstVerdiepingen,
@@ -23,6 +25,7 @@ import { BevestigKnop } from "../bevestig-knop";
 import { Melding } from "../melding";
 import { downloadInzendingActie, negeerInzendingActie, voegPlanToeActie } from "./acties";
 import { DossierLader } from "./dossier-lader";
+import { Omzetoproep } from "./omzetten/oproep";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +44,7 @@ export default async function Plannenpagina({
   let inzendingen: Inzending[];
   let partijen: Partij[];
   let bestanden: Bestand[];
+  let omgezet: Set<number>;
   try {
     [plannen, verdiepingen, gebouwen, inzendingen, partijen] = await Promise.all([
       lijstPlannen(),
@@ -49,7 +53,12 @@ export default async function Plannenpagina({
       lijstInzendingen({ status: "nieuw", soorten: ["plan"] }),
       lijstPartijen(),
     ]);
-    bestanden = await leesBestanden(inzendingen.map((inzending) => inzending.bestand_id));
+    const [b, omzettingen] = await Promise.all([
+      leesBestanden(inzendingen.map((inzending) => inzending.bestand_id)),
+      lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id))),
+    ]);
+    bestanden = b;
+    omgezet = new Set(omzettingen.map((omzetting) => omzetting.planversie_id));
   } catch (fout) {
     return (
       <>
@@ -75,6 +84,7 @@ export default async function Plannenpagina({
       </p>
 
       <Melding soort={soort} melding={melding} />
+      <Omzetoproep aantal={teDoen(plannen, verdiepingen, gebouwen, omgezet).open} />
 
       {inzendingen.length > 0 ? (
         <section id="inzendingen" className="melding info">
