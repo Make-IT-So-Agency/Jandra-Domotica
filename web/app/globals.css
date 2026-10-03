@@ -1147,6 +1147,86 @@ td.smal {
   color: var(--let-op);
 }
 
+/* Alle grondplannen omzetten: een kaart per plan, met een kleine schets. */
+.omzetoproep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+
+.reeks-knoppen {
+  margin-bottom: 16px;
+}
+
+.reekskaarten {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.reekskaart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.reekskaart p {
+  margin: 0;
+}
+
+.reekskaart.kan-niet {
+  background: var(--vlak);
+}
+
+.reekskaart-kop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reekskaart-kop .keuzevak {
+  margin: 0;
+  font-size: 15px;
+}
+
+.reekskaart-kop > span {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Het blad blijft wit, ook in donkere modus, zoals in het nakijkscherm. */
+.schets {
+  display: block;
+  width: 100%;
+  height: 190px;
+  background: #ffffff;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+}
+
+.reeks-redenen {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  color: var(--let-op);
+}
+
+.reekskaart .reeks-nakijken {
+  margin-top: auto;
+  font-size: 14px;
+}
+
+.overgeslagen {
+  margin: 0 0 16px;
+  padding-left: 20px;
+}
+
 .ruimtelijst {
   list-style: none;
   margin: 0;

@@ -76,20 +76,39 @@ describe("takenVoorBouw", () => {
   });
 
   it("vraagt een grondplan om te zetten, en ook een nieuwere versie", () => {
+    const stand = (omgezet: "geen" | "oud") => ({
+      projectnaam: "Ons huis",
+      verdiepingen: 2,
+      plannen: [
+        { id: 3, titel: "Gelijkvloers", versies: 1, soort: "grondplan" as const, omgezet },
+        { id: 5, titel: "Voorgevel", versies: 1, soort: "gevel" as const, omgezet: "geen" as const },
+        { id: 6, titel: "Bijgebouw", versies: 1, soort: "grondplan" as const, omgezet: "laatste" as const },
+      ],
+      partijen: [{ soort: "architect" as const }],
+    });
+    expect(takenVoorBouw(stand("geen"))).toEqual([
+      { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/bouw/plannen/3/omzetten", knop: "Omzetten" },
+    ]);
+    expect(takenVoorBouw(stand("oud"))).toEqual([
+      { tekst: 'De nieuwste versie van "Gelijkvloers" is nog niet omgezet.', link: "/bouw/plannen/3/omzetten", knop: "Nakijken" },
+    ]);
+  });
+
+  it("meer grondplannen om te zetten: één taak, voor alles in één keer", () => {
     const taken = takenVoorBouw({
       projectnaam: "Ons huis",
       verdiepingen: 2,
       plannen: [
         { id: 3, titel: "Gelijkvloers", versies: 1, soort: "grondplan", omgezet: "geen" },
         { id: 4, titel: "Verdieping", versies: 2, soort: "grondplan", omgezet: "oud" },
-        { id: 5, titel: "Voorgevel", versies: 1, soort: "gevel", omgezet: "geen" },
         { id: 6, titel: "Bijgebouw", versies: 1, soort: "grondplan", omgezet: "laatste" },
+        { id: 7, titel: "Zolder", versies: 0, soort: "grondplan" },
       ],
       partijen: [{ soort: "architect" }],
     });
     expect(taken).toEqual([
-      { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/bouw/plannen/3/omzetten", knop: "Omzetten" },
-      { tekst: 'De nieuwste versie van "Verdieping" is nog niet omgezet.', link: "/bouw/plannen/4/omzetten", knop: "Nakijken" },
+      { tekst: '"Zolder" heeft nog geen versie.', link: "/bouw/plannen/7", knop: "Versie opladen" },
+      { tekst: "2 grondplannen zijn nog niet omgezet naar ruimtes.", link: "/bouw/plannen/omzetten", knop: "Alles omzetten" },
     ]);
   });
 

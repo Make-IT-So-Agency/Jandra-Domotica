@@ -3,8 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { PDFDocumentLoadingTask } from "pdfjs-dist/legacy/build/pdf.mjs";
-
 import type { Punt } from "@/lib/bouw/beeld";
 import { getal } from "@/lib/bouw/invoer";
 import type { Bevestigkalibratie } from "@/lib/bouw/omzetting/bevestigen";
@@ -21,16 +19,17 @@ import {
 } from "@/lib/bouw/omzetting/geometrie";
 import { leesBlad } from "@/lib/bouw/omzetting/lezen";
 import { zetOm } from "@/lib/bouw/omzetting/pijplijn";
+import { ZEKER_UITGELIJND, beoordeelRuimte } from "@/lib/bouw/omzetting/reeks";
 import type { Referentie } from "@/lib/bouw/omzetting/referentie";
 import { vergelijkRuimtes, type Oudruimte } from "@/lib/bouw/omzetting/ruimtediff";
-import { MARGE, bewijs } from "@/lib/bouw/omzetting/schaal";
+import { bewijs } from "@/lib/bouw/omzetting/schaal";
 import { raadSoort } from "@/lib/bouw/omzetting/soorten";
 import type { Blad, Kandidaat, Opening, Ruimtevoorstel, Voorstel, Xy } from "@/lib/bouw/omzetting/types";
-import { inHuis, lijnUitOpLijnen, lijnUitOpNamen, muurlijnen, type Lijnstuk } from "@/lib/bouw/omzetting/uitlijnen";
-import { haalPdfBytes, openPdf, pdfFout } from "@/lib/bouw/pdf";
+import { lijnUitOpLijnen, lijnUitOpNamen, muurlijnen, type Lijnstuk } from "@/lib/bouw/omzetting/uitlijnen";
+import { pdfFout } from "@/lib/bouw/pdf";
 import { RUIMTENAMEN, SOORTEN_RUIMTE, isSoortRuimte } from "@/lib/bouw/types";
 
-import { vraagPlanUrl } from "../../acties";
+import { leesReferentie } from "../../omzetting-lezen";
 import { usePlanblad } from "../planblad";
 import { Planvlak } from "../planvlak";
 import { bevestigOmzettingActie } from "./acties";
@@ -84,38 +83,9 @@ function plaatsOpBlad(verschuiving: { dx: number; dy: number }, referentie: { dx
 }
 const komma = (waarde: number | null) => (waarde === null ? "" : String(waarde).replace(".", ","));
 
-function beoordeel(ruimte: Bewerkruimte): Bewerkruimte {
-  const redenen: string[] = [];
-  if (!ruimte.naam.trim()) redenen.push("geen naam");
-  if (ruimte.oppervlaktePlan !== null) {
-    const afwijking = Math.abs(ruimte.oppervlakte / ruimte.oppervlaktePlan - 1);
-    if (afwijking > MARGE) redenen.push(`de oppervlakte wijkt ${(afwijking * 100).toFixed(1).replace(".", ",")} % af van het plan`);
-  }
-  return { ...ruimte, redenen, status: redenen.length === 0 ? "goed" : "nakijken" };
-}
-
 /** Een SVG-pad voor een ruimte: de buitenrand en de gaten, met evenodd. */
 function pad(ringen: Xy[][]): string {
   return ringen.map((ring) => `M${ring.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L")}Z`).join("");
-}
-
-/** Leest een tweede blad, om op uit te lijnen: enkel de muurlijnen zijn nodig. */
-async function leesReferentie(referentie: Referentie): Promise<Lijnstuk[]> {
-  const bytes = await haalPdfBytes(referentie.bestandId, async () => {
-    const antwoord = await vraagPlanUrl(referentie.versieId);
-    if (!antwoord.ok) throw new Error(antwoord.melding);
-    return antwoord.data.url;
-  });
-  let taak: PDFDocumentLoadingTask | null = null;
-  try {
-    taak = openPdf(bytes);
-    const pdf = await taak.promise;
-    const blad = await leesBlad(await pdf.getPage(referentie.pagina));
-    const voorstel = zetOm(blad, { meterPerPunt: referentie.kalibratie.meterPerPunt });
-    return inHuis(muurlijnen(blad, referentie.kalibratie.meterPerPunt, voorstel.gebied), referentie.kalibratie);
-  } finally {
-    void taak?.destroy();
-  }
 }
 
 /**
@@ -262,7 +232,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
     setRuimtes((huidig) =>
       huidig.map((r) => {
         const koppeling = verschil.koppelingen.find((k) => k.sleutel === r.sleutel);
-        return koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? beoordeel({ ...r, naam: koppeling.oudeNaam }) : r;
+        return koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? beoordeelRuimte({ ...r, naam: koppeling.oudeNaam }) : r;
       }),
     );
     setNamenOvergenomen(true);
@@ -279,12 +249,12 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
   }, [bestaand, ruimtes, kalibratie]);
 
   const wijzig = (sleutel: string, velden: Partial<Bewerkruimte>) =>
-    setRuimtes((huidig) => huidig.map((r) => (r.sleutel === sleutel ? beoordeel({ ...r, ...velden }) : r)));
+    setRuimtes((huidig) => huidig.map((r) => (r.sleutel === sleutel ? beoordeelRuimte({ ...r, ...velden }) : r)));
 
   const hernoem = (sleutel: string, naam: string) =>
     setRuimtes((huidig) =>
       huidig.map((r) =>
-        r.sleutel === sleutel ? beoordeel({ ...r, naam, soort: r.soortGekozen ? r.soort : raadSoort(naam) }) : r,
+        r.sleutel === sleutel ? beoordeelRuimte({ ...r, naam, soort: r.soortGekozen ? r.soort : raadSoort(naam) }) : r,
       ),
     );
 
@@ -304,7 +274,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
           setMelding({ soort: "info", tekst: "Tik in een gestippeld vlak." });
           break;
         }
-        const nieuw = beoordeel({
+        const nieuw = beoordeelRuimte({
           sleutel: `n-${kandidaat.sleutel}`,
           naam: "",
           naamPlan: "",
@@ -347,8 +317,8 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
             r.sleutel !== ruimte.sleutel
               ? [r]
               : [
-                  beoordeel({ ...r, ringen: groot, oppervlakte: opp(groot), oppervlaktePlan: null }),
-                  beoordeel({
+                  beoordeelRuimte({ ...r, ringen: groot, oppervlakte: opp(groot), oppervlaktePlan: null }),
+                  beoordeelRuimte({
                     ...r,
                     sleutel: tweede,
                     naam: "",
@@ -626,10 +596,10 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
               <p className="hulp">Uitlijnen…</p>
             ) : verschuiving ? (
               <>
-                <p className={uitlijnen.zekerheid !== null && uitlijnen.zekerheid >= 0.15 ? "status-goed" : "status-nakijken"}>
+                <p className={uitlijnen.zekerheid !== null && uitlijnen.zekerheid >= ZEKER_UITGELIJND ? "status-goed" : "status-nakijken"}>
                   {uitlijnen.zekerheid === null
                     ? "Zoals bevestigd."
-                    : uitlijnen.zekerheid >= 0.15
+                    : uitlijnen.zekerheid >= ZEKER_UITGELIJND
                       ? "✔ De muren vallen samen."
                       : "⚠ Niet zeker: kijk na of de blauwe muren op het plan vallen."}{" "}
                   <span className="hulp">
