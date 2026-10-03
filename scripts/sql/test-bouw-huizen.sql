@@ -9,7 +9,6 @@ declare
   ontbreekt text;
   a bigint;
   b bigint;
-  gekregen bigint;
 begin
   -- 1. huis_id staat op elke tabel die niet via een ouder bij een huis hoort,
   --    en is er verplicht.
@@ -54,10 +53,19 @@ begin
   exception when unique_violation then null;
   end;
 
-  -- 5. Tijdelijk, tot de afronding: een rij zonder huis hoort bij het eerste huis.
-  insert into bouw_partijen (soort, naam) values ('andere', 'Proefpartij') returning huis_id into gekregen;
-  if gekregen is distinct from (select min(id) from bouw_huizen) then
-    raise exception 'een rij zonder huis kwam bij huis % in plaats van bij het eerste', gekregen;
+  -- 5. Een rij zonder huis faalt: de tijdelijke trigger van het uitrollen is weg.
+  begin
+    insert into bouw_partijen (soort, naam) values ('andere', 'Proefpartij');
+    raise exception 'een rij zonder huis werd aanvaard';
+  exception when not_null_violation then null;
+  end;
+  if exists (select 1 from pg_proc where proname = 'bouw_huis_invullen') then
+    raise exception 'de tijdelijke functie bouw_huis_invullen bestaat nog';
+  end if;
+
+  -- 6. De oude sleutels van het project staan bij het huis, niet meer in de instellingen.
+  if exists (select 1 from bouw_instellingen where sleutel in ('projectnaam', 'adres', 'krediet_totaal', 'eigen_inbreng')) then
+    raise exception 'een oude sleutel van het project staat nog in bouw_instellingen';
   end if;
 end;
 $$;

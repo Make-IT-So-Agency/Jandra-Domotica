@@ -210,6 +210,8 @@ export function actiepuntherinneringen(
   punten: readonly Actiepunt[],
   partijnaam: (partijId: number | null) => string | null,
   vandaag: string,
+  /** Het adres van het huis, bv. /vastgoed/1. */
+  basis: string,
 ): { sleutel: string; tekst: string; pad: string }[] {
   const uit: { sleutel: string; tekst: string; pad: string }[] = [];
   for (const punt of punten) {
@@ -224,7 +226,7 @@ export function actiepuntherinneringen(
         dagen < 0
           ? `⚠️ Actiepunt ${wat}: de deadline was gisteren (${korteDatum(punt.deadline, vandaag)}).`
           : `📌 Actiepunt ${wat}: klaar tegen ${dagenTekst(dagen)}.`,
-      pad: "/bouw/werf/actiepunten",
+      pad: `${basis}/werf/actiepunten`,
     });
   }
   return uit;

@@ -10,6 +10,7 @@ import { lijstInzendingen } from "./links";
 import { nazorgstand } from "./nazorg";
 import { lijstOpleverpunten } from "./werf-opslag";
 import { leesBouwstand } from "./opslag";
+import { huispad } from "./paden";
 import { zetInstelling } from "./regie-opslag";
 import { CHAT_SLEUTEL, laadBotstand, metHuisnaam } from "./ronde";
 import { takenVoorBouw } from "./taken";
@@ -77,22 +78,25 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
       );
       return;
     case "week":
-      await perHuis(async (huis) => ({ tekst: weekbericht((await laadBotstand(huis.id, dag)).week), pad: "/bouw/planning" }));
+      await perHuis(async (huis) => ({
+        tekst: weekbericht((await laadBotstand(huis.id, dag)).week),
+        pad: huispad(huis.id, "/planning"),
+      }));
       return;
     case "deadlines":
       await perHuis(async (huis) => ({
         tekst: deadlinebericht((await laadBotstand(huis.id, dag)).deadlines, dag),
-        pad: "/bouw/keuzes",
+        pad: huispad(huis.id, "/keuzes"),
       }));
       return;
     case "facturen":
       await perHuis(async (huis) => ({
         tekst: factuurbericht((await laadBotstand(huis.id, dag)).teBetalen, dag),
-        pad: "/bouw/geld/facturen",
+        pad: huispad(huis.id, "/geld/facturen"),
       }));
       return;
     case "taken":
-      await perHuis(async (huis) => ({ tekst: await takenbericht(huis, dag), pad: "/bouw" }));
+      await perHuis(async (huis) => ({ tekst: await takenbericht(huis, dag), pad: huispad(huis.id) }));
       return;
     default:
       await stuurBouwbericht(token, chat, `Onbekend commando: /${cmd}\n\n${HULP}`);
@@ -125,7 +129,7 @@ async function takenbericht(huis: Huis, dag: string): Promise<string> {
     ),
     nakijken: opleverpunten.filter((punt) => punt.status === "hersteld").length,
     ...nazorgstand(onderhoud, garanties, dag),
-  });
+  }, huispad(huis.id));
   return taken.length === 0 ? "Niets te doen: alles staat klaar." : ["Nog te doen:", ...taken.map((taak) => `• ${taak.tekst}`)].join("\n");
 }
 

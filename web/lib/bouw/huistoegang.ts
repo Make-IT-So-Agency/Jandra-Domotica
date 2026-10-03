@@ -1,5 +1,7 @@
 import "server-only";
 
+import { notFound } from "next/navigation";
+
 import type { Gebruiker } from "@/lib/rollen";
 import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
@@ -49,4 +51,15 @@ export async function huisVoorRoute(request: Request): Promise<{ ik: Gebruiker; 
   const id = alsId(gevraagd);
   const huis = id === null ? null : await leesHuis(id);
   return huis ? { ik, huis } : null;
+}
+
+/**
+ * Het huis van een pagina onder /vastgoed/<nummer>. Een onbekend nummer geeft
+ * 404, net als een id van een rij die niet bij dit huis hoort.
+ */
+export async function vereistHuis(params: Promise<{ huis: string }>): Promise<Huis> {
+  const id = alsId((await params).huis);
+  const huis = id === null ? null : await leesHuis(id);
+  if (!huis) notFound();
+  return huis;
 }

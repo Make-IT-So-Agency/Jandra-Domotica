@@ -56,7 +56,8 @@ export interface Taak {
   knop: string;
 }
 
-export function takenVoorBouw(stand: Bouwstand): Taak[] {
+/** De taken van een huis; `basis` is zijn adres, bv. /vastgoed/1. */
+export function takenVoorBouw(stand: Bouwstand, basis: string): Taak[] {
   const taken: Taak[] = [];
 
   // Wat een datum heeft, eerst: een levertermijn wacht niet.
@@ -67,7 +68,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         deadline.dagen < 0
           ? `"${deadline.titel}": de deadline is ${-deadline.dagen === 1 ? "1 dag" : `${-deadline.dagen} dagen`} voorbij.`
           : `"${deadline.titel}": beslissen ${dagenTekst(deadline.dagen)}.`,
-      link: `/bouw/keuzes/${deadline.keuzeId}`,
+      link: `${basis}/keuzes/${deadline.keuzeId}`,
       knop: "Kiezen",
     });
   }
@@ -80,7 +81,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         factuur.dagen < 0
           ? `${wat}: ${-factuur.dagen === 1 ? "1 dag" : `${-factuur.dagen} dagen`} te laat.`
           : `${wat}: betalen ${dagenTekst(factuur.dagen)}.`,
-      link: "/bouw/geld/facturen",
+      link: `${basis}/geld/facturen`,
       knop: "Betalen",
     });
   }
@@ -93,7 +94,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         punt.dagen < 0
           ? `${wat}: ${-punt.dagen === 1 ? "1 dag" : `${-punt.dagen} dagen`} over tijd.`
           : `${wat}: klaar tegen ${dagenTekst(punt.dagen)}.`,
-      link: "/bouw/werf/actiepunten",
+      link: `${basis}/werf/actiepunten`,
       knop: "Bekijken",
     });
   }
@@ -105,7 +106,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         item.dagen < 0
           ? `${item.wat}: ${-item.dagen === 1 ? "1 dag" : `${-item.dagen} dagen`} te laat.`
           : `${item.wat}: ${dagenTekst(item.dagen)}.`,
-      link: "/bouw/dossier/onderhoud",
+      link: `${basis}/dossier/onderhoud`,
       knop: "Noteren",
     });
   }
@@ -114,7 +115,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
     if (garantie.dagen < 0 || garantie.dagen > GARANTIE_VOORUIT_DAGEN) continue;
     taken.push({
       tekst: `De garantie op ${garantie.wat} loopt af ${dagenTekst(garantie.dagen)}: meld nog wat niet in orde is.`,
-      link: "/bouw/dossier/garanties",
+      link: `${basis}/dossier/garanties`,
       knop: "Bekijken",
     });
   }
@@ -125,7 +126,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
         stand.nakijken === 1
           ? "Een opleverpunt is hersteld gemeld: kijk het na."
           : `${stand.nakijken} opleverpunten zijn hersteld gemeld: kijk ze na.`,
-      link: "/bouw/werf/oplevering",
+      link: `${basis}/werf/oplevering`,
       knop: "Nakijken",
     });
   }
@@ -134,30 +135,30 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
   if (dossiers > 0) {
     taken.push({
       tekst: dossiers === 1 ? "Er wacht een ingestuurd dossier." : `Er wachten ${dossiers} ingestuurde dossiers.`,
-      link: "/bouw/plannen#inzendingen",
+      link: `${basis}/plannen#inzendingen`,
       knop: "Inlezen",
     });
   }
   if (geld > 0) {
     taken.push({
       tekst: geld === 1 ? "Er wacht een ingestuurde offerte of factuur." : `Er wachten ${geld} ingestuurde offertes en facturen.`,
-      link: "/bouw/geld#inzendingen",
+      link: `${basis}/geld#inzendingen`,
       knop: "Inboeken",
     });
   }
 
   if (!stand.projectnaam) {
-    taken.push({ tekst: "Geef het project een naam.", link: "/bouw#project", knop: "Invullen" });
+    taken.push({ tekst: "Geef het project een naam.", link: `${basis}#project`, knop: "Invullen" });
   }
   if (stand.verdiepingen === 0) {
     taken.push({
       tekst: "Maak de verdiepingen aan, bijvoorbeeld gelijkvloers en verdieping.",
-      link: "/bouw/verdiepingen",
+      link: `${basis}/verdiepingen`,
       knop: "Verdiepingen",
     });
   }
   if (stand.plannen.length === 0) {
-    taken.push({ tekst: "Laad het eerste plan van de architect op.", link: "/bouw/plannen", knop: "Plannen" });
+    taken.push({ tekst: "Laad het eerste plan van de architect op.", link: `${basis}/plannen`, knop: "Plannen" });
   }
   // Eén grondplan om te zetten: naar dat plan. Meer: alles in één keer.
   const teOmzetten = stand.plannen.filter(
@@ -167,7 +168,7 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
     if (plan.versies === 0) {
       taken.push({
         tekst: `"${plan.titel}" heeft nog geen versie.`,
-        link: `/bouw/plannen/${plan.id}`,
+        link: `${basis}/plannen/${plan.id}`,
         knop: "Versie opladen",
       });
     } else if (teOmzetten.length > 1) {
@@ -175,13 +176,13 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
     } else if (plan.soort === "grondplan" && plan.omgezet === "geen") {
       taken.push({
         tekst: `Zet "${plan.titel}" om naar ruimtes.`,
-        link: `/bouw/plannen/${plan.id}/omzetten`,
+        link: `${basis}/plannen/${plan.id}/omzetten`,
         knop: "Omzetten",
       });
     } else if (plan.soort === "grondplan" && plan.omgezet === "oud") {
       taken.push({
         tekst: `De nieuwste versie van "${plan.titel}" is nog niet omgezet.`,
-        link: `/bouw/plannen/${plan.id}/omzetten`,
+        link: `${basis}/plannen/${plan.id}/omzetten`,
         knop: "Nakijken",
       });
     }
@@ -189,12 +190,12 @@ export function takenVoorBouw(stand: Bouwstand): Taak[] {
   if (teOmzetten.length > 1) {
     taken.push({
       tekst: `${teOmzetten.length} grondplannen zijn nog niet omgezet naar ruimtes.`,
-      link: "/bouw/plannen/omzetten",
+      link: `${basis}/plannen/omzetten`,
       knop: "Alles omzetten",
     });
   }
   if (!stand.partijen.some((partij) => partij.soort === "architect")) {
-    taken.push({ tekst: "Voeg de architect toe bij de partijen.", link: "/bouw/partijen", knop: "Partijen" });
+    taken.push({ tekst: "Voeg de architect toe bij de partijen.", link: `${basis}/partijen`, knop: "Partijen" });
   }
 
   return taken;

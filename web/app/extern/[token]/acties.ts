@@ -22,6 +22,7 @@ import {
 import { doorLink, leesLink, telUploadsVanLink, voegInzendingToe } from "@/lib/bouw/links";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import { leesBestand } from "@/lib/bouw/opslag";
+import { huispad } from "@/lib/bouw/paden";
 import { leesInstelling } from "@/lib/bouw/regie-opslag";
 import { CHAT_SLEUTEL, metHuisnaam } from "@/lib/bouw/ronde";
 import { leesBottoken } from "@/lib/bouw/telegram-koppeling";
@@ -111,10 +112,10 @@ export async function rondInzendingAfActie(
   await verwittig(
     externe.huisId,
     `📥 ${externe.partijnaam} ${watIngestuurd(soort, velden.waarde, bestand.oorspronkelijke_naam, bestand.grootte_bytes ?? 0)}.${opmerking ? `\n\n"${opmerking}"` : ""}`,
-    soort === "plan" ? "/bouw/plannen#inzendingen" : "/bouw/geld#inzendingen",
+    huispad(externe.huisId, soort === "plan" ? "/plannen#inzendingen" : "/geld#inzendingen"),
   );
   revalidatePath(`/extern/${token}`);
-  revalidatePath(soort === "plan" ? "/bouw/plannen" : "/bouw/geld");
+  revalidatePath(huispad(externe.huisId, soort === "plan" ? "/plannen" : "/geld"));
   return gelukt(null);
 }
 
@@ -183,8 +184,8 @@ export async function meldHersteldActie(token: string, formulier: FormData): Pro
   await verwittig(
     externe.huisId,
     `🔧 ${externe.partijnaam} meldt hersteld: ${punt.titel}${waar ? ` (${waar})` : ""}.${opmerking ? `\n\n"${opmerking}"` : ""}\n\nKijk het na voor je het afvinkt.`,
-    `/bouw/werf/oplevering?partij=${externe.partijId}`,
+    huispad(externe.huisId, `/werf/oplevering?partij=${externe.partijId}`),
   );
-  revalidatePath("/bouw/werf/oplevering");
+  revalidatePath(huispad(externe.huisId, "/werf/oplevering"));
   naar("goed", `Dank je. "${punt.titel}" staat als hersteld; wij kijken het na.`);
 }

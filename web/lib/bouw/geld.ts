@@ -342,6 +342,8 @@ export function factuurherinneringen(
   facturen: readonly Factuur[],
   partijnaam: (partijId: number | null) => string | null,
   vandaag: string,
+  /** Het adres van het huis, bv. /vastgoed/1. */
+  basis: string,
 ): Factuurherinnering[] {
   const uit: Factuurherinnering[] = [];
   for (const { factuur, vervaldag: vervalt, dagen } of openFacturen(facturen, vandaag)) {
@@ -353,7 +355,7 @@ export function factuurherinneringen(
         dagen < 0
           ? `⚠️ ${hoofdletter(wat)} was gisteren te betalen (${korteDatum(vervalt, vandaag)}).`
           : `💶 ${hoofdletter(wat)}: betalen ${dagenTekst(dagen)}${dagen > 0 ? ` (tegen ${korteDatum(vervalt, vandaag)})` : ""}.`,
-      pad: "/bouw/geld/facturen",
+      pad: `${basis}/geld/facturen`,
     });
   }
   return uit;

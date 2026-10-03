@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { bedrag, datum, getal, id, tekst } from "@/lib/bouw/invoer";
 import { takenVoorBouw } from "@/lib/bouw/taken";
 
+/** Het adres van het huis waarvoor de taken gelden. */
+const BASIS = "/vastgoed/1";
+
 describe("invoer", () => {
   it("maakt van lege tekst null", () => {
     expect(tekst("  ")).toBeNull();
@@ -56,8 +59,8 @@ describe("invoer", () => {
 
 describe("takenVoorBouw", () => {
   it("noemt alles wat ontbreekt bij een leeg project", () => {
-    const taken = takenVoorBouw({ projectnaam: null, verdiepingen: 0, plannen: [], partijen: [] });
-    expect(taken.map((t) => t.link)).toEqual(["/bouw#project", "/bouw/verdiepingen", "/bouw/plannen", "/bouw/partijen"]);
+    const taken = takenVoorBouw({ projectnaam: null, verdiepingen: 0, plannen: [], partijen: [] }, BASIS);
+    expect(taken.map((t) => t.link)).toEqual(["/vastgoed/1#project", "/vastgoed/1/verdiepingen", "/vastgoed/1/plannen", "/vastgoed/1/partijen"]);
   });
 
   it("wijst een plan zonder versie aan", () => {
@@ -69,9 +72,9 @@ describe("takenVoorBouw", () => {
         { id: 4, titel: "Grondplan verdieping", versies: 2 },
       ],
       partijen: [{ soort: "architect" }],
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: '"Grondplan gelijkvloers" heeft nog geen versie.', link: "/bouw/plannen/3", knop: "Versie opladen" },
+      { tekst: '"Grondplan gelijkvloers" heeft nog geen versie.', link: "/vastgoed/1/plannen/3", knop: "Versie opladen" },
     ]);
   });
 
@@ -86,11 +89,11 @@ describe("takenVoorBouw", () => {
       ],
       partijen: [{ soort: "architect" as const }],
     });
-    expect(takenVoorBouw(stand("geen"))).toEqual([
-      { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/bouw/plannen/3/omzetten", knop: "Omzetten" },
+    expect(takenVoorBouw(stand("geen"), BASIS)).toEqual([
+      { tekst: 'Zet "Gelijkvloers" om naar ruimtes.', link: "/vastgoed/1/plannen/3/omzetten", knop: "Omzetten" },
     ]);
-    expect(takenVoorBouw(stand("oud"))).toEqual([
-      { tekst: 'De nieuwste versie van "Gelijkvloers" is nog niet omgezet.', link: "/bouw/plannen/3/omzetten", knop: "Nakijken" },
+    expect(takenVoorBouw(stand("oud"), BASIS)).toEqual([
+      { tekst: 'De nieuwste versie van "Gelijkvloers" is nog niet omgezet.', link: "/vastgoed/1/plannen/3/omzetten", knop: "Nakijken" },
     ]);
   });
 
@@ -105,10 +108,10 @@ describe("takenVoorBouw", () => {
         { id: 7, titel: "Zolder", versies: 0, soort: "grondplan" },
       ],
       partijen: [{ soort: "architect" }],
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: '"Zolder" heeft nog geen versie.', link: "/bouw/plannen/7", knop: "Versie opladen" },
-      { tekst: "2 grondplannen zijn nog niet omgezet naar ruimtes.", link: "/bouw/plannen/omzetten", knop: "Alles omzetten" },
+      { tekst: '"Zolder" heeft nog geen versie.', link: "/vastgoed/1/plannen/7", knop: "Versie opladen" },
+      { tekst: "2 grondplannen zijn nog niet omgezet naar ruimtes.", link: "/vastgoed/1/plannen/omzetten", knop: "Alles omzetten" },
     ]);
   });
 
@@ -123,10 +126,10 @@ describe("takenVoorBouw", () => {
         { keuzeId: 8, titel: "Gevelsteen", dagen: -2 },
         { keuzeId: 9, titel: "Ramen", dagen: 40 },
       ],
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: '"Gevelsteen": de deadline is 2 dagen voorbij.', link: "/bouw/keuzes/8", knop: "Kiezen" },
-      { tekst: '"Keuken": beslissen over 5 dagen.', link: "/bouw/keuzes/7", knop: "Kiezen" },
+      { tekst: '"Gevelsteen": de deadline is 2 dagen voorbij.', link: "/vastgoed/1/keuzes/8", knop: "Kiezen" },
+      { tekst: '"Keuken": beslissen over 5 dagen.', link: "/vastgoed/1/keuzes/7", knop: "Kiezen" },
     ]);
   });
 
@@ -141,10 +144,10 @@ describe("takenVoorBouw", () => {
         { factuurId: 4, wat: "factuur F-12 van Voorbeeld (€ 12.100,00)", dagen: -1 },
         { factuurId: 5, wat: "factuur F-13 (€ 800,00)", dagen: 20 },
       ],
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: "Factuur F-12 van Voorbeeld (€ 12.100,00): 1 dag te laat.", link: "/bouw/geld/facturen", knop: "Betalen" },
-      { tekst: "Een factuur (€ 450,00): betalen over 3 dagen.", link: "/bouw/geld/facturen", knop: "Betalen" },
+      { tekst: "Factuur F-12 van Voorbeeld (€ 12.100,00): 1 dag te laat.", link: "/vastgoed/1/geld/facturen", knop: "Betalen" },
+      { tekst: "Een factuur (€ 450,00): betalen over 3 dagen.", link: "/vastgoed/1/geld/facturen", knop: "Betalen" },
     ]);
   });
 
@@ -155,10 +158,10 @@ describe("takenVoorBouw", () => {
       plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
       partijen: [{ soort: "architect" }],
       inzendingen: { plannen: 1, geld: 3 },
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: "Er wacht een ingestuurd dossier.", link: "/bouw/plannen#inzendingen", knop: "Inlezen" },
-      { tekst: "Er wachten 3 ingestuurde offertes en facturen.", link: "/bouw/geld#inzendingen", knop: "Inboeken" },
+      { tekst: "Er wacht een ingestuurd dossier.", link: "/vastgoed/1/plannen#inzendingen", knop: "Inlezen" },
+      { tekst: "Er wachten 3 ingestuurde offertes en facturen.", link: "/vastgoed/1/geld#inzendingen", knop: "Inboeken" },
     ]);
   });
 
@@ -173,10 +176,10 @@ describe("takenVoorBouw", () => {
         { puntId: 2, titel: "Container weg", wie: null, dagen: -3 },
         { puntId: 3, titel: "Later", wie: null, dagen: 9 },
       ],
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: 'Actiepunt "Container weg": 3 dagen over tijd.', link: "/bouw/werf/actiepunten", knop: "Bekijken" },
-      { tekst: 'Actiepunt "Stelling afbreken" (Bouwbedrijf Voorbeeld): klaar tegen morgen.', link: "/bouw/werf/actiepunten", knop: "Bekijken" },
+      { tekst: 'Actiepunt "Container weg": 3 dagen over tijd.', link: "/vastgoed/1/werf/actiepunten", knop: "Bekijken" },
+      { tekst: 'Actiepunt "Stelling afbreken" (Bouwbedrijf Voorbeeld): klaar tegen morgen.', link: "/vastgoed/1/werf/actiepunten", knop: "Bekijken" },
     ]);
   });
 
@@ -187,9 +190,9 @@ describe("takenVoorBouw", () => {
       plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
       partijen: [{ soort: "architect" }],
       nakijken: 2,
-    });
+    }, BASIS);
     expect(taken).toEqual([
-      { tekst: "2 opleverpunten zijn hersteld gemeld: kijk ze na.", link: "/bouw/werf/oplevering", knop: "Nakijken" },
+      { tekst: "2 opleverpunten zijn hersteld gemeld: kijk ze na.", link: "/vastgoed/1/werf/oplevering", knop: "Nakijken" },
     ]);
   });
 
@@ -200,7 +203,7 @@ describe("takenVoorBouw", () => {
         verdiepingen: 1,
         plannen: [{ id: 1, titel: "Grondplan", versies: 1 }],
         partijen: [{ soort: "aannemer" }, { soort: "architect" }],
-      }),
+      }, BASIS),
     ).toEqual([]);
   });
 });

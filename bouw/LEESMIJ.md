@@ -4,8 +4,11 @@ Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
 dat plan, de keuzes, de planning, het geld, de werf, het woningdossier, en
 iedereen met wie we te maken hebben. Op de laptop, de tablet en de gsm: in het
-menu links onder **Vastgoed**, huis **Nieuwbouw**. Het huidige huis kan daar
-later bij, met een eigen keuze in hetzelfde menu.
+menu links onder **Vastgoed**, met bovenaan het huis, bv. **Nieuwbouw**.
+
+Elk huis heeft zijn eigen adressen onder `/vastgoed/<nummer>`. De adressen
+hieronder zijn die van de nieuwbouw, huis 1. Oude links naar `/bouw/...` sturen
+door naar het eerste huis.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
 een digitaal plan van. Fase 1a, 1b en 2 tot en met 7 zijn klaar; enkel 1c
@@ -15,7 +18,7 @@ een digitaal plan van. Fase 1a, 1b en 2 tot en met 7 zijn klaar; enkel 1c
 Browser (Jan, Sandra)
    │  aanmelden met Google; enkel de hoofdbeheerder ziet Vastgoed
    ▼
-Vercel: web/app/bouw            schermen en serveracties
+Vercel: web/app/vastgoed        schermen en serveracties
    │                 │
    │                 │ ondertekende URL (opladen: 2 uur, bekijken: 2 minuten)
    ▼                 ▼
@@ -25,12 +28,12 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 
 ## Wat het doet
 
-- **Overzicht** (`/bouw`): wat er nog moet gebeuren (een keuze waarvan de
+- **Overzicht** (`/vastgoed/1`): wat er nog moet gebeuren (een keuze waarvan de
   deadline binnen twee weken valt, een factuur die binnen de week vervalt, een
   grondplan dat nog omgezet moet worden, onderhoud dat deze week aan de beurt
   is, een garantie die binnen de maand afloopt), de stand in tegels, wat er
   deze en volgende week gebeurt, en de naam en het adres van het project.
-- **Plannen** (`/bouw/plannen`): elk plan met zijn versies, per gebouw.
+- **Plannen** (`/vastgoed/1/plannen`): elk plan met zijn versies, per gebouw.
   - **Dossier inlezen**: één PDF met alle bladen. De app stelt per blad een
     plan voor en per gebouw de verdiepingen; zie
     [Van PDF naar plan](#van-pdf-naar-plan).
@@ -38,39 +41,39 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
     scherp tot in het detail.
   - Op een grondplan: **Omzetten naar ruimtes**.
   - Zolang er grondplannen niet omgezet zijn: **Alle grondplannen omzetten**
-    (`/bouw/plannen/omzetten`), ook vanaf Ruimtes.
-- **Ruimtes** (`/bouw/ruimtes`): per gebouw en verdieping een tekening en een
+    (`/vastgoed/1/plannen/omzetten`), ook vanaf Ruimtes.
+- **Ruimtes** (`/vastgoed/1/ruimtes`): per gebouw en verdieping een tekening en een
   lijst met de oppervlakte, de plafondhoogte en het aantal punten. Ook op de
   gsm.
-- **Punten** (`/bouw/punten`): lichtpunten, schakelaars, stopcontacten,
+- **Punten** (`/vastgoed/1/punten`): lichtpunten, schakelaars, stopcontacten,
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
   [Punten en de wensenlijst](#punten-en-de-wensenlijst).
-- **3D** (`/bouw/3d`): het huis in 3D, uit de omgezette grondplannen, met de
+- **3D** (`/vastgoed/1/3d`): het huis in 3D, uit de omgezette grondplannen, met de
   materialen uit de keuzes. Rondkijken, een verdieping of het dak weglaten,
   een doorsnede, en rondwandelen; zie [Het huis in 3D](#het-huis-in-3d).
-- **Keuzes** (`/bouw/keuzes`): gevelsteen, dakbedekking, ramen, vloeren,
+- **Keuzes** (`/vastgoed/1/keuzes`): gevelsteen, dakbedekking, ramen, vloeren,
   keuken... met opties, foto's, onze voorkeur, de meerprijs en een deadline;
   zie [Keuzes en planning](#keuzes-en-planning).
-- **Planning** (`/bouw/planning`): de fasen, taken en mijlpalen als tijdlijn,
+- **Planning** (`/vastgoed/1/planning`): de fasen, taken en mijlpalen als tijdlijn,
   per aannemer.
-- **Geld** (`/bouw/geld`): de posten met hun raming, de offertes naast
+- **Geld** (`/vastgoed/1/geld`): de posten met hun raming, de offertes naast
   elkaar, meer- en minwerken, de facturen met hun vervaldag, het bouwkrediet,
   een kasplanning per maand en alles als Excel; zie [Geld](#geld).
-- **Werf** (`/bouw/werf`): foto's met de gsm, per dag en per ruimte, het
+- **Werf** (`/vastgoed/1/werf`): foto's met de gsm, per dag en per ruimte, het
   werfdagboek, de actiepunten, de opleverpunten per aannemer en de checklist
   vóór alles dichtgaat; zie [De werf](#de-werf).
-- **Dossier** (`/bouw/dossier`): de documenten van het huis (as-built, AREI,
+- **Dossier** (`/vastgoed/1/dossier`): de documenten van het huis (as-built, AREI,
   EPB, postinterventiedossier, handleidingen, garantiebewijzen), de garanties
   met hun einde en het onderhoud dat terugkomt; zie
   [Woningdossier en nazorg](#woningdossier-en-nazorg).
-- **Beslissingen** (`/bouw/beslissingen`): het beslissingslog.
-- **Verdiepingen** (`/bouw/verdiepingen`): per gebouw (de woning, een
+- **Beslissingen** (`/vastgoed/1/beslissingen`): het beslissingslog.
+- **Verdiepingen** (`/vastgoed/1/verdiepingen`): per gebouw (de woning, een
   bijgebouw) de verdiepingen met naam, volgorde, vloerpeil en hoogtes. Een
   nieuw gebouw maak je door bij een verdieping een nieuwe naam in te tikken.
-- **Partijen** (`/bouw/partijen`): architect, aannemers, leveranciers,
+- **Partijen** (`/vastgoed/1/partijen`): architect, aannemers, leveranciers,
   adviseurs, nutsbedrijven, de bank. Telefoon en e-mail zijn links.
-- **Toegang** (`/bouw/toegang`): een persoonlijke link voor de architect, de
+- **Toegang** (`/vastgoed/1/toegang`): een persoonlijke link voor de architect, de
   aannemers en de leveranciers; zie [Een link voor een partij](#een-link-voor-een-partij).
 
 ## Van PDF naar plan
@@ -171,7 +174,7 @@ blijven liggen. De ruimte volgt uit de veelhoeken: in de ruimte, of tot 35 cm
 ernaast, want een schakelaar zit in de muur. Wat daarbuiten ligt, zoals een
 buitenstopcontact, staat onder "Buiten of zonder ruimte".
 
-**De wensenlijst** (`/bouw/punten/wensenlijst`): per verdieping en ruimte wat
+**De wensenlijst** (`/vastgoed/1/punten/wensenlijst`): per verdieping en ruimte wat
 er moet komen, met de aantallen, de hoogtes en de opmerkingen, en het totaal
 per soort. Als PDF en als Excel (een blad per ruimte en een blad met het
 totaal), voor de elektricien en de domotica-installateur. Een download is een
@@ -273,7 +276,7 @@ Alle bedragen zijn **inclusief btw**: dat is wat we betalen.
 - **Verwacht** is per post de gekozen offerte met de aanvaarde meer- en
   minwerken; zolang er niets gekozen is, de raming. Wat al gefactureerd is,
   telt altijd.
-- **Facturen** (`/bouw/geld/facturen`), met hun PDF. Zonder vervaldag rekent
+- **Facturen** (`/vastgoed/1/geld/facturen`), met hun PDF. Zonder vervaldag rekent
   de app 30 dagen na de factuurdatum. Een creditnota is een factuur met een
   vinkje: ze telt af. Een kost die een vennootschap draagt, bv. een laadpaal,
   duid je aan bij **Ten laste van**; de vennootschappen komen uit Laadkosten.
@@ -281,7 +284,7 @@ Alle bedragen zijn **inclusief btw**: dat is wat we betalen.
 - **Het bouwkrediet**: het bedrag en de eigen inbreng (bij Financiering), en
   elke opname, eventueel voor een bepaalde factuur. De app toont wat nog
   beschikbaar is, en wat uit eigen middelen betaald is.
-- **De kasplanning** (`/bouw/geld/kasplanning`) toont per maand wat betaald
+- **De kasplanning** (`/vastgoed/1/geld/kasplanning`) toont per maand wat betaald
   is, wat vervalt en wat volgens de planning nog komt: wat een post nog moet
   factureren, spreidt ze over de maanden van haar taak. Een vervallen factuur
   die nog open staat, telt bij deze maand. Eerst gaat de eigen inbreng op,
@@ -311,13 +314,13 @@ Op de gsm, op de werf zelf.
 - **Waarom foto's**: vóór het pleisterwerk en de chape zie je nog waar de
   leidingen zitten. Later wil je dat weten, bv. om een kader op te hangen.
   Filter op een ruimte om alles van die ruimte terug te vinden.
-- **Werfdagboek** (`/bouw/werf/dagboek`): per dag wat er gebeurde, wie er
+- **Werfdagboek** (`/vastgoed/1/werf/dagboek`): per dag wat er gebeurde, wie er
   was en het weer. De foto's van die dag staan er vanzelf bij.
-- **Actiepunten** (`/bouw/werf/actiepunten`): wat er moet gebeuren, door wie
+- **Actiepunten** (`/vastgoed/1/werf/actiepunten`): wat er moet gebeuren, door wie
   en tegen wanneer, bv. uit de werfvergadering. De bot herinnert de dag
   ervoor, op de dag zelf en de dag erna; wat binnen twee dagen moet, staat
   bij "nog te doen".
-- **Oplevering** (`/bouw/werf/oplevering`): wat een aannemer nog moet
+- **Oplevering** (`/vastgoed/1/werf/oplevering`): wat een aannemer nog moet
   herstellen, met een foto, de ruimte en de ronde (tijdens de werf,
   voorlopige of definitieve oplevering). Een punt gaat van **open** over
   **gemeld** en **hersteld** naar **in orde**. Het is pas in orde als jullie
@@ -328,7 +331,7 @@ Op de gsm, op de werf zelf.
   - Met het recht "oplevering" op zijn link ziet een aannemer zijn eigen
     punten met de foto's, en meldt hij zelf wat hersteld is. De bot meldt
     dat meteen, en "nog te doen" vraagt om het na te kijken.
-- **Checklist** (`/bouw/werf/checklist`): per ruimte wat je nakijkt en
+- **Checklist** (`/vastgoed/1/werf/checklist`): per ruimte wat je nakijkt en
   fotografeert vóór het pleisterwerk en de chape: elke muur met de leidingen,
   dozen en hoogtes, netwerk, versterking voor zware dingen, sanitair op lekken
   getest, ventilatie, de vloer vóór de chape, luchtdichting. De lijst past bij
@@ -338,7 +341,7 @@ Op de gsm, op de werf zelf.
 
 Voor na de oplevering, en voor wie later aan het huis werkt.
 
-- **Documenten** (`/bouw/dossier`): de PDF's die bij het huis horen, per
+- **Documenten** (`/vastgoed/1/dossier`): de PDF's die bij het huis horen, per
   soort: as-built-plannen, de AREI-keuring met het eendraad- en
   situatieschema, de EPB-aangifte, het postinterventiedossier, de vergunning,
   andere attesten, handleidingen en garantiebewijzen. Ze staan in dezelfde
@@ -346,12 +349,12 @@ Voor na de oplevering, en voor wie later aan het huis werkt.
   PDF. Wat in elk woningdossier hoort en nog ontbreekt, staat bovenaan. Een
   plan zoals er gebouwd is, zet je best ook bij Plannen als nieuwe versie:
   dan kan je het omzetten en vergelijken met wat gepland was.
-- **Garanties** (`/bouw/dossier/garanties`): waarop, van wie, vanaf wanneer en
+- **Garanties** (`/vastgoed/1/dossier/garanties`): waarop, van wie, vanaf wanneer en
   hoe lang, met het garantiebewijs uit de documenten. De app rekent het einde
   uit; wat binnen 90 dagen afloopt, valt op. Een product heeft wettelijk 2 jaar
   garantie; voor de ruwbouw geldt de tienjarige aansprakelijkheid van
   aannemer en architect, vanaf de aanvaarding.
-- **Onderhoud** (`/bouw/dossier/onderhoud`): wat regelmatig moet gebeuren, om
+- **Onderhoud** (`/vastgoed/1/dossier/onderhoud`): wat regelmatig moet gebeuren, om
   de hoeveel maanden en door wie. **Begin met het gewone onderhoud** zet tien
   gangbare taken klaar (ventilatiefilters, warmtepomp, rookmelders, dakgoten,
   sifons...); wat je niet hebt, verwijder je. **Vandaag gedaan** noteert een
@@ -370,7 +373,7 @@ geheim. Hij meldt; het werk gebeurt in de webapp, en elk bericht heeft een
 knop naar het juiste scherm. Hij is niet nodig: zonder bot werkt de rest van
 Bouw gewoon.
 
-**Koppelen gebeurt in de app**, bij **Vastgoed → Telegram** (`/bouw/telegram`),
+**Koppelen gebeurt in de app**, bij **Vastgoed → Telegram** (`/vastgoed/telegram`),
 met de uitleg erbij. Enkel de bot zelf maak je in Telegram, bij BotFather.
 
 1. Maak bij @BotFather een bot met `/newbot`, met een neutrale naam zonder
@@ -527,15 +530,19 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002202501_bouw_omzetting.sql` | Gebouwen, bladcodes, omzettingen en ruimtes |
 | `supabase/migrations/20261002202502_bouw_punten.sql` | De punten op het plan |
 | `supabase/migrations/20261002202503_bouw_regie.sql` | De planning, de keuzes met opties en voorkeuren, het beslissingslog, en wat de bot al meldde |
-| `web/app/bouw/` | De schermen en hun serveracties |
-| `web/app/bouw/plannen/dossier.tsx` | Een dossier inlezen |
-| `web/app/bouw/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
-| `web/app/bouw/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
-| `web/app/bouw/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
-| `web/app/bouw/plannen/omzetten/` | Alle grondplannen in één keer omzetten |
-| `web/app/bouw/punten/` | Punten zetten, en de wensenlijst |
+| `web/app/vastgoed/[huis]/` | De schermen van een huis en hun serveracties |
+| `web/app/vastgoed/page.tsx`, `layout.tsx` | De lijst van de huizen, en wie Vastgoed mag zien |
+| `web/app/bouw/[[...pad]]/route.ts` | De oude adressen: door naar het eerste huis, of naar `/vastgoed/telegram` |
+| `web/components/bouw/` | Wat meer schermen delen: de melding, de bevestigknop, de wenstabel en de tijdlijn |
+| `web/lib/bouw/paden.ts` | De adressen van een huis; puur, ook voor het menu in de browser |
+| `web/app/vastgoed/[huis]/plannen/dossier.tsx` | Een dossier inlezen |
+| `web/app/vastgoed/[huis]/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
+| `web/app/vastgoed/[huis]/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
+| `web/app/vastgoed/[huis]/plannen/[id]/omzetten/` | Het nakijkscherm en het bevestigen |
+| `web/app/vastgoed/[huis]/plannen/omzetten/` | Alle grondplannen in één keer omzetten |
+| `web/app/vastgoed/[huis]/punten/` | Punten zetten, en de wensenlijst |
 | `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
-| `web/app/bouw/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |
+| `web/app/vastgoed/[huis]/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |
 | `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
 | `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
 | `web/lib/bouw/punten.ts` | De catalogus, in welke ruimte een punt ligt, en de wensenlijst |
@@ -543,7 +550,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/keuzes.ts`, `planning.ts`, `kalender.ts` | Hoeveelheid, meerprijs, deadlines, de planning en rekenen met dagen; puur, met tests |
 | `web/lib/bouw/regie-opslag.ts` | De planning, de keuzes en het log in de databank |
 | `web/lib/bouw/verklein.ts` | Een foto verkleinen in de browser |
-| `web/app/bouw/telegram/` | De bot koppelen, wie hem mag gebruiken, en de uitleg |
+| `web/app/vastgoed/telegram/` | De bot koppelen, wie hem mag gebruiken, en de uitleg |
 | `web/lib/bouw/telegram-koppeling.ts`, `telegramregels.ts`, `geheim.ts` | Het token versleuteld bewaren, de webhook zetten, de aanvragen en wie toegelaten is |
 | `web/lib/bouw/telegram.ts`, `bot.ts`, `ronde.ts`, `berichten.ts` | De bot van Bouw: token en geheim, de commando's, de dagelijkse ronde en de teksten |
 | `web/app/api/bouw/telegram/`, `web/app/api/cron/bouw/` | De webhook van de bot, en de dagelijkse ronde |
@@ -552,25 +559,26 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002202506_bouw_geld.sql` | Posten, offertes, meer- en minwerken, facturen en kredietopnames |
 | `supabase/migrations/20261002202507_bouw_inzendingen_geld.sql` | Offertes en facturen insturen via een link: de rechten, en de soort en het bedrag van een inzending |
 | `supabase/migrations/20261002202508_bouw_werf.sql` | Het werfdagboek, werffoto's, actiepunten, opleverpunten en de checklist |
-| `web/app/bouw/werf/` | Foto's opladen en bekijken, prikken op de tekening, het dagboek, de actiepunten |
+| `web/app/vastgoed/[huis]/werf/` | Foto's opladen en bekijken, prikken op de tekening, het dagboek, de actiepunten |
 | `web/lib/bouw/werf.ts`, `exif.ts` | De stappen van een opleverpunt, de checklist, foto's per dag, en de datum uit een foto; puur, met tests |
 | `web/lib/bouw/werf-opslag.ts`, `werf-laden.ts` | De werf in de databank, en de verdiepingen, foto-URL's en opleverlijst voor de schermen |
 | `web/lib/bouw/oplevering-pdf.tsx`, `web/app/api/bouw/oplevering/` | De opleverpunten van een aannemer als PDF |
 | `supabase/migrations/20261002202509_bouw_dossier.sql` | Het woningdossier, de garanties, het onderhoud en zijn beurten |
-| `web/app/bouw/dossier/` | Documenten, garanties en onderhoud |
+| `web/app/vastgoed/[huis]/dossier/` | Documenten, garanties en onderhoud |
 | `web/lib/bouw/nazorg.ts` | Soorten documenten, het einde van een garantie, de volgende onderhoudsbeurt en de herinneringen; puur, met tests |
 | `web/lib/bouw/nazorg-opslag.ts` | Het dossier, de garanties, het onderhoud en de beurten in de databank |
-| `web/app/bouw/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
+| `web/app/vastgoed/[huis]/geld/` | Posten, een post met offertes en meerwerken, facturen en krediet, de kasplanning |
 | `web/app/api/bouw/geld/excel/`, `web/app/api/bouw/document/` | Het geld als Excel, en de PDF van een offerte, factuur of dossierdocument openen |
 | `web/lib/bouw/geld.ts` | De stand per post, totalen, facturen, krediet en kasplanning; puur, met tests |
 | `web/lib/bouw/geld-opslag.ts`, `geld-laden.ts`, `geld-excel.ts` | Het geld in de databank, alles in één keer laden, en de Excel |
-| `web/app/bouw/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
+| `web/app/vastgoed/[huis]/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
 | `web/lib/bouw/drie/` | Het 3D-model als gewone gegevens: muren, ramen en deuren, vloeren, platen, daken, materialen; puur, met tests |
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
-| `web/app/bouw/toegang/` | Links maken en intrekken |
+| `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
 | `supabase/migrations/20261003114500_bouw_huizen.sql` | De huizen, en bij welk huis elke rij hoort |
+| `supabase/migrations/20261003130000_bouw_huizen_afronden.sql` | Haalt de tijdelijke trigger en de oude sleutels van het project weg |
 | `web/lib/bouw/huizen.ts`, `huistoegang.ts` | De huizen lezen en bewaren, en het huis van een actie of API-route nakijken |
 | `web/lib/bouw/databank.ts` | Fouten van de databank, en bij welk huis een rij hoort |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
@@ -652,8 +660,11 @@ De naam van een gebouw en de bladcode van een plan zijn uniek per huis. Een
 link voor een partij geeft enkel het huis van die partij vrij. De bot en zijn
 chat gelden voor alle huizen; met meer dan één huis staat de naam erboven.
 
-Voorlopig werken de pagina's op het eerste huis; het menu met de huizen komt
-met de adressen onder `/vastgoed`.
+Elk huis staat op zijn eigen adres, `/vastgoed/<nummer>`: het nummer en niet
+de naam, zodat een huisnaam nooit in een URL of een log komt. Het menu toont
+de actieve huizen; kies je een ander huis, dan blijf je in hetzelfde
+onderdeel, of kom je op zijn overzicht. `/vastgoed` toont alle huizen, en de
+bot staat los van de huizen, op `/vastgoed/telegram`.
 
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer

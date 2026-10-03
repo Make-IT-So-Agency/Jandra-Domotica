@@ -1,4 +1,5 @@
 import { dagMetWeekdag, dagenTekst, korteDatum, plusDagen } from "./kalender";
+import { huispad } from "./paden";
 import type { Weekregel } from "./planning";
 import { COMMANDOS } from "./telegramregels";
 
@@ -98,10 +99,11 @@ export function herinneringen(
   week: { van: string; tot: string; regels: Weekregel[] },
   vandaag: string,
 ): Herinnering[] {
+  const basis = huispad(huisId);
   const uit: Herinnering[] = [];
 
   if (week.van === vandaag && week.regels.length > 0) {
-    uit.push({ sleutel: `week:${huisId}:${week.van}`, tekst: `📅 ${weekbericht(week)}`, pad: "/bouw/planning" });
+    uit.push({ sleutel: `week:${huisId}:${week.van}`, tekst: `📅 ${weekbericht(week)}`, pad: `${basis}/planning` });
   }
 
   for (const deadline of deadlines) {
@@ -116,7 +118,7 @@ export function herinneringen(
     uit.push({
       sleutel: `deadline:${deadline.keuzeId}:${deadline.datum}:${deadline.dagen}`,
       tekst,
-      pad: `/bouw/keuzes/${deadline.keuzeId}`,
+      pad: `${basis}/keuzes/${deadline.keuzeId}`,
     });
   }
 
@@ -124,12 +126,12 @@ export function herinneringen(
   for (const item of planning) {
     if (item.status === "klaar") continue;
     if (item.soort === "mijlpaal" && item.begindatum === vandaag) {
-      uit.push({ sleutel: `mijlpaal:${item.id}:${item.begindatum}`, tekst: `◆ Vandaag: ${item.titel}.`, pad: "/bouw/planning" });
+      uit.push({ sleutel: `mijlpaal:${item.id}:${item.begindatum}`, tekst: `◆ Vandaag: ${item.titel}.`, pad: `${basis}/planning` });
     } else if (item.soort !== "mijlpaal" && item.begindatum === morgen) {
       uit.push({
         sleutel: `begint:${item.id}:${item.begindatum}`,
         tekst: `🏗️ Morgen begint ${item.soort === "fase" ? "de fase " : ""}${item.titel}${item.partij ? ` (${item.partij})` : ""}.`,
-        pad: `/bouw/planning?item=${item.id}#wijzigen`,
+        pad: `${basis}/planning?item=${item.id}#wijzigen`,
       });
     }
   }

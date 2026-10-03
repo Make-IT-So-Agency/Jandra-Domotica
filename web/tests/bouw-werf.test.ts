@@ -29,6 +29,9 @@ import {
   zetVinkje,
 } from "@/lib/bouw/werf-opslag";
 
+/** Het adres van het huis waarvoor de herinneringen gelden. */
+const BASIS = "/vastgoed/1";
+
 const NU = new Date("2026-10-02T12:00:00Z");
 const leeg = {
   status: "open" as const,
@@ -96,16 +99,16 @@ describe("actiepunten en de checklist", () => {
   const naam = (id: number | null) => (id === 4 ? "Bouwbedrijf Voorbeeld" : null);
 
   it("herinnert de dag ervoor, op de dag zelf en de dag erna", () => {
-    expect(actiepuntherinneringen([punt("2026-10-03")], naam, "2026-10-02")).toEqual([
+    expect(actiepuntherinneringen([punt("2026-10-03")], naam, "2026-10-02", BASIS)).toEqual([
       {
         sleutel: "actiepunt:3:2026-10-03:1",
         tekst: "📌 Actiepunt Stelling afbreken (Bouwbedrijf Voorbeeld): klaar tegen morgen.",
-        pad: "/bouw/werf/actiepunten",
+        pad: "/vastgoed/1/werf/actiepunten",
       },
     ]);
-    expect(actiepuntherinneringen([punt("2026-10-01")], naam, "2026-10-02")[0].tekst).toContain("de deadline was gisteren (1 okt)");
-    expect(actiepuntherinneringen([punt("2026-10-05")], naam, "2026-10-02")).toEqual([]);
-    expect(actiepuntherinneringen([punt("2026-10-02", "klaar"), punt(null)], naam, "2026-10-02")).toEqual([]);
+    expect(actiepuntherinneringen([punt("2026-10-01")], naam, "2026-10-02", BASIS)[0].tekst).toContain("de deadline was gisteren (1 okt)");
+    expect(actiepuntherinneringen([punt("2026-10-05")], naam, "2026-10-02", BASIS)).toEqual([]);
+    expect(actiepuntherinneringen([punt("2026-10-02", "klaar"), punt(null)], naam, "2026-10-02", BASIS)).toEqual([]);
   });
 
   it("geeft elke ruimte de checklist die bij haar soort past", () => {

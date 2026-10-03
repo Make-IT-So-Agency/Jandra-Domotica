@@ -52,7 +52,7 @@ export const leesHuis = cache(async (id: number): Promise<Huis | null> => {
   return rij ? alsHuis(rij) : null;
 });
 
-/** Het eerste huis: daar komen de oude links naar /bouw/... op uit. */
+/** Het eerste huis: daar komen de oude links naar /bouw/... op uit (zie app/bouw/[[...pad]]). */
 export async function oudsteHuisId(): Promise<number | null> {
   const rij = check(
     await db().from("bouw_huizen").select("id").order("id").limit(1).maybeSingle(),
@@ -62,8 +62,8 @@ export async function oudsteHuisId(): Promise<number | null> {
 }
 
 /**
- * Het huis waarop de pagina's van Bouw werken, zolang hun adres nog geen huis
- * bevat: het eerste.
+ * Het eerste huis: voor een API-route die geen ?huis= meekreeg, uit een oude
+ * link of bladwijzer. De pagina's lezen hun huis uit hun adres.
  */
 export async function standaardHuis(): Promise<Huis> {
   const id = await oudsteHuisId();

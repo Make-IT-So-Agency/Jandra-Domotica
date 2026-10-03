@@ -1,5 +1,5 @@
-import { Wenstabel } from "@/app/bouw/punten/wenstabel";
-import { Tijdlijn } from "@/app/bouw/planning/tijdlijn";
+import { Wenstabel } from "@/components/bouw/wenstabel";
+import { Tijdlijn } from "@/components/bouw/tijdlijn";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { euroBedrag } from "@/lib/bouw/geld";
 import { betaaldOpVan } from "@/lib/bouw/geld-opslag";
@@ -17,7 +17,7 @@ import { fotoUrls, laadPlaatsen, ruimtenaamIn } from "@/lib/bouw/werf-laden";
 import { lijstOpleverpunten, lijstWerffotos } from "@/lib/bouw/werf-opslag";
 import { datum, datumTijd } from "@/lib/format";
 
-import { Melding } from "@/app/bouw/melding";
+import { Melding } from "@/components/bouw/melding";
 
 import { meldHersteldActie } from "./acties";
 import { GeldInzenden } from "./geld-inzenden";
@@ -403,7 +403,6 @@ async function Planning({
             partijnamen={partijnamen}
             deadlines={[]}
             vandaag={nu}
-            alleenLezen
           />
           <p className="hulp">Vandaag is {korteDatum(nu)}: de rode stippellijn.</p>
         </>
