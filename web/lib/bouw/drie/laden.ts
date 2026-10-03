@@ -3,6 +3,7 @@ import "server-only";
 import { bevestigdGrondplan } from "../omzetting/referentie";
 import {
   leesBestanden,
+  leesInplanting,
   leesMurenEnOpeningen,
   lijstDaken,
   lijstGebouwen,
@@ -15,16 +16,20 @@ import {
 import { tijdelijkeUrl } from "../opslagruimte";
 import { CATEGORIEKLEUREN, soortVan } from "../punten";
 import { lijstKeuzes, lijstOpties, lijstVoorkeuren } from "../regie-opslag";
+import type { SoortPlan } from "../types";
 import { verdiepingNaam } from "../weergave";
 import { STANDAARDDAK, type Dakinstelling } from "./dakregels";
 import { materiaalkeuzes, type Materiaalkeuze } from "./materialen";
 import type { Invoerverdieping } from "./model";
+import type { Plaatsing } from "./plaatsing";
 
 /**
  * Alles wat het 3D-scherm nodig heeft, in één keer en als gewone gegevens:
- * de gebouwen met hun dak, de verdiepingen met hun ruimtes, muren en
- * openingen, de materialen uit de keuzes en de punten. Het model zelf maakt
- * de browser, zodat een ander dak of materiaal meteen te zien is.
+ * de gebouwen met hun dak en hun plaats, de verdiepingen met hun ruimtes,
+ * muren en openingen, de materialen uit de keuzes, de punten, en welk
+ * inplantingsplan er is. Het model zelf maakt de browser, zodat een ander dak
+ * of materiaal meteen te zien is; het inplantingsplan leest de browser ook
+ * zelf, met pdf.js.
  */
 
 export interface Drieverdieping extends Invoerverdieping {
@@ -36,15 +41,31 @@ export interface Drieverdieping extends Invoerverdieping {
   werkwijze: number | null;
 }
 
+/** Een plan dat als inplantingsplan kan dienen, met zijn nieuwste versie. */
+export interface Inplantingsplan {
+  id: number;
+  titel: string;
+  soort: SoortPlan;
+  versie: { versieId: number; bestandId: number; pagina: number };
+}
+
 export interface Driegegevens {
-  gebouwen: { id: number; naam: string; dak: Dakinstelling }[];
+  /** Met de bewaarde plaats op het terrein, of null: dan zoekt het scherm het gebouw zelf. */
+  gebouwen: { id: number; naam: string; dak: Dakinstelling; plaats: Plaatsing | null }[];
   verdiepingen: Drieverdieping[];
   materialen: Materiaalkeuze[];
   punten: { id: number; verdiepingId: number; x: number; y: number; hoogte: number | null; kleur: string; naam: string }[];
+  inplanting: {
+    /** Het bewaarde plan en zijn schaal (N van 1/N). */
+    planId: number | null;
+    schaal: number | null;
+    /** De inplantingsplannen eerst, dan de plannen van het soort Andere. */
+    plannen: Inplantingsplan[];
+  };
 }
 
 export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens> {
-  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten] = await Promise.all([
+  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, inplanting] = await Promise.all([
     lijstGebouwen(huisId),
     lijstDaken(huisId),
     lijstVerdiepingen(huisId),
@@ -54,6 +75,7 @@ export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens
     lijstOpties(huisId),
     lijstVoorkeuren(huisId),
     lijstPunten(huisId),
+    leesInplanting(huisId),
   ]);
 
   const omzettingen = await lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id)));
@@ -77,7 +99,12 @@ export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens
   );
 
   return {
-    gebouwen: gebouwen.map((gebouw) => ({ id: gebouw.id, naam: gebouw.naam, dak: daken.get(gebouw.id) ?? STANDAARDDAK })),
+    gebouwen: gebouwen.map((gebouw) => ({
+      id: gebouw.id,
+      naam: gebouw.naam,
+      dak: daken.get(gebouw.id) ?? STANDAARDDAK,
+      plaats: inplanting.plaatsen.get(gebouw.id) ?? null,
+    })),
     verdiepingen: verdiepingen.map((verdieping) => {
       const grondplan = grondplannen.get(verdieping.id) ?? null;
       const opgeslagen = grondplan ? bewaard.get(grondplan.versie.id) : undefined;
@@ -121,5 +148,19 @@ export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens
         naam: soort?.naam ?? punt.soort,
       };
     }),
+    inplanting: {
+      planId: inplanting.planId,
+      schaal: inplanting.schaal,
+      plannen: plannen
+        .filter((plan) => plan.soort === "inplanting" || plan.soort === "andere" || plan.id === inplanting.planId)
+        .sort((a, b) => Number(b.soort === "inplanting") - Number(a.soort === "inplanting"))
+        .flatMap((plan) => {
+          // De nieuwste versie: de versies staan van oud naar nieuw.
+          const versie = plan.versies.at(-1);
+          return versie
+            ? [{ id: plan.id, titel: plan.titel, soort: plan.soort, versie: { versieId: versie.id, bestandId: versie.bestand_id, pagina: versie.pagina } }]
+            : [];
+        }),
+    },
   };
 }

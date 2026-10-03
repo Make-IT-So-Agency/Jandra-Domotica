@@ -239,8 +239,32 @@ grondplannen.
   op een hoogte; rondwandelen op ooghoogte met W A S D of de knoppen, zonder
   door muren te lopen, en de trap op en af (`drie/wandelen.ts`); een beeld
   downloaden.
-- **Meer gebouwen** komen naast elkaar te staan, niet op hun echte plaats op
-  het perceel: elk grondplan heeft zijn eigen assenstelsel.
+- **Het inplantingsplan.** Elk gebouw heeft zijn eigen assenstelsel, dat van
+  zijn grondplannen. Waar het op het terrein staat, haalt de app van het
+  inplantingsplan (`drie/inplanting.ts`):
+  - het plan is het plan van het soort Inplantingsplan (of een ander, bij
+    **Inplanting** in het 3D-scherm), telkens de nieuwste versie. Het ligt op
+    schaal op de grond; de schaal staat op het blad (`1/200`), en anders
+    berekent de app ze uit de gebouwen;
+  - op het blad zoekt de app gesloten vormen met ongeveer de oppervlakte van
+    het gelijkvloers: één vlak, of muren en ruimtes die samen de omtrek
+    vormen, ook met een deur of poort ertussen;
+  - per vorm de hoek uit de richting van de randen (met elke kwartslag erbij),
+    het zwaartepunt op het zwaartepunt, en fijn bijsturen. De score is de
+    overlap, en vanaf 60% wordt een gebouw geplaatst. Het paneel toont hoeveel,
+    bv. "automatisch geplaatst, 97% overeenkomst";
+  - bij een rechthoek, die ook omgekeerd past, beslissen de muren die op het
+    plan staan, en anders de kleinste draaiing;
+  - een bijgebouw dat tegen de woning staat, vindt de app in wat er van de
+    vorm overblijft.
+
+  Met **Gebouwen verplaatsen** sleep je een gebouw, draai je het per 1° of
+  90° of met een getal, en schuiven de pijltjes het 10 cm (met Shift 1 m).
+  **Van boven** kijkt recht op het plan. **Inplanting bewaren** bewaart de
+  plaats van elk gebouw, het plan en de schaal (`bouw_gebouwen.plaats_*`,
+  `bouw_huizen.inplanting_*`); een gebouw zonder bewaarde plaats zoekt de app
+  bij elk bezoek opnieuw. Het zoeken loopt in een webworker, zodat het beeld
+  vlot blijft. Zonder inplantingsplan staan de gebouwen naast elkaar.
 - three.js laadt enkel op deze pagina, en enkel in de browser.
 
 ## Keuzes en planning
@@ -634,8 +658,11 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
 | `web/lib/bouw/omzetting/trappen.ts` | De trappen uit een grondplan: treden, vluchten, bordes en de pijl |
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, en de trap op en af wandelen |
-| `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat |
+| `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
+| `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
+| `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |
 | `supabase/migrations/20261003200000_bouw_trappen.sql` | De keuzes voor de trappen, per verdieping |
+| `supabase/migrations/20261003210000_bouw_inplanting.sql` | De plaats van elk gebouw, en het inplantingsplan en zijn schaal per huis |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -753,10 +780,15 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 4. **De trap in 3D:** het gelijkvloers opnieuw omzetten (of **Alles
    omzetten**), zodat de app de trap van het plan leest. Bij het nakijken
    staat hij in het oranje; kijk na of hij naar boven wijst.
-5. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
+5. **De inplanting:** bij 3D nakijken of de gebouwen op hun plaats op het
+   inplantingsplan staan (**Van boven** helpt), zo nodig bijsturen met
+   **Gebouwen verplaatsen**, en **Inplanting bewaren**. Staat het
+   inplantingsplan nog niet bij Plannen, laad het dan op als soort
+   Inplantingsplan.
+6. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
    Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
    Er hoeft niets bij GitHub of Vercel.
-6. **Na het uitrollen nakijken:**
+7. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
@@ -805,8 +837,10 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       een doorsnede en rondwandelen
 - [x] **5b** Het 3D-scherm op de volle breedte met zoomknoppen, en de trap
       van het plan, ook met een bordes, die je op en af wandelt
-- [ ] **5c** De gebouwen automatisch op het inplantingsplan, en de omgeving
-      uit Vlaanderen: perceelgrenzen, de huizen van de buren en de luchtfoto
+- [x] **5c** De gebouwen automatisch op het inplantingsplan, het plan op de
+      grond, en de gebouwen zelf verplaatsen en draaien
+- [ ] **5d** De omgeving uit Vlaanderen: perceelgrenzen, de huizen van de
+      buren en de luchtfoto
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

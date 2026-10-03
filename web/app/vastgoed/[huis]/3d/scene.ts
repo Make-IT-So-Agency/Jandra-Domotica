@@ -190,6 +190,8 @@ export interface Opgebouwd {
   wortel: THREE.Group;
   /** Per gebouw de groep die op zijn plaats op het terrein staat. */
   gebouwen: Map<number, THREE.Group>;
+  /** Per gebouw de groep erin met zijn eigen assenstelsel, dat van zijn grondplannen. */
+  eigen: Map<number, THREE.Group>;
   verdiepingen: Map<number, THREE.Group>;
   daken: THREE.Group[];
   meshes: THREE.Mesh[];
@@ -290,5 +292,5 @@ export function bouwScene(
     voegToe(dakgroep, dakbouwer);
   }
 
-  return { wortel, gebouwen, verdiepingen, daken, meshes };
+  return { wortel, gebouwen, eigen: binnen, verdiepingen, daken, meshes };
 }

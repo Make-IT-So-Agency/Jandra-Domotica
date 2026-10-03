@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
+import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
 import { huisgebruiker } from "@/lib/bouw/huistoegang";
 import { id } from "@/lib/bouw/invoer";
-import { bewaarDak, bewaarTrapstanden } from "@/lib/bouw/opslag";
+import { bewaarDak, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
@@ -44,6 +45,21 @@ export async function bewaarTrappenActie(huisId: unknown, vraag: { verdiepingId:
   if (!verdiepingId) return mislukt("Onbekende verdieping.");
   try {
     await bewaarTrapstanden(toegang.huis.id, verdiepingId, schoneTrapstanden(vraag?.standen));
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
+}
+
+/** Waar de gebouwen op het terrein staan, op welk inplantingsplan en op welke schaal. */
+export async function bewaarInplantingActie(huisId: unknown, vraag: unknown): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const inplanting = schoneInplanting(vraag);
+  if (!inplanting) return mislukt("Onbekende plaats, plan of schaal.");
+  try {
+    await bewaarInplanting(toegang.huis.id, inplanting);
   } catch (fout) {
     return mislukt(foutmelding(fout, "Bewaren mislukt."));
   }

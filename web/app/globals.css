@@ -1936,6 +1936,71 @@ a.tl-naam:hover {
   margin: 0 0 6px;
 }
 
+/* De inplanting: per gebouw waar het staat, en de knoppen om het te verplaatsen. */
+.inplanting-gebouwen {
+  margin: 10px 0;
+  padding-left: 18px;
+}
+
+.inplanting-gebouwen li + li {
+  margin-top: 4px;
+}
+
+.verplaatsen {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--lijn);
+}
+
+.verplaatsen p {
+  margin: 0 0 6px;
+}
+
+.draaiknoppen {
+  display: grid;
+  grid-template-columns: auto auto minmax(56px, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.draaiknoppen input {
+  text-align: center;
+}
+
+.draaiknoppen button,
+.pijlknoppen button {
+  padding: 6px 8px;
+}
+
+.pijlknoppen {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-areas: ". op ." "links neer rechts";
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pijlknoppen button {
+  height: 40px;
+  font-size: 18px;
+}
+
+.pijlknoppen button:nth-child(1) {
+  grid-area: op;
+}
+
+.pijlknoppen button:nth-child(2) {
+  grid-area: links;
+}
+
+.pijlknoppen button:nth-child(3) {
+  grid-area: neer;
+}
+
+.pijlknoppen button:nth-child(4) {
+  grid-area: rechts;
+}
+
 /* Volledig scherm: het beeld over het hele venster, ook op een iPhone. */
 .drie-scherm.volledig {
   position: fixed;
