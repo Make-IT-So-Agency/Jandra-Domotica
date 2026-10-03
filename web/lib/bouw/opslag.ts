@@ -5,6 +5,7 @@ import { db } from "@/lib/supabase";
 import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
+import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneTrapstanden } from "./drie/trappen";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
@@ -127,6 +128,66 @@ export async function verwijderGebouw(huisId: number, id: number): Promise<void>
   check(await db().from("bouw_gebouwen").delete().eq("id", id).eq("huis_id", huisId), "Gebouw verwijderen", {
     inGebruik: "Aan dit gebouw hangen nog verdiepingen of plannen. Verwijder of verplaats die eerst.",
   });
+}
+
+// ---------------------------------------------------------------------------
+// De inplanting: waar elk gebouw op het terrein staat, op welk plan en op
+// welke schaal. Zie drie/plaatsing.ts en 20261003210000_bouw_inplanting.sql.
+// ---------------------------------------------------------------------------
+
+export interface BewaardeInplanting {
+  planId: number | null;
+  schaal: number | null;
+  /** Enkel de gebouwen met een bewaarde plaats. */
+  plaatsen: Map<number, Plaatsing>;
+}
+
+export async function leesInplanting(huisId: number): Promise<BewaardeInplanting> {
+  const [huis, gebouwen] = await Promise.all([
+    db().from("bouw_huizen").select("inplanting_plan_id, inplanting_schaal").eq("id", huisId).maybeSingle(),
+    db().from("bouw_gebouwen").select("id, plaats_x_m, plaats_y_m, plaats_hoek").eq("huis_id", huisId),
+  ]);
+  const rij = check(huis, "Inplanting lezen") as Record<string, unknown> | null;
+  const getal = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
+  const plaatsen = new Map<number, Plaatsing>();
+  for (const gebouw of check(gebouwen, "Plaatsen lezen") as Record<string, unknown>[]) {
+    const [x, y, hoek] = [getal(gebouw.plaats_x_m), getal(gebouw.plaats_y_m), getal(gebouw.plaats_hoek)];
+    if (x !== null && y !== null && hoek !== null) plaatsen.set(Number(gebouw.id), { x, y, hoek });
+  }
+  return { planId: getal(rij?.inplanting_plan_id), schaal: getal(rij?.inplanting_schaal), plaatsen };
+}
+
+/** Bewaart een nagekeken inplanting (zie schoneInplanting): enkel met een plan en gebouwen van dit huis. */
+export async function bewaarInplanting(huisId: number, inplanting: Inplanting): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_plannen", inplanting.planId]);
+  const eigen = new Set(await idsVanHuis("bouw_gebouwen", huisId));
+  if (inplanting.plaatsen.some(({ gebouwId }) => !eigen.has(gebouwId))) {
+    throw new Bouwfout("Dat gebouw hoort niet bij dit huis, of het bestaat niet meer.");
+  }
+  for (const { gebouwId, plaats } of inplanting.plaatsen) {
+    geraakt(
+      check(
+        await db()
+          .from("bouw_gebouwen")
+          .update({ plaats_x_m: plaats?.x ?? null, plaats_y_m: plaats?.y ?? null, plaats_hoek: plaats?.hoek ?? null })
+          .eq("id", gebouwId)
+          .eq("huis_id", huisId)
+          .select("id"),
+        "Plaats bewaren",
+      ),
+    );
+  }
+  geraakt(
+    check(
+      await db()
+        .from("bouw_huizen")
+        .update({ inplanting_plan_id: inplanting.planId, inplanting_schaal: inplanting.schaal })
+        .eq("id", huisId)
+        .select("id"),
+      "Inplanting bewaren",
+      { inGebruik: "Dat plan bestaat niet meer." },
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
