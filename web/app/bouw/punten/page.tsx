@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { bevestigdGrondplan } from "@/lib/bouw/omzetting/referentie";
 import {
@@ -31,7 +32,12 @@ export default async function Puntenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [gebouwen, alleVerdiepingen, plannen] = await Promise.all([lijstGebouwen(), lijstVerdiepingen(), lijstPlannen()]);
+  const huis = await standaardHuis();
+  const [gebouwen, alleVerdiepingen, plannen] = await Promise.all([
+    lijstGebouwen(huis.id),
+    lijstVerdiepingen(huis.id),
+    lijstPlannen(huis.id),
+  ]);
   const verdiepingen = sorteerVerdiepingen(alleVerdiepingen, gebouwen);
   const omzettingen = await lijstOmzettingen(plannen.flatMap((p) => p.versies.map((v) => v.id)));
   const bevestigd = new Set(omzettingen.map((o) => o.planversie_id));
@@ -55,7 +61,7 @@ export default async function Puntenpagina({
   }
 
   const grondplan = bevestigdGrondplan(plannen, verdieping.id, bevestigd);
-  const [ruimtes, punten] = await Promise.all([lijstRuimtes(verdieping.id), lijstPunten(verdieping.id)]);
+  const [ruimtes, punten] = await Promise.all([lijstRuimtes(huis.id, verdieping.id), lijstPunten(huis.id, verdieping.id)]);
   const naam = verdiepingNaam(verdieping, gebouwen);
   const lijst = maakWensenlijst(
     [{ id: verdieping.id, naam, plafondhoogte_m: verdieping.plafondhoogte_m }],
@@ -88,6 +94,7 @@ export default async function Puntenpagina({
 
       {grondplan ? (
         <PuntenLader
+          huisId={huis.id}
           gegevens={{
             verdieping: { id: verdieping.id, naam, plafondhoogte_m: verdieping.plafondhoogte_m },
             versie: {

@@ -1,10 +1,10 @@
 "use server";
 
+import { vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { id, tekst } from "@/lib/bouw/invoer";
 import { verwijderPartij, voegPartijToe, wijzigPartij, type NieuwePartij } from "@/lib/bouw/opslag";
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { isSoortPartij } from "@/lib/bouw/types";
-import { vereistBouwrechten } from "@/lib/toegang";
 
 const PAD = "/bouw/partijen";
 
@@ -37,36 +37,36 @@ function leesPartij(formulier: FormData): NieuwePartij {
   };
 }
 
-export async function voegPartijToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegPartijToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const partij = leesPartij(formulier);
   try {
-    await voegPartijToe(partij);
+    await voegPartijToe(huis.id, partij);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(PAD, "goed", `${partij.naam} toegevoegd.`);
 }
 
-export async function wijzigPartijActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigPartijActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const partijId = id(formulier.get("id"));
   if (!partijId) terug(PAD, "fout", "Onbekende partij.");
   const partij = leesPartij(formulier);
   try {
-    await wijzigPartij(partijId, partij);
+    await wijzigPartij(huis.id, partijId, partij);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(PAD, "goed", `${partij.naam} bewaard.`);
 }
 
-export async function verwijderPartijActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderPartijActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const partijId = id(formulier.get("id"));
   if (!partijId) terug(PAD, "fout", "Onbekende partij.");
   try {
-    await verwijderPartij(partijId);
+    await verwijderPartij(huis.id, partijId);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }

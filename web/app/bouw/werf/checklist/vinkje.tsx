@@ -6,12 +6,14 @@ import { zetVinkjeActie } from "../acties";
 
 /** Eén punt van de checklist: aanvinken bewaart meteen. Mislukt het, dan springt het vinkje terug. */
 export function Vinkje({
+  huisId,
   ruimteId,
   sleutel,
   tekst,
   gedaan,
   wie,
 }: {
+  huisId: number;
   ruimteId: number;
   sleutel: string;
   tekst: string;
@@ -26,7 +28,10 @@ export function Vinkje({
     setAan(nieuw);
     setBezig(true);
     setFout(null);
-    const uitkomst = await zetVinkjeActie({ ruimteId, sleutel, aan: nieuw }).catch(() => ({ ok: false as const, melding: "Bewaren mislukt." }));
+    const uitkomst = await zetVinkjeActie(huisId, { ruimteId, sleutel, aan: nieuw }).catch(() => ({
+      ok: false as const,
+      melding: "Bewaren mislukt.",
+    }));
     setBezig(false);
     if (!uitkomst.ok) {
       setAan(!nieuw);

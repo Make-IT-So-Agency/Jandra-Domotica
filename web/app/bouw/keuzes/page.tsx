@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { dagenTekst, dagenTussen, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import {
   CATEGORIEEN_KEUZE,
@@ -52,6 +53,7 @@ export default async function Keuzespagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let keuzes: Keuze[];
   let opties: Optie[];
   let voorkeuren: Voorkeur[];
@@ -59,11 +61,11 @@ export default async function Keuzespagina({
   let ruimtes: Ruimte[];
   try {
     [keuzes, opties, voorkeuren, planning, ruimtes] = await Promise.all([
-      lijstKeuzes(),
-      lijstOpties(),
-      lijstVoorkeuren(),
-      lijstPlanning(),
-      lijstRuimtes(),
+      lijstKeuzes(huis.id),
+      lijstOpties(huis.id),
+      lijstVoorkeuren(huis.id),
+      lijstPlanning(huis.id),
+      lijstRuimtes(huis.id),
     ]);
   } catch (fout) {
     return (
@@ -113,7 +115,7 @@ export default async function Keuzespagina({
       {keuzes.length === 0 ? (
         <div className="kaart">
           <p className="leeg">Nog geen keuzes.</p>
-          <form action={voegStandaardkeuzesToeActie}>
+          <form action={voegStandaardkeuzesToeActie.bind(null, huis.id)}>
             <button type="submit">Begin met de gewone keuzes</button>
           </form>
           <p className="hulp" style={{ marginTop: 8 }}>
@@ -230,7 +232,7 @@ export default async function Keuzespagina({
       <hr className="scheiding" />
 
       <h2>Keuze toevoegen</h2>
-      <form action={voegKeuzeToeActie} className="kaart">
+      <form action={voegKeuzeToeActie.bind(null, huis.id)} className="kaart">
         <div className="veldenrij">
           <div>
             <label htmlFor="nieuw-titel">Titel</label>
@@ -278,7 +280,7 @@ export default async function Keuzespagina({
       </form>
 
       {keuzes.length > 0 && ontbrekend.length > 0 ? (
-        <form action={voegStandaardkeuzesToeActie} className="hulp" style={{ marginTop: 12 }}>
+        <form action={voegStandaardkeuzesToeActie.bind(null, huis.id)} className="hulp" style={{ marginTop: 12 }}>
           Nog niet in de lijst: {ontbrekend.map((standaard) => standaard.titel).join(", ")}.{" "}
           <button type="submit" className="link">
             Zet ze erbij

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { dagenTekst, dagenTussen, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { dringendheid } from "@/lib/bouw/keuzes";
@@ -53,7 +54,8 @@ export default async function Actiepuntenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [punten, partijen] = await Promise.all([lijstActiepunten(), lijstPartijen()]);
+  const huis = await standaardHuis();
+  const [punten, partijen] = await Promise.all([lijstActiepunten(huis.id), lijstPartijen(huis.id)]);
   const nu = vandaag();
   const partijnaam = (partijId: number | null) => partijen.find((p) => p.id === partijId)?.naam ?? null;
   const open = punten
@@ -76,12 +78,12 @@ export default async function Actiepuntenpagina({
       {teWijzigen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{teWijzigen.titel}</h2>
-          <form action={wijzigActiepuntActie}>
+          <form action={wijzigActiepuntActie.bind(null, huis.id)}>
             <input type="hidden" name="punt_id" value={teWijzigen.id} />
             <Puntvelden punt={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`"${teWijzigen.titel}" verwijderen?`} formAction={verwijderActiepuntActie}>
+              <BevestigKnop vraag={`"${teWijzigen.titel}" verwijderen?`} formAction={verwijderActiepuntActie.bind(null, huis.id)}>
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/werf/actiepunten">
@@ -127,7 +129,7 @@ export default async function Actiepuntenpagina({
                       )}
                     </td>
                     <td>
-                      <form action={zetActiepuntActie} className="knoppenrij">
+                      <form action={zetActiepuntActie.bind(null, huis.id)} className="knoppenrij">
                         <input type="hidden" name="punt_id" value={punt.id} />
                         <input type="hidden" name="klaar" value="ja" />
                         <button type="submit">Klaar</button>
@@ -145,7 +147,7 @@ export default async function Actiepuntenpagina({
       )}
 
       <h2>Actiepunt toevoegen</h2>
-      <form action={voegActiepuntToeActie} className="kaart">
+      <form action={voegActiepuntToeActie.bind(null, huis.id)} className="kaart">
         <Puntvelden partijen={partijen} voorvoegsel="nieuw" />
         <div className="knoppenrij" style={{ marginTop: 12 }}>
           <button type="submit">Toevoegen</button>
@@ -160,7 +162,7 @@ export default async function Actiepuntenpagina({
           <ul className="wijzigingen">
             {klaar.map((punt) => (
               <li key={punt.id}>
-                <form action={zetActiepuntActie} className="regelformulier">
+                <form action={zetActiepuntActie.bind(null, huis.id)} className="regelformulier">
                   <input type="hidden" name="punt_id" value={punt.id} />
                   <input type="hidden" name="klaar" value="nee" />
                   {punt.titel}

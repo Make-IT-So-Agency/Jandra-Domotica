@@ -1,4 +1,5 @@
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { lijstGebouwen, lijstVerdiepingen } from "@/lib/bouw/opslag";
 import type { Gebouw, Verdieping } from "@/lib/bouw/types";
 import { magBouwZien } from "@/lib/rollen";
@@ -104,13 +105,13 @@ function Velden({
   );
 }
 
-function Gebouwbeheer({ gebouw, leeg }: { gebouw: Gebouw; leeg: boolean }) {
+function Gebouwbeheer({ huisId, gebouw, leeg }: { huisId: number; gebouw: Gebouw; leeg: boolean }) {
   return (
     <details className="kaart">
       <summary>
         <strong>{gebouw.naam} wijzigen</strong>
       </summary>
-      <form action={wijzigGebouwActie} style={{ marginTop: 14 }}>
+      <form action={wijzigGebouwActie.bind(null, huisId)} style={{ marginTop: 14 }}>
         <input type="hidden" name="id" value={gebouw.id} />
         <div className="veldenrij">
           <div>
@@ -130,7 +131,7 @@ function Gebouwbeheer({ gebouw, leeg }: { gebouw: Gebouw; leeg: boolean }) {
         <div className="knoppenrij">
           <button type="submit">Bewaren</button>
           {leeg ? (
-            <BevestigKnop vraag={`${gebouw.naam} verwijderen?`} formAction={verwijderGebouwActie}>
+            <BevestigKnop vraag={`${gebouw.naam} verwijderen?`} formAction={verwijderGebouwActie.bind(null, huisId)}>
               Gebouw verwijderen
             </BevestigKnop>
           ) : null}
@@ -149,10 +150,11 @@ export default async function Verdiepingenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let verdiepingen: Verdieping[];
   let gebouwen: Gebouw[];
   try {
-    [verdiepingen, gebouwen] = await Promise.all([lijstVerdiepingen(), lijstGebouwen()]);
+    [verdiepingen, gebouwen] = await Promise.all([lijstVerdiepingen(huis.id), lijstGebouwen(huis.id)]);
   } catch (fout) {
     return (
       <>
@@ -191,14 +193,14 @@ export default async function Verdiepingenpagina({
               </div>
             ) : (
               eigen.map((verdieping) => (
-                <form key={verdieping.id} action={wijzigVerdiepingActie} className="kaart">
+                <form key={verdieping.id} action={wijzigVerdiepingActie.bind(null, huis.id)} className="kaart">
                   <input type="hidden" name="id" value={verdieping.id} />
                   <Velden verdieping={verdieping} gebouw={gebouw.naam} voorvoegsel={`v${verdieping.id}`} />
                   <div className="knoppenrij">
                     <button type="submit">Bewaren</button>
                     <BevestigKnop
                       vraag={`${verdieping.naam} verwijderen? De ruimtes van deze verdieping verdwijnen mee.`}
-                      formAction={verwijderVerdiepingActie}
+                      formAction={verwijderVerdiepingActie.bind(null, huis.id)}
                     >
                       Verwijderen
                     </BevestigKnop>
@@ -206,7 +208,7 @@ export default async function Verdiepingenpagina({
                 </form>
               ))
             )}
-            <Gebouwbeheer gebouw={gebouw} leeg={eigen.length === 0} />
+            <Gebouwbeheer huisId={huis.id} gebouw={gebouw} leeg={eigen.length === 0} />
           </section>
         );
       })}
@@ -214,7 +216,7 @@ export default async function Verdiepingenpagina({
       <hr className="scheiding" />
 
       <h2>Verdieping toevoegen</h2>
-      <form action={voegVerdiepingToeActie} className="kaart">
+      <form action={voegVerdiepingToeActie.bind(null, huis.id)} className="kaart">
         <Velden gebouw={gebouwen[0]?.naam ?? "Woning"} voorvoegsel="nieuw" />
         <p className="hulp" style={{ marginBottom: 12 }}>
           Een nieuwe naam bij Gebouw maakt dat gebouw aan, bv. Bijgebouw.

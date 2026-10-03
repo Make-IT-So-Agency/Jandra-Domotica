@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { leesHuis } from "@/lib/bouw/huizen";
 import { leesLink } from "@/lib/bouw/links";
 import { maakWensenlijstExcel, maakWensenlijstPdf } from "@/lib/bouw/wensenlijst-bestanden";
 import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
@@ -11,11 +12,13 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string; soort: string }> }) {
   const { token, soort } = await params;
   const externe = await leesLink(token).catch(() => null);
-  if (!externe || !externe.rechten.includes("wensenlijst") || (soort !== "pdf" && soort !== "excel")) {
+  // De wensenlijst van het huis van deze link, van geen ander.
+  const huis = externe ? await leesHuis(externe.huisId) : null;
+  if (!externe || !huis || !externe.rechten.includes("wensenlijst") || (soort !== "pdf" && soort !== "excel")) {
     return NextResponse.json({ error: "Niet gevonden." }, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
 
-  const { lijst, project } = await laadWensenlijst();
+  const { lijst, project } = await laadWensenlijst(huis);
   const pdf = soort === "pdf";
   const inhoud = pdf ? await maakWensenlijstPdf(lijst, project) : await maakWensenlijstExcel(lijst, project);
   return new NextResponse(new Uint8Array(inhoud), {

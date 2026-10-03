@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { kiesReferentie, leesKalibratie } from "@/lib/bouw/omzetting/referentie";
 import {
@@ -32,9 +33,10 @@ export default async function Omzettenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const planId = leesId(id);
   if (!planId) notFound();
-  const plan = await leesPlan(planId);
+  const plan = await leesPlan(huis.id, planId);
   if (!plan) notFound();
   const versie = plan.versies.find((v) => String(v.id) === gekozen) ?? plan.versies.at(-1);
 
@@ -60,10 +62,10 @@ export default async function Omzettenpagina({
   if (!plan.verdieping_id) return zonder("Hang dit grondplan eerst aan een verdieping, bij «Plan wijzigen».");
 
   const [verdiepingen, gebouwen, plannen, ruimtes] = await Promise.all([
-    lijstVerdiepingen(),
-    lijstGebouwen(),
-    lijstPlannen(),
-    lijstRuimtes(plan.verdieping_id),
+    lijstVerdiepingen(huis.id),
+    lijstGebouwen(huis.id),
+    lijstPlannen(huis.id),
+    lijstRuimtes(huis.id, plan.verdieping_id),
   ]);
   const omzettingen = await lijstOmzettingen(plannen.flatMap((p) => p.versies.map((v) => v.id)));
   const verdieping = verdiepingen.find((v) => v.id === plan.verdieping_id);
@@ -91,6 +93,7 @@ export default async function Omzettenpagina({
 
       <NakijkenLader
         gegevens={{
+          huisId: huis.id,
           planId: plan.id,
           versie: {
             id: versie.id,

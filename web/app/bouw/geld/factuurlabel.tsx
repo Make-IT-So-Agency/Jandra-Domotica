@@ -29,10 +29,10 @@ export function Geen() {
 }
 
 /** Een link naar de PDF van een offerte of factuur, in een nieuw tabblad. */
-export function Pdflink({ bestandId }: { bestandId: number | null }) {
+export function Pdflink({ huisId, bestandId }: { huisId: number; bestandId: number | null }) {
   if (!bestandId) return <Geen />;
   return (
-    <a href={`/api/bouw/document/${bestandId}`} target="_blank" rel="noopener noreferrer">
+    <a href={`/api/bouw/document/${bestandId}?huis=${huisId}`} target="_blank" rel="noopener noreferrer">
       PDF
     </a>
   );

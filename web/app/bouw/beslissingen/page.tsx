@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { vandaag } from "@/lib/bouw/kalender";
 import { lijstBeslissingen, type Bouwbeslissing } from "@/lib/bouw/regie-opslag";
 import { datum } from "@/lib/format";
@@ -22,9 +23,10 @@ export default async function Beslissingenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let beslissingen: Bouwbeslissing[];
   try {
-    beslissingen = await lijstBeslissingen();
+    beslissingen = await lijstBeslissingen(huis.id);
   } catch (fout) {
     return (
       <>
@@ -75,7 +77,7 @@ export default async function Beslissingenpagina({
                   <td data-label="Door">{beslissing.door ?? "—"}</td>
                   <td>
                     {beslissing.keuze_id === null ? (
-                      <form action={verwijderBeslissingActie}>
+                      <form action={verwijderBeslissingActie.bind(null, huis.id)}>
                         <input type="hidden" name="id" value={beslissing.id} />
                         <BevestigKnop vraag="Deze beslissing uit het log halen?" className="stil">
                           Verwijderen
@@ -91,7 +93,7 @@ export default async function Beslissingenpagina({
       )}
 
       <h2>Beslissing toevoegen</h2>
-      <form action={voegBeslissingToeActie} className="kaart">
+      <form action={voegBeslissingToeActie.bind(null, huis.id)} className="kaart">
         <div className="veldenrij">
           <div>
             <label htmlFor="beslissing-datum">Datum</label>

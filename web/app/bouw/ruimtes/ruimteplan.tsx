@@ -42,9 +42,8 @@ export function Ruimteplan({
           fillRule="evenodd"
           className={`ruimteplan-vlak soort-${ruimte.soort}`}
         >
-          <title>
-            {ruimte.naam}, {m2(ruimte.oppervlakte_m2)}
-          </title>
+          {/* Eén tekst: React vergelijkt een <title> met meer stukken anders dan de server hem schreef. */}
+          <title>{`${ruimte.naam}, ${m2(ruimte.oppervlakte_m2)}`}</title>
         </path>
       ))}
       {punten.map((punt) => (

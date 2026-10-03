@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
 import { laadDrie, type Driegegevens } from "@/lib/bouw/drie/laden";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
@@ -13,9 +14,10 @@ export default async function Driepagina() {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let gegevens: Driegegevens;
   try {
-    gegevens = await laadDrie(ik.email);
+    gegevens = await laadDrie(huis.id, ik.email);
   } catch (fout) {
     return (
       <>
@@ -57,7 +59,7 @@ export default async function Driepagina() {
               opnieuw om en bevestig.
             </div>
           ) : null}
-          <DrieLader gegevens={gegevens} />
+          <DrieLader huisId={huis.id} gegevens={gegevens} />
         </>
       )}
     </>

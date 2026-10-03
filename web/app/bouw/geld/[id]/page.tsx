@@ -10,6 +10,7 @@ import {
   vervaldagVan,
 } from "@/lib/bouw/geld";
 import { leesPost, lijstFacturen, lijstMeerwerken, lijstOffertes, lijstVennootschappen } from "@/lib/bouw/geld-opslag";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, meerprijsTekst } from "@/lib/bouw/keuzes";
@@ -52,16 +53,17 @@ export default async function Postpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const postId = leesId(id);
-  const post = postId ? await leesPost(postId) : null;
+  const post = postId ? await leesPost(huis.id, postId) : null;
   if (!post) notFound();
 
   const [offertes, meerwerken, facturen, partijen, planning, vennootschappen] = await Promise.all([
-    lijstOffertes(post.id),
-    lijstMeerwerken(post.id),
-    lijstFacturen(post.id),
-    lijstPartijen(),
-    lijstPlanning(),
+    lijstOffertes(huis.id, post.id),
+    lijstMeerwerken(huis.id, post.id),
+    lijstFacturen(huis.id, post.id),
+    lijstPartijen(huis.id),
+    lijstPlanning(huis.id),
     lijstVennootschappen(),
   ]);
 
@@ -182,7 +184,7 @@ export default async function Postpagina({
                       ) : null}
                     </td>
                     <td data-label="PDF">
-                      <Pdflink bestandId={offerte.bestand_id} />
+                      <Pdflink huisId={huis.id} bestandId={offerte.bestand_id} />
                     </td>
                     <td data-label="Stand">
                       {offerte.status === "gekozen" ? (
@@ -194,7 +196,7 @@ export default async function Postpagina({
                       )}
                     </td>
                     <td>
-                      <form action={kiesOfferteActie} className="knoppenrij">
+                      <form action={kiesOfferteActie.bind(null, huis.id)} className="knoppenrij">
                         <input type="hidden" name="id" value={offerte.id} />
                         {offerte.status === "gekozen" ? (
                           <BevestigKnop vraag="Deze offerte niet meer kiezen?" className="stil">
@@ -225,12 +227,12 @@ export default async function Postpagina({
       {teWijzigen ? (
         <section id="offerte" className="kaart">
           <h3 style={{ marginTop: 0 }}>Offerte van {partijnaam(teWijzigen.partij_id) ?? euroBedrag(teWijzigen.bedrag)}</h3>
-          <form action={wijzigOfferteActie}>
+          <form action={wijzigOfferteActie.bind(null, huis.id)}>
             <input type="hidden" name="id" value={teWijzigen.id} />
-            <Offertevelden offerte={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
+            <Offertevelden huisId={huis.id} offerte={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag="Deze offerte verwijderen, met haar PDF?" formAction={verwijderOfferteActie}>
+              <BevestigKnop vraag="Deze offerte verwijderen, met haar PDF?" formAction={verwijderOfferteActie.bind(null, huis.id)}>
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href={pagina}>
@@ -238,12 +240,16 @@ export default async function Postpagina({
               </Link>
             </div>
           </form>
-          <form action={zetDocumentActie} style={{ marginTop: 16 }}>
+          <form action={zetDocumentActie.bind(null, huis.id)} style={{ marginTop: 16 }}>
             <input type="hidden" name="soort" value="offerte" />
             <input type="hidden" name="id" value={teWijzigen.id} />
             <input type="hidden" name="terug" value={pagina} />
             <div className="veldenrij">
-              <Documentveld id="wijzig-pdf" label={teWijzigen.bestand_id ? "Een andere PDF" : "PDF van de offerte"} />
+              <Documentveld
+                huisId={huis.id}
+                id="wijzig-pdf"
+                label={teWijzigen.bestand_id ? "Een andere PDF" : "PDF van de offerte"}
+              />
             </div>
             <div className="knoppenrij" style={{ marginTop: 8 }}>
               <button type="submit" className="stil">
@@ -255,9 +261,9 @@ export default async function Postpagina({
       ) : null}
 
       <h3>Offerte toevoegen</h3>
-      <form action={voegOfferteToeActie} className="kaart">
+      <form action={voegOfferteToeActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="post_id" value={post.id} />
-        <Offertevelden partijen={partijen} voorvoegsel="nieuw" metDocument />
+        <Offertevelden huisId={huis.id} partijen={partijen} voorvoegsel="nieuw" metDocument />
         <div className="knoppenrij" style={{ marginTop: 12 }}>
           <button type="submit">Toevoegen</button>
         </div>
@@ -296,7 +302,7 @@ export default async function Postpagina({
                     </span>
                   </td>
                   <td>
-                    <form action={zetMeerwerkActie} className="knoppenrij">
+                    <form action={zetMeerwerkActie.bind(null, huis.id)} className="knoppenrij">
                       {/* Niet "id": een veld met die naam overschaduwt form.id, en dan
                           stuurt React de waarde van de aangeklikte knop niet mee. */}
                       <input type="hidden" name="meerwerk_id" value={meerwerk.id} />
@@ -334,7 +340,7 @@ export default async function Postpagina({
           </table>
         </div>
       )}
-      <form action={voegMeerwerkToeActie} className="kaart" style={{ marginTop: 12 }}>
+      <form action={voegMeerwerkToeActie.bind(null, huis.id)} className="kaart" style={{ marginTop: 12 }}>
         <input type="hidden" name="post_id" value={post.id} />
         <div className="veldenrij">
           <div>
@@ -394,10 +400,10 @@ export default async function Postpagina({
                     <Factuurlabel factuur={factuur} vandaag={nu} />
                   </td>
                   <td data-label="PDF">
-                    <Pdflink bestandId={factuur.bestand_id} />
+                    <Pdflink huisId={huis.id} bestandId={factuur.bestand_id} />
                   </td>
                   <td>
-                    <form action={betaalActie} className="knoppenrij">
+                    <form action={betaalActie.bind(null, huis.id)} className="knoppenrij">
                       <input type="hidden" name="id" value={factuur.id} />
                       <input type="hidden" name="terug" value={pagina} />
                       <button type="submit" className={factuur.betaald_op ? "stil" : undefined}>
@@ -416,9 +422,10 @@ export default async function Postpagina({
       )}
 
       <h3>Factuur toevoegen</h3>
-      <form action={voegFactuurToeActie} className="kaart">
+      <form action={voegFactuurToeActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="terug" value={pagina} />
         <Factuurvelden
+          huisId={huis.id}
           posten={[post]}
           partijen={partijen}
           vennootschappen={vennootschappen}
@@ -434,12 +441,15 @@ export default async function Postpagina({
       <h2>Post</h2>
       <details className="kaart">
         <summary>Naam, categorie, raming en taak wijzigen</summary>
-        <form action={wijzigPostActie} style={{ marginTop: 12 }}>
+        <form action={wijzigPostActie.bind(null, huis.id)} style={{ marginTop: 12 }}>
           <input type="hidden" name="id" value={post.id} />
           <Postvelden post={post} partijen={partijen} planning={planning} voorvoegsel="post" />
           <div className="knoppenrij" style={{ marginTop: 12 }}>
             <button type="submit">Bewaren</button>
-            <BevestigKnop vraag={`${post.naam} verwijderen, met de offertes en meerwerken?`} formAction={verwijderPostActie}>
+            <BevestigKnop
+              vraag={`${post.naam} verwijderen, met de offertes en meerwerken?`}
+              formAction={verwijderPostActie.bind(null, huis.id)}
+            >
               Post verwijderen
             </BevestigKnop>
           </div>

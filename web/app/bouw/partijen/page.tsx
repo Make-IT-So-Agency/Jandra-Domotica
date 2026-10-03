@@ -1,4 +1,5 @@
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import { PARTIJNAMEN, SOORTEN_PARTIJ, type Partij } from "@/lib/bouw/types";
 import { magBouwZien } from "@/lib/rollen";
@@ -76,9 +77,10 @@ export default async function Partijenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let partijen: Partij[];
   try {
-    partijen = await lijstPartijen();
+    partijen = await lijstPartijen(huis.id);
   } catch (fout) {
     return (
       <>
@@ -123,12 +125,12 @@ export default async function Partijenpagina({
                   </a>
                 ) : null}
               </p>
-              <form action={wijzigPartijActie}>
+              <form action={wijzigPartijActie.bind(null, huis.id)}>
                 <input type="hidden" name="id" value={partij.id} />
                 <Velden partij={partij} voorvoegsel={`p${partij.id}`} />
                 <div className="knoppenrij">
                   <button type="submit">Bewaren</button>
-                  <button type="submit" className="gevaar" formAction={verwijderPartijActie} formNoValidate>
+                  <button type="submit" className="gevaar" formAction={verwijderPartijActie.bind(null, huis.id)} formNoValidate>
                     Verwijderen
                   </button>
                 </div>
@@ -141,7 +143,7 @@ export default async function Partijenpagina({
       <hr className="scheiding" />
 
       <h2>Partij toevoegen</h2>
-      <form action={voegPartijToeActie} className="kaart">
+      <form action={voegPartijToeActie.bind(null, huis.id)} className="kaart">
         <Velden voorvoegsel="nieuw" />
         <button type="submit">Toevoegen</button>
       </form>

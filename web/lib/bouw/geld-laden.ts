@@ -1,6 +1,6 @@
 import "server-only";
 
-import { bedragUitInstelling, type Factuur, type Kredietopname, type Meerwerk, type Offerte, type Post } from "./geld";
+import type { Factuur, Kredietopname, Meerwerk, Offerte, Post } from "./geld";
 import {
   lijstFacturen,
   lijstKredietopnames,
@@ -11,12 +11,8 @@ import {
 } from "./geld-opslag";
 import { lijstPartijen } from "./opslag";
 import type { Planningsitem } from "./planning";
-import { leesInstelling, lijstPlanning } from "./regie-opslag";
-import type { Partij } from "./types";
-
-/** In bouw_instellingen: het bedrag van het bouwkrediet en de eigen inbreng. */
-export const KREDIET_SLEUTEL = "krediet_totaal";
-export const EIGEN_INBRENG_SLEUTEL = "eigen_inbreng";
+import { lijstPlanning } from "./regie-opslag";
+import type { Huis, Partij } from "./types";
 
 export interface Geldgegevens {
   posten: Post[];
@@ -31,21 +27,18 @@ export interface Geldgegevens {
   eigenInbreng: number | null;
 }
 
-/** Alles wat de schermen van Geld en de Excel nodig hebben, in één keer. */
-export async function laadGeld(): Promise<Geldgegevens> {
-  const [posten, offertes, meerwerken, facturen, opnames, partijen, planning, vennootschappen, krediet, eigenInbreng] =
-    await Promise.all([
-      lijstPosten(),
-      lijstOffertes(),
-      lijstMeerwerken(),
-      lijstFacturen(),
-      lijstKredietopnames(),
-      lijstPartijen(),
-      lijstPlanning(),
-      lijstVennootschappen(),
-      leesInstelling(KREDIET_SLEUTEL),
-      leesInstelling(EIGEN_INBRENG_SLEUTEL),
-    ]);
+/** Alles wat de schermen van Geld en de Excel van een huis nodig hebben, in één keer. */
+export async function laadGeld(huis: Huis): Promise<Geldgegevens> {
+  const [posten, offertes, meerwerken, facturen, opnames, partijen, planning, vennootschappen] = await Promise.all([
+    lijstPosten(huis.id),
+    lijstOffertes(huis.id),
+    lijstMeerwerken(huis.id),
+    lijstFacturen(huis.id),
+    lijstKredietopnames(huis.id),
+    lijstPartijen(huis.id),
+    lijstPlanning(huis.id),
+    lijstVennootschappen(),
+  ]);
   return {
     posten,
     offertes,
@@ -55,7 +48,7 @@ export async function laadGeld(): Promise<Geldgegevens> {
     partijen,
     planning,
     vennootschappen,
-    krediet: bedragUitInstelling(krediet),
-    eigenInbreng: bedragUitInstelling(eigenInbreng),
+    krediet: huis.krediet_totaal,
+    eigenInbreng: huis.eigen_inbreng,
   };
 }

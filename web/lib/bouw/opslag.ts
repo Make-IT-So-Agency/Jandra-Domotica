@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/supabase";
 
+import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
 import { sleutelVan } from "./invoer";
@@ -11,6 +12,7 @@ import type { Nieuwpunt, Punt, StatusPunt } from "./punten";
 import type {
   Bestand,
   Gebouw,
+  Huis,
   Omzetting,
   Partij,
   Plan,
@@ -27,39 +29,17 @@ import type {
  * in supabase/migrations/20261002202500_bouw.sql en de migraties van Bouw
  * erna. De planning, de keuzes en het beslissingslog staan apart in
  * regie-opslag.ts. De bestanden zelf staan in Storage; zie opslagruimte.ts.
+ *
+ * Alles hoort bij een huis (huizen.ts): elke functie krijgt het huis als
+ * eerste parameter, en leest of wijzigt niets van een ander huis. Zie
+ * databank.ts voor hoe een rij bij een huis hoort.
  */
 
-interface Databankfout {
-  message: string;
-  code?: string;
-}
-
-/** Een fout met de Postgres-code erbij, zodat een actie er een gerichte melding van kan maken. */
-export class Bouwfout extends Error {
-  constructor(
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-  }
-}
-
-export interface Meldingen {
-  /** 23505: er bestaat al iets met die naam of dat label. */
-  uniek?: string;
-  /** 23503: er hangt nog iets aan, of het verwijst naar iets wat er niet is. */
-  inGebruik?: string;
-}
-
-export function check<T>(r: { data: T; error: Databankfout | null }, wat: string, meldingen: Meldingen = {}): T {
-  if (!r.error) return r.data;
-  if (r.error.code === "23505" && meldingen.uniek) throw new Bouwfout(meldingen.uniek, r.error.code);
-  if (r.error.code === "23503" && meldingen.inGebruik) throw new Bouwfout(meldingen.inGebruik, r.error.code);
-  throw new Bouwfout(`${wat} mislukt: ${r.error.message}`, r.error.code);
-}
+export { Bouwfout, check, type Meldingen };
 
 // ---------------------------------------------------------------------------
-// Het project: naam en adres. Enkel hier, nooit in de repository.
+// Het project: naam en adres staan bij het huis. Enkel in de databank, nooit
+// in de repository.
 // ---------------------------------------------------------------------------
 
 export interface Project {
@@ -67,45 +47,26 @@ export interface Project {
   adres: string | null;
 }
 
-export async function leesProject(): Promise<Project> {
-  const rijen = check(
-    await db().from("bouw_instellingen").select("sleutel, waarde").in("sleutel", ["projectnaam", "adres"]),
-    "Projectgegevens lezen",
-  ) as { sleutel: string; waarde: string }[];
-  const waarde = (sleutel: string) => rijen.find((rij) => rij.sleutel === sleutel)?.waarde ?? null;
-  return { projectnaam: waarde("projectnaam"), adres: waarde("adres") };
-}
-
-/** Een lege waarde wist de instelling, zodat "niet ingevuld" ook echt niets is. */
-export async function bewaarProject(project: Project): Promise<void> {
-  for (const [sleutel, waarde] of Object.entries(project)) {
-    if (waarde) {
-      check(
-        await db().from("bouw_instellingen").upsert({ sleutel, waarde, updated_at: new Date().toISOString() }),
-        "Projectgegevens bewaren",
-      );
-    } else {
-      check(await db().from("bouw_instellingen").delete().eq("sleutel", sleutel), "Projectgegevens bewaren");
-    }
-  }
+export function projectVan(huis: Huis): Project {
+  return { projectnaam: huis.projectnaam, adres: huis.adres };
 }
 
 // ---------------------------------------------------------------------------
 // Gebouwen
 // ---------------------------------------------------------------------------
 
-export async function lijstGebouwen(): Promise<Gebouw[]> {
+export async function lijstGebouwen(huisId: number): Promise<Gebouw[]> {
   const rijen = check(
-    await db().from("bouw_gebouwen").select("*").order("volgorde").order("naam"),
+    await db().from("bouw_gebouwen").select("*").eq("huis_id", huisId).order("volgorde").order("naam"),
     "Gebouwen lezen",
   ) as Record<string, unknown>[];
   return rijen.map((rij) => ({ id: Number(rij.id), naam: String(rij.naam), volgorde: Number(rij.volgorde ?? 0) }));
 }
 
 /** Het dak van elk gebouw, voor het 3D-model. */
-export async function lijstDaken(): Promise<Map<number, Dakinstelling>> {
+export async function lijstDaken(huisId: number): Promise<Map<number, Dakinstelling>> {
   const rijen = check(
-    await db().from("bouw_gebouwen").select("id, dak_type, dak_helling, dak_nok, dak_overstek"),
+    await db().from("bouw_gebouwen").select("id, dak_type, dak_helling, dak_nok, dak_overstek").eq("huis_id", huisId),
     "Daken lezen",
   ) as Record<string, unknown>[];
   return new Map(
@@ -121,13 +82,17 @@ export async function lijstDaken(): Promise<Map<number, Dakinstelling>> {
   );
 }
 
-export async function bewaarDak(gebouwId: number, dak: Dakinstelling): Promise<void> {
-  check(
-    await db()
-      .from("bouw_gebouwen")
-      .update({ dak_type: dak.type, dak_helling: dak.helling, dak_nok: dak.nok, dak_overstek: dak.overstek })
-      .eq("id", gebouwId),
-    "Dak bewaren",
+export async function bewaarDak(huisId: number, gebouwId: number, dak: Dakinstelling): Promise<void> {
+  geraakt(
+    check(
+      await db()
+        .from("bouw_gebouwen")
+        .update({ dak_type: dak.type, dak_helling: dak.helling, dak_nok: dak.nok, dak_overstek: dak.overstek })
+        .eq("id", gebouwId)
+        .eq("huis_id", huisId)
+        .select("id"),
+      "Dak bewaren",
+    ),
   );
 }
 
@@ -135,27 +100,29 @@ export async function bewaarDak(gebouwId: number, dak: Dakinstelling): Promise<v
  * Het gebouw met die naam, of een nieuw achteraan. Hoofdletters en witruimte
  * tellen niet mee, zodat "woning" uit een bladcode de bestaande Woning vindt.
  */
-export async function zoekOfMaakGebouw(naam: string): Promise<number> {
-  const gebouwen = await lijstGebouwen();
+export async function zoekOfMaakGebouw(huisId: number, naam: string): Promise<number> {
+  const gebouwen = await lijstGebouwen(huisId);
   const bestaand = gebouwen.find((gebouw) => sleutelVan(gebouw.naam) === sleutelVan(naam));
   if (bestaand) return bestaand.id;
   const volgorde = gebouwen.reduce((hoogste, gebouw) => Math.max(hoogste, gebouw.volgorde + 1), 0);
   const rij = check(
-    await db().from("bouw_gebouwen").insert({ naam: naam.trim(), volgorde }).select("id").single(),
+    await db().from("bouw_gebouwen").insert({ naam: naam.trim(), volgorde, huis_id: huisId }).select("id").single(),
     "Gebouw toevoegen",
     { uniek: `Er bestaat al een gebouw "${naam.trim()}".` },
   ) as { id: number };
   return Number(rij.id);
 }
 
-export async function wijzigGebouw(id: number, gebouw: Omit<Gebouw, "id">): Promise<void> {
-  check(await db().from("bouw_gebouwen").update(gebouw).eq("id", id), "Gebouw bewaren", {
-    uniek: `Er bestaat al een gebouw "${gebouw.naam}".`,
-  });
+export async function wijzigGebouw(huisId: number, id: number, gebouw: Omit<Gebouw, "id">): Promise<void> {
+  geraakt(
+    check(await db().from("bouw_gebouwen").update(gebouw).eq("id", id).eq("huis_id", huisId).select("id"), "Gebouw bewaren", {
+      uniek: `Er bestaat al een gebouw "${gebouw.naam}".`,
+    }),
+  );
 }
 
-export async function verwijderGebouw(id: number): Promise<void> {
-  check(await db().from("bouw_gebouwen").delete().eq("id", id), "Gebouw verwijderen", {
+export async function verwijderGebouw(huisId: number, id: number): Promise<void> {
+  check(await db().from("bouw_gebouwen").delete().eq("id", id).eq("huis_id", huisId), "Gebouw verwijderen", {
     inGebruik: "Aan dit gebouw hangen nog verdiepingen of plannen. Verwijder of verplaats die eerst.",
   });
 }
@@ -180,23 +147,27 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
   };
 }
 
-export async function lijstVerdiepingen(): Promise<Verdieping[]> {
+export async function lijstVerdiepingen(huisId: number): Promise<Verdieping[]> {
+  const gebouwen = await idsVanHuis("bouw_gebouwen", huisId);
+  if (gebouwen.length === 0) return [];
   const rijen = check(
-    await db().from("bouw_verdiepingen").select("*").order("volgorde").order("naam"),
+    await db().from("bouw_verdiepingen").select("*").in("gebouw_id", gebouwen).order("volgorde").order("naam"),
     "Verdiepingen lezen",
   ) as Record<string, unknown>[];
   return rijen.map(alsVerdieping);
 }
 
-export async function leesVerdieping(id: number): Promise<Verdieping | null> {
+export async function leesVerdieping(huisId: number, id: number): Promise<Verdieping | null> {
   const rij = check(
     await db().from("bouw_verdiepingen").select("*").eq("id", id).maybeSingle(),
     "Verdieping lezen",
   ) as Record<string, unknown> | null;
-  return rij ? alsVerdieping(rij) : null;
+  if (!rij || (await huisVanRij("bouw_gebouwen", Number(rij.gebouw_id))) !== huisId) return null;
+  return alsVerdieping(rij);
 }
 
-export async function voegVerdiepingToe(verdieping: NieuweVerdieping): Promise<number> {
+export async function voegVerdiepingToe(huisId: number, verdieping: NieuweVerdieping): Promise<number> {
+  await zelfdeHuis(huisId, ["bouw_gebouwen", verdieping.gebouw_id]);
   const rij = check(
     await db().from("bouw_verdiepingen").insert(verdieping).select("id").single(),
     "Verdieping toevoegen",
@@ -205,7 +176,8 @@ export async function voegVerdiepingToe(verdieping: NieuweVerdieping): Promise<n
   return Number(rij.id);
 }
 
-export async function wijzigVerdieping(id: number, verdieping: Partial<NieuweVerdieping>): Promise<void> {
+export async function wijzigVerdieping(huisId: number, id: number, verdieping: Partial<NieuweVerdieping>): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", id], ["bouw_gebouwen", verdieping.gebouw_id]);
   check(await db().from("bouw_verdiepingen").update(verdieping).eq("id", id), "Verdieping bewaren", {
     uniek: `Er bestaat al een verdieping "${verdieping.naam ?? ""}" in dit gebouw.`,
     inGebruik: "Dat gebouw bestaat niet meer.",
@@ -213,13 +185,14 @@ export async function wijzigVerdieping(id: number, verdieping: Partial<NieuweVer
   // Een grondplan volgt het gebouw van zijn verdieping.
   if (verdieping.gebouw_id !== undefined) {
     check(
-      await db().from("bouw_plannen").update({ gebouw_id: verdieping.gebouw_id }).eq("verdieping_id", id),
+      await db().from("bouw_plannen").update({ gebouw_id: verdieping.gebouw_id }).eq("verdieping_id", id).eq("huis_id", huisId),
       "Plannen van de verdieping bijwerken",
     );
   }
 }
 
-export async function verwijderVerdieping(id: number): Promise<void> {
+export async function verwijderVerdieping(huisId: number, id: number): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", id]);
   check(await db().from("bouw_verdiepingen").delete().eq("id", id), "Verdieping verwijderen", {
     inGebruik: "Aan deze verdieping hangt nog een plan. Verwijder of verplaats dat plan eerst.",
   });
@@ -231,23 +204,30 @@ export async function verwijderVerdieping(id: number): Promise<void> {
 
 export type NieuwePartij = Omit<Partij, "id">;
 
-export async function lijstPartijen(): Promise<Partij[]> {
-  return check(
-    await db().from("bouw_partijen").select("*").order("soort").order("naam"),
+/** Een rij uit de databank als Partij, zonder het huis. */
+function alsPartij(rij: Record<string, unknown>): Partij {
+  const { huis_id: _huis, created_at: _gemaakt, updated_at: _gewijzigd, ...partij } = rij;
+  return { ...(partij as unknown as Partij), id: Number(rij.id) };
+}
+
+export async function lijstPartijen(huisId: number): Promise<Partij[]> {
+  const rijen = check(
+    await db().from("bouw_partijen").select("*").eq("huis_id", huisId).order("soort").order("naam"),
     "Partijen lezen",
-  ) as Partij[];
+  ) as Record<string, unknown>[];
+  return rijen.map(alsPartij);
 }
 
-export async function voegPartijToe(partij: NieuwePartij): Promise<void> {
-  check(await db().from("bouw_partijen").insert(partij), "Partij toevoegen");
+export async function voegPartijToe(huisId: number, partij: NieuwePartij): Promise<void> {
+  check(await db().from("bouw_partijen").insert({ ...partij, huis_id: huisId }), "Partij toevoegen");
 }
 
-export async function wijzigPartij(id: number, partij: NieuwePartij): Promise<void> {
-  check(await db().from("bouw_partijen").update(partij).eq("id", id), "Partij bewaren");
+export async function wijzigPartij(huisId: number, id: number, partij: NieuwePartij): Promise<void> {
+  geraakt(check(await db().from("bouw_partijen").update(partij).eq("id", id).eq("huis_id", huisId).select("id"), "Partij bewaren"));
 }
 
-export async function verwijderPartij(id: number): Promise<void> {
-  check(await db().from("bouw_partijen").delete().eq("id", id), "Partij verwijderen");
+export async function verwijderPartij(huisId: number, id: number): Promise<void> {
+  check(await db().from("bouw_partijen").delete().eq("id", id).eq("huis_id", huisId), "Partij verwijderen");
 }
 
 // ---------------------------------------------------------------------------
@@ -268,20 +248,43 @@ export interface PlanMetVersies extends Plan {
   versies: Planversie[];
 }
 
-export async function lijstPlannen(): Promise<PlanMetVersies[]> {
-  const [plannen, versies] = await Promise.all([
-    db().from("bouw_plannen").select("*").order("titel"),
-    db().from("bouw_planversies").select("*").order("created_at"),
-  ]);
-  const alleVersies = check(versies, "Planversies lezen") as Planversie[];
-  return (check(plannen, "Plannen lezen") as Plan[]).map((plan) => ({
+/** Een rij uit de databank als Plan, zonder het huis. */
+function alsPlan(rij: Record<string, unknown>): Plan {
+  const { huis_id: _huis, ...plan } = rij;
+  return plan as unknown as Plan;
+}
+
+export async function lijstPlannen(huisId: number): Promise<PlanMetVersies[]> {
+  const plannen = (
+    check(await db().from("bouw_plannen").select("*").eq("huis_id", huisId).order("titel"), "Plannen lezen") as Record<
+      string,
+      unknown
+    >[]
+  ).map(alsPlan);
+  if (plannen.length === 0) return [];
+  const alleVersies = check(
+    await db()
+      .from("bouw_planversies")
+      .select("*")
+      .in(
+        "plan_id",
+        plannen.map((plan) => plan.id),
+      )
+      .order("created_at"),
+    "Planversies lezen",
+  ) as Planversie[];
+  return plannen.map((plan) => ({
     ...plan,
     versies: alleVersies.filter((versie) => versie.plan_id === plan.id),
   }));
 }
 
-export async function leesPlan(id: number): Promise<PlanMetVersies | null> {
-  const plan = check(await db().from("bouw_plannen").select("*").eq("id", id).maybeSingle(), "Plan lezen") as Plan | null;
+export async function leesPlan(huisId: number, id: number): Promise<PlanMetVersies | null> {
+  const rij = check(
+    await db().from("bouw_plannen").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(),
+    "Plan lezen",
+  ) as Record<string, unknown> | null;
+  const plan = rij ? alsPlan(rij) : null;
   if (!plan) return null;
   const versies = check(
     await db().from("bouw_planversies").select("*").eq("plan_id", id).order("created_at"),
@@ -291,9 +294,10 @@ export async function leesPlan(id: number): Promise<PlanMetVersies | null> {
 }
 
 /** Een plan op een verdieping hoort bij het gebouw van die verdieping, wat er ook gekozen werd. */
-async function metGebouwVanVerdieping(plan: NieuwPlan): Promise<NieuwPlan> {
+async function metGebouwVanVerdieping(huisId: number, plan: NieuwPlan): Promise<NieuwPlan> {
+  await zelfdeHuis(huisId, ["bouw_gebouwen", plan.gebouw_id]);
   if (!plan.verdieping_id) return plan;
-  const verdieping = await leesVerdieping(plan.verdieping_id);
+  const verdieping = await leesVerdieping(huisId, plan.verdieping_id);
   if (!verdieping) throw new Bouwfout("Die verdieping bestaat niet meer.");
   return { ...plan, gebouw_id: verdieping.gebouw_id };
 }
@@ -305,35 +309,44 @@ function planmeldingen(plan: NieuwPlan): Meldingen {
   };
 }
 
-export async function voegPlanToe(plan: NieuwPlan): Promise<number> {
-  const volledig = await metGebouwVanVerdieping(plan);
+export async function voegPlanToe(huisId: number, plan: NieuwPlan): Promise<number> {
+  const volledig = await metGebouwVanVerdieping(huisId, plan);
   const rij = check(
-    await db().from("bouw_plannen").insert(volledig).select("id").single(),
+    await db().from("bouw_plannen").insert({ ...volledig, huis_id: huisId }).select("id").single(),
     "Plan toevoegen",
     planmeldingen(volledig),
   ) as { id: number };
   return Number(rij.id);
 }
 
-export async function wijzigPlan(id: number, plan: NieuwPlan): Promise<void> {
-  const volledig = await metGebouwVanVerdieping(plan);
-  check(await db().from("bouw_plannen").update(volledig).eq("id", id), "Plan bewaren", planmeldingen(volledig));
+export async function wijzigPlan(huisId: number, id: number, plan: NieuwPlan): Promise<void> {
+  const volledig = await metGebouwVanVerdieping(huisId, plan);
+  geraakt(
+    check(
+      await db().from("bouw_plannen").update(volledig).eq("id", id).eq("huis_id", huisId).select("id"),
+      "Plan bewaren",
+      planmeldingen(volledig),
+    ),
+  );
 }
 
 /** Zet de bladcode van een plan dat er al was, bv. als het dossier het herkent op zijn titel. */
-export async function zetBladcode(id: number, bladcode: string): Promise<void> {
-  check(await db().from("bouw_plannen").update({ bladcode }).eq("id", id), "Bladcode bewaren", {
-    uniek: `Er is al een plan met bladcode ${bladcode}.`,
-  });
+export async function zetBladcode(huisId: number, id: number, bladcode: string): Promise<void> {
+  geraakt(
+    check(await db().from("bouw_plannen").update({ bladcode }).eq("id", id).eq("huis_id", huisId).select("id"), "Bladcode bewaren", {
+      uniek: `Er is al een plan met bladcode ${bladcode}.`,
+    }),
+  );
 }
 
 /** Verwijdert het plan en, via de databank, al zijn versies. De bestanden ruimt opladen.ts op. */
-export async function verwijderPlan(id: number): Promise<number[]> {
+export async function verwijderPlan(huisId: number, id: number): Promise<number[]> {
+  await zelfdeHuis(huisId, ["bouw_plannen", id]);
   const versies = check(
     await db().from("bouw_planversies").select("bestand_id").eq("plan_id", id),
     "Planversies lezen",
   ) as { bestand_id: number }[];
-  check(await db().from("bouw_plannen").delete().eq("id", id), "Plan verwijderen");
+  check(await db().from("bouw_plannen").delete().eq("id", id).eq("huis_id", huisId), "Plan verwijderen");
   return [...new Set(versies.map((versie) => versie.bestand_id))];
 }
 
@@ -346,7 +359,8 @@ export interface NieuweVersie {
   opmerking: string | null;
 }
 
-export async function voegVersieToe(versie: NieuweVersie): Promise<number> {
+export async function voegVersieToe(huisId: number, versie: NieuweVersie): Promise<number> {
+  await zelfdeHuis(huisId, ["bouw_plannen", versie.plan_id], ["bouw_bestanden", versie.bestand_id]);
   const rij = check(
     await db().from("bouw_planversies").insert(versie).select("id").single(),
     "Versie toevoegen",
@@ -355,23 +369,26 @@ export async function voegVersieToe(versie: NieuweVersie): Promise<number> {
   return rij.id;
 }
 
-export async function leesVersie(id: number): Promise<Planversie | null> {
-  return check(
+export async function leesVersie(huisId: number, id: number): Promise<Planversie | null> {
+  const versie = check(
     await db().from("bouw_planversies").select("*").eq("id", id).maybeSingle(),
     "Versie lezen",
   ) as Planversie | null;
+  if (!versie || (await huisVanRij("bouw_plannen", Number(versie.plan_id))) !== huisId) return null;
+  return versie;
 }
 
 /** Verwijdert de versie en geeft het bestand terug, om op te ruimen als niets anders het nog gebruikt. */
-export async function verwijderVersie(id: number): Promise<number | null> {
-  const versie = await leesVersie(id);
+export async function verwijderVersie(huisId: number, id: number): Promise<number | null> {
+  const versie = await leesVersie(huisId, id);
   if (!versie) return null;
   check(await db().from("bouw_planversies").delete().eq("id", id), "Versie verwijderen");
   return versie.bestand_id;
 }
 
 /** Legt een versie in het assenstelsel van haar gebouw; zie omzetting/geometrie.ts. */
-export async function zetKalibratie(versieId: number, kalibratie: Record<string, unknown>): Promise<void> {
+export async function zetKalibratie(huisId: number, versieId: number, kalibratie: Record<string, unknown>): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_planversies", versieId]);
   check(await db().from("bouw_planversies").update({ kalibratie }).eq("id", versieId), "Kalibratie bewaren");
 }
 
@@ -435,12 +452,16 @@ export async function lijstOmzettingen(versieIds: number[]): Promise<Omzetting[]
 }
 
 /** Bewaart de bevestigde omzetting van een versie; een tweede keer bevestigen vervangt de eerste. */
-export async function bewaarOmzetting(omzetting: {
-  planversie_id: number;
-  werkwijze: number;
-  voorstel: Record<string, unknown>;
-  bevestigd_door: string;
-}): Promise<number> {
+export async function bewaarOmzetting(
+  huisId: number,
+  omzetting: {
+    planversie_id: number;
+    werkwijze: number;
+    voorstel: Record<string, unknown>;
+    bevestigd_door: string;
+  },
+): Promise<number> {
+  await zelfdeHuis(huisId, ["bouw_planversies", omzetting.planversie_id]);
   check(
     await db()
       .from("bouw_omzettingen")
@@ -470,11 +491,15 @@ function alsRuimte(rij: Record<string, unknown>): Ruimte {
   };
 }
 
-/** De ruimtes, van één verdieping of van alle. */
-export async function lijstRuimtes(verdiepingId?: number): Promise<Ruimte[]> {
-  let vraag = db().from("bouw_ruimtes").select("*");
-  if (verdiepingId !== undefined) vraag = vraag.eq("verdieping_id", verdiepingId);
-  const rijen = check(await vraag.order("naam"), "Ruimtes lezen") as Record<string, unknown>[];
+/** De ruimtes van het huis, of van één verdieping ervan. */
+export async function lijstRuimtes(huisId: number, verdiepingId?: number): Promise<Ruimte[]> {
+  const verdiepingen = await verdiepingenVanHuis(huisId);
+  const gevraagd = verdiepingId === undefined ? verdiepingen : verdiepingen.filter((id) => id === verdiepingId);
+  if (gevraagd.length === 0) return [];
+  const rijen = check(
+    await db().from("bouw_ruimtes").select("*").in("verdieping_id", gevraagd).order("naam"),
+    "Ruimtes lezen",
+  ) as Record<string, unknown>[];
   return rijen.map(alsRuimte);
 }
 
@@ -484,11 +509,13 @@ export async function lijstRuimtes(verdiepingId?: number): Promise<Ruimte[]> {
  * id is nieuw, en wat er niet meer bij is, verdwijnt.
  */
 export async function schrijfRuimtes(
+  huisId: number,
   verdiepingId: number,
   omzettingId: number,
   rijen: Ruimterij[],
 ): Promise<{ bijgewerkt: number; nieuw: number; verwijderd: number }> {
-  const bestaand = await lijstRuimtes(verdiepingId);
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", verdiepingId], ["bouw_omzettingen", omzettingId]);
+  const bestaand = await lijstRuimtes(huisId, verdiepingId);
   const ids = new Set(bestaand.map((ruimte) => ruimte.id));
   for (const rij of rijen) {
     if (rij.id !== null && !ids.has(rij.id)) throw new Bouwfout("Een ruimte hoort niet (meer) bij deze verdieping.");
@@ -540,15 +567,20 @@ function alsPunt(rij: Record<string, unknown>): Punt {
   };
 }
 
-/** De punten, van één verdieping of van alle. */
-export async function lijstPunten(verdiepingId?: number): Promise<Punt[]> {
-  let vraag = db().from("bouw_punten").select("*");
-  if (verdiepingId !== undefined) vraag = vraag.eq("verdieping_id", verdiepingId);
-  const rijen = check(await vraag.order("id"), "Punten lezen") as Record<string, unknown>[];
+/** De punten van het huis, of van één verdieping ervan. */
+export async function lijstPunten(huisId: number, verdiepingId?: number): Promise<Punt[]> {
+  const verdiepingen = await verdiepingenVanHuis(huisId);
+  const gevraagd = verdiepingId === undefined ? verdiepingen : verdiepingen.filter((id) => id === verdiepingId);
+  if (gevraagd.length === 0) return [];
+  const rijen = check(
+    await db().from("bouw_punten").select("*").in("verdieping_id", gevraagd).order("id"),
+    "Punten lezen",
+  ) as Record<string, unknown>[];
   return rijen.map(alsPunt);
 }
 
-export async function voegPuntToe(verdiepingId: number, punt: Nieuwpunt): Promise<Punt> {
+export async function voegPuntToe(huisId: number, verdiepingId: number, punt: Nieuwpunt): Promise<Punt> {
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", verdiepingId]);
   const rij = check(
     await db().from("bouw_punten").insert({ ...punt, verdieping_id: verdiepingId }).select("*").single(),
     "Punt toevoegen",
@@ -557,7 +589,8 @@ export async function voegPuntToe(verdiepingId: number, punt: Nieuwpunt): Promis
   return alsPunt(rij);
 }
 
-export async function wijzigPunt(id: number, punt: Nieuwpunt): Promise<Punt | null> {
+export async function wijzigPunt(huisId: number, id: number, punt: Nieuwpunt): Promise<Punt | null> {
+  if ((await huisVanRij("bouw_punten", id)) !== huisId) return null;
   const rijen = check(
     await db().from("bouw_punten").update(punt).eq("id", id).select("*"),
     "Punt bewaren",
@@ -565,7 +598,8 @@ export async function wijzigPunt(id: number, punt: Nieuwpunt): Promise<Punt | nu
   return rijen[0] ? alsPunt(rijen[0]) : null;
 }
 
-export async function verwijderPunt(id: number): Promise<void> {
+export async function verwijderPunt(huisId: number, id: number): Promise<void> {
+  if ((await huisVanRij("bouw_punten", id)) !== huisId) return;
   check(await db().from("bouw_punten").delete().eq("id", id), "Punt verwijderen");
 }
 
@@ -582,26 +616,36 @@ export interface NieuwBestand {
   opgeladen_door: string;
 }
 
-export async function registreerBestand(bestand: NieuwBestand): Promise<Bestand> {
-  return check(
-    await db().from("bouw_bestanden").insert({ ...bestand, status: "wacht" }).select("*").single(),
-    "Bestand registreren",
-  ) as Bestand;
+/** Een rij uit de databank als Bestand, zonder het huis. */
+function alsBestand(rij: Record<string, unknown>): Bestand {
+  const { huis_id: _huis, ...bestand } = rij;
+  return bestand as unknown as Bestand;
 }
 
-export async function leesBestand(id: number): Promise<Bestand | null> {
-  return check(
-    await db().from("bouw_bestanden").select("*").eq("id", id).maybeSingle(),
+export async function registreerBestand(huisId: number, bestand: NieuwBestand): Promise<Bestand> {
+  return alsBestand(
+    check(
+      await db().from("bouw_bestanden").insert({ ...bestand, status: "wacht", huis_id: huisId }).select("*").single(),
+      "Bestand registreren",
+    ) as Record<string, unknown>,
+  );
+}
+
+export async function leesBestand(huisId: number, id: number): Promise<Bestand | null> {
+  const rij = check(
+    await db().from("bouw_bestanden").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(),
     "Bestand lezen",
-  ) as Bestand | null;
+  ) as Record<string, unknown> | null;
+  return rij ? alsBestand(rij) : null;
 }
 
-export async function leesBestanden(ids: number[]): Promise<Bestand[]> {
+export async function leesBestanden(huisId: number, ids: number[]): Promise<Bestand[]> {
   if (ids.length === 0) return [];
-  return check(
-    await db().from("bouw_bestanden").select("*").in("id", ids),
+  const rijen = check(
+    await db().from("bouw_bestanden").select("*").in("id", ids).eq("huis_id", huisId),
     "Bestanden lezen",
-  ) as Bestand[];
+  ) as Record<string, unknown>[];
+  return rijen.map(alsBestand);
 }
 
 export async function markeerKlaar(id: number, grootte: number): Promise<void> {
@@ -633,12 +677,13 @@ export async function wordtGebruikt(bestandId: number): Promise<boolean> {
   return antwoorden.some((antwoord) => (check(antwoord, "Gebruik van een bestand nakijken") as unknown[]).length > 0);
 }
 
-/** Uploads die al lang op "wacht" staan: de browser heeft ze nooit afgerond. */
+/** Uploads die al lang op "wacht" staan, in alle huizen: de browser heeft ze nooit afgerond. */
 export async function verlatenUploads(voor: Date): Promise<Bestand[]> {
-  return check(
+  const rijen = check(
     await db().from("bouw_bestanden").select("*").eq("status", "wacht").lt("created_at", voor.toISOString()),
     "Verlaten uploads zoeken",
-  ) as Bestand[];
+  ) as Record<string, unknown>[];
+  return rijen.map(alsBestand);
 }
 
 export async function verwijderBestandRij(id: number): Promise<void> {
@@ -648,16 +693,18 @@ export async function verwijderBestandRij(id: number): Promise<void> {
 }
 
 /** De PDF's die er al staan, om een ander blad uit dezelfde PDF als versie te kiezen. */
-export async function lijstPlanbestanden(): Promise<Bestand[]> {
-  return check(
+export async function lijstPlanbestanden(huisId: number): Promise<Bestand[]> {
+  const rijen = check(
     await db()
       .from("bouw_bestanden")
       .select("*")
+      .eq("huis_id", huisId)
       .eq("doel", "plan")
       .eq("status", "klaar")
       .order("created_at", { ascending: false }),
     "Bestanden lezen",
-  ) as Bestand[];
+  ) as Record<string, unknown>[];
+  return rijen.map(alsBestand);
 }
 
 // ---------------------------------------------------------------------------
@@ -673,24 +720,24 @@ export interface Bouwstand {
   ruimtes: { aantal: number; oppervlakte: number };
 }
 
-export async function leesBouwstand(): Promise<Bouwstand> {
-  const [project, verdiepingen, plannen, partijen, bestanden, ruimtes, omzettingen] = await Promise.all([
-    leesProject(),
-    db().from("bouw_verdiepingen").select("id"),
-    lijstPlannen(),
-    db().from("bouw_partijen").select("id, naam, soort"),
+/**
+ * De stand van een huis. Het totaal aan bestanden telt voor alle huizen samen:
+ * het gaat om de opslag van het gratis niveau van Supabase.
+ */
+export async function leesBouwstand(huis: Huis): Promise<Bouwstand> {
+  const [verdiepingen, plannen, partijen, bestanden, ruimtes] = await Promise.all([
+    verdiepingenVanHuis(huis.id),
+    lijstPlannen(huis.id),
+    db().from("bouw_partijen").select("id, naam, soort").eq("huis_id", huis.id),
     db().from("bouw_bestanden").select("grootte_bytes").eq("status", "klaar"),
-    db().from("bouw_ruimtes").select("oppervlakte_m2"),
-    db().from("bouw_omzettingen").select("planversie_id"),
+    lijstRuimtes(huis.id),
   ]);
   const grootten = check(bestanden, "Bestanden tellen") as { grootte_bytes: number | null }[];
-  const oppervlaktes = check(ruimtes, "Ruimtes tellen") as { oppervlakte_m2: number | string }[];
-  const omgezet = new Set(
-    (check(omzettingen, "Omzettingen lezen") as { planversie_id: number }[]).map((o) => Number(o.planversie_id)),
-  );
+  const omzettingen = await lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id)));
+  const omgezet = new Set(omzettingen.map((o) => o.planversie_id));
   return {
-    project,
-    verdiepingen: (check(verdiepingen, "Verdiepingen tellen") as unknown[]).length,
+    project: projectVan(huis),
+    verdiepingen: verdiepingen.length,
     plannen: plannen.map((plan) => {
       const laatste = plan.versies.at(-1);
       return {
@@ -713,8 +760,8 @@ export async function leesBouwstand(): Promise<Bouwstand> {
     })),
     bytes: grootten.reduce((som, rij) => som + Number(rij.grootte_bytes ?? 0), 0),
     ruimtes: {
-      aantal: oppervlaktes.length,
-      oppervlakte: oppervlaktes.reduce((som, rij) => som + Number(rij.oppervlakte_m2), 0),
+      aantal: ruimtes.length,
+      oppervlakte: ruimtes.reduce((som, ruimte) => som + ruimte.oppervlakte_m2, 0),
     },
   };
 }

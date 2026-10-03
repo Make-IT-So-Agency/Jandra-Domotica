@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase, TESTHUIS } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -38,17 +38,18 @@ beforeEach(async () => {
     }),
   );
   db = nepSupabase({
+    bouw_huizen: [{ ...TESTHUIS }],
     bouw_instellingen: [],
-    bouw_planning: [
+    bouw_planning: metHuis([
       { id: 1, soort: "taak", titel: "Metselwerk", begindatum: "2026-09-20", einddatum: "2026-10-20", fase_id: null, partij_id: 4, status: "gepland" },
       { id: 2, soort: "taak", titel: "Riolering", begindatum: "2026-10-06", einddatum: "2026-10-09", fase_id: null, partij_id: null, status: "gepland" },
       { id: 3, soort: "mijlpaal", titel: "Vergunning", begindatum: "2026-10-05", einddatum: null, fase_id: null, partij_id: null, status: "gepland" },
-    ],
-    bouw_partijen: [{ id: 4, soort: "aannemer", naam: "Bouwbedrijf Voorbeeld" }],
-    bouw_keuzes: [
+    ]),
+    bouw_partijen: metHuis([{ id: 4, soort: "aannemer", naam: "Bouwbedrijf Voorbeeld" }]),
+    bouw_keuzes: metHuis([
       { id: 7, titel: "Gevelsteen", categorie: "gevel", deadline: "2026-10-12", planning_id: null, levertermijn_weken: null, eenheid: "m2", hoeveelheid: null, partij_id: null, gekozen_optie_id: null },
       { id: 8, titel: "Keuken", categorie: "keuken", deadline: "2026-12-01", planning_id: null, levertermijn_weken: null, eenheid: "totaal", hoeveelheid: null, partij_id: null, gekozen_optie_id: null },
-    ],
+    ]),
     bouw_keuze_ruimtes: [],
     bouw_meldingen: [],
   });
@@ -172,11 +173,11 @@ describe("de webhook van de bot van Bouw", () => {
   });
 
   it("toont met /facturen wat nog betaald moet worden", async () => {
-    db.tabellen.bouw_facturen = [
+    db.tabellen.bouw_facturen = metHuis([
       { id: 1, post_id: null, partij_id: 4, nummer: "F-12", omschrijving: null, bedrag: 12_100, factuurdatum: "2026-09-01", vervaldag: "2026-10-01", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
       { id: 2, post_id: null, partij_id: null, nummer: null, omschrijving: null, bedrag: 450, factuurdatum: "2026-10-01", vervaldag: "2026-10-08", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
       { id: 3, post_id: null, partij_id: null, nummer: "F-9", omschrijving: null, bedrag: 900, factuurdatum: "2026-08-01", vervaldag: null, betaald_op: "2026-08-20", bestand_id: null, vennootschap_id: null, opmerking: null },
-    ];
+    ]);
     await stuurUpdate(bericht("/facturen"));
     expect(verstuurd[0].text).toBe(
       [
@@ -212,13 +213,13 @@ describe("de berichten", () => {
   it("herinnert op 14, 7, 3 en 1 dag, op de dag zelf en de dag erna", () => {
     const deadline = (dagen: number) => ({ keuzeId: 7, titel: "Gevelsteen", datum: "2026-10-12", dagen });
     const geen = { van: "2026-09-28", tot: "2026-10-11", regels: [] };
-    const tekst = (dagen: number) => herinneringen([deadline(dagen)], [], geen, "2026-10-05").map((h) => h.tekst);
+    const tekst = (dagen: number) => herinneringen(1, [deadline(dagen)], [], geen, "2026-10-05").map((h) => h.tekst);
     expect(tekst(7)).toEqual(["⏰ Gevelsteen: beslissen over 7 dagen (tegen 12 okt)."]);
     expect(tekst(5)).toEqual([]);
     expect(tekst(0)).toEqual(["⏰ Gevelsteen: vandaag beslissen."]);
     expect(tekst(-1)).toEqual(["⚠️ De deadline voor Gevelsteen was gisteren (12 okt). Nog niet beslist."]);
     expect(tekst(-2)).toEqual([]);
-    expect(herinneringen([deadline(3)], [], geen, "2026-10-05")[0]).toMatchObject({
+    expect(herinneringen(1, [deadline(3)], [], geen, "2026-10-05")[0]).toMatchObject({
       sleutel: "deadline:7:2026-10-12:3",
       pad: "/bouw/keuzes/7",
     });
@@ -235,13 +236,13 @@ describe("de berichten", () => {
       [],
       "2026-10-05",
     );
-    expect(herinneringen([], planning, week, "2026-10-05").map((h) => h.sleutel)).toEqual([
-      "week:2026-10-05",
+    expect(herinneringen(1, [], planning, week, "2026-10-05").map((h) => h.sleutel)).toEqual([
+      "week:1:2026-10-05",
       "begint:2:2026-10-06",
       "mijlpaal:3:2026-10-05",
     ]);
     // Op dinsdag geen week meer.
-    expect(herinneringen([], planning, tweeWeken([], [], "2026-10-06"), "2026-10-06").map((h) => h.sleutel)).toEqual([]);
+    expect(herinneringen(1, [], planning, tweeWeken([], [], "2026-10-06"), "2026-10-06").map((h) => h.sleutel)).toEqual([]);
   });
 });
 
@@ -262,9 +263,9 @@ describe("de dagelijkse ronde", () => {
 
   it("herinnert ook aan een factuur, drie dagen voor de vervaldag", async () => {
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
-    db.tabellen.bouw_facturen = [
+    db.tabellen.bouw_facturen = metHuis([
       { id: 5, post_id: null, partij_id: 4, nummer: "F-12", omschrijving: null, bedrag: 2_420, factuurdatum: "2026-09-08", vervaldag: "2026-10-08", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null },
-    ];
+    ]);
     expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
     const factuur = verstuurd.at(-1)!;
     expect(factuur.text).toBe("💶 Factuur F-12 van Bouwbedrijf Voorbeeld (€\u00a02.420,00): betalen over 3 dagen (tegen 8 okt).");
@@ -276,10 +277,10 @@ describe("de dagelijkse ronde", () => {
 
   it("herinnert aan een actiepunt de dag voor de deadline", async () => {
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
-    db.tabellen.bouw_actiepunten = [
+    db.tabellen.bouw_actiepunten = metHuis([
       { id: 9, titel: "Stelling afbreken", omschrijving: null, partij_id: 4, deadline: "2026-10-06", status: "open", klaar_op: null },
       { id: 10, titel: "Al gedaan", omschrijving: null, partij_id: null, deadline: "2026-10-06", status: "klaar", klaar_op: "2026-10-04T10:00:00Z" },
-    ];
+    ]);
     expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
     const herinnering = verstuurd.at(-1)!;
     expect(herinnering.text).toBe("📌 Actiepunt Stelling afbreken (Bouwbedrijf Voorbeeld): klaar tegen morgen.");
@@ -288,13 +289,13 @@ describe("de dagelijkse ronde", () => {
 
   it("herinnert aan onderhoud een week vooraf, en aan een garantie een maand voor ze afloopt", async () => {
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
-    db.tabellen.bouw_onderhoud = [
+    db.tabellen.bouw_onderhoud = metHuis([
       { id: 3, wat: "Rookmelders testen", interval_maanden: 6, laatst_gedaan: "2026-04-12", partij_id: null, opmerking: null },
       { id: 4, wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null },
-    ];
-    db.tabellen.bouw_garanties = [
+    ]);
+    db.tabellen.bouw_garanties = metHuis([
       { id: 2, wat: "de ramen", partij_id: 4, begin: "2024-11-04", duur_maanden: 24, document_id: null, opmerking: null },
-    ];
+    ]);
     expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 6, alGemeld: 0 });
     expect(verstuurd.slice(-2).map((b) => b.text)).toEqual([
       "🧰 Rookmelders testen: over 7 dagen (12 okt).",
@@ -310,5 +311,71 @@ describe("de dagelijkse ronde", () => {
     expect(db.tabellen.bouw_meldingen).toEqual([]);
     telegramFaalt = false;
     expect((await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).verstuurd).toBe(4);
+  });
+});
+
+describe("met meer huizen", () => {
+  const TWEEDE = { ...TESTHUIS, id: 2, naam: "Testhuis", soort: "bestaand", volgorde: 1 };
+
+  beforeEach(() => {
+    db.tabellen.bouw_huizen.push({ ...TWEEDE });
+    db.tabellen.bouw_planning.push(
+      ...metHuis(
+        [{ id: 20, soort: "mijlpaal", titel: "Schilderwerk klaar", begindatum: "2026-10-05", einddatum: null, fase_id: null, partij_id: null, status: "gepland" }],
+        2,
+      ),
+    );
+  });
+
+  it("zet de naam van het huis boven elk bericht van de ronde, met een weeksleutel per huis", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    // Vier voor de nieuwbouw, twee (de week en de mijlpaal) voor het tweede huis.
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 6, alGemeld: 0 });
+    const teksten = verstuurd.map((b) => String(b.text));
+    expect(teksten.slice(0, 4).every((tekst) => tekst.startsWith("🏠 Nieuwbouw\n"))).toBe(true);
+    expect(teksten.slice(4)).toEqual([
+      expect.stringMatching(/^🏠 Testhuis\n📅 Deze en volgende week/),
+      "🏠 Testhuis\n◆ Vandaag: Schilderwerk klaar.",
+    ]);
+    // Het tweede huis kent de mijlpaal van de nieuwbouw niet.
+    expect(teksten.slice(4).join("\n")).not.toContain("Vergunning");
+    expect(db.tabellen.bouw_meldingen.map((m) => m.sleutel)).toEqual(
+      expect.arrayContaining(["week:1:2026-10-05", "week:2:2026-10-05", "mijlpaal:20:2026-10-05"]),
+    );
+  });
+
+  it("slaat een gearchiveerd huis over, en noemt dan geen huis meer", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    db.tabellen.bouw_huizen[1].gearchiveerd_op = "2026-10-01T10:00:00Z";
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 4, alGemeld: 0 });
+    expect(verstuurd.map((b) => String(b.text)).some((tekst) => tekst.includes("🏠"))).toBe(false);
+  });
+
+  it("laat de andere huizen niet wachten als één huis faalt, en probeert dat huis later opnieuw", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const bericht = JSON.parse(String(init.body));
+        if (String(bericht.text).startsWith("🏠 Nieuwbouw")) {
+          return Response.json({ ok: false, description: "Bad Request: chat not found" }, { status: 400 });
+        }
+        verstuurd.push(bericht);
+        return Response.json({ ok: true, result: { message_id: 1 } });
+      }),
+    );
+    await expect(dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).rejects.toThrow("chat not found");
+    expect(verstuurd.map((b) => String(b.text).split("\n")[0])).toEqual(["🏠 Testhuis", "🏠 Testhuis"]);
+    const sleutels = db.tabellen.bouw_meldingen.map((m) => String(m.sleutel));
+    expect(sleutels).toEqual(expect.arrayContaining(["week:2:2026-10-05", "mijlpaal:20:2026-10-05"]));
+    expect(sleutels).not.toContain("week:1:2026-10-05");
+  });
+
+  it("antwoordt op een commando met één bericht per huis", async () => {
+    await stuurUpdate(bericht("/deadlines"));
+    expect(verstuurd.map((b) => b.text)).toEqual([
+      "🏠 Nieuwbouw\nTe beslissen:\n• Gevelsteen: over 7 dagen (12 okt)\n• Keuken: over 8 weken (1 dec)",
+      "🏠 Testhuis\nGeen keuzes met een deadline die nog open staan.",
+    ]);
   });
 });

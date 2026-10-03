@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { teDoen } from "@/lib/bouw/omzetting/reeks";
 import type { Oudruimte } from "@/lib/bouw/omzetting/ruimtediff";
 import { lijstGebouwen, lijstOmzettingen, lijstPlannen, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
@@ -20,6 +21,7 @@ export default async function AllesOmzetten() {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const terugLink = (
     <p className="hulp" style={{ marginBottom: 4 }}>
       <Link href="/bouw/plannen">← Plannen</Link>
@@ -29,10 +31,10 @@ export default async function AllesOmzetten() {
   let gegevens;
   try {
     const [plannen, verdiepingen, gebouwen, ruimtes] = await Promise.all([
-      lijstPlannen(),
-      lijstVerdiepingen(),
-      lijstGebouwen(),
-      lijstRuimtes(),
+      lijstPlannen(huis.id),
+      lijstVerdiepingen(huis.id),
+      lijstGebouwen(huis.id),
+      lijstRuimtes(huis.id),
     ]);
     const omzettingen = await lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id)));
     gegevens = { plannen, verdiepingen, gebouwen, ruimtes, bevestigd: new Set(omzettingen.map((o) => o.planversie_id)) };
@@ -77,6 +79,7 @@ export default async function AllesOmzetten() {
       ) : (
         <ReeksLader
           gegevens={{
+            huisId: huis.id,
             reeks: reeks.map((r) => ({
               planId: r.plan.id,
               titel: r.plan.titel,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { datum as leesDatum } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { dagVan, dagkop } from "@/lib/bouw/werf";
@@ -61,8 +62,9 @@ export default async function Dagboekpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const voorDag = leesDatum(voor ?? "");
-  const [dagen, fotos, plaatsen] = await Promise.all([lijstDagboek(), lijstWerffotos(), laadPlaatsen()]);
+  const [dagen, fotos, plaatsen] = await Promise.all([lijstDagboek(huis.id), lijstWerffotos(huis.id), laadPlaatsen(huis.id)]);
   const nu = vandaag();
   const reeks = dagen.filter((dag) => !voorDag || dag.datum < voorDag);
   const getoond = reeks.slice(0, PER_PAGINA);
@@ -72,7 +74,7 @@ export default async function Dagboekpagina({
     fotos
       .filter((foto) => foto.dagboek_id === dag.id || (foto.dagboek_id === null && dagVan(foto.genomen_op) === dag.datum))
       .sort((a, b) => a.genomen_op.localeCompare(b.genomen_op));
-  const urls = await fotoUrls(getoond.flatMap(fotosVan));
+  const urls = await fotoUrls(huis.id, getoond.flatMap(fotosVan));
   const ruimtenaam = ruimtenaamIn(plaatsen);
 
   return (
@@ -87,7 +89,7 @@ export default async function Dagboekpagina({
 
       <details className="kaart" open={dagen.length === 0}>
         <summary>Een dag toevoegen</summary>
-        <form action={voegDagboekToeActie} style={{ marginTop: 12 }}>
+        <form action={voegDagboekToeActie.bind(null, huis.id)} style={{ marginTop: 12 }}>
           <Dagvelden voorvoegsel="nieuw" nu={nu} />
           <div className="knoppenrij" style={{ marginTop: 12 }}>
             <button type="submit">Bewaren</button>
@@ -112,16 +114,19 @@ export default async function Dagboekpagina({
                 <p className="dagboek-tekst">{dag.tekst}</p>
                 {eigen.length > 0 ? <Galerij fotos={eigen} urls={urls} ruimtenaam={ruimtenaam} /> : null}
                 <div className="knoppenrij" style={{ marginTop: 8 }}>
-                  <Werffotoknop dagboekId={dag.id} compact label="📷 Foto's bij deze dag" />
+                  <Werffotoknop huisId={huis.id} dagboekId={dag.id} compact label="📷 Foto's bij deze dag" />
                 </div>
                 <details style={{ marginTop: 8 }}>
                   <summary className="hulp">Wijzigen</summary>
-                  <form action={wijzigDagboekActie} style={{ marginTop: 8 }}>
+                  <form action={wijzigDagboekActie.bind(null, huis.id)} style={{ marginTop: 8 }}>
                     <input type="hidden" name="dag_id" value={dag.id} />
                     <Dagvelden dag={dag} voorvoegsel={`dag-${dag.id}`} nu={nu} />
                     <div className="knoppenrij" style={{ marginTop: 12 }}>
                       <button type="submit">Bewaren</button>
-                      <BevestigKnop vraag="Deze dag uit het dagboek halen? De foto's blijven." formAction={verwijderDagboekActie}>
+                      <BevestigKnop
+                        vraag="Deze dag uit het dagboek halen? De foto's blijven."
+                        formAction={verwijderDagboekActie.bind(null, huis.id)}
+                      >
                         Verwijderen
                       </BevestigKnop>
                     </div>

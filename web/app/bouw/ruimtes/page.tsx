@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { kaderVan } from "@/lib/bouw/omzetting/geometrie";
 import { teDoen } from "@/lib/bouw/omzetting/reeks";
 import { lijstGebouwen, lijstOmzettingen, lijstPlannen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
@@ -28,6 +29,7 @@ export default async function Ruimtespagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let gebouwen: Gebouw[];
   let verdiepingen: Verdieping[];
   let ruimtes: Ruimte[];
@@ -36,11 +38,11 @@ export default async function Ruimtespagina({
   let nogOmTeZetten: number;
   try {
     const [g, v, r, p, pt] = await Promise.all([
-      lijstGebouwen(),
-      lijstVerdiepingen(),
-      lijstRuimtes(),
-      lijstPlannen(),
-      lijstPunten(),
+      lijstGebouwen(huis.id),
+      lijstVerdiepingen(huis.id),
+      lijstRuimtes(huis.id),
+      lijstPlannen(huis.id),
+      lijstPunten(huis.id),
     ]);
     gebouwen = g;
     verdiepingen = sorteerVerdiepingen(v, g);

@@ -10,8 +10,8 @@ import {
   zoekOfMaakGebouw,
   type NieuweVerdieping,
 } from "@/lib/bouw/opslag";
+import { vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { foutmelding, terug } from "@/lib/bouw/terug";
-import { vereistBouwrechten } from "@/lib/toegang";
 
 const PAD = "/bouw/verdiepingen";
 
@@ -27,7 +27,7 @@ function getalOfTerug(formulier: FormData, naam: string, veld: string): number |
  * klopt. Het gebouw wordt op naam gezocht en aangemaakt als het nog niet
  * bestaat; zo is een bijgebouw toevoegen één veld invullen.
  */
-async function leesVerdieping(formulier: FormData): Promise<NieuweVerdieping> {
+async function leesVerdieping(huisId: number, formulier: FormData): Promise<NieuweVerdieping> {
   const naam = tekst(formulier.get("naam"));
   if (!naam) terug(PAD, "fout", "Geef de verdieping een naam.");
   const gebouw = tekst(formulier.get("gebouw"));
@@ -51,7 +51,7 @@ async function leesVerdieping(formulier: FormData): Promise<NieuweVerdieping> {
 
   let gebouwId: number;
   try {
-    gebouwId = await zoekOfMaakGebouw(gebouw);
+    gebouwId = await zoekOfMaakGebouw(huisId, gebouw);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Het gebouw kon niet bewaard worden."));
   }
@@ -66,63 +66,63 @@ async function leesVerdieping(formulier: FormData): Promise<NieuweVerdieping> {
   };
 }
 
-export async function voegVerdiepingToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
-  const verdieping = await leesVerdieping(formulier);
+export async function voegVerdiepingToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
+  const verdieping = await leesVerdieping(huis.id, formulier);
   try {
-    await voegVerdiepingToe(verdieping);
+    await voegVerdiepingToe(huis.id, verdieping);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(PAD, "goed", `${verdieping.naam} toegevoegd.`);
 }
 
-export async function wijzigVerdiepingActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigVerdiepingActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const verdiepingId = id(formulier.get("id"));
   if (!verdiepingId) terug(PAD, "fout", "Onbekende verdieping.");
-  const verdieping = await leesVerdieping(formulier);
+  const verdieping = await leesVerdieping(huis.id, formulier);
   try {
-    await wijzigVerdieping(verdiepingId, verdieping);
+    await wijzigVerdieping(huis.id, verdiepingId, verdieping);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(PAD, "goed", `${verdieping.naam} bewaard.`);
 }
 
-export async function verwijderVerdiepingActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderVerdiepingActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const verdiepingId = id(formulier.get("id"));
   if (!verdiepingId) terug(PAD, "fout", "Onbekende verdieping.");
   try {
-    await verwijderVerdieping(verdiepingId);
+    await verwijderVerdieping(huis.id, verdiepingId);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
   terug(PAD, "goed", "Verdieping verwijderd.");
 }
 
-export async function wijzigGebouwActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigGebouwActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const gebouwId = id(formulier.get("id"));
   if (!gebouwId) terug(PAD, "fout", "Onbekend gebouw.");
   const naam = tekst(formulier.get("naam"));
   if (!naam || naam.length > 60) terug(PAD, "fout", "Geef het gebouw een naam van hoogstens 60 tekens.");
   const volgorde = getalOfTerug(formulier, "volgorde", "Volgorde");
   try {
-    await wijzigGebouw(gebouwId, { naam, volgorde: Math.round(volgorde ?? 0) });
+    await wijzigGebouw(huis.id, gebouwId, { naam, volgorde: Math.round(volgorde ?? 0) });
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(PAD, "goed", `${naam} bewaard.`);
 }
 
-export async function verwijderGebouwActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderGebouwActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const gebouwId = id(formulier.get("id"));
   if (!gebouwId) terug(PAD, "fout", "Onbekend gebouw.");
   try {
-    await verwijderGebouw(gebouwId);
+    await verwijderGebouw(huis.id, gebouwId);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }

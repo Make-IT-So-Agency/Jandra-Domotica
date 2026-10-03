@@ -10,6 +10,7 @@ import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kale
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { nazorgstand } from "@/lib/bouw/nazorg";
 import { lijstDocumenten, lijstGaranties, lijstOnderhoud } from "@/lib/bouw/nazorg-opslag";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { leesBouwstand } from "@/lib/bouw/opslag";
 import { tweeWeken } from "@/lib/bouw/planning";
 import { lijstKeuzes, lijstPlanning } from "@/lib/bouw/regie-opslag";
@@ -33,6 +34,7 @@ export default async function Bouwoverzicht({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let stand;
   let keuzes;
   let planning;
@@ -55,20 +57,20 @@ export default async function Bouwoverzicht({
       onderhoud,
       garanties,
     ] = await Promise.all([
-      leesBouwstand(),
-      lijstKeuzes(),
-      lijstPlanning(),
-      lijstPosten(),
-      lijstOffertes(),
-      lijstMeerwerken(),
-      lijstFacturen(),
-      lijstInzendingen({ status: "nieuw" }),
-      lijstActiepunten(),
-      lijstWerffotos(),
-      lijstOpleverpunten(),
-      lijstDocumenten(),
-      lijstOnderhoud(),
-      lijstGaranties(),
+      leesBouwstand(huis),
+      lijstKeuzes(huis.id),
+      lijstPlanning(huis.id),
+      lijstPosten(huis.id),
+      lijstOffertes(huis.id),
+      lijstMeerwerken(huis.id),
+      lijstFacturen(huis.id),
+      lijstInzendingen(huis.id, { status: "nieuw" }),
+      lijstActiepunten(huis.id),
+      lijstWerffotos(huis.id),
+      lijstOpleverpunten(huis.id),
+      lijstDocumenten(huis.id),
+      lijstOnderhoud(huis.id),
+      lijstGaranties(huis.id),
     ]);
     cijfers = {
       posten,
@@ -249,7 +251,7 @@ export default async function Bouwoverzicht({
       ) : null}
 
       <h2 id="project">Project</h2>
-      <form action={bewaarProjectActie} className="kaart">
+      <form action={bewaarProjectActie.bind(null, huis.id)} className="kaart">
         <div className="veldenrij">
           <div>
             <label htmlFor="projectnaam">Naam</label>

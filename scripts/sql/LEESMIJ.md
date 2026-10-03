@@ -16,3 +16,4 @@ Blijvende wijzigingen aan het schema horen in `supabase/migrations/`, niet hier.
 | `inspecteer-koppeling.sql` | Komt er data binnen uit Home Assistant? |
 | `inspecteer-sessies.sql` | De laatste sessies, met de reden waarom een sessie niet meetelt |
 | `inspecteer-tarieven.sql` | Welke kwartaaltarieven er zijn en of ze bevestigd zijn |
+| `inspecteer-huizen.sql` | Hangt alles van Bouw aan een huis? Aantallen per huis, zonder namen |

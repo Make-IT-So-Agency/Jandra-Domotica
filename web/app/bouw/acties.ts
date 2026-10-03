@@ -1,15 +1,15 @@
 "use server";
 
+import { vereistHuisrechten } from "@/lib/bouw/huistoegang";
+import { bewaarProject } from "@/lib/bouw/huizen";
 import { tekst } from "@/lib/bouw/invoer";
-import { bewaarProject } from "@/lib/bouw/opslag";
 import { foutmelding, terug } from "@/lib/bouw/terug";
-import { vereistBouwrechten } from "@/lib/toegang";
 
-export async function bewaarProjectActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function bewaarProjectActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
 
   try {
-    await bewaarProject({
+    await bewaarProject(huis.id, {
       projectnaam: tekst(formulier.get("projectnaam")),
       adres: tekst(formulier.get("adres")),
     });

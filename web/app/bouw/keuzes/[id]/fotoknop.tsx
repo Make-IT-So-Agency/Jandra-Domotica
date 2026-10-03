@@ -12,7 +12,7 @@ import { bewaarFotoActie, vraagFotoUploadAan } from "../acties";
  * Een foto bij een optie: kiezen (of trekken, op een gsm), verkleinen in de
  * browser, rechtstreeks naar Storage, en dan bevestigen bij de server.
  */
-export function Fotoknop({ optieId, heeftFoto }: { optieId: number; heeftFoto: boolean }) {
+export function Fotoknop({ huisId, optieId, heeftFoto }: { huisId: number; optieId: number; heeftFoto: boolean }) {
   const router = useRouter();
   const [bezig, setBezig] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
@@ -23,13 +23,13 @@ export function Fotoknop({ optieId, heeftFoto }: { optieId: number; heeftFoto: b
     try {
       const foto = await verkleinFoto(bestand);
       setBezig("Opladen…");
-      const start = await vraagFotoUploadAan({ optieId, naam: bestand.name, grootte: foto.size });
+      const start = await vraagFotoUploadAan(huisId, { optieId, naam: bestand.name, grootte: foto.size });
       if (!start.ok) throw new Error(start.melding);
       await zetOp(start.data.uploadUrl, foto, start.data.contentType, (fractie) =>
         setBezig(`Opladen… ${Math.round(fractie * 100)} %`),
       );
       setBezig("Bewaren…");
-      const klaar = await bewaarFotoActie({ optieId, bestandId: start.data.bestandId });
+      const klaar = await bewaarFotoActie(huisId, { optieId, bestandId: start.data.bestandId });
       if (!klaar.ok) throw new Error(klaar.melding);
       router.refresh();
     } catch (reden) {

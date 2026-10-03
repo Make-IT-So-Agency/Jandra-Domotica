@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import {
@@ -85,7 +86,12 @@ export default async function Opleveringpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [punten, partijen, plaatsen] = await Promise.all([lijstOpleverpunten(), lijstPartijen(), laadPlaatsen()]);
+  const huis = await standaardHuis();
+  const [punten, partijen, plaatsen] = await Promise.all([
+    lijstOpleverpunten(huis.id),
+    lijstPartijen(huis.id),
+    laadPlaatsen(huis.id),
+  ]);
   const partijId = leesId(partij ?? "");
   const gekozenRonde = ronde && isRonde(ronde) ? ronde : null;
   const metAfgewerkt = alles === "ja";
@@ -94,8 +100,8 @@ export default async function Opleveringpagina({
     .filter((p) => (gekozenRonde ? p.ronde === gekozenRonde : true))
     .filter((p) => metAfgewerkt || p.status !== "gecontroleerd")
     .sort((a, b) => VOLGORDE[a.status] - VOLGORDE[b.status] || a.id - b.id);
-  const fotos = await lijstWerffotos({ opleverpuntIds: getoond.map((p) => p.id) });
-  const urls = await fotoUrls(fotos);
+  const fotos = await lijstWerffotos(huis.id, { opleverpuntIds: getoond.map((p) => p.id) });
+  const urls = await fotoUrls(huis.id, fotos);
   const ruimtenaam = ruimtenaamIn(plaatsen);
   const partijnaam = (id: number | null) => partijen.find((p) => p.id === id)?.naam ?? null;
   const stand = [...opleverstand(punten).entries()].sort(([a], [b]) => (partijnaam(a) ?? "~").localeCompare(partijnaam(b) ?? "~", "nl-BE"));
@@ -119,7 +125,7 @@ export default async function Opleveringpagina({
       {teWijzigen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{teWijzigen.titel}</h2>
-          <form action={wijzigOpleverpuntActie}>
+          <form action={wijzigOpleverpuntActie.bind(null, huis.id)}>
             <input type="hidden" name="punt_id" value={teWijzigen.id} />
             <Puntvelden punt={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
             <Plaatskeuze
@@ -129,7 +135,10 @@ export default async function Opleveringpagina({
             />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`"${teWijzigen.titel}" verwijderen?`} formAction={verwijderOpleverpuntActie}>
+              <BevestigKnop
+                vraag={`"${teWijzigen.titel}" verwijderen?`}
+                formAction={verwijderOpleverpuntActie.bind(null, huis.id)}
+              >
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/werf/oplevering">
@@ -173,10 +182,10 @@ export default async function Opleveringpagina({
                   </td>
                   <td>
                     {id ? (
-                      <form action={meldAllesActie} className="knoppenrij">
+                      <form action={meldAllesActie.bind(null, huis.id)} className="knoppenrij">
                         <input type="hidden" name="partij_id" value={id} />
                         <input type="hidden" name="terug" value={hier} />
-                        <a className="knop stil" href={`/api/bouw/oplevering/${id}/pdf`}>
+                        <a className="knop stil" href={`/api/bouw/oplevering/${id}/pdf?huis=${huis.id}`}>
                           PDF
                         </a>
                         {cijfers.open > 0 ? (
@@ -253,7 +262,7 @@ export default async function Opleveringpagina({
                     .join(" · ")}
                 </p>
                 {eigen.length > 0 ? <Galerij fotos={eigen} urls={urls} ruimtenaam={ruimtenaam} /> : null}
-                <form action={zetOpleverstapActie} className="knoppenrij" style={{ marginTop: 8 }}>
+                <form action={zetOpleverstapActie.bind(null, huis.id)} className="knoppenrij" style={{ marginTop: 8 }}>
                   <input type="hidden" name="punt_id" value={punt.id} />
                   <input type="hidden" name="terug" value={hier} />
                   {stappen.includes("afkeuren") ? (
@@ -275,7 +284,13 @@ export default async function Opleveringpagina({
                   </Link>
                 </form>
                 <div style={{ marginTop: 8 }}>
-                  <Werffotoknop opleverpuntId={punt.id} standaardRuimte={punt.ruimte_id} compact label="📷 Foto erbij" />
+                  <Werffotoknop
+                    huisId={huis.id}
+                    opleverpuntId={punt.id}
+                    standaardRuimte={punt.ruimte_id}
+                    compact
+                    label="📷 Foto erbij"
+                  />
                 </div>
               </li>
             );
@@ -284,7 +299,7 @@ export default async function Opleveringpagina({
       )}
 
       <h2>Opleverpunt toevoegen</h2>
-      <form action={voegOpleverpuntToeActie} className="kaart">
+      <form action={voegOpleverpuntToeActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="terug" value={hier} />
         <Puntvelden partijen={partijen} voorvoegsel="nieuw" />
         <Plaatskeuze plaatsen={plaatsen} start={{ verdieping_id: null, ruimte_id: null, x_m: null, y_m: null }} voorvoegsel="nieuw-plaats" />

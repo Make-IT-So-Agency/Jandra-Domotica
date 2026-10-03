@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { korteDatum, maandagVan, plusDagen, vandaag } from "@/lib/bouw/kalender";
 import { openDeadlines } from "@/lib/bouw/keuzes";
@@ -119,12 +120,13 @@ export default async function Planningspagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let planning: Planningsitem[];
   let partijen: Partij[];
   let deadlines: ReturnType<typeof openDeadlines>;
   const nu = vandaag();
   try {
-    const [items, p, keuzes] = await Promise.all([lijstPlanning(), lijstPartijen(), lijstKeuzes()]);
+    const [items, p, keuzes] = await Promise.all([lijstPlanning(huis.id), lijstPartijen(huis.id), lijstKeuzes(huis.id)]);
     planning = items;
     partijen = p;
     deadlines = openDeadlines(keuzes, items, nu);
@@ -156,7 +158,7 @@ export default async function Planningspagina({
       <Melding soort={soort} melding={melding} />
 
       {planning.length === 0 ? (
-        <form action={voorbeeldplanningActie} className="kaart">
+        <form action={voorbeeldplanningActie.bind(null, huis.id)} className="kaart">
           <p className="leeg">Nog geen planning.</p>
           <p>
             Begin met een voorbeeld voor een nieuwbouw met losse aannemers, van de vergunningsaanvraag tot de
@@ -190,12 +192,15 @@ export default async function Planningspagina({
       {gekozen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{gekozen.titel}</h2>
-          <form action={wijzigPlanningActie}>
+          <form action={wijzigPlanningActie.bind(null, huis.id)}>
             <input type="hidden" name="id" value={gekozen.id} />
             <Itemvelden item={gekozen} fasen={fasen} partijen={partijen} voorvoegsel="wijzig" />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`${gekozen.titel} uit de planning halen?`} formAction={verwijderPlanningActie}>
+              <BevestigKnop
+                vraag={`${gekozen.titel} uit de planning halen?`}
+                formAction={verwijderPlanningActie.bind(null, huis.id)}
+              >
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/planning">
@@ -203,7 +208,7 @@ export default async function Planningspagina({
               </Link>
             </div>
           </form>
-          <form action={schuifOpActie} className="schuifop">
+          <form action={schuifOpActie.bind(null, huis.id)} className="schuifop">
             <input type="hidden" name="id" value={gekozen.id} />
             <label htmlFor="schuif-dagen">Loopt het uit? Schuif op met</label>
             <input id="schuif-dagen" name="dagen" inputMode="numeric" placeholder="14" required />
@@ -287,7 +292,7 @@ export default async function Planningspagina({
       ) : null}
 
       <h2>Toevoegen</h2>
-      <form action={voegPlanningToeActie} className="kaart">
+      <form action={voegPlanningToeActie.bind(null, huis.id)} className="kaart">
         <Itemvelden fasen={fasen} partijen={partijen} voorvoegsel="nieuw" />
         <p className="hulp">Een mijlpaal heeft enkel een begindatum. Een fase hoort bij geen andere fase.</p>
         <div className="knoppenrij" style={{ marginTop: 12 }}>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { kasplanning, poststanden } from "@/lib/bouw/geld";
 import { laadGeld, type Geldgegevens } from "@/lib/bouw/geld-laden";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { maandnaam, vandaag } from "@/lib/bouw/kalender";
 import { euroRond } from "@/lib/bouw/keuzes";
 import { magBouwZien } from "@/lib/rollen";
@@ -20,9 +21,10 @@ export default async function Kasplanningpagina() {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let g: Geldgegevens;
   try {
-    g = await laadGeld();
+    g = await laadGeld(huis);
   } catch (fout) {
     return (
       <>
@@ -51,7 +53,7 @@ export default async function Kasplanningpagina() {
         gefactureerd moet worden, spreidt de app over de maanden van de taak van de post.
       </p>
 
-      <Geldmenu actief="kasplanning" />
+      <Geldmenu huisId={huis.id} actief="kasplanning" />
 
       {maanden.length === 0 ? (
         <div className="kaart">

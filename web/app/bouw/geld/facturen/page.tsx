@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { euroBedrag, kredietstand, openFacturen, vervaldagVan, type Factuur } from "@/lib/bouw/geld";
 import { laadGeld, type Geldgegevens } from "@/lib/bouw/geld-laden";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { euroRond } from "@/lib/bouw/keuzes";
@@ -30,10 +31,12 @@ export const dynamic = "force-dynamic";
 const PAD = "/bouw/geld/facturen";
 
 function Factuurtabel({
+  huisId,
   facturen,
   g,
   nu,
 }: {
+  huisId: number;
   facturen: Factuur[];
   g: Geldgegevens;
   nu: string;
@@ -79,10 +82,10 @@ function Factuurtabel({
                 <Factuurlabel factuur={factuur} vandaag={nu} />
               </td>
               <td data-label="PDF">
-                <Pdflink bestandId={factuur.bestand_id} />
+                <Pdflink huisId={huisId} bestandId={factuur.bestand_id} />
               </td>
               <td>
-                <form action={betaalActie} className="knoppenrij">
+                <form action={betaalActie.bind(null, huisId)} className="knoppenrij">
                   <input type="hidden" name="id" value={factuur.id} />
                   <input type="hidden" name="terug" value={PAD} />
                   <button type="submit" className={factuur.betaald_op ? "stil" : undefined}>
@@ -110,9 +113,10 @@ export default async function Facturenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let g: Geldgegevens;
   try {
-    g = await laadGeld();
+    g = await laadGeld(huis);
   } catch (fout) {
     return (
       <>
@@ -148,7 +152,7 @@ export default async function Facturenpagina({
         de dag erna.
       </p>
 
-      <Geldmenu actief="facturen" />
+      <Geldmenu huisId={huis.id} actief="facturen" />
       <Melding soort={soort} melding={melding} />
 
       <div className="tegels">
@@ -182,9 +186,10 @@ export default async function Facturenpagina({
       {teWijzigen ? (
         <section id="factuur" className="kaart">
           <h2 style={{ marginTop: 0 }}>Factuur {factuurnaam(teWijzigen)}</h2>
-          <form action={wijzigFactuurActie}>
+          <form action={wijzigFactuurActie.bind(null, huis.id)}>
             <input type="hidden" name="id" value={teWijzigen.id} />
             <Factuurvelden
+              huisId={huis.id}
               factuur={teWijzigen}
               posten={g.posten}
               partijen={g.partijen}
@@ -193,7 +198,7 @@ export default async function Facturenpagina({
             />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag="Deze factuur verwijderen, met haar PDF?" formAction={verwijderFactuurActie}>
+              <BevestigKnop vraag="Deze factuur verwijderen, met haar PDF?" formAction={verwijderFactuurActie.bind(null, huis.id)}>
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href={PAD}>
@@ -201,12 +206,16 @@ export default async function Facturenpagina({
               </Link>
             </div>
           </form>
-          <form action={zetDocumentActie} style={{ marginTop: 16 }}>
+          <form action={zetDocumentActie.bind(null, huis.id)} style={{ marginTop: 16 }}>
             <input type="hidden" name="soort" value="factuur" />
             <input type="hidden" name="id" value={teWijzigen.id} />
             <input type="hidden" name="terug" value={PAD} />
             <div className="veldenrij">
-              <Documentveld id="wijzig-pdf" label={teWijzigen.bestand_id ? "Een andere PDF" : "PDF van de factuur"} />
+              <Documentveld
+                huisId={huis.id}
+                id="wijzig-pdf"
+                label={teWijzigen.bestand_id ? "Een andere PDF" : "PDF van de factuur"}
+              />
             </div>
             <div className="knoppenrij" style={{ marginTop: 8 }}>
               <button type="submit" className="stil">
@@ -221,13 +230,19 @@ export default async function Facturenpagina({
       {teBetalen.length === 0 ? (
         <p className="hulp">Niets open.</p>
       ) : (
-        <Factuurtabel facturen={teBetalen} g={g} nu={nu} />
+        <Factuurtabel huisId={huis.id} facturen={teBetalen} g={g} nu={nu} />
       )}
 
       <h2>Factuur toevoegen</h2>
-      <form action={voegFactuurToeActie} className="kaart">
+      <form action={voegFactuurToeActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="terug" value={PAD} />
-        <Factuurvelden posten={g.posten} partijen={g.partijen} vennootschappen={g.vennootschappen} voorvoegsel="nieuw" />
+        <Factuurvelden
+          huisId={huis.id}
+          posten={g.posten}
+          partijen={g.partijen}
+          vennootschappen={g.vennootschappen}
+          voorvoegsel="nieuw"
+        />
         <p className="hulp">
           Zonder vervaldag rekent de app 30 dagen na de factuurdatum. Een creditnota telt af van de post.
           {g.vennootschappen.length > 0 ? " Wat ten laste van een vennootschap valt, bv. een laadpaal, duid je aan bij Ten laste van." : ""}
@@ -240,7 +255,7 @@ export default async function Facturenpagina({
       {betaald.length > 0 ? (
         <>
           <h2>Betaald</h2>
-          <Factuurtabel facturen={betaald} g={g} nu={nu} />
+          <Factuurtabel huisId={huis.id} facturen={betaald} g={g} nu={nu} />
         </>
       ) : null}
 
@@ -285,7 +300,7 @@ export default async function Facturenpagina({
                         {opname.opmerking ? <div className="hulp">{opname.opmerking}</div> : null}
                       </td>
                       <td>
-                        <form action={verwijderKredietopnameActie} className="knoppenrij">
+                        <form action={verwijderKredietopnameActie.bind(null, huis.id)} className="knoppenrij">
                           <input type="hidden" name="id" value={opname.id} />
                           <BevestigKnop vraag="Deze opname verwijderen?" className="stil">
                             Verwijderen
@@ -300,7 +315,7 @@ export default async function Facturenpagina({
           </div>
         ) : null}
 
-        <form action={voegKredietopnameToeActie} style={{ marginTop: 12 }}>
+        <form action={voegKredietopnameToeActie.bind(null, huis.id)} style={{ marginTop: 12 }}>
           <div className="veldenrij">
             <div>
               <label htmlFor="opname-datum">Opgenomen op</label>

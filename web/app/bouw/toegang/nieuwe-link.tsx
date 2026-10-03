@@ -23,10 +23,12 @@ const lang = new Intl.DateTimeFormat("nl-BE", { day: "numeric", month: "long", y
  * een knop om te kopiëren en een om te mailen: de app bewaart enkel de hash.
  */
 export function NieuweLink({
+  huisId,
   partijen,
   vervaldatum,
   afzender,
 }: {
+  huisId: number;
   partijen: Linkpartij[];
   vervaldatum: string;
   afzender: string;
@@ -47,7 +49,7 @@ export function NieuweLink({
     if (!partij) return setFout("Kies voor wie de link is.");
     setFout(null);
     setBezig(true);
-    const uitkomst = await maakLinkActie({ partijId, rechten, vervaltOp: tot }).catch(() => null);
+    const uitkomst = await maakLinkActie(huisId, { partijId, rechten, vervaltOp: tot }).catch(() => null);
     setBezig(false);
     if (!uitkomst || !uitkomst.ok) return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app.");
     setGemaakt({ ...uitkomst.data, partij });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { CATEGORIEKLEUREN, CATEGORIENAMEN } from "@/lib/bouw/punten";
 import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
 import { magBouwZien } from "@/lib/rollen";
@@ -14,7 +15,8 @@ export default async function Wensenlijstpagina() {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const { lijst } = await laadWensenlijst();
+  const huis = await standaardHuis();
+  const { lijst } = await laadWensenlijst(huis);
 
   return (
     <>
@@ -36,10 +38,10 @@ export default async function Wensenlijstpagina() {
       ) : (
         <>
           <div className="knoppenrij" style={{ marginBottom: 18 }}>
-            <a className="knop" href="/api/bouw/wensenlijst/pdf">
+            <a className="knop" href={`/api/bouw/wensenlijst/pdf?huis=${huis.id}`}>
               PDF downloaden
             </a>
-            <a className="knop stil" href="/api/bouw/wensenlijst/excel">
+            <a className="knop stil" href={`/api/bouw/wensenlijst/excel?huis=${huis.id}`}>
               Excel downloaden
             </a>
           </div>

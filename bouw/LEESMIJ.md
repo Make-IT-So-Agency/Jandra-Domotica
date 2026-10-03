@@ -570,6 +570,9 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/bouw/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
+| `supabase/migrations/20261003114500_bouw_huizen.sql` | De huizen, en bij welk huis elke rij hoort |
+| `web/lib/bouw/huizen.ts`, `huistoegang.ts` | De huizen lezen en bewaren, en het huis van een actie of API-route nakijken |
+| `web/lib/bouw/databank.ts` | Fouten van de databank, en bij welk huis een rij hoort |
 | `web/lib/bouw/opslag.ts` | Alles wat in de databank gelezen en geschreven wordt |
 | `web/lib/bouw/opslagruimte.ts` | De bestanden in Storage |
 | `web/lib/bouw/opladen.ts` | Opladen afronden en opruimen |
@@ -631,6 +634,26 @@ meestal in schijven, volgens de vordering van zijn werk. Wat een post nog
 moet factureren, gelijk spreiden over de maanden van zijn taak, is een ruwe
 maar eerlijke schatting, en ze schuift mee als de taak opschuift. Echte
 facturen vervangen de schatting: wat gefactureerd is, gaat van de rest af.
+
+**Waarom elk huis zijn eigen gegevens heeft.** Naast de nieuwbouw kan later
+bv. het huidige huis komen, met zijn eigen partijen, plannen, geld en
+onderhoud. Achttien tabellen hebben daarom een kolom `huis_id`; de rest hoort
+via zijn ouder bij een huis, zoals een ruimte via haar verdieping en die via
+haar gebouw. Elke functie in de opslagmodules krijgt het huis mee:
+
+- een lijst toont enkel dat huis;
+- lezen, wijzigen of verwijderen op een id van een ander huis lukt niet;
+- een verwijzing naar iets van een ander huis (een partij, een post, een
+  ruimte) wordt geweigerd;
+- een actie krijgt haar huis via `.bind(null, huis.id)`, en de server leest
+  het opnieuw na.
+
+De naam van een gebouw en de bladcode van een plan zijn uniek per huis. Een
+link voor een partij geeft enkel het huis van die partij vrij. De bot en zijn
+chat gelden voor alle huizen; met meer dan één huis staat de naam erboven.
+
+Voorlopig werken de pagina's op het eerste huis; het menu met de huizen komt
+met de adressen onder `/vastgoed`.
 
 **Waarom de plannen in de browser bewaard worden.** Supabase draait op het
 gratis niveau, met beperkt dataverkeer. Een ondertekende URL is elke keer

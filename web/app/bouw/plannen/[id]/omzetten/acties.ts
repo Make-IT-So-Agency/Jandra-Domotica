@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { huisgebruiker } from "@/lib/bouw/huistoegang";
 import { controleerBevestiging, naarRuimterijen, omzettingsvoorstel } from "@/lib/bouw/omzetting/bevestigen";
 import { WERKWIJZE } from "@/lib/bouw/omzetting/pijplijn";
 import {
@@ -15,7 +16,6 @@ import {
 } from "@/lib/bouw/opslag";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
-import { bouwgebruiker } from "@/lib/toegang";
 
 const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
 
@@ -32,9 +32,9 @@ export interface Bevestigd {
  * en kijkt na of elke koppeling met een bestaande ruimte bij deze verdieping
  * hoort.
  */
-export async function bevestigOmzettingActie(ruw: unknown): Promise<Uitkomst<Bevestigd>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function bevestigOmzettingActie(huisId: unknown, ruw: unknown): Promise<Uitkomst<Bevestigd>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const bevestiging = controleerBevestiging(ruw);
   if (!bevestiging.ok) return bevestiging;
@@ -42,27 +42,27 @@ export async function bevestigOmzettingActie(ruw: unknown): Promise<Uitkomst<Bev
   if (!rijen.ok) return rijen;
 
   try {
-    const versie = await leesVersie(bevestiging.data.versieId);
-    const plan = versie ? await leesPlan(versie.plan_id) : null;
+    const versie = await leesVersie(toegang.huis.id, bevestiging.data.versieId);
+    const plan = versie ? await leesPlan(toegang.huis.id, versie.plan_id) : null;
     if (!versie || !plan) return mislukt("Deze versie bestaat niet meer.");
     if (plan.soort !== "grondplan") return mislukt("Enkel een grondplan wordt omgezet naar ruimtes.");
     if (!plan.verdieping_id) return mislukt("Hang dit grondplan eerst aan een verdieping.");
 
-    const omzettingId = await bewaarOmzetting({
+    const omzettingId = await bewaarOmzetting(toegang.huis.id, {
       planversie_id: versie.id,
       werkwijze: WERKWIJZE,
       voorstel: omzettingsvoorstel(bevestiging.data, rijen.data),
-      bevestigd_door: ik.email,
+      bevestigd_door: toegang.ik.email,
     });
-    const telling = await schrijfRuimtes(plan.verdieping_id, omzettingId, rijen.data);
-    await zetKalibratie(versie.id, { ...bevestiging.data.kalibratie, bevestigdOp: new Date().toISOString() });
+    const telling = await schrijfRuimtes(toegang.huis.id, plan.verdieping_id, omzettingId, rijen.data);
+    await zetKalibratie(toegang.huis.id, versie.id, { ...bevestiging.data.kalibratie, bevestigdOp: new Date().toISOString() });
 
     const { bijwerken, vloerpeil, plafondhoogte } = bevestiging.data.verdieping;
     if (bijwerken) {
       const velden: Partial<NieuweVerdieping> = {};
       if (vloerpeil !== null) velden.vloerpeil_m = vloerpeil;
       if (plafondhoogte !== null) velden.plafondhoogte_m = plafondhoogte;
-      if (Object.keys(velden).length > 0) await wijzigVerdieping(plan.verdieping_id, velden);
+      if (Object.keys(velden).length > 0) await wijzigVerdieping(toegang.huis.id, plan.verdieping_id, velden);
     }
 
     revalidatePath("/bouw", "layout");

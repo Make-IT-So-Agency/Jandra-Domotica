@@ -33,7 +33,8 @@ import { gelukt, mislukt, type Gebouw, type Uitkomst, type Verdieping } from "./
  * Wat er al is, wordt hergebruikt en niet overschreven: een blad waarvan de
  * bladcode al bij een plan hoort (of zonder bladcode: dezelfde titel in
  * hetzelfde gebouw) wordt een nieuwe versie van dat plan. Van een bestaande
- * verdieping worden enkel lege velden aangevuld.
+ * verdieping worden enkel lege velden aangevuld. Dat alles binnen één huis:
+ * een ander huis mag dezelfde bladcodes hebben.
  */
 
 /** De plannen zoals de koppeling ze nodig heeft: met de naam van hun gebouw en hun labels. */
@@ -49,8 +50,11 @@ export function alsBestaand(plannen: PlanMetVersies[], gebouwen: Gebouw[]): Best
 }
 
 /** Kijkt na of het dossier kan ingelezen worden, nog voor de PDF opgeladen wordt. */
-export async function bekijkDossier(aanvraag: Dossieraanvraag): Promise<{ bladen: Bladplan[]; fouten: string[] }> {
-  const [plannen, gebouwen] = await Promise.all([lijstPlannen(), lijstGebouwen()]);
+export async function bekijkDossier(
+  huisId: number,
+  aanvraag: Dossieraanvraag,
+): Promise<{ bladen: Bladplan[]; fouten: string[] }> {
+  const [plannen, gebouwen] = await Promise.all([lijstPlannen(huisId), lijstGebouwen(huisId)]);
   return koppelBladen(aanvraag, alsBestaand(plannen, gebouwen));
 }
 
@@ -71,8 +75,12 @@ function aanvulling(bestaand: Verdieping, nieuw: Dossierverdieping): Partial<Nie
  * en zegt de melding waar het stopte; opnieuw inlezen met een ander label
  * vult de rest aan.
  */
-export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number): Promise<Uitkomst<Dossieruitkomst>> {
-  const [plannen, voor] = await Promise.all([lijstPlannen(), lijstGebouwen()]);
+export async function leesDossierIn(
+  huisId: number,
+  aanvraag: Dossieraanvraag,
+  bestandId: number,
+): Promise<Uitkomst<Dossieruitkomst>> {
+  const [plannen, voor] = await Promise.all([lijstPlannen(huisId), lijstGebouwen(huisId)]);
   const koppeling = koppelBladen(aanvraag, alsBestaand(plannen, voor));
   if (koppeling.fouten.length > 0) return mislukt(koppeling.fouten.join(" "));
 
@@ -83,11 +91,11 @@ export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number
       (g): g is string => g !== null,
     ),
   )) {
-    if (!gebouwVan.has(sleutelVan(naamVan))) gebouwVan.set(sleutelVan(naamVan), await zoekOfMaakGebouw(naamVan));
+    if (!gebouwVan.has(sleutelVan(naamVan))) gebouwVan.set(sleutelVan(naamVan), await zoekOfMaakGebouw(huisId, naamVan));
   }
 
   // 2. Verdiepingen, per gebouw op naam. Ook die een blad noemt zonder dat ze in de lijst staan.
-  const bestaande = await lijstVerdiepingen();
+  const bestaande = await lijstVerdiepingen(huisId);
   const verdiepingVan = new Map<string, number>();
   const sleutel = (gebouw: string, verdieping: string) => `${gebouwVan.get(sleutelVan(gebouw))}|${sleutelVan(verdieping)}`;
   const gevraagd = [
@@ -111,12 +119,12 @@ export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number
     const bestaand = bestaande.find((v) => v.gebouw_id === gebouwId && sleutelVan(v.naam) === sleutelVan(verdieping.naam));
     if (bestaand) {
       const velden = aanvulling(bestaand, verdieping);
-      if (Object.keys(velden).length > 0) await wijzigVerdieping(bestaand.id, velden);
+      if (Object.keys(velden).length > 0) await wijzigVerdieping(huisId, bestaand.id, velden);
       verdiepingVan.set(k, bestaand.id);
     } else {
       verdiepingVan.set(
         k,
-        await voegVerdiepingToe({
+        await voegVerdiepingToe(huisId, {
           gebouw_id: gebouwId,
           naam: verdieping.naam,
           volgorde: verdieping.volgorde,
@@ -139,9 +147,9 @@ export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number
     if (bestaand) {
       planId = bestaand.id;
       const plan = plannen.find((p) => p.id === planId);
-      if (blad.bladcode && plan && plan.bladcode === null) await zetBladcode(planId, blad.bladcode);
+      if (blad.bladcode && plan && plan.bladcode === null) await zetBladcode(huisId, planId, blad.bladcode);
     } else {
-      planId = await voegPlanToe({
+      planId = await voegPlanToe(huisId, {
         titel: blad.titel,
         soort: blad.soort,
         gebouw_id: gebouwId,
@@ -151,7 +159,7 @@ export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number
       });
       nieuwePlannen++;
     }
-    await voegVersieToe({
+    await voegVersieToe(huisId, {
       plan_id: planId,
       bestand_id: bestandId,
       label: aanvraag.label,
@@ -161,7 +169,7 @@ export async function leesDossierIn(aanvraag: Dossieraanvraag, bestandId: number
     });
   }
 
-  const na = await lijstGebouwen();
+  const na = await lijstGebouwen(huisId);
   return gelukt({
     plannen: aanvraag.bladen.length,
     nieuwePlannen,

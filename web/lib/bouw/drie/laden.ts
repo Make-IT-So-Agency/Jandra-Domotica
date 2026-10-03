@@ -41,17 +41,17 @@ export interface Driegegevens {
   punten: { id: number; verdiepingId: number; x: number; y: number; hoogte: number | null; kleur: string; naam: string }[];
 }
 
-export async function laadDrie(ik: string): Promise<Driegegevens> {
+export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens> {
   const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten] = await Promise.all([
-    lijstGebouwen(),
-    lijstDaken(),
-    lijstVerdiepingen(),
-    lijstPlannen(),
-    lijstRuimtes(),
-    lijstKeuzes(),
-    lijstOpties(),
-    lijstVoorkeuren(),
-    lijstPunten(),
+    lijstGebouwen(huisId),
+    lijstDaken(huisId),
+    lijstVerdiepingen(huisId),
+    lijstPlannen(huisId),
+    lijstRuimtes(huisId),
+    lijstKeuzes(huisId),
+    lijstOpties(huisId),
+    lijstVoorkeuren(huisId),
+    lijstPunten(huisId),
   ]);
 
   const omzettingen = await lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id)));
@@ -62,7 +62,10 @@ export async function laadDrie(ik: string): Promise<Driegegevens> {
   );
 
   // Een foto toont de browser als textuur, via een ondertekende URL van een uur.
-  const bestanden = await leesBestanden(opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])));
+  const bestanden = await leesBestanden(
+    huisId,
+    opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])),
+  );
   const fotos = new Map(
     (
       await Promise.all(

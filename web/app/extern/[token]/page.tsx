@@ -3,12 +3,13 @@ import { Tijdlijn } from "@/app/bouw/planning/tijdlijn";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { euroBedrag } from "@/lib/bouw/geld";
 import { betaaldOpVan } from "@/lib/bouw/geld-opslag";
+import { leesHuis } from "@/lib/bouw/huizen";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { CATEGORIENAMEN_KEUZE } from "@/lib/bouw/keuzes";
 import { lijstInzendingen, leesLink, type Inzending } from "@/lib/bouw/links";
-import { leesBestanden, leesProject, lijstGebouwen, lijstPartijen, lijstPlannen } from "@/lib/bouw/opslag";
+import { leesBestanden, lijstGebouwen, lijstPartijen, lijstPlannen } from "@/lib/bouw/opslag";
 import { lijstKeuzes, lijstOpties, lijstPlanning } from "@/lib/bouw/regie-opslag";
-import { PLANNAMEN } from "@/lib/bouw/types";
+import { PLANNAMEN, type Huis } from "@/lib/bouw/types";
 import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
 import { sorteerPlannen } from "@/lib/bouw/weergave";
 import { STATUSNAMEN_OPLEVERPUNT, RONDENAMEN } from "@/lib/bouw/werf";
@@ -27,9 +28,9 @@ export const dynamic = "force-dynamic";
 const INZENDSTATUS = { nieuw: "ontvangen", verwerkt: "ingelezen", genegeerd: "niet gebruikt" } as const;
 
 /**
- * Wat een partij via haar persoonlijke link ziet: enkel wat die link mag. Geen
- * prijzen, geen adres, geen opmerkingen uit de planning, geen beslissingslog
- * in vrije tekst.
+ * Wat een partij via haar persoonlijke link ziet: enkel wat die link mag, en
+ * enkel van het huis van haar partij. Geen prijzen, geen adres, geen
+ * opmerkingen uit de planning, geen beslissingslog in vrije tekst.
  */
 export default async function Externepagina({
   params,
@@ -40,7 +41,9 @@ export default async function Externepagina({
 }) {
   const [{ token }, { melding, soort }] = await Promise.all([params, searchParams]);
   const externe = await leesLink(token).catch(() => null);
-  if (!externe) {
+  // leesLink las het huis al; React onthoudt het voor deze weergave.
+  const huis = externe ? await leesHuis(externe.huisId).catch(() => null) : null;
+  if (!externe || !huis) {
     return (
       <>
         <h1>Deze link werkt niet</h1>
@@ -52,13 +55,13 @@ export default async function Externepagina({
   }
 
   const mag = (recht: (typeof externe.rechten)[number]) => externe.rechten.includes(recht);
-  const [project, partijen] = await Promise.all([leesProject(), lijstPartijen()]);
+  const partijen = await lijstPartijen(huis.id);
   const partijnamen = new Map(partijen.map((partij) => [partij.id, partij.naam]));
   const nu = vandaag();
 
   return (
     <>
-      <h1>{project.projectnaam ?? "Ons bouwproject"}</h1>
+      <h1>{externe.projectnaam ?? "Ons bouwproject"}</h1>
       <p className="inleiding">
         Welkom, {externe.partijnaam}. Deze persoonlijke link werkt tot {datum(externe.vervaltOp)}. Deel hem niet: wie
         hem heeft, ziet wat jij hier ziet.
@@ -66,27 +69,30 @@ export default async function Externepagina({
 
       <Melding soort={soort} melding={melding} />
 
-      {mag("oplevering") ? <Oplevering token={token} partijId={externe.partijId} /> : null}
-      {mag("inzenden") ? <Insturen token={token} linkId={externe.linkId} /> : null}
+      {mag("oplevering") ? <Oplevering huisId={huis.id} token={token} partijId={externe.partijId} /> : null}
+      {mag("inzenden") ? <Insturen huisId={huis.id} token={token} linkId={externe.linkId} /> : null}
       {mag("offertes") || mag("facturen") ? (
         <GeldInsturen
+          huisId={huis.id}
           token={token}
           linkId={externe.linkId}
           soorten={[...(mag("offertes") ? (["offerte"] as const) : []), ...(mag("facturen") ? (["factuur"] as const) : [])]}
           vandaag={nu}
         />
       ) : null}
-      {mag("plannen") ? <Plannen token={token} /> : null}
-      {mag("keuzes") ? <Keuzes partijnamen={partijnamen} /> : null}
-      {mag("planning") ? <Planning partijnamen={partijnamen} vandaag={nu} /> : null}
-      {mag("wensenlijst") ? <Wensenlijst token={token} /> : null}
+      {mag("plannen") ? <Plannen huisId={huis.id} token={token} /> : null}
+      {mag("keuzes") ? <Keuzes huisId={huis.id} partijnamen={partijnamen} /> : null}
+      {mag("planning") ? <Planning huisId={huis.id} partijnamen={partijnamen} vandaag={nu} /> : null}
+      {mag("wensenlijst") ? <Wensenlijst huis={huis} token={token} /> : null}
     </>
   );
 }
 
-async function Insturen({ token, linkId }: { token: string; linkId: number }) {
-  const eerder = await lijstInzendingen({ linkId, soorten: ["plan"] });
-  const bestanden = new Map((await leesBestanden(eerder.map((inzending) => inzending.bestand_id))).map((b) => [b.id, b]));
+async function Insturen({ huisId, token, linkId }: { huisId: number; token: string; linkId: number }) {
+  const eerder = await lijstInzendingen(huisId, { linkId, soorten: ["plan"] });
+  const bestanden = new Map(
+    (await leesBestanden(huisId, eerder.map((inzending) => inzending.bestand_id))).map((b) => [b.id, b]),
+  );
   return (
     <section>
       <h2>Insturen</h2>
@@ -121,18 +127,23 @@ function geldstand(inzending: Inzending, betaald: Map<number, string | null>): s
 }
 
 async function GeldInsturen({
+  huisId,
   token,
   linkId,
   soorten,
   vandaag: nu,
 }: {
+  huisId: number;
   token: string;
   linkId: number;
   soorten: ("offerte" | "factuur")[];
   vandaag: string;
 }) {
-  const eerder = await lijstInzendingen({ linkId, soorten: ["offerte", "factuur"] });
-  const betaald = await betaaldOpVan(eerder.flatMap((inzending) => (inzending.factuur_id ? [inzending.factuur_id] : [])));
+  const eerder = await lijstInzendingen(huisId, { linkId, soorten: ["offerte", "factuur"] });
+  const betaald = await betaaldOpVan(
+    huisId,
+    eerder.flatMap((inzending) => (inzending.factuur_id ? [inzending.factuur_id] : [])),
+  );
   const welke = soorten.length === 2 ? "Een offerte of factuur" : soorten[0] === "offerte" ? "Een offerte" : "Een factuur";
   return (
     <section>
@@ -161,11 +172,11 @@ async function GeldInsturen({
  * De opleverpunten van deze partij, met hun foto's: wat nog te herstellen is,
  * wat wij nog moeten nakijken, en wat in orde is. Niets van andere partijen.
  */
-async function Oplevering({ token, partijId }: { token: string; partijId: number }) {
-  const [punten, plaatsen] = await Promise.all([lijstOpleverpunten({ partijId }), laadPlaatsen()]);
+async function Oplevering({ huisId, token, partijId }: { huisId: number; token: string; partijId: number }) {
+  const [punten, plaatsen] = await Promise.all([lijstOpleverpunten(huisId, { partijId }), laadPlaatsen(huisId)]);
   if (punten.length === 0) return null;
-  const fotos = await lijstWerffotos({ opleverpuntIds: punten.map((punt) => punt.id) });
-  const [klein, groot] = await Promise.all([fotoUrls(fotos), fotoUrls(fotos, true)]);
+  const fotos = await lijstWerffotos(huisId, { opleverpuntIds: punten.map((punt) => punt.id) });
+  const [klein, groot] = await Promise.all([fotoUrls(huisId, fotos), fotoUrls(huisId, fotos, true)]);
   const ruimtenaam = ruimtenaamIn(plaatsen);
   const teDoen = punten.filter((punt) => punt.status === "open" || punt.status === "gemeld");
   const nakijken = punten.filter((punt) => punt.status === "hersteld");
@@ -246,8 +257,8 @@ async function Oplevering({ token, partijId }: { token: string; partijId: number
   );
 }
 
-async function Plannen({ token }: { token: string }) {
-  const [plannen, gebouwen] = await Promise.all([lijstPlannen(), lijstGebouwen()]);
+async function Plannen({ huisId, token }: { huisId: number; token: string }) {
+  const [plannen, gebouwen] = await Promise.all([lijstPlannen(huisId), lijstGebouwen(huisId)]);
   const metVersie = sorteerPlannen(
     plannen.filter((plan) => plan.versies.length > 0),
     gebouwen,
@@ -319,8 +330,8 @@ async function Plannen({ token }: { token: string }) {
   );
 }
 
-async function Keuzes({ partijnamen }: { partijnamen: Map<number, string> }) {
-  const [keuzes, opties] = await Promise.all([lijstKeuzes(), lijstOpties()]);
+async function Keuzes({ huisId, partijnamen }: { huisId: number; partijnamen: Map<number, string> }) {
+  const [keuzes, opties] = await Promise.all([lijstKeuzes(huisId), lijstOpties(huisId)]);
   const beslist = keuzes.filter((keuze) => keuze.gekozen_optie_id !== null);
   const open = keuzes.filter((keuze) => keuze.gekozen_optie_id === null);
   return (
@@ -368,8 +379,16 @@ async function Keuzes({ partijnamen }: { partijnamen: Map<number, string> }) {
   );
 }
 
-async function Planning({ partijnamen, vandaag: nu }: { partijnamen: Map<number, string>; vandaag: string }) {
-  const planning = await lijstPlanning();
+async function Planning({
+  huisId,
+  partijnamen,
+  vandaag: nu,
+}: {
+  huisId: number;
+  partijnamen: Map<number, string>;
+  vandaag: string;
+}) {
+  const planning = await lijstPlanning(huisId);
   return (
     <section>
       <h2>Planning</h2>
@@ -393,8 +412,8 @@ async function Planning({ partijnamen, vandaag: nu }: { partijnamen: Map<number,
   );
 }
 
-async function Wensenlijst({ token }: { token: string }) {
-  const { lijst } = await laadWensenlijst();
+async function Wensenlijst({ huis, token }: { huis: Huis; token: string }) {
+  const { lijst } = await laadWensenlijst(huis);
   return (
     <section>
       <h2>Wensenlijst elektriciteit en domotica</h2>

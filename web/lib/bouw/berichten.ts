@@ -88,9 +88,11 @@ interface Planningsregel {
  * - op maandag de week, als er iets gepland is.
  *
  * De sleutel bevat de datum waarover het gaat: schuift een taak op, dan komt
- * er voor de nieuwe datum een nieuwe herinnering.
+ * er voor de nieuwe datum een nieuwe herinnering. De andere sleutels bevatten
+ * een id, dat over alle huizen heen uniek is; de week krijgt het huis erbij.
  */
 export function herinneringen(
+  huisId: number,
   deadlines: Openstaand[],
   planning: Planningsregel[],
   week: { van: string; tot: string; regels: Weekregel[] },
@@ -99,7 +101,7 @@ export function herinneringen(
   const uit: Herinnering[] = [];
 
   if (week.van === vandaag && week.regels.length > 0) {
-    uit.push({ sleutel: `week:${week.van}`, tekst: `📅 ${weekbericht(week)}`, pad: "/bouw/planning" });
+    uit.push({ sleutel: `week:${huisId}:${week.van}`, tekst: `📅 ${weekbericht(week)}`, pad: "/bouw/planning" });
   }
 
   for (const deadline of deadlines) {

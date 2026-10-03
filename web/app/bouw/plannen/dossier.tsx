@@ -71,7 +71,7 @@ function alsDossierbladen(rijen: Rij[]): Dossierblad[] {
  * plan voor. Jan en Sandra kijken dat na; pas dan gaat de PDF naar de
  * privé-opslag en worden de plannen, versies en verdiepingen aangemaakt.
  */
-export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; inzending?: Ingestuurd }) {
+export default function Dossier({ huisId, bestaand, inzending }: { huisId: number; bestaand: Bestaand; inzending?: Ingestuurd }) {
   const router = useRouter();
   const [fase, setFase] = useState<Fase>({ soort: "kiezen" });
   const [fout, setFout] = useState<string | null>(null);
@@ -110,7 +110,7 @@ export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; i
     setFout(null);
     setFase({ soort: "lezen", tekst: "Het ingestuurde dossier ophalen…" });
     try {
-      const toelating = await vraagInzendingUrl(ingestuurd.id);
+      const toelating = await vraagInzendingUrl(huisId, ingestuurd.id);
       if (!toelating.ok) throw new Error(toelating.melding);
       const antwoord = await fetch(toelating.data.url);
       if (!antwoord.ok) throw new Error(`Ophalen mislukt (HTTP ${antwoord.status}).`);
@@ -203,7 +203,7 @@ export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; i
     if (inzending && !bron.bestand) {
       // Een inzending staat al in de opslag: enkel nog inlezen.
       setFase({ soort: "bezig", tekst: "Inlezen…" });
-      uitkomst = await leesInzendingInActie({ inzendingId: inzending.id, aanvraag: aanvraag.data }).catch(() => null);
+      uitkomst = await leesInzendingInActie(huisId, { inzendingId: inzending.id, aanvraag: aanvraag.data }).catch(() => null);
       if (!uitkomst || !uitkomst.ok) {
         setFase({ soort: "nakijken" });
         return setFout(uitkomst ? uitkomst.melding : "Geen verbinding met de app. Probeer opnieuw.");
@@ -212,7 +212,7 @@ export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; i
     } else {
       if (!bron.bestand) return;
       setFase({ soort: "bezig", tekst: "Voorbereiden…" });
-      const toelating = await vraagDossierUploadAan({
+      const toelating = await vraagDossierUploadAan(huisId, {
         aanbod: { naam: bron.naam, type: bron.type, grootte: bron.grootte },
         aanvraag: aanvraag.data,
       }).catch(() => null);
@@ -231,7 +231,7 @@ export default function Dossier({ bestaand, inzending }: { bestaand: Bestaand; i
       }
 
       setFase({ soort: "bezig", tekst: "Nakijken en inlezen…" });
-      uitkomst = await leesDossierInActie({ bestandId: toelating.data.bestandId, aanvraag: aanvraag.data }).catch(
+      uitkomst = await leesDossierInActie(huisId, { bestandId: toelating.data.bestandId, aanvraag: aanvraag.data }).catch(
         () => null,
       );
       if (!uitkomst || !uitkomst.ok) {

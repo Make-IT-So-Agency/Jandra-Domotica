@@ -16,7 +16,7 @@ import { vraagDocumentUploadAan } from "./acties";
  * het formulier naar de server. Zolang het opladen loopt, houdt dit veld het
  * formulier tegen.
  */
-export function Documentveld({ id, label = "PDF" }: { id: string; label?: string }) {
+export function Documentveld({ huisId, id, label = "PDF" }: { huisId: number; id: string; label?: string }) {
   const verborgen = useRef<HTMLInputElement>(null);
   const bezigNu = useRef(false);
   const [bezig, setBezig] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function Documentveld({ id, label = "PDF" }: { id: string; label?: string
     bezigNu.current = true;
     setBezig("Opladen…");
     try {
-      const start = await vraagDocumentUploadAan(aanbod);
+      const start = await vraagDocumentUploadAan(huisId, aanbod);
       if (!start.ok) throw new Error(start.melding);
       await zetOp(start.data.uploadUrl, bestand, start.data.contentType, (fractie) =>
         setBezig(`Opladen… ${Math.round(fractie * 100)} %`),

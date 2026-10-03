@@ -23,6 +23,7 @@ import { Fotoknop } from "./fotoknop";
 
 /** Eén optie van een keuze: foto, prijs, meerprijs, wie ze verkiest, en wat je ermee kan. */
 export function Optiekaart({
+  huisId,
   optie,
   keuze,
   prijs,
@@ -34,6 +35,7 @@ export function Optiekaart({
   aantalOpties,
   partijen,
 }: {
+  huisId: number;
   optie: Optie;
   keuze: { gekozen_optie_id: number | null; eenheid: Eenheid };
   prijs: Optieprijs | undefined;
@@ -96,38 +98,38 @@ export function Optiekaart({
 
       <form className="knoppenrij">
         <input type="hidden" name="id" value={optie.id} />
-        <button type="submit" className="stil" formAction={voorkeurActie}>
+        <button type="submit" className="stil" formAction={voorkeurActie.bind(null, huisId)}>
           {mijnVoorkeur === optie.id ? "Niet meer mijn voorkeur" : "Mijn voorkeur"}
         </button>
         {optie.id !== keuze.gekozen_optie_id ? (
           <BevestigKnop
             vraag={`${optie.naam} definitief kiezen? Het komt in het beslissingslog.`}
-            formAction={beslisActie}
+            formAction={beslisActie.bind(null, huisId)}
             className=""
           >
             Kies deze
           </BevestigKnop>
         ) : null}
-        <button type="submit" className="stil" formAction={zetBasisActie}>
+        <button type="submit" className="stil" formAction={zetBasisActie.bind(null, huisId)}>
           {optie.basis ? "Geen basis" : "Basis"}
         </button>
       </form>
 
-      <Fotoknop optieId={optie.id} heeftFoto={!!optie.foto_bestand_id} />
+      <Fotoknop huisId={huisId} optieId={optie.id} heeftFoto={!!optie.foto_bestand_id} />
 
       <details className="optie-wijzigen">
         <summary>Wijzigen</summary>
-        <form action={wijzigOptieActie}>
+        <form action={wijzigOptieActie.bind(null, huisId)}>
           <input type="hidden" name="id" value={optie.id} />
           <Optievelden optie={optie} eenheid={keuze.eenheid} partijen={partijen} voorvoegsel={`o${optie.id}`} />
           <div className="knoppenrij">
             <button type="submit">Bewaren</button>
             {optie.foto_bestand_id ? (
-              <button type="submit" className="stil" formAction={verwijderFotoActie} formNoValidate>
+              <button type="submit" className="stil" formAction={verwijderFotoActie.bind(null, huisId)} formNoValidate>
                 Foto weghalen
               </button>
             ) : null}
-            <BevestigKnop vraag={`${optie.naam} verwijderen?`} formAction={verwijderOptieActie}>
+            <BevestigKnop vraag={`${optie.naam} verwijderen?`} formAction={verwijderOptieActie.bind(null, huisId)}>
               Verwijderen
             </BevestigKnop>
           </div>

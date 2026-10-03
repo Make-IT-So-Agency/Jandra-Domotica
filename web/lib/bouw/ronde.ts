@@ -3,6 +3,7 @@ import "server-only";
 import { herinneringen, type Openstaand } from "./berichten";
 import { factuurherinneringen, factuurWat, openFacturen } from "./geld";
 import { lijstFacturen } from "./geld-opslag";
+import { lijstHuizen } from "./huizen";
 import { actiepuntherinneringen } from "./werf";
 import { lijstActiepunten } from "./werf-opslag";
 import { vandaag } from "./kalender";
@@ -18,20 +19,23 @@ import { CHAT_SLEUTEL } from "./telegramregels";
 /**
  * De dagelijkse ronde van de bot van Bouw, en wat de commando's nodig hebben.
  * Vercel roept de ronde elke ochtend aan via /api/cron/bouw.
+ *
+ * De bot en zijn chat gelden voor alle huizen. De ronde loopt over de actieve
+ * huizen; zijn er meer, dan staat de naam van het huis boven elk bericht.
  */
 
 /** In bouw_instellingen: de chat waar de bot zijn herinneringen heen stuurt, gekozen in de app of met /hier. */
 export { CHAT_SLEUTEL };
 
-export async function laadBotstand(dag: string) {
+export async function laadBotstand(huisId: number, dag: string) {
   const [keuzes, planning, partijen, facturen, actiepunten, onderhoud, garanties] = await Promise.all([
-    lijstKeuzes(),
-    lijstPlanning(),
-    lijstPartijen(),
-    lijstFacturen(),
-    lijstActiepunten(),
-    lijstOnderhoud(),
-    lijstGaranties(),
+    lijstKeuzes(huisId),
+    lijstPlanning(huisId),
+    lijstPartijen(huisId),
+    lijstFacturen(huisId),
+    lijstActiepunten(huisId),
+    lijstOnderhoud(huisId),
+    lijstGaranties(huisId),
   ]);
   const open = openDeadlines(keuzes, planning, dag);
   const deadlines: Openstaand[] = open.map(({ keuze, deadline, dagen }) => ({
@@ -74,6 +78,11 @@ export interface Rondeverslag {
   reden?: string;
 }
 
+/** Met meer dan één huis staat de naam van het huis boven het bericht. */
+export function metHuisnaam(tekst: string, huisnaam: string, meerHuizen: boolean): string {
+  return meerHuizen ? `🏠 ${huisnaam}\n${tekst}` : tekst;
+}
+
 export async function dagelijkseRonde(token: string, nu: Date, adres: string): Promise<Rondeverslag> {
   const chat = Number(await leesInstelling(CHAT_SLEUTEL));
   if (!Number.isSafeInteger(chat) || chat === 0) {
@@ -81,28 +90,43 @@ export async function dagelijkseRonde(token: string, nu: Date, adres: string): P
   }
 
   const dag = vandaag(nu);
-  const stand = await laadBotstand(dag);
+  const huizen = await lijstHuizen();
   let verstuurd = 0;
   let alGemeld = 0;
-  const teMelden = [
-    ...herinneringen(stand.deadlines, stand.planning, stand.week, dag),
-    ...factuurherinneringen(stand.facturen, stand.partijnaam, dag),
-    ...actiepuntherinneringen(stand.actiepunten, stand.partijnaam, dag),
-    ...nazorgherinneringen(stand.onderhoud, stand.garanties, stand.partijnaam, dag),
-  ];
-  for (const herinnering of teMelden) {
-    if (!(await meldEenKeer(herinnering.sleutel))) {
-      alGemeld++;
-      continue;
-    }
+  // Elk huis apart: wat bij het ene misloopt, houdt het andere niet tegen.
+  let eersteFout: unknown = null;
+  for (const huis of huizen) {
     try {
-      await stuurBouwbericht(token, chat, herinnering.tekst, `${adres}${herinnering.pad}`);
-      verstuurd++;
+      const stand = await laadBotstand(huis.id, dag);
+      const teMelden = [
+        ...herinneringen(huis.id, stand.deadlines, stand.planning, stand.week, dag),
+        ...factuurherinneringen(stand.facturen, stand.partijnaam, dag),
+        ...actiepuntherinneringen(stand.actiepunten, stand.partijnaam, dag),
+        ...nazorgherinneringen(stand.onderhoud, stand.garanties, stand.partijnaam, dag),
+      ];
+      for (const herinnering of teMelden) {
+        if (!(await meldEenKeer(herinnering.sleutel))) {
+          alGemeld++;
+          continue;
+        }
+        try {
+          await stuurBouwbericht(
+            token,
+            chat,
+            metHuisnaam(herinnering.tekst, huis.naam, huizen.length > 1),
+            `${adres}${herinnering.pad}`,
+          );
+          verstuurd++;
+        } catch (fout) {
+          // Niet gelukt: de volgende ronde mag het opnieuw proberen.
+          await vergeetMelding(herinnering.sleutel).catch(() => undefined);
+          throw fout;
+        }
+      }
     } catch (fout) {
-      // Niet gelukt: de volgende ronde mag het opnieuw proberen.
-      await vergeetMelding(herinnering.sleutel).catch(() => undefined);
-      throw fout;
+      eersteFout ??= fout;
     }
   }
+  if (eersteFout) throw eersteFout;
   return { verstuurd, alGemeld };
 }

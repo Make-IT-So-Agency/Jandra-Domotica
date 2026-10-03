@@ -1,5 +1,6 @@
 "use server";
 
+import { vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { datum, getal, id, tekst } from "@/lib/bouw/invoer";
 import { plusDagen } from "@/lib/bouw/kalender";
 import { isSoortPlanning, isStatusPlanning, voorbeeldVanaf } from "@/lib/bouw/planning";
@@ -13,11 +14,10 @@ import {
   type NieuwPlanningsitem,
 } from "@/lib/bouw/regie-opslag";
 import { foutmelding, terug } from "@/lib/bouw/terug";
-import { vereistBouwrechten } from "@/lib/toegang";
 
 const PAD = "/bouw/planning";
 
-async function leesItem(formulier: FormData, eigenId: number | null): Promise<NieuwPlanningsitem> {
+async function leesItem(huisId: number, formulier: FormData, eigenId: number | null): Promise<NieuwPlanningsitem> {
   const terugNaar = eigenId ? `${PAD}?item=${eigenId}` : PAD;
   const soort = String(formulier.get("soort") ?? "");
   if (!isSoortPlanning(soort)) terug(terugNaar, "fout", "Kies fase, taak of mijlpaal.");
@@ -37,7 +37,7 @@ async function leesItem(formulier: FormData, eigenId: number | null): Promise<Ni
   // Een fase hoort bij geen fase, en iets hoort nooit bij zichzelf.
   let faseId = soort === "fase" ? null : id(formulier.get("fase_id"));
   if (faseId !== null) {
-    const fase = await leesPlanningsitem(faseId);
+    const fase = await leesPlanningsitem(huisId, faseId);
     if (!fase || fase.soort !== "fase" || fase.id === eigenId) faseId = null;
   }
 
@@ -53,36 +53,36 @@ async function leesItem(formulier: FormData, eigenId: number | null): Promise<Ni
   };
 }
 
-export async function voegPlanningToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
-  const item = await leesItem(formulier, null);
+export async function voegPlanningToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
+  const item = await leesItem(huis.id, formulier, null);
   try {
-    await voegPlanningToe(item);
+    await voegPlanningToe(huis.id, item);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(PAD, "goed", `${item.titel} staat in de planning.`);
 }
 
-export async function wijzigPlanningActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigPlanningActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(PAD, "fout", "Onbekend item.");
-  const item = await leesItem(formulier, itemId);
+  const item = await leesItem(huis.id, formulier, itemId);
   try {
-    await wijzigPlanning(itemId, item);
+    await wijzigPlanning(huis.id, itemId, item);
   } catch (fout) {
     terug(`${PAD}?item=${itemId}`, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(PAD, "goed", `${item.titel} bewaard.`);
 }
 
-export async function verwijderPlanningActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderPlanningActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(PAD, "fout", "Onbekend item.");
   try {
-    await verwijderPlanning(itemId);
+    await verwijderPlanning(huis.id, itemId);
   } catch (fout) {
     terug(`${PAD}?item=${itemId}`, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -93,8 +93,8 @@ export async function verwijderPlanningActie(formulier: FormData): Promise<void>
  * Iets loopt uit: schuif het op, en als dat gevraagd is ook alles wat op of
  * na zijn begindatum begint en nog niet klaar is.
  */
-export async function schuifOpActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function schuifOpActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(PAD, "fout", "Onbekend item.");
   const terugNaar = `${PAD}?item=${itemId}`;
@@ -107,7 +107,7 @@ export async function schuifOpActie(formulier: FormData): Promise<void> {
 
   let aantal = 0;
   try {
-    const planning = await lijstPlanning();
+    const planning = await lijstPlanning(huis.id);
     const item = planning.find((rij) => rij.id === itemId);
     if (!item) throw new Error("Dit item bestaat niet meer.");
     const teSchuiven = ookLater
@@ -115,7 +115,7 @@ export async function schuifOpActie(formulier: FormData): Promise<void> {
       : [item];
     for (const rij of teSchuiven) {
       const { id: rijId, ...rest } = rij;
-      await wijzigPlanning(rijId, {
+      await wijzigPlanning(huis.id, rijId, {
         ...rest,
         begindatum: plusDagen(rij.begindatum, dagen.waarde),
         einddatum: rij.einddatum ? plusDagen(rij.einddatum, dagen.waarde) : null,
@@ -128,14 +128,16 @@ export async function schuifOpActie(formulier: FormData): Promise<void> {
   terug(PAD, "goed", `${aantal === 1 ? "1 item" : `${aantal} items`} ${dagen.waarde > 0 ? "opgeschoven" : "vervroegd"} met ${Math.abs(dagen.waarde)} dagen.`);
 }
 
-export async function voorbeeldplanningActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voorbeeldplanningActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const begin = datum(formulier.get("begindatum"));
   if (!begin) terug(PAD, "fout", "Kies de datum waarop de vergunningsaanvraag vertrekt.");
   let aantal = 0;
   try {
-    if ((await lijstPlanning()).length > 0) throw new Error("Er staat al een planning. Een voorbeeld komt enkel in een lege planning.");
-    aantal = await voegPlanningenToe(voorbeeldVanaf(begin));
+    if ((await lijstPlanning(huis.id)).length > 0) {
+      throw new Error("Er staat al een planning. Een voorbeeld komt enkel in een lege planning.");
+    }
+    aantal = await voegPlanningenToe(huis.id, voorbeeldVanaf(begin));
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "De voorbeeldplanning maken is mislukt."));
   }

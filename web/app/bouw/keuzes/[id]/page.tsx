@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { dagenTekst, dagenTussen, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import {
@@ -43,23 +44,27 @@ export default async function Keuzepagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const keuzeId = leesId(id);
-  const keuze = keuzeId ? await leesKeuze(keuzeId) : null;
+  const keuze = keuzeId ? await leesKeuze(huis.id, keuzeId) : null;
   if (!keuze) notFound();
 
   const [opties, voorkeuren, planning, partijen, ruimtes, verdiepingen, gebouwen, beslissingen] = await Promise.all([
-    lijstOpties([keuze.id]),
-    lijstVoorkeuren([keuze.id]),
-    lijstPlanning(),
-    lijstPartijen(),
-    lijstRuimtes(),
-    lijstVerdiepingen(),
-    lijstGebouwen(),
-    lijstBeslissingen(),
+    lijstOpties(huis.id, [keuze.id]),
+    lijstVoorkeuren(huis.id, [keuze.id]),
+    lijstPlanning(huis.id),
+    lijstPartijen(huis.id),
+    lijstRuimtes(huis.id),
+    lijstVerdiepingen(huis.id),
+    lijstGebouwen(huis.id),
+    lijstBeslissingen(huis.id),
   ]);
 
   // Een foto toont de browser via een ondertekende URL van een uur.
-  const bestanden = await leesBestanden(opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])));
+  const bestanden = await leesBestanden(
+    huis.id,
+    opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])),
+  );
   const fotos = new Map(
     await Promise.all(
       bestanden.map(async (bestand) => [bestand.id, await tijdelijkeUrl(bestand.pad, 3600).catch(() => null)] as const),
@@ -99,7 +104,7 @@ export default async function Keuzepagina({
             {keuze.beslist_op ? ` op ${datumTijd(keuze.beslist_op)}` : ""}
             {keuze.beslist_door ? ` door ${keuze.beslist_door}` : ""}.
           </p>
-          <form action={heropenActie}>
+          <form action={heropenActie.bind(null, huis.id)}>
             <input type="hidden" name="id" value={keuze.id} />
             <BevestigKnop vraag={`${keuze.titel} terug open zetten?`} className="stil">
               Terug open zetten
@@ -137,6 +142,7 @@ export default async function Keuzepagina({
           {opties.map((optie) => (
             <Optiekaart
               key={optie.id}
+              huisId={huis.id}
               optie={optie}
               keuze={keuze}
               prijs={prijzen.get(optie.id)}
@@ -153,7 +159,7 @@ export default async function Keuzepagina({
       )}
 
       <h2>Optie toevoegen</h2>
-      <form action={voegOptieToeActie} className="kaart">
+      <form action={voegOptieToeActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="keuze_id" value={keuze.id} />
         <Optievelden eenheid={keuze.eenheid} partijen={partijen} voorvoegsel="nieuw" />
         <p className="hulp">Een foto zet je erbij zodra de optie bestaat.</p>
@@ -165,7 +171,7 @@ export default async function Keuzepagina({
       <h2>Keuze</h2>
       <details className="kaart">
         <summary>Titel, deadline, hoeveelheid en ruimtes wijzigen</summary>
-        <form action={wijzigKeuzeActie} style={{ marginTop: 12 }}>
+        <form action={wijzigKeuzeActie.bind(null, huis.id)} style={{ marginTop: 12 }}>
           <input type="hidden" name="id" value={keuze.id} />
           <Keuzevelden keuze={keuze} planning={planning} partijen={partijen} voorvoegsel="keuze" />
           {ruimtes.length > 0 ? (
@@ -190,7 +196,10 @@ export default async function Keuzepagina({
           ) : null}
           <div className="knoppenrij" style={{ marginTop: 12 }}>
             <button type="submit">Bewaren</button>
-            <BevestigKnop vraag={`${keuze.titel} verwijderen, met alle opties en foto's?`} formAction={verwijderKeuzeActie}>
+            <BevestigKnop
+              vraag={`${keuze.titel} verwijderen, met alle opties en foto's?`}
+              formAction={verwijderKeuzeActie.bind(null, huis.id)}
+            >
               Keuze verwijderen
             </BevestigKnop>
           </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { sleutelVan, id as leesId } from "@/lib/bouw/invoer";
 import { dagenTekst, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { STANDAARDONDERHOUD, intervalTekst, onderhoudsstand, type Onderhoud } from "@/lib/bouw/nazorg";
@@ -60,7 +61,12 @@ export default async function Onderhoudspagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [onderhoud, beurten, partijen] = await Promise.all([lijstOnderhoud(), lijstBeurten(), lijstPartijen()]);
+  const huis = await standaardHuis();
+  const [onderhoud, beurten, partijen] = await Promise.all([
+    lijstOnderhoud(huis.id),
+    lijstBeurten(huis.id),
+    lijstPartijen(huis.id),
+  ]);
   const nu = vandaag();
   const partijnaam = (partijId: number | null) => partijen.find((p) => p.id === partijId)?.naam ?? null;
   const metStand = onderhoud
@@ -84,7 +90,7 @@ export default async function Onderhoudspagina({
       {teWijzigen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{teWijzigen.wat}</h2>
-          <form action={wijzigOnderhoudActie}>
+          <form action={wijzigOnderhoudActie.bind(null, huis.id)}>
             <input type="hidden" name="onderhoud_id" value={teWijzigen.id} />
             <Onderhoudvelden onderhoud={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
             <div>
@@ -93,7 +99,10 @@ export default async function Onderhoudspagina({
             </div>
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`${teWijzigen.wat} verwijderen, met alle beurten?`} formAction={verwijderOnderhoudActie}>
+              <BevestigKnop
+                vraag={`${teWijzigen.wat} verwijderen, met alle beurten?`}
+                formAction={verwijderOnderhoudActie.bind(null, huis.id)}
+              >
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/dossier/onderhoud">
@@ -107,7 +116,7 @@ export default async function Onderhoudspagina({
               <ul className="beurtenlijst">
                 {beurtenVan(teWijzigen.id).map((beurt) => (
                   <li key={beurt.id}>
-                    <form action={verwijderBeurtActie}>
+                    <form action={verwijderBeurtActie.bind(null, huis.id)}>
                       <input type="hidden" name="beurt_id" value={beurt.id} />
                       <span>
                         {korteDatum(beurt.datum, nu)}
@@ -129,7 +138,7 @@ export default async function Onderhoudspagina({
       {onderhoud.length === 0 ? (
         <div className="kaart">
           <p className="leeg">Nog niets gepland.</p>
-          <form action={voegStandaardonderhoudToeActie}>
+          <form action={voegStandaardonderhoudToeActie.bind(null, huis.id)}>
             <button type="submit">Begin met het gewone onderhoud</button>
           </form>
           <p className="hulp" style={{ marginTop: 8 }}>
@@ -175,7 +184,7 @@ export default async function Onderhoudspagina({
                       )}
                     </td>
                     <td>
-                      <form action={beurtActie} className="knoppenrij">
+                      <form action={beurtActie.bind(null, huis.id)} className="knoppenrij">
                         <input type="hidden" name="onderhoud_id" value={item.id} />
                         <button type="submit">Vandaag gedaan</button>
                         <Link className="knop stil" href={`/bouw/dossier/onderhoud?onderhoud=${item.id}#wijzigen`}>
@@ -194,7 +203,7 @@ export default async function Onderhoudspagina({
       {onderhoud.length > 0 ? (
         <details className="kaart" style={{ marginTop: 16 }}>
           <summary>Een beurt van een andere dag noteren</summary>
-          <form action={beurtActie} style={{ marginTop: 12 }}>
+          <form action={beurtActie.bind(null, huis.id)} style={{ marginTop: 12 }}>
             <div className="veldenrij">
               <div>
                 <label htmlFor="beurt-onderhoud">Wat</label>
@@ -223,7 +232,7 @@ export default async function Onderhoudspagina({
       ) : null}
 
       <h2>Onderhoud toevoegen</h2>
-      <form action={voegOnderhoudToeActie} className="kaart">
+      <form action={voegOnderhoudToeActie.bind(null, huis.id)} className="kaart">
         <Onderhoudvelden partijen={partijen} voorvoegsel="nieuw" />
         <div className="veldenrij">
           <div>
@@ -237,7 +246,7 @@ export default async function Onderhoudspagina({
       </form>
 
       {onderhoud.length > 0 && ontbrekend.length > 0 ? (
-        <form action={voegStandaardonderhoudToeActie} className="hulp" style={{ marginTop: 12 }}>
+        <form action={voegStandaardonderhoudToeActie.bind(null, huis.id)} className="hulp" style={{ marginTop: 12 }}>
           Nog niet in de lijst: {ontbrekend.map((s) => s.wat).join(", ")}.{" "}
           <button type="submit" className="link">
             Zet ze erbij

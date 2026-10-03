@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { bedrag, datum, getal, id, sleutelVan, tekst } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import {
@@ -39,7 +40,6 @@ import {
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
 import type { Gebruiker } from "@/lib/rollen";
-import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 const LIJST = "/bouw/keuzes";
 const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
@@ -88,12 +88,12 @@ function leesKeuzeformulier(formulier: FormData, terugNaar: string): NieuweKeuze
   };
 }
 
-export async function voegKeuzeToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegKeuzeToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const keuze = leesKeuzeformulier(formulier, LIJST);
   let keuzeId: number;
   try {
-    keuzeId = await voegKeuzeToe(keuze);
+    keuzeId = await voegKeuzeToe(huis.id, keuze);
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
@@ -104,16 +104,17 @@ export async function voegKeuzeToeActie(formulier: FormData): Promise<void> {
  * Zet de gewone keuzes van een nieuwbouw erbij, zonder wat er al is (op titel).
  * Ruimtes van de juiste soort worden meteen gekoppeld.
  */
-export async function voegStandaardkeuzesToeActie(): Promise<void> {
-  await vereistBouwrechten();
+export async function voegStandaardkeuzesToeActie(huisId: unknown): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   let aantal = 0;
   try {
-    const [bestaand, ruimtes] = await Promise.all([lijstKeuzes(), lijstRuimtes()]);
+    const [bestaand, ruimtes] = await Promise.all([lijstKeuzes(huis.id), lijstRuimtes(huis.id)]);
     const titels = new Set(bestaand.map((keuze) => sleutelVan(keuze.titel)));
     for (const standaard of STANDAARDKEUZES) {
       if (titels.has(sleutelVan(standaard.titel))) continue;
       const ruimteIds = ruimtes.filter((ruimte) => standaard.ruimtesoorten?.includes(ruimte.soort)).map((ruimte) => ruimte.id);
       await voegKeuzeToe(
+        huis.id,
         {
           titel: standaard.titel,
           categorie: standaard.categorie,
@@ -141,8 +142,8 @@ export async function voegStandaardkeuzesToeActie(): Promise<void> {
   );
 }
 
-export async function wijzigKeuzeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigKeuzeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const keuzeId = id(formulier.get("id"));
   if (!keuzeId) terug(LIJST, "fout", "Onbekende keuze.");
   const keuze = leesKeuzeformulier(formulier, pagina(keuzeId));
@@ -151,21 +152,21 @@ export async function wijzigKeuzeActie(formulier: FormData): Promise<void> {
     return ruimteId ? [ruimteId] : [];
   });
   try {
-    await wijzigKeuze(keuzeId, keuze);
-    await zetKeuzeRuimtes(keuzeId, ruimteIds);
+    await wijzigKeuze(huis.id, keuzeId, keuze);
+    await zetKeuzeRuimtes(huis.id, keuzeId, ruimteIds);
   } catch (fout) {
     terug(pagina(keuzeId), "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(pagina(keuzeId), "goed", "Keuze bewaard.");
 }
 
-export async function verwijderKeuzeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderKeuzeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const keuzeId = id(formulier.get("id"));
   if (!keuzeId) terug(LIJST, "fout", "Onbekende keuze.");
   try {
-    const fotos = await verwijderKeuze(keuzeId);
-    await ruimOngebruikteBestandenOp(fotos);
+    const fotos = await verwijderKeuze(huis.id, keuzeId);
+    await ruimOngebruikteBestandenOp(huis.id, fotos);
   } catch (fout) {
     terug(pagina(keuzeId), "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -200,44 +201,44 @@ function leesOptieformulier(formulier: FormData, terugNaar: string): Omit<Nieuwe
   };
 }
 
-export async function voegOptieToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegOptieToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const keuzeId = id(formulier.get("keuze_id"));
   if (!keuzeId) terug(LIJST, "fout", "Onbekende keuze.");
   const optie = leesOptieformulier(formulier, pagina(keuzeId));
   try {
-    await voegOptieToe({ ...optie, keuze_id: keuzeId, volgorde: 0 });
+    await voegOptieToe(huis.id, { ...optie, keuze_id: keuzeId, volgorde: 0 });
   } catch (fout) {
     terug(pagina(keuzeId), "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(pagina(keuzeId), "goed", `${optie.naam} toegevoegd.`);
 }
 
-export async function wijzigOptieActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigOptieActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const bestaand = optieId ? await leesOptie(optieId) : null;
+  const bestaand = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !bestaand) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   const optie = leesOptieformulier(formulier, pagina(bestaand.keuze_id));
   try {
-    await wijzigOptie(optieId, { ...optie, volgorde: bestaand.volgorde });
+    await wijzigOptie(huis.id, optieId, { ...optie, volgorde: bestaand.volgorde });
   } catch (fout) {
     terug(pagina(bestaand.keuze_id), "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(pagina(bestaand.keuze_id), "goed", `${optie.naam} bewaard.`);
 }
 
-export async function verwijderOptieActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function verwijderOptieActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const optie = optieId ? await leesOptie(optieId) : null;
+  const optie = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !optie) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   try {
-    const keuze = await leesKeuze(optie.keuze_id);
-    const foto = await verwijderOptie(optieId);
-    if (foto) await ruimOngebruikteBestandenOp([foto]);
+    const keuze = await leesKeuze(huis.id, optie.keuze_id);
+    const foto = await verwijderOptie(huis.id, optieId);
+    if (foto) await ruimOngebruikteBestandenOp(huis.id, [foto]);
     if (keuze && keuze.gekozen_optie_id === optieId) {
-      await voegBeslissingToe({
+      await voegBeslissingToe(huis.id, {
         datum: vandaag(),
         onderwerp: keuze.titel,
         beslissing: `De gekozen optie (${optie.naam}) is verwijderd; de keuze staat terug open.`,
@@ -252,13 +253,13 @@ export async function verwijderOptieActie(formulier: FormData): Promise<void> {
 }
 
 /** Maakt een optie de basis (wat in de offerte staat), of haalt dat weg. */
-export async function zetBasisActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function zetBasisActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const optie = optieId ? await leesOptie(optieId) : null;
+  const optie = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !optie) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   try {
-    await zetBasis(optie.keuze_id, optie.basis ? null : optieId);
+    await zetBasis(huis.id, optie.keuze_id, optie.basis ? null : optieId);
   } catch (fout) {
     terug(pagina(optie.keuze_id), "fout", foutmelding(fout, "Bewaren mislukt."));
   }
@@ -270,16 +271,16 @@ export async function zetBasisActie(formulier: FormData): Promise<void> {
 }
 
 /** Mijn voorkeur: nog eens op dezelfde optie tikken haalt ze weg. */
-export async function voorkeurActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function voorkeurActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const optie = optieId ? await leesOptie(optieId) : null;
+  const optie = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !optie) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   let weg = false;
   try {
-    const huidige = (await lijstVoorkeuren([optie.keuze_id])).find((voorkeur) => voorkeur.wie === ik.email);
+    const huidige = (await lijstVoorkeuren(huis.id, [optie.keuze_id])).find((voorkeur) => voorkeur.wie === ik.email);
     weg = huidige?.optie_id === optieId;
-    await zetVoorkeur(optie.keuze_id, ik.email, wie(ik), weg ? null : optieId);
+    await zetVoorkeur(huis.id, optie.keuze_id, ik.email, wie(ik), weg ? null : optieId);
   } catch (fout) {
     terug(pagina(optie.keuze_id), "fout", foutmelding(fout, "Bewaren mislukt."));
   }
@@ -287,21 +288,21 @@ export async function voorkeurActie(formulier: FormData): Promise<void> {
 }
 
 /** Definitief kiezen, met een regel in het beslissingslog. */
-export async function beslisActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function beslisActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const optie = optieId ? await leesOptie(optieId) : null;
+  const optie = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !optie) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   try {
-    const keuze = await leesKeuze(optie.keuze_id);
+    const keuze = await leesKeuze(huis.id, optie.keuze_id);
     if (!keuze) throw new Error("Deze keuze bestaat niet meer.");
-    const [partijen, ruimtes] = await Promise.all([lijstPartijen(), lijstRuimtes()]);
+    const [partijen, ruimtes] = await Promise.all([lijstPartijen(huis.id), lijstRuimtes(huis.id)]);
     const oppervlaktes = ruimtes.filter((ruimte) => keuze.ruimte_ids.includes(ruimte.id)).map((ruimte) => ruimte.oppervlakte_m2);
     const kost = kostVan(optie, hoeveelheidVan(keuze, oppervlaktes).waarde);
     const leverancier = partijen.find((partij) => partij.id === optie.leverancier_id)?.naam ?? null;
 
-    await beslisKeuze(keuze.id, optieId, wie(ik));
-    await voegBeslissingToe({
+    await beslisKeuze(huis.id, keuze.id, optieId, wie(ik));
+    await voegBeslissingToe(huis.id, {
       datum: vandaag(),
       onderwerp: keuze.titel,
       beslissing: beslissingstekst(optie, leverancier, kost, keuze.eenheid),
@@ -315,15 +316,15 @@ export async function beslisActie(formulier: FormData): Promise<void> {
 }
 
 /** Een beslissing terugdraaien. Ook dat komt in het log. */
-export async function heropenActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function heropenActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const keuzeId = id(formulier.get("id"));
-  const keuze = keuzeId ? await leesKeuze(keuzeId) : null;
+  const keuze = keuzeId ? await leesKeuze(huis.id, keuzeId) : null;
   if (!keuzeId || !keuze) terug(LIJST, "fout", "Deze keuze bestaat niet meer.");
   try {
-    const optie = keuze.gekozen_optie_id ? await leesOptie(keuze.gekozen_optie_id) : null;
-    await beslisKeuze(keuzeId, null, null);
-    await voegBeslissingToe({
+    const optie = keuze.gekozen_optie_id ? await leesOptie(huis.id, keuze.gekozen_optie_id) : null;
+    await beslisKeuze(huis.id, keuzeId, null, null);
+    await voegBeslissingToe(huis.id, {
       datum: vandaag(),
       onderwerp: keuze.titel,
       beslissing: optie ? `Terug open gezet (was: ${optie.naam}).` : "Terug open gezet.",
@@ -336,14 +337,14 @@ export async function heropenActie(formulier: FormData): Promise<void> {
   terug(pagina(keuzeId), "goed", `${keuze.titel} staat terug open.`);
 }
 
-export async function verwijderFotoActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderFotoActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const optieId = id(formulier.get("id"));
-  const optie = optieId ? await leesOptie(optieId) : null;
+  const optie = optieId ? await leesOptie(huis.id, optieId) : null;
   if (!optieId || !optie) terug(LIJST, "fout", "Deze optie bestaat niet meer.");
   try {
-    const oud = await zetFoto(optieId, null);
-    if (oud) await ruimOngebruikteBestandenOp([oud]);
+    const oud = await zetFoto(huis.id, optieId, null);
+    if (oud) await ruimOngebruikteBestandenOp(huis.id, [oud]);
   } catch (fout) {
     terug(pagina(optie.keuze_id), "fout", foutmelding(fout, "Foto weghalen mislukt."));
   }
@@ -355,40 +356,44 @@ export async function verwijderFotoActie(formulier: FormData): Promise<void> {
 // Storage, en meldt dan dat ze er staat. Zie lib/bouw/opladen.ts.
 // ---------------------------------------------------------------------------
 
-export async function vraagFotoUploadAan(vraag: { optieId: number; naam: string; grootte: number }): Promise<Uitkomst<Gestart>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function vraagFotoUploadAan(
+  huisId: unknown,
+  vraag: { optieId: number; naam: string; grootte: number },
+): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
   const optieId = id(String(vraag.optieId));
-  if (!optieId || !(await leesOptie(optieId))) return mislukt("Deze optie bestaat niet meer.");
+  if (!optieId || !(await leesOptie(toegang.huis.id, optieId))) return mislukt("Deze optie bestaat niet meer.");
   try {
     return await startUpload(
+      toegang.huis.id,
       { naam: String(vraag.naam ?? "foto.jpg"), type: "image/jpeg", grootte: Number(vraag.grootte) },
       "foto",
-      ik.email,
+      toegang.ik.email,
     );
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
   }
 }
 
-export async function bewaarFotoActie(vraag: { optieId: number; bestandId: number }): Promise<Uitkomst<null>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function bewaarFotoActie(huisId: unknown, vraag: { optieId: number; bestandId: number }): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
   const optieId = id(String(vraag.optieId));
   const bestandId = id(String(vraag.bestandId));
   if (!optieId || !bestandId) return mislukt("Onbekende optie of foto.");
 
   try {
-    const afgerond = await rondUploadAf(bestandId);
+    const afgerond = await rondUploadAf(toegang.huis.id, bestandId);
     if (!afgerond.ok) return afgerond;
     if (afgerond.data.doel !== "foto") return mislukt("Dit bestand is geen foto.");
-    const oud = await zetFoto(optieId, bestandId);
-    if (oud && oud !== bestandId) await ruimOngebruikteBestandenOp([oud]);
-    const optie = await leesOptie(optieId);
+    const oud = await zetFoto(toegang.huis.id, optieId, bestandId);
+    if (oud && oud !== bestandId) await ruimOngebruikteBestandenOp(toegang.huis.id, [oud]);
+    const optie = await leesOptie(toegang.huis.id, optieId);
     if (optie) revalidatePath(pagina(optie.keuze_id));
     return gelukt(null);
   } catch (fout) {
-    await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    await ruimOngebruikteBestandenOp(toegang.huis.id, [bestandId]).catch(() => undefined);
     return mislukt(foutmelding(fout, "De foto bewaren is mislukt."));
   }
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { alsBestaand } from "@/lib/bouw/dossier-inlezen";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { lijstInzendingen, type Inzending } from "@/lib/bouw/links";
 import { teDoen } from "@/lib/bouw/omzetting/reeks";
@@ -38,6 +39,7 @@ export default async function Plannenpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let plannen: PlanMetVersies[];
   let verdiepingen: Verdieping[];
   let gebouwen: Gebouw[];
@@ -47,14 +49,14 @@ export default async function Plannenpagina({
   let omgezet: Set<number>;
   try {
     [plannen, verdiepingen, gebouwen, inzendingen, partijen] = await Promise.all([
-      lijstPlannen(),
-      lijstVerdiepingen(),
-      lijstGebouwen(),
-      lijstInzendingen({ status: "nieuw", soorten: ["plan"] }),
-      lijstPartijen(),
+      lijstPlannen(huis.id),
+      lijstVerdiepingen(huis.id),
+      lijstGebouwen(huis.id),
+      lijstInzendingen(huis.id, { status: "nieuw", soorten: ["plan"] }),
+      lijstPartijen(huis.id),
     ]);
     const [b, omzettingen] = await Promise.all([
-      leesBestanden(inzendingen.map((inzending) => inzending.bestand_id)),
+      leesBestanden(huis.id, inzendingen.map((inzending) => inzending.bestand_id)),
       lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id))),
     ]);
     bestanden = b;
@@ -110,10 +112,14 @@ export default async function Plannenpagina({
                     <Link className="knop" href={`/bouw/plannen?inzending=${inzending.id}#dossier`}>
                       Inlezen
                     </Link>
-                    <button type="submit" className="stil" formAction={downloadInzendingActie} formNoValidate>
+                    <button type="submit" className="stil" formAction={downloadInzendingActie.bind(null, huis.id)} formNoValidate>
                       Downloaden
                     </button>
-                    <BevestigKnop vraag="Deze inzending negeren? Het bestand wordt verwijderd." formAction={negeerInzendingActie} className="stil">
+                    <BevestigKnop
+                      vraag="Deze inzending negeren? Het bestand wordt verwijderd."
+                      formAction={negeerInzendingActie.bind(null, huis.id)}
+                      className="stil"
+                    >
                       Negeren
                     </BevestigKnop>
                   </form>
@@ -173,6 +179,7 @@ export default async function Plannenpagina({
       <h2 id="dossier">Dossier inlezen</h2>
       <DossierLader
         key={gekozen?.id ?? "eigen"}
+        huisId={huis.id}
         inzending={
           gekozen
             ? {
@@ -192,7 +199,7 @@ export default async function Plannenpagina({
       <hr className="scheiding" />
 
       <h2>Eén plan toevoegen</h2>
-      <form action={voegPlanToeActie} className="kaart">
+      <form action={voegPlanToeActie.bind(null, huis.id)} className="kaart">
         <div className="veldenrij">
           <div>
             <label htmlFor="titel">Titel</label>
