@@ -191,7 +191,7 @@ grondplannen.
 - **Muren.** Vectorworks vult een doorgesneden muur met grijs: de buitenmuren
   lichter, de binnenmuren donkerder. Een grijs vlak buiten de ruimtes en
   ertegenaan is een muur (`omzetting/muren.ts`); een grijs meubel ligt in een
-  ruimte en valt weg. De muren gaan mee bij het bevestigen en staan in meter
+  ruimte en valt weg, net als de pijlpunt van de looplijn van een trap. De muren gaan mee bij het bevestigen en staan in meter
   in `bouw_omzettingen`. Een grondplan dat vóór deze versie omgezet werd, zet
   je opnieuw om. Een muurkant die naar een ruimte kijkt, is binnen (pleister),
   net als een kant naar een kleine ingesloten zone zonder naam (tot 12 m²: een

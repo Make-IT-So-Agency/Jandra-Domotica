@@ -14,7 +14,8 @@ import { witteVlakken } from "./vlakken";
 
 /**
  * Verhoog dit als de regels veranderen, zodat een bewaarde omzetting zegt met welke regels ze gemaakt is.
- * 2: de muren; 3: de trappen; 4: het bordes van een trap die 180° draait, en de treden die de snedelijn knipt.
+ * 2: de muren; 3: de trappen; 4: het bordes van een trap die 180° draait, de treden die de snedelijn knipt, en
+ * geen pijlpunt als muur.
  */
 export const WERKWIJZE = 4;
 
