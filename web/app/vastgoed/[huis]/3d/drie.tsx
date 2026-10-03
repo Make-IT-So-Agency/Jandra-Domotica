@@ -9,6 +9,7 @@ import { OVERTUIGEND, type Inplantingsvondst, type Zoekgebouw } from "@/lib/bouw
 import type { Driegegevens } from "@/lib/bouw/drie/laden";
 import { SLOTNAMEN, STANDAARDKLEUREN, materiaalVan, type Slot } from "@/lib/bouw/drie/materialen";
 import { maakModel, type Model3d } from "@/lib/bouw/drie/model";
+import { georefVanPlaatsing, plaatsingVanGeoref, type Georef, type Omgeving } from "@/lib/bouw/drie/omgeving";
 import { STAND_AFSTAND, type Trap3d } from "@/lib/bouw/drie/trappen";
 import {
   genormaliseerd,
@@ -28,8 +29,9 @@ import type { Xy } from "@/lib/bouw/omzetting/types";
 import { huispad } from "@/lib/bouw/paden";
 import type { Trapstand } from "@/lib/bouw/types";
 
-import { bewaarDakActie, bewaarInplantingActie, bewaarTrappenActie } from "./acties";
+import { bewaarDakActie, bewaarInplantingActie, bewaarOmgevingActie, bewaarTrappenActie } from "./acties";
 import type { GeladenPlan } from "./inplantingsplan";
+import { bouwOmgeving, type Omgevingsscene } from "./omgeving-scene";
 import { bouwScene, plaats, type Opgebouwd, type Sleutel } from "./scene";
 
 type Modus = "rond" | "wandel";
@@ -210,6 +212,18 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   const [gekozen, setGekozen] = useState<number | null>(null);
   const [hoektekst, setHoektekst] = useState<string | null>(null);
 
+  // De omgeving uit Vlaanderen: de percelen, de buren en de luchtfoto, en waar ze op het terrein ligt.
+  const [omgeving, setOmgeving] = useState<Omgeving | null>(null);
+  const [omgevingstand, setOmgevingstand] = useState<"geen" | "laden" | "klaar" | "fout">(gegevens.omgeving.metAdres ? "laden" : "geen");
+  const [omgevingsfout, setOmgevingsfout] = useState<string | null>(null);
+  const [bewaardeGeoref, setBewaardeGeoref] = useState<Georef | null>(gegevens.omgeving.georef);
+  // Waar het adrespunt op het terrein ligt en hoe de kaart gedraaid is (zie drie/omgeving.ts).
+  const [omgevingsplaats, setOmgevingsplaats] = useState<Plaatsing | null>(null);
+  const [omgevingsbron, setOmgevingsbron] = useState<{ soort: "bewaard" | "plan" | "huis" | "hand"; overeenkomst?: number } | null>(null);
+  const [lagen, setLagen] = useState({ luchtfoto: true, grenzen: true, buren: true, opPerceel: false });
+  const [omgevingVerplaatsen, setOmgevingVerplaatsen] = useState(false);
+  const planOpFoto = lagen.luchtfoto && omgeving !== null && omgevingsplaats !== null;
+
   /** Meter per punt op het inplantingsplan. */
   const meterPerPunt = (schaal ?? STANDAARDSCHAAL) * METER_PER_PUNT;
   // Waar elk gebouw staat: zijn plaats, of naast de andere. Staat er nog niets op een plan, dan in het midden ervan.
@@ -268,6 +282,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     /** Het inplantingsplan op de grond, en zijn textuur (één per gelezen plan). */
     plan: THREE.Mesh | null;
     plantextuur: { van: GeladenPlan; textuur: THREE.Texture } | null;
+    omgeving: Omgevingsscene | null;
     ingekaderd: boolean;
     /** Heeft iemand de camera al bewogen? Zo niet, dan gaat ze mee naar de gebouwen op het plan. */
     bewogen: boolean;
@@ -292,6 +307,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   geladenRef.current = geladen;
   const zoekgebouwenRef = useRef(zoekgebouwen);
   zoekgebouwenRef.current = zoekgebouwen;
+  const omgevingsplaatsRef = useRef(omgevingsplaats);
+  omgevingsplaatsRef.current = omgevingsplaats;
 
   /** Het materiaal van een sleutel: één object per sleutel, zodat het overal tegelijk verandert. */
   const materiaal = useCallback(
@@ -365,6 +382,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       punten: [],
       plan: null,
       plantextuur: null,
+      omgeving: null,
       ingekaderd: false,
       bewogen: false,
       naPlan: false,
@@ -411,6 +429,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       d?.plan?.geometry.dispose();
       (d?.plan?.material as THREE.Material | undefined)?.dispose();
       d?.plantextuur?.textuur.dispose();
+      d?.omgeving?.opruimen();
       renderer.dispose();
       element.removeChild(renderer.domElement);
       drie.current = null;
@@ -506,16 +525,21 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       d.plantextuur = { van: geladen, textuur };
     }
     const [breedte, hoogte] = [geladen.blad.breedte * meterPerPunt, geladen.blad.hoogte * meterPerPunt];
+    // Een negatieve polygonOffset legt het plan boven het gras en de luchtfoto, zonder flikkeren.
+    const boven = { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 };
     const plan = new THREE.Mesh(
       new THREE.PlaneGeometry(breedte, hoogte),
-      new THREE.MeshStandardMaterial({ map: d.plantextuur.textuur, roughness: 1, metalness: 0 }),
+      // Boven de luchtfoto vermenigvuldigd: het wit van het papier valt weg, de lijnen blijven.
+      planOpFoto
+        ? new THREE.MeshBasicMaterial({ map: d.plantextuur.textuur, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: true, toneMapped: false, ...boven })
+        : new THREE.MeshStandardMaterial({ map: d.plantextuur.textuur, roughness: 1, metalness: 0, ...boven }),
     );
     plan.rotation.x = -Math.PI / 2;
     plan.position.set(breedte / 2, Math.min(0, ...modelRef.current.verdiepingen.map((v) => v.z0)) - 0.235, hoogte / 2);
-    plan.receiveShadow = true;
+    plan.receiveShadow = !planOpFoto;
     d.scene.add(plan);
     d.plan = plan;
-  }, [geladen, planTonen, meterPerPunt]);
+  }, [geladen, planTonen, meterPerPunt, planOpFoto]);
 
   const huidigPlan = plannen.find((plan) => plan.id === planId) ?? null;
   const huidigPlanRef = useRef(huidigPlan);
@@ -608,6 +632,101 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     else void zoekRef.current(zonder, schaalRef.current);
   }, [geladen]);
 
+  // De omgeving ophalen: enkel met een adres, en het adres zelf blijft op de server.
+  useEffect(() => {
+    if (!gegevens.omgeving.metAdres) return;
+    let weg = false;
+    fetch(`/api/bouw/omgeving?huis=${huisId}`)
+      .then(async (antwoord) => {
+        const inhoud = (await antwoord.json().catch(() => null)) as (Omgeving & { fout?: string }) | null;
+        if (weg) return;
+        if (!antwoord.ok || !inhoud?.punt) {
+          setOmgevingsfout(inhoud?.fout ?? "De omgeving ophalen is mislukt.");
+          setOmgevingstand("fout");
+          return;
+        }
+        setOmgeving(inhoud);
+        setOmgevingstand("klaar");
+      })
+      .catch(() => {
+        if (weg) return;
+        setOmgevingsfout("Geen verbinding met de app.");
+        setOmgevingstand("fout");
+      });
+    return () => {
+      weg = true;
+    };
+  }, [huisId, gegevens.omgeving.metAdres]);
+
+  // De omgeving in de scène: de luchtfoto, de grenzen en de buren, in één groep.
+  useEffect(() => {
+    const d = drie.current;
+    if (!d || !omgeving) return;
+    const grond = Math.min(0, ...modelRef.current.verdiepingen.map((v) => v.z0)) - 0.24;
+    const scene = bouwOmgeving(omgeving, grond, `/api/bouw/omgeving/luchtfoto?huis=${huisId}`, d.renderer.capabilities.getMaxAnisotropy());
+    scene.groep.visible = false;
+    d.scene.add(scene.groep);
+    d.omgeving = scene;
+    return () => {
+      d.scene.remove(scene.groep);
+      scene.opruimen();
+      if (d.omgeving === scene) d.omgeving = null;
+    };
+  }, [omgeving, huisId]);
+
+  // Waar de omgeving ligt, en wat er van te zien is.
+  useEffect(() => {
+    const scene = drie.current?.omgeving;
+    if (!scene) return;
+    if (omgevingsplaats) plaats(scene.groep, omgevingsplaats);
+    scene.groep.visible = omgevingsplaats !== null;
+    scene.luchtfoto.visible = lagen.luchtfoto;
+    scene.grenzen.visible = lagen.grenzen;
+    scene.buren.visible = lagen.buren;
+    scene.opPerceel.visible = lagen.opPerceel;
+  }, [omgeving, omgevingsplaats, lagen]);
+
+  /**
+   * De omgeving op het terrein leggen: ons perceel op het inplantingsplan
+   * zoeken, en lukt dat niet (of is er geen plan), het adrespunt op de woning
+   * met het noorden naar boven.
+   */
+  async function legOmgeving(o: Omgeving) {
+    const opHuis = () => {
+      const huis = plaatsingenRef.current.get(modelRef.current.gebouwen[0]?.id ?? -1);
+      setOmgevingsplaats({ x: huis?.x ?? 0, y: huis?.y ?? 0, hoek: 0 });
+      setOmgevingsbron({ soort: "huis" });
+    };
+    const plan = geladenRef.current;
+    if (!plan) return opHuis();
+    try {
+      const { zoekPerceel } = await import("./inplantingsplan");
+      const vondst = await zoekPerceel(o, plan.blad, schaalRef.current ?? STANDAARDSCHAAL);
+      if (!vondst) return opHuis();
+      setOmgevingsplaats(plaatsingVanGeoref(vondst.georef, o.punt));
+      setOmgevingsbron({ soort: "plan", overeenkomst: vondst.overeenkomst });
+    } catch {
+      opHuis();
+    }
+  }
+  const legOmgevingRef = useRef(legOmgeving);
+  legOmgevingRef.current = legOmgeving;
+
+  // Zoals bewaard; anders zodra het plan gelezen is en de gebouwen erop staan.
+  const omgevingGelegd = useRef(false);
+  useEffect(() => {
+    if (!omgeving || omgevingGelegd.current) return;
+    if (bewaardeGeoref) {
+      omgevingGelegd.current = true;
+      setOmgevingsplaats(plaatsingVanGeoref(bewaardeGeoref, omgeving.punt));
+      setOmgevingsbron({ soort: "bewaard" });
+      return;
+    }
+    if (planstand === "laden" || planstand === "zoeken") return;
+    omgevingGelegd.current = true;
+    void legOmgevingRef.current(omgeving);
+  }, [omgeving, bewaardeGeoref, planstand]);
+
   // Na het eerste zoeken op het plan staan de gebouwen elders: de camera gaat mee, tenzij iemand ze al bewoog.
   useEffect(() => {
     const d = drie.current;
@@ -636,22 +755,68 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   const verzetRef = useRef(verzetGebouw);
   verzetRef.current = verzetGebouw;
 
-  /** Het gekozen gebouw verschuiven, ten opzichte van het scherm: omhoog is van de camera weg. */
-  function schuif(id: number, vooruit: number, opzij: number) {
+  /** Een stap op het terrein ten opzichte van het scherm: vooruit is van de camera weg. */
+  function stapOpGrond(vooruit: number, opzij: number): [number, number] {
     const d = drie.current;
-    if (!d) return;
+    if (!d) return [0, 0];
     const richting = new THREE.Vector3();
     d.camera.getWorldDirection(richting);
     richting.y = 0;
-    // Recht van boven kijkt de camera nergens heen: dan is omhoog het noorden van het plan.
+    // Recht van boven kijkt de camera nergens heen: dan is vooruit de bovenkant van het plan.
     if (richting.lengthSq() < 1e-6) richting.set(0, 0, -1);
     richting.normalize();
-    const dx = richting.x * vooruit - richting.z * opzij;
-    const dy = richting.z * vooruit + richting.x * opzij;
+    return [richting.x * vooruit - richting.z * opzij, richting.z * vooruit + richting.x * opzij];
+  }
+
+  /** Het gekozen gebouw verschuiven, ten opzichte van het scherm. */
+  function schuif(id: number, vooruit: number, opzij: number) {
+    const [dx, dy] = stapOpGrond(vooruit, opzij);
     verzetGebouw(id, (p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
   }
   const schuifRef = useRef(schuif);
   schuifRef.current = schuif;
+
+  /** De omgeving zelf verschuiven (ten opzichte van het scherm) of draaien (rond de woning). */
+  function verzetOmgeving(wijzig: (huidig: Plaatsing) => Plaatsing) {
+    const huidig = omgevingsplaatsRef.current;
+    if (!huidig) return;
+    const nieuw = wijzig(huidig);
+    setOmgevingsplaats({ ...nieuw, hoek: genormaliseerd(nieuw.hoek) });
+    setOmgevingsbron({ soort: "hand" });
+  }
+  function schuifOmgeving(vooruit: number, opzij: number) {
+    const [dx, dy] = stapOpGrond(vooruit, opzij);
+    verzetOmgeving((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+  }
+  const schuifOmgevingRef = useRef(schuifOmgeving);
+  schuifOmgevingRef.current = schuifOmgeving;
+  function draaiOmgeving(graden: number) {
+    const huis = plaatsingenRef.current.get(model.gebouwen[0]?.id ?? -1);
+    verzetOmgeving((p) => {
+      const [mx, my] = huis ? [huis.x, huis.y] : [p.x, p.y];
+      const r = (graden * Math.PI) / 180;
+      const [c, z] = [Math.cos(r), Math.sin(r)];
+      return { x: mx + c * (p.x - mx) - z * (p.y - my), y: my + z * (p.x - mx) + c * (p.y - my), hoek: p.hoek + graden };
+    });
+  }
+
+  async function bewaarOmgeving() {
+    if (!omgeving || !omgevingsplaats) return;
+    const georef = georefVanPlaatsing(omgevingsplaats, omgeving.punt);
+    setBezig(true);
+    const uitkomst = await bewaarOmgevingActie(huisId, georef).catch(() => null);
+    setBezig(false);
+    setMelding(
+      !uitkomst
+        ? { soort: "fout", tekst: "Geen verbinding met de app." }
+        : uitkomst.ok
+          ? { soort: "goed", tekst: "Omgeving bewaard." }
+          : { soort: "fout", tekst: uitkomst.melding },
+    );
+    if (!uitkomst?.ok) return;
+    setBewaardeGeoref(georef);
+    setOmgevingsbron({ soort: "bewaard" });
+  }
 
   /** Een ander plan, of geen: terug naar wat bewaard is, of alles opnieuw zoeken. */
   function kiesPlan(id: number | null) {
@@ -895,6 +1060,74 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     return () => window.removeEventListener("keydown", toets);
   }, [verplaatsen, modus, gekozen]);
 
+  // De omgeving verschuiven: slepen over de grond schuift de hele omgeving mee.
+  useEffect(() => {
+    if (!omgevingVerplaatsen || modus !== "rond") return;
+    const d = drie.current;
+    if (!d) return;
+    const doel = d.renderer.domElement;
+    const straal = new THREE.Raycaster();
+    const vloer = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let sleep: { pointer: number; begin: THREE.Vector3; van: Plaatsing; naar: Plaatsing | null } | null = null;
+    const opGrond = (e: PointerEvent) => {
+      const kader = doel.getBoundingClientRect();
+      straal.setFromCamera(
+        new THREE.Vector2(((e.clientX - kader.left) / kader.width) * 2 - 1, -((e.clientY - kader.top) / kader.height) * 2 + 1),
+        d.camera,
+      );
+      return straal.ray.intersectPlane(vloer, new THREE.Vector3());
+    };
+    const druk = (e: PointerEvent) => {
+      const van = omgevingsplaatsRef.current;
+      const begin = e.button === 0 ? opGrond(e) : null;
+      if (!van || !begin) return;
+      e.stopImmediatePropagation();
+      d.controls.enabled = false;
+      doel.setPointerCapture(e.pointerId);
+      sleep = { pointer: e.pointerId, begin, van, naar: null };
+    };
+    const beweeg = (e: PointerEvent) => {
+      if (!sleep || e.pointerId !== sleep.pointer) return;
+      const nu = opGrond(e);
+      if (!nu) return;
+      sleep.naar = { ...sleep.van, x: sleep.van.x + nu.x - sleep.begin.x, y: sleep.van.y + nu.z - sleep.begin.z };
+      if (d.omgeving) plaats(d.omgeving.groep, sleep.naar);
+    };
+    const los = (e: PointerEvent) => {
+      if (!sleep || e.pointerId !== sleep.pointer) return;
+      const { naar } = sleep;
+      sleep = null;
+      d.controls.enabled = true;
+      if (naar) {
+        setOmgevingsplaats(naar);
+        setOmgevingsbron({ soort: "hand" });
+      }
+    };
+    doel.addEventListener("pointerdown", druk, { capture: true });
+    doel.addEventListener("pointermove", beweeg);
+    doel.addEventListener("pointerup", los);
+    doel.addEventListener("pointercancel", los);
+    const toets = (e: KeyboardEvent) => {
+      const veld = (e.target as HTMLElement | null)?.tagName;
+      if (veld === "INPUT" || veld === "SELECT" || veld === "TEXTAREA" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const stap = e.shiftKey ? 1 : 0.1;
+      const richting: Record<string, [number, number]> = { ArrowUp: [stap, 0], ArrowDown: [-stap, 0], ArrowLeft: [0, -stap], ArrowRight: [0, stap] };
+      const [vooruit, opzij] = richting[e.key] ?? [0, 0];
+      if (!vooruit && !opzij) return;
+      e.preventDefault();
+      schuifOmgevingRef.current(vooruit, opzij);
+    };
+    window.addEventListener("keydown", toets);
+    return () => {
+      doel.removeEventListener("pointerdown", druk, { capture: true });
+      doel.removeEventListener("pointermove", beweeg);
+      doel.removeEventListener("pointerup", los);
+      doel.removeEventListener("pointercancel", los);
+      window.removeEventListener("keydown", toets);
+      d.controls.enabled = true;
+    };
+  }, [omgevingVerplaatsen, modus]);
+
   // Het gekozen gebouw krijgt een oranje omtrek, die meeschuift en altijd te zien is.
   useEffect(() => {
     const d = drie.current;
@@ -1058,6 +1291,30 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       });
   const keuze = gekozen !== null ? plaatsingen.get(gekozen) : undefined;
 
+  const omgevingsuitleg =
+    omgevingsbron?.soort === "bewaard"
+      ? "Ligt zoals bewaard."
+      : omgevingsbron?.soort === "plan"
+        ? `Op het plan gelegd: ons perceel valt voor ${Math.round((omgevingsbron.overeenkomst ?? 0) * 100)}% op het perceel van het inplantingsplan.`
+        : omgevingsbron?.soort === "huis"
+          ? "Het adrespunt ligt op de woning, met het noorden naar boven. Verschuif en draai de omgeving tot de luchtfoto op het plan valt."
+          : omgevingsbron?.soort === "hand"
+            ? "Zelf verschoven."
+            : "De omgeving op het plan leggen…";
+  const omgevingVeranderd =
+    omgeving !== null &&
+    omgevingsplaats !== null &&
+    (() => {
+      if (!bewaardeGeoref) return true;
+      const toen = plaatsingVanGeoref(bewaardeGeoref, omgeving.punt);
+      return Math.hypot(toen.x - omgevingsplaats.x, toen.y - omgevingsplaats.y) > 0.001 || Math.abs(genormaliseerd(toen.hoek - omgevingsplaats.hoek)) > 0.01;
+    })();
+  const draaiknop = (graden: number, tekst: string, uitleg: string) => (
+    <button type="button" className="stil" title={uitleg} onClick={() => draaiOmgeving(graden)}>
+      {tekst}
+    </button>
+  );
+
   return (
     <div className={`drie-scherm${volledig ? " volledig" : ""}${paneel ? "" : " zonder-paneel"}`}>
       <div className="drie-beeld">
@@ -1111,7 +1368,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             ? "Slepen kijkt rond. Lopen met W A S D of de pijltjes, sneller met Shift, of met de knoppen."
             : verplaatsen
               ? "Sleep een gebouw naar zijn plaats; elders slepen draait. De pijltjes verschuiven het gekozen gebouw 10 cm, met Shift 1 m."
-              : "Slepen draait, rechts slepen of drie vingers schuift. Zoomen met + en −, het muiswiel of twee vingers."}
+              : omgevingVerplaatsen
+                ? "Slepen schuift de omgeving; rechts slepen schuift het beeld. De pijltjes verschuiven de omgeving 10 cm, met Shift 1 m."
+                : "Slepen draait, rechts slepen of drie vingers schuift. Zoomen met + en −, het muiswiel of twee vingers."}
         </p>
       </div>
 
@@ -1129,6 +1388,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               className={modus === "wandel" ? "" : "stil"}
               onClick={() => {
                 setVerplaatsen(false);
+                setOmgevingVerplaatsen(false);
                 setModus("wandel");
               }}
             >
@@ -1228,6 +1488,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               aria-pressed={verplaatsen}
               onClick={() => {
                 setModus("rond");
+                setOmgevingVerplaatsen(false);
                 setVerplaatsen(!verplaatsen);
               }}
             >
@@ -1302,6 +1563,106 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               ) : null}
             </div>
           ) : null}
+        </section>
+
+        <section className="kaart">
+          <h3>Omgeving</h3>
+          {!gegevens.omgeving.metAdres ? (
+            <p className="hulp">
+              Vul het adres in bij <a href={huispad(huisId, "")}>Overzicht</a>: dan toont de app de percelen, de huizen van de buren en de
+              luchtfoto, uit de gegevens van Digitaal Vlaanderen.
+            </p>
+          ) : omgevingstand === "laden" ? (
+            <p className="hulp">De omgeving ophalen bij Digitaal Vlaanderen…</p>
+          ) : omgevingstand === "fout" ? (
+            <p className="melding fout">{omgevingsfout}</p>
+          ) : (
+            <>
+              <label className="keuzevak">
+                <input type="checkbox" checked={lagen.luchtfoto} onChange={(g) => setLagen({ ...lagen, luchtfoto: g.currentTarget.checked })} />
+                Luchtfoto
+              </label>
+              <label className="keuzevak">
+                <input type="checkbox" checked={lagen.grenzen} onChange={(g) => setLagen({ ...lagen, grenzen: g.currentTarget.checked })} />
+                Perceelgrenzen
+              </label>
+              <label className="keuzevak">
+                <input type="checkbox" checked={lagen.buren} onChange={(g) => setLagen({ ...lagen, buren: g.currentTarget.checked })} />
+                Huizen van de buren
+              </label>
+              <label className="keuzevak">
+                <input type="checkbox" checked={lagen.opPerceel} onChange={(g) => setLagen({ ...lagen, opPerceel: g.currentTarget.checked })} />
+                Wat nu op ons perceel staat
+              </label>
+              <p className="hulp">{omgevingsuitleg}</p>
+              <div className="knoppenrij">
+                <button
+                  type="button"
+                  className={omgevingVerplaatsen ? "" : "stil"}
+                  aria-pressed={omgevingVerplaatsen}
+                  disabled={!omgevingsplaats}
+                  onClick={() => {
+                    setModus("rond");
+                    setVerplaatsen(false);
+                    setOmgevingVerplaatsen(!omgevingVerplaatsen);
+                  }}
+                >
+                  {omgevingVerplaatsen ? "Klaar met verschuiven" : "Omgeving verschuiven en draaien"}
+                </button>
+                {geladen && omgeving ? (
+                  <button type="button" className="stil" disabled={planstand === "zoeken"} onClick={() => void legOmgeving(omgeving)}>
+                    Opnieuw op het plan leggen
+                  </button>
+                ) : null}
+              </div>
+              {omgevingVerplaatsen ? (
+                <div className="verplaatsen">
+                  <div className="draaiknoppen omgeving" role="group" aria-label="Draaien rond de woning">
+                    {draaiknop(-90, "⟲ 90°", "Een kwartslag tegen de klok in, rond de woning")}
+                    {draaiknop(-1, "⟲ 1°", "1° tegen de klok in")}
+                    {draaiknop(-0.1, "⟲ 0,1°", "0,1° tegen de klok in")}
+                    {draaiknop(0.1, "⟳ 0,1°", "0,1° met de klok mee")}
+                    {draaiknop(1, "⟳ 1°", "1° met de klok mee")}
+                    {draaiknop(90, "⟳ 90°", "Een kwartslag met de klok mee, rond de woning")}
+                  </div>
+                  <div className="pijlknoppen" role="group" aria-label="De omgeving verschuiven per 10 cm">
+                    <button type="button" className="stil" title="10 cm omhoog op het scherm" onClick={() => schuifOmgeving(0.1, 0)}>
+                      ↑
+                    </button>
+                    <button type="button" className="stil" title="10 cm naar links" onClick={() => schuifOmgeving(0, -0.1)}>
+                      ←
+                    </button>
+                    <button type="button" className="stil" title="10 cm omlaag op het scherm" onClick={() => schuifOmgeving(-0.1, 0)}>
+                      ↓
+                    </button>
+                    <button type="button" className="stil" title="10 cm naar rechts" onClick={() => schuifOmgeving(0, 0.1)}>
+                      →
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {omgevingVeranderd ? (
+                <div className="knoppenrij">
+                  <button type="button" disabled={bezig} onClick={() => void bewaarOmgeving()}>
+                    Omgeving bewaren
+                  </button>
+                  {bewaardeGeoref && omgeving ? (
+                    <button
+                      type="button"
+                      className="stil"
+                      onClick={() => {
+                        setOmgevingsplaats(plaatsingVanGeoref(bewaardeGeoref, omgeving.punt));
+                        setOmgevingsbron({ soort: "bewaard" });
+                      }}
+                    >
+                      Herbeginnen
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <p className="hulp">Bron: Digitaal Vlaanderen (GRB en orthofoto).</p>
+            </>
+          )}
         </section>
 
         <section className="kaart">

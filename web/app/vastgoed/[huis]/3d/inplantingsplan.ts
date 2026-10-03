@@ -2,11 +2,13 @@ import type { PDFDocumentLoadingTask } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { plaatsAutomatisch, type Inplantingsvondst, type Vondst, type Zoekgebouw } from "@/lib/bouw/drie/inplanting";
 import type { Inplantingsplan } from "@/lib/bouw/drie/laden";
+import { perceelOpPlan, type Georef, type Omgeving } from "@/lib/bouw/drie/omgeving";
 import { leesBlad } from "@/lib/bouw/omzetting/lezen";
 import type { Blad } from "@/lib/bouw/omzetting/types";
 import { haalPdfBytes, openPdf, pdfFout } from "@/lib/bouw/pdf";
 
 import { vraagPlanUrl } from "../plannen/acties";
+import type { Zoekvraag } from "./zoek-inplanting.worker";
 
 /**
  * Het inplantingsplan in de browser: het blad lezen (de vormen, voor het
@@ -51,34 +53,54 @@ export async function laadInplantingsplan(huisId: number, plan: Inplantingsplan,
 }
 
 /**
- * Zoekt de gebouwen op het blad, in een webworker zodat het beeld vlot blijft;
- * zonder worker (een oude browser) gewoon hier.
+ * Rekent in een webworker, zodat het beeld vlot blijft; zonder worker (een
+ * oude browser), of als hij niet laadt of vastloopt, gewoon hier.
  */
-export function zoekInplanting(gebouwen: Zoekgebouw[], blad: Blad, noemer: number | null): Promise<Inplantingsvondst> {
+function inWorker<T>(vraag: Zoekvraag, hier: () => T, lees: (antwoord: unknown) => T): Promise<T> {
   return new Promise((klaar, mislukt) => {
-    const hier = () => {
+    const nuHier = () => {
       try {
-        klaar(plaatsAutomatisch(gebouwen, blad, noemer));
+        klaar(hier());
       } catch (fout) {
         mislukt(fout);
       }
     };
-    if (typeof Worker === "undefined") return hier();
+    if (typeof Worker === "undefined") return nuHier();
     let worker: Worker;
     try {
       worker = new Worker(new URL("./zoek-inplanting.worker.ts", import.meta.url));
     } catch {
-      return hier();
+      return nuHier();
     }
-    worker.onmessage = (bericht: MessageEvent<{ noemer: number | null; bron: Inplantingsvondst["bron"]; gevonden: [number, Vondst][] }>) => {
+    worker.onmessage = (bericht: MessageEvent<unknown>) => {
       worker.terminate();
-      klaar({ noemer: bericht.data.noemer, bron: bericht.data.bron, gevonden: new Map(bericht.data.gevonden) });
+      klaar(lees(bericht.data));
     };
-    // Laadt de worker niet, of loopt hij vast op een fout: dan hier, en een fout komt bij wie wacht.
     worker.onerror = () => {
       worker.terminate();
-      hier();
+      nuHier();
     };
-    worker.postMessage({ gebouwen, blad, noemer });
+    worker.postMessage(vraag);
   });
+}
+
+/** Zoekt de gebouwen op het blad. */
+export function zoekInplanting(gebouwen: Zoekgebouw[], blad: Blad, noemer: number | null): Promise<Inplantingsvondst> {
+  return inWorker(
+    { soort: "gebouwen", gebouwen, blad, noemer },
+    () => plaatsAutomatisch(gebouwen, blad, noemer),
+    (antwoord) => {
+      const { noemer: n, bron, gevonden } = antwoord as { noemer: number | null; bron: Inplantingsvondst["bron"]; gevonden: [number, Vondst][] };
+      return { noemer: n, bron, gevonden: new Map(gevonden) };
+    },
+  );
+}
+
+/** Zoekt ons perceel op het blad, om de omgeving op het plan te leggen. */
+export function zoekPerceel(omgeving: Omgeving, blad: Blad, noemer: number): Promise<{ georef: Georef; overeenkomst: number } | null> {
+  return inWorker(
+    { soort: "perceel", omgeving, blad, noemer },
+    () => perceelOpPlan(omgeving, blad, noemer),
+    (antwoord) => antwoord as { georef: Georef; overeenkomst: number } | null,
+  );
 }

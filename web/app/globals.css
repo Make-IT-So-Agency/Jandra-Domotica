@@ -1967,6 +1967,11 @@ a.tl-naam:hover {
   text-align: center;
 }
 
+.draaiknoppen.omgeving {
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+}
+
 .draaiknoppen button,
 .pijlknoppen button {
   padding: 6px 8px;

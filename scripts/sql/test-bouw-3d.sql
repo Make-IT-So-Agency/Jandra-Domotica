@@ -1,7 +1,8 @@
 -- Controle bij de migraties (scripts/test-migraties.sh draait elk test-*.sql
--- bestand hier): de keuzes voor de trappen van een verdieping, en de
--- inplanting van de gebouwen op het terrein. Verandert niets: alles gebeurt
--- in een transactie die teruggedraaid wordt.
+-- bestand hier): de keuzes voor de trappen van een verdieping, de inplanting
+-- van de gebouwen op het terrein, en waar het terrein op de kaart ligt.
+-- Verandert niets: alles gebeurt in een transactie die teruggedraaid wordt.
+-- De coördinaten hieronder zijn verzonnen.
 begin;
 
 do $$
@@ -77,6 +78,22 @@ begin
   if (select inplanting_schaal from bouw_huizen where id = huis) is distinct from 200 then
     raise exception 'de schaal verdween mee met het plan';
   end if;
+
+  -- 6. Waar het terrein op de kaart ligt: alle drie samen, binnen België.
+  update bouw_huizen set lambert_x = 150000.5, lambert_y = 180000.25, lambert_hoek = 12.5 where id = huis;
+  begin
+    update bouw_huizen set lambert_hoek = null where id = huis;
+    raise exception 'een georeferentie zonder hoek werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    update bouw_huizen set lambert_x = 900000 where id = huis;
+    raise exception 'een punt buiten België werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  update bouw_huizen set lambert_x = null, lambert_y = null, lambert_hoek = null where id = huis;
 end;
 $$;
 

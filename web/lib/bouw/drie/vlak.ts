@@ -25,15 +25,33 @@ function open(veelhoeken: MultiPolygon): Veelhoek[] {
 const alsInvoer = (veelhoeken: Veelhoek[]): Polygon[] =>
   veelhoeken.filter((veelhoek) => veelhoek[0]?.length >= 3).map((veelhoek) => veelhoek.map((ring) => ring.map(([x, y]) => [x, y] as [number, number])));
 
+/**
+ * polygon-clipping struikelt soms over randen die op een haar na samenvallen
+ * ("Unable to complete output ring"), bv. een gebouw dat precies op zijn vorm
+ * op het plan ligt. Dan nog eens, met de eerste vorm een duizendste
+ * millimeter verschoven, of iets meer: niets wat te zien of te meten is.
+ */
+const VERSCHUIVINGEN = [0, 1e-6, 1e-5, 1e-4];
+
+const verschoven = (polygonen: Polygon[], d: number): Polygon[] =>
+  d === 0 ? polygonen : polygonen.map((veelhoek) => veelhoek.map((ring) => ring.map(([x, y]) => [x + d, y + d * 0.7071] as [number, number])));
+
+function metPogingen<T>(bewerking: (d: number) => T): T | null {
+  for (const d of VERSCHUIVINGEN) {
+    try {
+      return bewerking(d);
+    } catch {
+      // Nog eens, iets verschoven.
+    }
+  }
+  return null;
+}
+
 /** Alles samen tot losse veelhoeken zonder overlap. Lukt het niet, dan blijven ze apart. */
 export function vereniging(veelhoeken: Veelhoek[]): Veelhoek[] {
   const invoer = alsInvoer(veelhoeken);
   if (invoer.length === 0) return [];
-  try {
-    return open(polygonClipping.union(invoer[0], ...invoer.slice(1)));
-  } catch {
-    return veelhoeken;
-  }
+  return metPogingen((d) => open(polygonClipping.union(verschoven([invoer[0]], d)[0], ...invoer.slice(1)))) ?? veelhoeken;
 }
 
 /** Wat van a overblijft zonder b. */
@@ -42,11 +60,7 @@ export function verschil(a: Veelhoek[], b: Veelhoek[]): Veelhoek[] {
   const rechts = alsInvoer(b);
   if (links.length === 0) return [];
   if (rechts.length === 0) return a;
-  try {
-    return open(polygonClipping.difference(links, rechts));
-  } catch {
-    return a;
-  }
+  return metPogingen((d) => open(polygonClipping.difference(verschoven(links, d), rechts))) ?? a;
 }
 
 /** Wat a en b gemeen hebben. */
@@ -54,11 +68,7 @@ export function doorsnede(a: Veelhoek[], b: Veelhoek[]): Veelhoek[] {
   const links = alsInvoer(a);
   const rechts = alsInvoer(b);
   if (links.length === 0 || rechts.length === 0) return [];
-  try {
-    return open(polygonClipping.intersection(links, rechts));
-  } catch {
-    return [];
-  }
+  return metPogingen((d) => open(polygonClipping.intersection(verschoven(links, d), rechts))) ?? [];
 }
 
 /** Ligt p in een van de veelhoeken, buiten hun gaten? */

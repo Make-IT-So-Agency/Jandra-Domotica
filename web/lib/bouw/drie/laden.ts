@@ -21,6 +21,7 @@ import { verdiepingNaam } from "../weergave";
 import { STANDAARDDAK, type Dakinstelling } from "./dakregels";
 import { materiaalkeuzes, type Materiaalkeuze } from "./materialen";
 import type { Invoerverdieping } from "./model";
+import type { Georef } from "./omgeving";
 import type { Plaatsing } from "./plaatsing";
 
 /**
@@ -62,9 +63,15 @@ export interface Driegegevens {
     /** De inplantingsplannen eerst, dan de plannen van het soort Andere. */
     plannen: Inplantingsplan[];
   };
+  omgeving: {
+    /** Of er een adres is: enkel dan haalt het scherm de omgeving op. Het adres zelf blijft op de server. */
+    metAdres: boolean;
+    /** Waar het terrein op de kaart ligt, als het bewaard is. */
+    georef: Georef | null;
+  };
 }
 
-export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens> {
+export async function laadDrie(huisId: number, ik: string, metAdres = false): Promise<Driegegevens> {
   const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, inplanting] = await Promise.all([
     lijstGebouwen(huisId),
     lijstDaken(huisId),
@@ -162,5 +169,6 @@ export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens
             : [];
         }),
     },
+    omgeving: { metAdres, georef: inplanting.georef },
   };
 }

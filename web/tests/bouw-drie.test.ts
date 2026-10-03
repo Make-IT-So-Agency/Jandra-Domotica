@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { maakDak } from "@/lib/bouw/drie/dak";
 import { vindGaten } from "@/lib/bouw/drie/gaten";
 import { maakModel, stapel, type Invoerverdieping } from "@/lib/bouw/drie/model";
-import { binnenVeelhoeken, omhullende, vergrootConvex, vereniging, verschil } from "@/lib/bouw/drie/vlak";
+import { binnenVeelhoeken, doorsnede, omhullende, vergrootConvex, vereniging, verschil } from "@/lib/bouw/drie/vlak";
 import { nettoOppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import type { Xy } from "@/lib/bouw/omzetting/types";
 
@@ -21,6 +21,14 @@ describe("vlakken", () => {
     expect(nettoOppervlakte(samen[0])).toBeCloseTo(3);
     const rest = verschil([[rechthoek(0, 0, 4, 4)]], [[rechthoek(0, 0, 2, 4)]]);
     expect(nettoOppervlakte(rest[0])).toBeCloseTo(8);
+  });
+
+  it("rekent ook met twee vormen die op een haar na samenvallen", () => {
+    // polygon-clipping gooit hier "Unable to complete output ring"; een minieme verschuiving lost dat op.
+    const a: Xy[] = [[34.26653861671696, 58.70361139390198], [64.61321183952688, 72.27119866312532], [79.89513371015445, 42.95460159013551], [58.98467773995562, 23.390531688441325]];
+    const b: Xy[] = [[34.26653861671696, 58.703611393901994], [64.61321183952688, 72.27119866312532], [79.89513371015445, 42.954601590135525], [58.984677739955615, 23.39053168844132]];
+    const gemeen = doorsnede([[a]], [[b]]).reduce((som, veelhoek) => som + nettoOppervlakte(veelhoek), 0);
+    expect(gemeen).toBeCloseTo(nettoOppervlakte([a]), 2);
   });
 
   it("kent gaten, de omhullende en een grotere rand", () => {

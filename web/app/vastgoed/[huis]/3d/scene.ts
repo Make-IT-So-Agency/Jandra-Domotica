@@ -24,7 +24,7 @@ type P3 = [number, number, number];
 
 const in3d = (p: Xy, z: number): P3 => [p[0], z, p[1]];
 
-class Bouwer {
+export class Bouwer {
   readonly delen = new Map<Sleutel, { posities: number[]; normalen: number[]; uvs: number[] }>();
 
   private deel(sleutel: Sleutel) {

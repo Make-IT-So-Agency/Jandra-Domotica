@@ -439,7 +439,7 @@ describe("de inplanting in de databank", () => {
     vi.resetModules();
     const { bewaarInplanting, leesInplanting } = await import("@/lib/bouw/opslag");
 
-    expect(await leesInplanting(1)).toEqual({ planId: null, schaal: null, plaatsen: new Map([[1, { x: 60, y: 45, hoek: 23.5 }]]) });
+    expect(await leesInplanting(1)).toEqual({ planId: null, schaal: null, plaatsen: new Map([[1, { x: 60, y: 45, hoek: 23.5 }]]), georef: null });
 
     await bewaarInplanting(1, {
       planId: 30,
@@ -449,7 +449,7 @@ describe("de inplanting in de databank", () => {
         { gebouwId: 2, plaats: { x: 85, y: 70, hoek: -8 } },
       ],
     });
-    expect(await leesInplanting(1)).toEqual({ planId: 30, schaal: 200, plaatsen: new Map([[2, { x: 85, y: 70, hoek: -8 }]]) });
+    expect(await leesInplanting(1)).toEqual({ planId: 30, schaal: 200, plaatsen: new Map([[2, { x: 85, y: 70, hoek: -8 }]]), georef: null });
 
     // Een plan of een gebouw van een ander huis: geweigerd, en niets veranderd.
     await expect(bewaarInplanting(1, { planId: 40, schaal: 250, plaatsen: [] })).rejects.toThrow("hoort niet bij dit huis");
@@ -458,6 +458,14 @@ describe("de inplanting in de databank", () => {
     ).rejects.toThrow("hoort niet bij dit huis");
     expect(db.tabellen.bouw_gebouwen.find((g) => g.id === 3)?.plaats_x_m).toBeUndefined();
     expect(await leesInplanting(1)).toMatchObject({ planId: 30, schaal: 200 });
+
+    // Waar het terrein op de kaart ligt (verzonnen coördinaten), en weer wissen.
+    const { bewaarGeoref } = await import("@/lib/bouw/opslag");
+    await bewaarGeoref(1, { x: 150000.5, y: 180000.25, hoek: 12.5 });
+    expect((await leesInplanting(1)).georef).toEqual({ x: 150000.5, y: 180000.25, hoek: 12.5 });
+    expect(db.tabellen.bouw_huizen.find((h) => h.id === 2)?.lambert_x).toBeUndefined();
+    await bewaarGeoref(1, null);
+    expect((await leesInplanting(1)).georef).toBeNull();
     vi.doUnmock("@/lib/supabase");
   });
 });

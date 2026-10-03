@@ -5,6 +5,7 @@ import { db } from "@/lib/supabase";
 import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
+import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneTrapstanden } from "./drie/trappen";
 import { sleutelVan } from "./invoer";
@@ -140,11 +141,13 @@ export interface BewaardeInplanting {
   schaal: number | null;
   /** Enkel de gebouwen met een bewaarde plaats. */
   plaatsen: Map<number, Plaatsing>;
+  /** Waar het terrein op de kaart ligt (zie drie/omgeving.ts), als iemand het bewaarde. */
+  georef: Georef | null;
 }
 
 export async function leesInplanting(huisId: number): Promise<BewaardeInplanting> {
   const [huis, gebouwen] = await Promise.all([
-    db().from("bouw_huizen").select("inplanting_plan_id, inplanting_schaal").eq("id", huisId).maybeSingle(),
+    db().from("bouw_huizen").select("inplanting_plan_id, inplanting_schaal, lambert_x, lambert_y, lambert_hoek").eq("id", huisId).maybeSingle(),
     db().from("bouw_gebouwen").select("id, plaats_x_m, plaats_y_m, plaats_hoek").eq("huis_id", huisId),
   ]);
   const rij = check(huis, "Inplanting lezen") as Record<string, unknown> | null;
@@ -154,7 +157,27 @@ export async function leesInplanting(huisId: number): Promise<BewaardeInplanting
     const [x, y, hoek] = [getal(gebouw.plaats_x_m), getal(gebouw.plaats_y_m), getal(gebouw.plaats_hoek)];
     if (x !== null && y !== null && hoek !== null) plaatsen.set(Number(gebouw.id), { x, y, hoek });
   }
-  return { planId: getal(rij?.inplanting_plan_id), schaal: getal(rij?.inplanting_schaal), plaatsen };
+  const [lx, ly, lhoek] = [getal(rij?.lambert_x), getal(rij?.lambert_y), getal(rij?.lambert_hoek)];
+  return {
+    planId: getal(rij?.inplanting_plan_id),
+    schaal: getal(rij?.inplanting_schaal),
+    plaatsen,
+    georef: lx !== null && ly !== null && lhoek !== null ? { x: lx, y: ly, hoek: lhoek } : null,
+  };
+}
+
+/** Bewaart waar het terrein op de kaart ligt (nagekeken met schoneGeoref), of wist het. */
+export async function bewaarGeoref(huisId: number, georef: Georef | null): Promise<void> {
+  geraakt(
+    check(
+      await db()
+        .from("bouw_huizen")
+        .update({ lambert_x: georef?.x ?? null, lambert_y: georef?.y ?? null, lambert_hoek: georef?.hoek ?? null })
+        .eq("id", huisId)
+        .select("id"),
+      "Omgeving bewaren",
+    ),
+  );
 }
 
 /** Bewaart een nagekeken inplanting (zie schoneInplanting): enkel met een plan en gebouwen van dit huis. */
