@@ -165,7 +165,7 @@ describe("de webhook van de bot van Bouw", () => {
       ].join("\n"),
     );
     expect(verstuurd[0].reply_markup).toEqual({
-      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/bouw/planning" }]],
+      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/vastgoed/1/planning" }]],
     });
 
     await stuurUpdate(bericht("/deadlines"));
@@ -187,7 +187,7 @@ describe("de webhook van de bot van Bouw", () => {
       ].join("\n"),
     );
     expect(verstuurd[0].reply_markup).toEqual({
-      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/bouw/geld/facturen" }]],
+      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/vastgoed/1/geld/facturen" }]],
     });
 
     await stuurUpdate(bericht("/taken"));
@@ -221,7 +221,7 @@ describe("de berichten", () => {
     expect(tekst(-2)).toEqual([]);
     expect(herinneringen(1, [deadline(3)], [], geen, "2026-10-05")[0]).toMatchObject({
       sleutel: "deadline:7:2026-10-12:3",
-      pad: "/bouw/keuzes/7",
+      pad: "/vastgoed/1/keuzes/7",
     });
   });
 
@@ -270,7 +270,7 @@ describe("de dagelijkse ronde", () => {
     const factuur = verstuurd.at(-1)!;
     expect(factuur.text).toBe("💶 Factuur F-12 van Bouwbedrijf Voorbeeld (€\u00a02.420,00): betalen over 3 dagen (tegen 8 okt).");
     expect(factuur.reply_markup).toEqual({
-      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/bouw/geld/facturen" }]],
+      inline_keyboard: [[{ text: "Openen in Jandra", url: "https://jandra.voorbeeld.be/vastgoed/1/geld/facturen" }]],
     });
     expect(db.tabellen.bouw_meldingen.map((m) => m.sleutel)).toContain("factuur:5:2026-10-08:3");
   });
@@ -284,7 +284,7 @@ describe("de dagelijkse ronde", () => {
     expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
     const herinnering = verstuurd.at(-1)!;
     expect(herinnering.text).toBe("📌 Actiepunt Stelling afbreken (Bouwbedrijf Voorbeeld): klaar tegen morgen.");
-    expect(JSON.stringify(herinnering.reply_markup)).toContain("/bouw/werf/actiepunten");
+    expect(JSON.stringify(herinnering.reply_markup)).toContain("/vastgoed/1/werf/actiepunten");
   });
 
   it("herinnert aan onderhoud een week vooraf, en aan een garantie een maand voor ze afloopt", async () => {
@@ -301,7 +301,7 @@ describe("de dagelijkse ronde", () => {
       "🧰 Rookmelders testen: over 7 dagen (12 okt).",
       "🛡️ De garantie op de ramen (Bouwbedrijf Voorbeeld) loopt af over 4 weken (4 nov). Is er nog iets te melden?",
     ]);
-    expect(JSON.stringify(verstuurd.at(-1)!.reply_markup)).toContain("/bouw/dossier/garanties");
+    expect(JSON.stringify(verstuurd.at(-1)!.reply_markup)).toContain("/vastgoed/1/dossier/garanties");
   });
 
   it("probeert het de volgende keer opnieuw als Telegram faalde", async () => {

@@ -1,3 +1,4 @@
+import { VASTGOED, deelVan, huisUitPad, huispad } from "./bouw/paden";
 import { magBouwZien, magGebruikersBeheren, magInstellingenBeheren, type Gebruiker } from "./rollen";
 
 /**
@@ -10,46 +11,56 @@ export interface Paginalink {
   naam: string;
 }
 
-/** Een huis onder Vastgoed, met zijn eigen pagina's. Nu enkel de nieuwbouw. */
-export interface Huis {
-  sleutel: string;
+/** Wat het menu van een huis weet: het nummer en de korte naam, niets meer. */
+export interface Menuhuis {
+  id: number;
   naam: string;
+}
+
+/** Een huis onder Vastgoed, met zijn eigen pagina's. */
+export interface Huismenu extends Menuhuis {
   paginas: Paginalink[];
 }
 
 export type Menuonderdeel =
   | { soort: "groep"; naam: string; paginas: Paginalink[] }
-  | { soort: "vastgoed"; naam: string; huizen: Huis[] }
+  | { soort: "vastgoed"; naam: string; huizen: Huismenu[]; los: Paginalink[] }
   | { soort: "pagina"; pagina: Paginalink };
 
-/** De pagina's van Bouw: het huis dat we bouwen. */
-export const BOUWPAGINAS: Paginalink[] = [
-  { pad: "/bouw", naam: "Overzicht" },
-  { pad: "/bouw/plannen", naam: "Plannen" },
-  { pad: "/bouw/ruimtes", naam: "Ruimtes" },
-  { pad: "/bouw/punten", naam: "Punten" },
-  { pad: "/bouw/3d", naam: "3D" },
-  { pad: "/bouw/keuzes", naam: "Keuzes" },
-  { pad: "/bouw/planning", naam: "Planning" },
-  { pad: "/bouw/geld", naam: "Geld" },
-  { pad: "/bouw/werf", naam: "Werf" },
-  { pad: "/bouw/dossier", naam: "Dossier" },
-  { pad: "/bouw/beslissingen", naam: "Beslissingen" },
-  { pad: "/bouw/verdiepingen", naam: "Verdiepingen" },
-  { pad: "/bouw/partijen", naam: "Partijen" },
-  { pad: "/bouw/toegang", naam: "Toegang" },
-  { pad: "/bouw/telegram", naam: "Telegram" },
+/** De pagina's van een huis, met wat er na /vastgoed/<nummer> komt. */
+export const HUISPAGINAS: { deel: string; naam: string }[] = [
+  { deel: "", naam: "Overzicht" },
+  { deel: "/plannen", naam: "Plannen" },
+  { deel: "/ruimtes", naam: "Ruimtes" },
+  { deel: "/punten", naam: "Punten" },
+  { deel: "/3d", naam: "3D" },
+  { deel: "/keuzes", naam: "Keuzes" },
+  { deel: "/planning", naam: "Planning" },
+  { deel: "/geld", naam: "Geld" },
+  { deel: "/werf", naam: "Werf" },
+  { deel: "/dossier", naam: "Dossier" },
+  { deel: "/beslissingen", naam: "Beslissingen" },
+  { deel: "/verdiepingen", naam: "Verdiepingen" },
+  { deel: "/partijen", naam: "Partijen" },
+  { deel: "/toegang", naam: "Toegang" },
 ];
 
-/**
- * De huizen onder Vastgoed, in het keuzemenu. Komt het huidige huis erbij,
- * dan is dat hier één regel; de gegevens van Bouw horen nu wel bij één
- * project, dus dat wordt een eigen stuk werk.
- */
-export const HUIZEN: Huis[] = [{ sleutel: "nieuwbouw", naam: "Nieuwbouw", paginas: BOUWPAGINAS }];
+/** Onder Vastgoed, los van de huizen: de huizen zelf, en de bot voor alle huizen. */
+export const VASTGOEDPAGINAS: Paginalink[] = [
+  { pad: VASTGOED, naam: "Huizen" },
+  { pad: `${VASTGOED}/telegram`, naam: "Telegram" },
+];
 
-/** Het menu dat deze gebruiker te zien krijgt, in volgorde. */
-export function menuVoor(gebruiker: Gebruiker): Menuonderdeel[] {
+export function huismenu(huis: Menuhuis): Huismenu {
+  return {
+    id: huis.id,
+    naam: huis.naam,
+    paginas: HUISPAGINAS.map((pagina) => ({ pad: huispad(huis.id, pagina.deel), naam: pagina.naam })),
+  };
+}
+
+/** Het menu dat deze gebruiker te zien krijgt, in volgorde, met de actieve huizen onder Vastgoed. */
+export function menuVoor(gebruiker: Gebruiker, huizen: Menuhuis[] = []): Menuonderdeel[] {
   const laden: Paginalink[] = [
     { pad: "/", naam: "Overzicht" },
     { pad: "/rapporten", naam: "Rapporten" },
@@ -66,7 +77,7 @@ export function menuVoor(gebruiker: Gebruiker): Menuonderdeel[] {
 
   const menu: Menuonderdeel[] = [{ soort: "groep", naam: "Laadpalen", paginas: laden }];
   if (magBouwZien(gebruiker)) {
-    menu.push({ soort: "vastgoed", naam: "Vastgoed", huizen: HUIZEN });
+    menu.push({ soort: "vastgoed", naam: "Vastgoed", huizen: huizen.map(huismenu), los: VASTGOEDPAGINAS });
   }
   if (magGebruikersBeheren(gebruiker)) {
     menu.push({ soort: "pagina", pagina: { pad: "/gebruikers", naam: "Gebruikers" } });
@@ -77,7 +88,7 @@ export function menuVoor(gebruiker: Gebruiker): Menuonderdeel[] {
 /** De pagina's van één onderdeel van het menu. */
 export function paginasVan(onderdeel: Menuonderdeel): Paginalink[] {
   if (onderdeel.soort === "groep") return onderdeel.paginas;
-  if (onderdeel.soort === "vastgoed") return onderdeel.huizen.flatMap((huis) => huis.paginas);
+  if (onderdeel.soort === "vastgoed") return [...onderdeel.huizen.flatMap((huis) => huis.paginas), ...onderdeel.los];
   return [onderdeel.pagina];
 }
 
@@ -86,17 +97,28 @@ export function allePaden(menu: Menuonderdeel[]): string[] {
   return menu.flatMap((onderdeel) => paginasVan(onderdeel).map((pagina) => pagina.pad));
 }
 
-/** Het huis waarvan deze pagina is; anders het eerste. */
-export function huisVan(huidig: string, huizen: Huis[]): Huis {
-  return (
-    huizen.find((huis) => actievePagina(huidig, huis.paginas.map((pagina) => pagina.pad)) !== null) ?? huizen[0]
-  );
+/** Het huis van deze pagina; anders het eerste, of geen als er geen huizen zijn. */
+export function huisVan(huidig: string, huizen: Huismenu[]): Huismenu | null {
+  const id = huisUitPad(huidig);
+  return huizen.find((huis) => huis.id === id) ?? huizen[0] ?? null;
+}
+
+/**
+ * Waar je terechtkomt als je een ander huis kiest: hetzelfde onderdeel van
+ * dat huis, of zijn overzicht als het dat onderdeel niet heeft. Nooit dieper
+ * dan het onderdeel: een plan of een post van het ene huis bestaat niet in
+ * het andere.
+ */
+export function wisselPad(huidig: string, van: Huismenu | null, naar: Huismenu): string {
+  const actief = van ? actievePagina(huidig, van.paginas.map((pagina) => pagina.pad)) : null;
+  const deel = actief === null ? "" : deelVan(actief);
+  return naar.paginas.find((pagina) => deelVan(pagina.pad) === deel)?.pad ?? huispad(naar.id);
 }
 
 /**
  * Welke link oplicht voor het huidige pad: de langste die past, op de grens
- * van een padstuk. Zo licht /bouw/plannen/12 "Plannen" op, en niet
- * "Overzicht" van Vastgoed. "/" past enkel op zichzelf, anders zou Overzicht
+ * van een padstuk. Zo licht /vastgoed/1/plannen/12 "Plannen" op, en niet het
+ * overzicht van het huis. "/" past enkel op zichzelf, anders zou Overzicht
  * altijd oplichten.
  */
 export function actievePagina(huidig: string, paden: string[]): string | null {

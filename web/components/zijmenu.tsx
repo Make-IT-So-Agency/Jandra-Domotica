@@ -4,7 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { actievePagina, allePaden, huisVan, paginasVan, type Menuonderdeel, type Paginalink } from "@/lib/navigatie";
+import {
+  actievePagina,
+  allePaden,
+  huisVan,
+  paginasVan,
+  wisselPad,
+  type Menuonderdeel,
+  type Paginalink,
+} from "@/lib/navigatie";
 
 /**
  * Het menu links, met de pagina's in groepen. Op een smal scherm schuift het
@@ -97,23 +105,29 @@ export function Zijmenu({
             return (
               <details key={onderdeel.naam} className="menugroep" open={bevat}>
                 <summary>{onderdeel.naam}</summary>
-                <label className="huiskeuze">
-                  <span>Huis</span>
-                  <select
-                    value={huis.sleutel}
-                    onChange={(gebeurtenis) => {
-                      const gekozen = onderdeel.huizen.find((ander) => ander.sleutel === gebeurtenis.target.value);
-                      if (gekozen) router.push(gekozen.paginas[0].pad);
-                    }}
-                  >
-                    {onderdeel.huizen.map((ander) => (
-                      <option key={ander.sleutel} value={ander.sleutel}>
-                        {ander.naam}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <ul className="menulijst">{huis.paginas.map(link)}</ul>
+                {huis ? (
+                  <>
+                    <label className="huiskeuze">
+                      <span>Huis</span>
+                      <select
+                        value={huis.id}
+                        onChange={(gebeurtenis) => {
+                          // Naar hetzelfde onderdeel van het gekozen huis, of zijn overzicht.
+                          const gekozen = onderdeel.huizen.find((ander) => String(ander.id) === gebeurtenis.target.value);
+                          if (gekozen) router.push(wisselPad(pad, huis, gekozen));
+                        }}
+                      >
+                        {onderdeel.huizen.map((ander) => (
+                          <option key={ander.id} value={ander.id}>
+                            {ander.naam}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <ul className="menulijst">{huis.paginas.map(link)}</ul>
+                  </>
+                ) : null}
+                <ul className="menulijst los">{onderdeel.los.map(link)}</ul>
               </details>
             );
           })}

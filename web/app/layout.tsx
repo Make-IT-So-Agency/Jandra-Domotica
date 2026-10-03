@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 
 import { signOut } from "@/auth";
 import { Zijmenu } from "@/components/zijmenu";
+import { lijstHuizen } from "@/lib/bouw/huizen";
 import { menuVoor } from "@/lib/navigatie";
-import { ROLNAMEN } from "@/lib/rollen";
+import { ROLNAMEN, magBouwZien } from "@/lib/rollen";
 import { huidigeGebruiker } from "@/lib/toegang";
 
 import "./globals.css";
@@ -25,13 +26,18 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Kan mislukken als de databank onbereikbaar is; het menu mag daar niet de
   // hele app voor onderuit halen.
   const gebruiker = await huidigeGebruiker().catch(() => null);
+  // De actieve huizen onder Vastgoed: enkel het nummer en de naam gaan naar de browser.
+  const huizen =
+    gebruiker && magBouwZien(gebruiker)
+      ? (await lijstHuizen().catch(() => [])).map(({ id, naam }) => ({ id, naam }))
+      : [];
 
   return (
     <html lang="nl">
       <body>
         {gebruiker ? (
           <Zijmenu
-            menu={menuVoor(gebruiker)}
+            menu={menuVoor(gebruiker, huizen)}
             wie={gebruiker.email}
             rol={ROLNAMEN[gebruiker.rol]}
             afmelden={

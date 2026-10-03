@@ -125,14 +125,19 @@ describe("facturen en krediet", () => {
   it("herinnert drie dagen ervoor, op de dag zelf en de dag erna", () => {
     const naam = (id: number | null) => (id === 4 ? "Architectenbureau Voorbeeld" : null);
     const f = factuur(7, null, 2_420, { nummer: "2026-031", partij_id: 4, vervaldag: "2026-10-05" });
-    expect(factuurherinneringen([f], naam, "2026-10-02").map((h) => h.tekst)).toEqual([
+    // Het adres van het huis: de herinnering wijst naar zijn facturen.
+    const basis = "/vastgoed/1";
+    expect(factuurherinneringen([f], naam, "2026-10-02", basis).map((h) => h.tekst)).toEqual([
       "💶 Factuur 2026-031 van Architectenbureau Voorbeeld (€ 2.420,00): betalen over 3 dagen (tegen 5 okt).",
     ]);
-    expect(factuurherinneringen([f], naam, "2026-10-03")).toEqual([]);
-    expect(factuurherinneringen([f], naam, "2026-10-05")[0].tekst).toContain("betalen vandaag.");
-    expect(factuurherinneringen([f], naam, "2026-10-06")[0]).toMatchObject({ sleutel: "factuur:7:2026-10-05:-1" });
-    expect(factuurherinneringen([{ ...f, betaald_op: "2026-10-01" }], naam, "2026-10-02")).toEqual([]);
-    expect(factuurherinneringen([{ ...f, bedrag: -100 }], naam, "2026-10-02")).toEqual([]);
+    expect(factuurherinneringen([f], naam, "2026-10-03", basis)).toEqual([]);
+    expect(factuurherinneringen([f], naam, "2026-10-05", basis)[0].tekst).toContain("betalen vandaag.");
+    expect(factuurherinneringen([f], naam, "2026-10-06", basis)[0]).toMatchObject({
+      sleutel: "factuur:7:2026-10-05:-1",
+      pad: "/vastgoed/1/geld/facturen",
+    });
+    expect(factuurherinneringen([{ ...f, betaald_op: "2026-10-01" }], naam, "2026-10-02", basis)).toEqual([]);
+    expect(factuurherinneringen([{ ...f, bedrag: -100 }], naam, "2026-10-02", basis)).toEqual([]);
   });
 });
 

@@ -11,6 +11,7 @@ import { openDeadlines } from "./keuzes";
 import { nazorgherinneringen } from "./nazorg";
 import { lijstGaranties, lijstOnderhoud } from "./nazorg-opslag";
 import { lijstPartijen } from "./opslag";
+import { huispad } from "./paden";
 import { tweeWeken } from "./planning";
 import { leesInstelling, lijstKeuzes, lijstPlanning, meldEenKeer, vergeetMelding } from "./regie-opslag";
 import { stuurBouwbericht } from "./telegram";
@@ -100,9 +101,9 @@ export async function dagelijkseRonde(token: string, nu: Date, adres: string): P
       const stand = await laadBotstand(huis.id, dag);
       const teMelden = [
         ...herinneringen(huis.id, stand.deadlines, stand.planning, stand.week, dag),
-        ...factuurherinneringen(stand.facturen, stand.partijnaam, dag),
-        ...actiepuntherinneringen(stand.actiepunten, stand.partijnaam, dag),
-        ...nazorgherinneringen(stand.onderhoud, stand.garanties, stand.partijnaam, dag),
+        ...factuurherinneringen(stand.facturen, stand.partijnaam, dag, huispad(huis.id)),
+        ...actiepuntherinneringen(stand.actiepunten, stand.partijnaam, dag, huispad(huis.id)),
+        ...nazorgherinneringen(stand.onderhoud, stand.garanties, stand.partijnaam, dag, huispad(huis.id)),
       ];
       for (const herinnering of teMelden) {
         if (!(await meldEenKeer(herinnering.sleutel))) {

@@ -226,7 +226,7 @@ describe("een offerte of factuur insturen via een link", () => {
     // Bij Plannen komt ze niet.
     expect(await lijstInzendingen(1, { status: "nieuw", soorten: ["plan"] })).toEqual([]);
     expect(String(verstuurd[0].text)).toBe('📥 Bouwbedrijf Voorbeeld stuurde een offerte in: €\u00a012.100,00.\n\n"Ruwbouw"');
-    expect(JSON.stringify(verstuurd[0].reply_markup)).toContain("/bouw/geld#inzendingen");
+    expect(JSON.stringify(verstuurd[0].reply_markup)).toContain("/vastgoed/1/geld#inzendingen");
   });
 
   it("vraagt het recht voor die soort, en een geldig bedrag vóór het opladen", async () => {

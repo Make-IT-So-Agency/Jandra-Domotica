@@ -30,6 +30,9 @@ import {
 import { ruimOngebruikteBestandenOp } from "@/lib/bouw/opladen";
 import { takenVoorBouw } from "@/lib/bouw/taken";
 
+/** Het adres van het huis waarvoor de herinneringen gelden. */
+const BASIS = "/vastgoed/1";
+
 const onderhoud = (id: number, wat: string, interval_maanden: number, laatst_gedaan: string | null, partij_id: number | null = null): Onderhoud => ({
   id,
   wat,
@@ -113,27 +116,27 @@ describe("de herinneringen van de bot", () => {
   const opDeWarmtepomp = garantie(5, "de warmtepomp", "2024-12-01", 24, 7);
 
   it("herinnert een week vooraf, en een garantie twee maanden vooraf", () => {
-    expect(nazorgherinneringen([filters, nooit, warmtepomp], [opDeWarmtepomp], partijnaam, "2026-10-02")).toEqual([
+    expect(nazorgherinneringen([filters, nooit, warmtepomp], [opDeWarmtepomp], partijnaam, "2026-10-02", BASIS)).toEqual([
       {
         sleutel: "onderhoud:1:2026-10-09:7",
         tekst: "🧰 Filters van de ventilatie vervangen: over 7 dagen (9 okt).",
-        pad: "/bouw/dossier/onderhoud",
+        pad: "/vastgoed/1/dossier/onderhoud",
       },
       {
         sleutel: "onderhoud:3:2026-10-09:7",
         tekst: "🧰 Warmtepomp: onderhoud (Installateur Voorbeeld): over 7 dagen (9 okt).",
-        pad: "/bouw/dossier/onderhoud",
+        pad: "/vastgoed/1/dossier/onderhoud",
       },
       {
         sleutel: "garantie:5:2026-12-01:60",
         tekst: "🛡️ De garantie op de warmtepomp (Installateur Voorbeeld) loopt af over 2 maanden (1 dec). Is er nog iets te melden?",
-        pad: "/bouw/dossier/garanties",
+        pad: "/vastgoed/1/dossier/garanties",
       },
     ]);
   });
 
   it("herinnert op de dag zelf, en daarna elke dertig dagen", () => {
-    const tekst = (dag: string) => nazorgherinneringen([filters], [], partijnaam, dag).map((h) => h.tekst);
+    const tekst = (dag: string) => nazorgherinneringen([filters], [], partijnaam, dag, BASIS).map((h) => h.tekst);
     expect(tekst("2026-10-08")).toEqual([]);
     expect(tekst("2026-10-09")).toEqual(["🧰 Vandaag: Filters van de ventilatie vervangen."]);
     expect(tekst("2026-10-10")).toEqual([]);
@@ -142,7 +145,7 @@ describe("de herinneringen van de bot", () => {
   });
 
   it("verwittigt een garantie een maand en een week vooraf, en niet daartussen", () => {
-    const dagen = (dag: string) => nazorgherinneringen([], [opDeWarmtepomp], partijnaam, dag).map((h) => h.sleutel);
+    const dagen = (dag: string) => nazorgherinneringen([], [opDeWarmtepomp], partijnaam, dag, BASIS).map((h) => h.sleutel);
     expect(dagen("2026-11-01")).toEqual(["garantie:5:2026-12-01:30"]);
     expect(dagen("2026-11-24")).toEqual(["garantie:5:2026-12-01:7"]);
     expect(dagen("2026-11-25")).toEqual([]);
@@ -150,7 +153,7 @@ describe("de herinneringen van de bot", () => {
   });
 
   it("zwijgt over onderhoud dat nog nooit gebeurde", () => {
-    expect(nazorgherinneringen([nooit], [], partijnaam, "2026-10-02")).toEqual([]);
+    expect(nazorgherinneringen([nooit], [], partijnaam, "2026-10-02", BASIS)).toEqual([]);
   });
 });
 
@@ -187,12 +190,12 @@ describe("nog te doen", () => {
       [2, 45],
       [3, -5],
     ]);
-    expect(takenVoorBouw({ ...klaar, ...nazorg })).toEqual([
-      { tekst: "Dakgoten en afvoeren reinigen: 10 dagen te laat.", link: "/bouw/dossier/onderhoud", knop: "Noteren" },
-      { tekst: "Rookmelders testen: over 3 dagen.", link: "/bouw/dossier/onderhoud", knop: "Noteren" },
+    expect(takenVoorBouw({ ...klaar, ...nazorg }, BASIS)).toEqual([
+      { tekst: "Dakgoten en afvoeren reinigen: 10 dagen te laat.", link: "/vastgoed/1/dossier/onderhoud", knop: "Noteren" },
+      { tekst: "Rookmelders testen: over 3 dagen.", link: "/vastgoed/1/dossier/onderhoud", knop: "Noteren" },
       {
         tekst: "De garantie op de dakwerken loopt af over 3 weken: meld nog wat niet in orde is.",
-        link: "/bouw/dossier/garanties",
+        link: "/vastgoed/1/dossier/garanties",
         knop: "Bekijken",
       },
     ]);

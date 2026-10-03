@@ -161,6 +161,8 @@ export function nazorgherinneringen(
   garanties: readonly Garantie[],
   partijnaam: (partijId: number | null) => string | null,
   vandaag: string,
+  /** Het adres van het huis, bv. /vastgoed/1. */
+  basis: string,
 ): { sleutel: string; tekst: string; pad: string }[] {
   const uit: { sleutel: string; tekst: string; pad: string }[] = [];
   for (const item of onderhoud) {
@@ -179,7 +181,7 @@ export function nazorgherinneringen(
           : dagen === 0
             ? `🧰 Vandaag: ${item.wat}${wie ? ` (${wie})` : ""}.`
             : `🧰 ${item.wat}${wie ? ` (${wie})` : ""}: ${dagenTekst(dagen)} (${korteDatum(volgende, vandaag)}).`,
-      pad: "/bouw/dossier/onderhoud",
+      pad: `${basis}/dossier/onderhoud`,
     });
   }
   for (const garantie of garanties) {
@@ -189,7 +191,7 @@ export function nazorgherinneringen(
     uit.push({
       sleutel: `garantie:${garantie.id}:${einde}:${dagen}`,
       tekst: `🛡️ De garantie op ${garantie.wat}${wie ? ` (${wie})` : ""} loopt af ${dagenTekst(dagen)} (${korteDatum(einde, vandaag)}). Is er nog iets te melden?`,
-      pad: "/bouw/dossier/garanties",
+      pad: `${basis}/dossier/garanties`,
     });
   }
   return uit;

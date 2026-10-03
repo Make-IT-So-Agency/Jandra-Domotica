@@ -167,7 +167,13 @@ a {
   font-weight: 600;
 }
 
-/* Welk huis: nu enkel de nieuwbouw, later misschien ook het huidige huis. */
+/* Onder de pagina's van het huis: Huizen en Telegram, voor alle huizen samen. */
+.menugroep .menulijst.los {
+  border-top: 1px solid var(--lijn);
+  padding-top: 6px;
+}
+
+/* Welk huis: de actieve huizen onder Vastgoed. */
 .huiskeuze {
   display: grid;
   gap: 2px;
