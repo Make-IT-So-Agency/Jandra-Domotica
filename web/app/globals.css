@@ -1109,6 +1109,22 @@ td.smal {
   stroke: none;
 }
 
+/* Een trap die de omzetting vond: elke vlucht met een pijl naar boven. */
+.laag-trap {
+  fill: #ea580c;
+  fill-opacity: 0.16;
+  stroke: #ea580c;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-traplijn {
+  fill: none;
+  stroke: #ea580c;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
 .laag-referentie {
   fill: none;
   stroke: #2563eb;
@@ -1783,12 +1799,44 @@ a.tl-naam:hover {
   min-width: 6.5em;
 }
 
-/* Het huis in 3D. */
+/* Het huis in 3D. De pagina gebruikt de volle breedte van het venster: het
+   beeld heeft er alle plaats nodig. Het paneel staat rechts, of eronder op een
+   smal scherm, en kan weg. */
+.omhulsel:has(.drie-pagina) {
+  max-width: none;
+}
+
+.drie-scherm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.drie-scherm.zonder-paneel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.drie-paneel[hidden] {
+  display: none;
+}
+
+.drie-beeld {
+  min-width: 0;
+}
+
+/* Het beeld met de knoppen erop. */
+.drie-raam {
+  position: relative;
+}
+
 .drie-vak {
   position: relative;
   width: 100%;
-  height: min(72vh, 760px);
-  min-height: 360px;
+  /* Het venster min de titel erboven. */
+  height: calc(100vh - 170px);
+  height: calc(100dvh - 170px);
+  min-height: 380px;
   border: 1px solid var(--lijn);
   border-radius: var(--radius);
   overflow: hidden;
@@ -1804,25 +1852,141 @@ a.tl-naam:hover {
   cursor: grab;
 }
 
+.drie-paneel {
+  max-height: calc(100vh - 170px);
+  max-height: calc(100dvh - 170px);
+}
+
+.drie-paneel input[type="range"] {
+  width: 100%;
+}
+
+/* De knoppen op het beeld: altijd licht, want het beeld eronder is licht. */
+.drie-knop {
+  min-height: 44px;
+  padding: 8px 14px;
+  background: rgb(255 255 255 / 0.94);
+  color: #111827;
+  border: 1px solid rgb(17 24 39 / 0.18);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.drie-knop[aria-pressed="true"] {
+  border-color: #1d4ed8;
+}
+
+.drie-knop.rond {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.drie-boven {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.drie-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
 .wandelknoppen {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(3, 56px);
   gap: 6px;
-  justify-content: center;
-  margin: 10px 0;
 }
 
 .wandelknoppen button {
   height: 48px;
   font-size: 20px;
   padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: none;
 }
 
-.drie .omzetten-zijbalk input[type="range"] {
-  width: 100%;
+.drie-hulp {
+  margin: 6px 0 0;
+}
+
+/* Een trap in het paneel: wat hij is, en de knoppen om hem aan te passen. */
+.trapkeuze + .trapkeuze {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+}
+
+.trapkeuze p {
+  margin: 0 0 6px;
+}
+
+/* Volledig scherm: het beeld over het hele venster, ook op een iPhone. */
+.drie-scherm.volledig {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  background: var(--achtergrond);
+}
+
+.drie-scherm.volledig .drie-beeld,
+.drie-scherm.volledig .drie-raam,
+.drie-scherm.volledig .drie-vak {
+  height: 100%;
+  min-height: 0;
+}
+
+.drie-scherm.volledig .drie-paneel {
+  max-height: 100%;
+}
+
+.drie-scherm.volledig .drie-hulp {
+  display: none;
+}
+
+@media (max-width: 1240px) {
+  .drie-scherm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .drie-paneel {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* Op een smal scherm past het paneel niet naast het volle beeld. */
+  .drie-scherm.volledig .drie-paneel,
+  .drie-scherm.volledig .paneelknop {
+    display: none;
+  }
+}
+
+@media (max-width: 899.98px) {
+  .drie-vak {
+    /* Onder de balk met de menuknop. */
+    height: calc(100vh - 220px);
+    height: calc(100dvh - 220px);
+  }
 }
 
 /* Wat via een link binnenkwam, bovenaan Plannen. */

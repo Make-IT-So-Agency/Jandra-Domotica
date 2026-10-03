@@ -49,6 +49,18 @@ export function verschil(a: Veelhoek[], b: Veelhoek[]): Veelhoek[] {
   }
 }
 
+/** Wat a en b gemeen hebben. */
+export function doorsnede(a: Veelhoek[], b: Veelhoek[]): Veelhoek[] {
+  const links = alsInvoer(a);
+  const rechts = alsInvoer(b);
+  if (links.length === 0 || rechts.length === 0) return [];
+  try {
+    return open(polygonClipping.intersection(links, rechts));
+  } catch {
+    return [];
+  }
+}
+
 /** Ligt p in een van de veelhoeken, buiten hun gaten? */
 export function binnenVeelhoeken(p: Xy, veelhoeken: readonly Veelhoek[]): boolean {
   return veelhoeken.some(([buitenrand, ...gaten]) => buitenrand && binnen(p, buitenrand) && !gaten.some((gat) => binnen(p, gat)));

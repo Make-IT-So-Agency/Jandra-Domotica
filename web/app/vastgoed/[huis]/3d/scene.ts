@@ -2,6 +2,8 @@ import * as THREE from "three";
 
 import type { Gat } from "@/lib/bouw/drie/gaten";
 import type { Model3d, Plaat } from "@/lib/bouw/drie/model";
+import { middenVan, type Plaatsing } from "@/lib/bouw/drie/plaatsing";
+import type { Trap3d } from "@/lib/bouw/drie/trappen";
 import type { Veelhoek } from "@/lib/bouw/drie/vlak";
 import type { Xy } from "@/lib/bouw/omzetting/types";
 
@@ -155,11 +157,48 @@ function plaat(bouwer: Bouwer, p: Plaat, boven: Sleutel, onder: Sleutel, zijkant
   }
 }
 
+/** Een trap: per vlucht een blok per trede, een bordes als een plaat. */
+function trap(bouwer: Bouwer, t: Trap3d) {
+  for (const deel of t.delen) {
+    const [a, b, c, d] = deel.hoeken;
+    if (deel.soort === "bordes") {
+      bouwer.balk("trap", [a, b, c, d], deel.z0 - 0.16, deel.z0, { onder: true });
+      continue;
+    }
+    // Elke trede is iets dikker dan ze hoog is: samen een zaagtand eronder.
+    const stap = (deel.z1 - deel.z0) / deel.treden;
+    for (let i = 0; i < deel.treden; i++) {
+      const s0 = i / deel.treden;
+      const s1 = (i + 1) / deel.treden;
+      const langs = (p: Xy, q: Xy, f: number): Xy => [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+      const hoeken: [Xy, Xy, Xy, Xy] = [langs(a, d, s0), langs(b, c, s0), langs(b, c, s1), langs(a, d, s1)];
+      const top = deel.z0 + (i + 1) * stap;
+      bouwer.balk("trap", hoeken, top - stap - 0.06, top, { onder: true });
+    }
+  }
+}
+
+/** Een leuning van 1 m rond een trapgat: glas met een handgreep erop. */
+function leuning(bouwer: Bouwer, [a, b]: [Xy, Xy], z: number) {
+  bouwer.wand("glas", a, b, z, z + 0.95);
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const n: Xy = [(-(b[1] - a[1]) / l) * 0.025, ((b[0] - a[0]) / l) * 0.025];
+  bouwer.balk("schrijnwerk", [plus(a, n, 1), plus(b, n, 1), plus(b, n, -1), plus(a, n, -1)], z + 0.95, z + 1.0, { onder: true });
+}
+
 export interface Opgebouwd {
   wortel: THREE.Group;
+  /** Per gebouw de groep die op zijn plaats op het terrein staat. */
+  gebouwen: Map<number, THREE.Group>;
   verdiepingen: Map<number, THREE.Group>;
-  daken: THREE.Group;
+  daken: THREE.Group[];
   meshes: THREE.Mesh[];
+}
+
+/** Zet de groep van een gebouw op zijn plaats: het midden van zijn kader op (x, y), gedraaid. */
+export function plaats(groep: THREE.Group, plaatsing: Plaatsing) {
+  groep.position.set(plaatsing.x, 0, plaatsing.y);
+  groep.rotation.set(0, (-plaatsing.hoek * Math.PI) / 180, 0);
 }
 
 /**
@@ -167,12 +206,36 @@ export interface Opgebouwd {
  * sleutel krijgt overal hetzelfde materiaal-object, zodat een kleur wijzigen
  * overal meteen werkt.
  */
-export function bouwScene(model: Model3d, materiaal: (sleutel: Sleutel) => THREE.Material): Opgebouwd {
+export function bouwScene(
+  model: Model3d,
+  materiaal: (sleutel: Sleutel) => THREE.Material,
+  plaatsingen: ReadonlyMap<number, Plaatsing>,
+): Opgebouwd {
   const wortel = new THREE.Group();
+  const gebouwen = new Map<number, THREE.Group>();
+  const binnen = new Map<number, THREE.Group>();
   const verdiepingen = new Map<number, THREE.Group>();
-  const daken = new THREE.Group();
+  const daken: THREE.Group[] = [];
   const meshes: THREE.Mesh[] = [];
-  wortel.add(daken);
+
+  // Per gebouw een groep op zijn plaats, en daarin zijn eigen assenstelsel rond het midden van zijn kader.
+  for (const gebouw of model.gebouwen) {
+    const buiten = new THREE.Group();
+    buiten.name = `gebouw-${gebouw.id}`;
+    buiten.userData.gebouwId = gebouw.id;
+    plaats(buiten, plaatsingen.get(gebouw.id) ?? { x: 0, y: 0, hoek: 0 });
+    const [mx, my] = middenVan(gebouw.kader);
+    const eigen = new THREE.Group();
+    eigen.position.set(-mx, 0, -my);
+    buiten.add(eigen);
+    wortel.add(buiten);
+    gebouwen.set(gebouw.id, buiten);
+    binnen.set(gebouw.id, eigen);
+    const dakgroep = new THREE.Group();
+    eigen.add(dakgroep);
+    daken.push(dakgroep);
+  }
+  const dakVan = (gebouwId: number): THREE.Group | undefined => daken[model.gebouwen.findIndex((g) => g.id === gebouwId)];
 
   const voegToe = (groep: THREE.Group, bouwer: Bouwer) => {
     for (const [sleutel, geometrie] of bouwer.geometrieen()) {
@@ -186,6 +249,8 @@ export function bouwScene(model: Model3d, materiaal: (sleutel: Sleutel) => THREE
   };
 
   for (const v of model.verdiepingen) {
+    const eigen = binnen.get(v.gebouwId);
+    if (!eigen) continue;
     const bouwer = new Bouwer();
     for (const muur of v.muren) {
       muur.veelhoek.forEach((ring, r) => {
@@ -199,26 +264,31 @@ export function bouwScene(model: Model3d, materiaal: (sleutel: Sleutel) => THREE
     for (const g of v.gaten) gat(bouwer, g, v.z0, v.z1);
     for (const vloer of v.vloeren) bouwer.vlak(`vloer:${vloer.ruimteId}`, vloer.ringen, v.z0 + 0.012);
     plaat(bouwer, v.plaat, "plaat", "plafond", "gevel");
+    for (const t of v.trappen) trap(bouwer, t);
+    for (const l of v.leuningen) leuning(bouwer, l, v.z0);
 
     const groep = new THREE.Group();
     groep.name = `verdieping-${v.id}`;
     voegToe(groep, bouwer);
-    wortel.add(groep);
+    eigen.add(groep);
     verdiepingen.set(v.id, groep);
 
-    if (v.dakplaat) {
+    const dakgroep = dakVan(v.gebouwId);
+    if (v.dakplaat && dakgroep) {
       const dakbouwer = new Bouwer();
       plaat(dakbouwer, v.dakplaat, "dakplat", "plafond", "dakrand");
-      voegToe(daken, dakbouwer);
+      voegToe(dakgroep, dakbouwer);
     }
   }
 
-  const dakbouwer = new Bouwer();
-  for (const { dak } of model.daken) {
+  for (const { gebouwId, dak } of model.daken) {
+    const dakgroep = dakVan(gebouwId);
+    if (!dakgroep) continue;
+    const dakbouwer = new Bouwer();
     for (const vlak of dak.vlakken) dakbouwer.waaier("dak", vlak.map(([x, y, z]) => [x, z, y] as P3));
     for (const gevel of dak.gevels) dakbouwer.waaier("gevel", gevel.map(([x, y, z]) => [x, z, y] as P3));
+    voegToe(dakgroep, dakbouwer);
   }
-  voegToe(daken, dakbouwer);
 
-  return { wortel, verdiepingen, daken, meshes };
+  return { wortel, gebouwen, verdiepingen, daken, meshes };
 }

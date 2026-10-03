@@ -118,7 +118,7 @@ describe("het model", () => {
     expect(dagkant?.zijde).toBe("binnen");
     // Plat dak: een plaat bovenop.
     expect(gelijkvloers.dakplaat).toMatchObject({ z0: 2.95, z1: 3.25 });
-    expect(model.kader).toMatchObject({ x0: 0, y0: 0, x1: 10, y1: 8 });
+    expect(model.gebouwen[0].kader).toMatchObject({ x0: 0, y0: 0, x1: 10, y1: 8 });
   });
 
   it("legt een plat dak op wat de verdieping erboven niet bedekt", () => {

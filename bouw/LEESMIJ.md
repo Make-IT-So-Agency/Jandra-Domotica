@@ -203,7 +203,27 @@ grondplannen.
 - **Hoogtes.** Elke verdieping staat op haar peil, met haar plafondhoogte en
   verdiepingshoogte (bij Verdiepingen). Tussen twee verdiepingen ligt een
   vloerplaat van 25 cm. Wat de verdieping erboven niet bedekt, krijgt een plat
-  dak.
+  dak; een trapgat of een vide niet.
+- **De trap.** De omzetting leest hem van het plan (`omzetting/trappen.ts`):
+  - de treden zijn evenwijdige lijnen op gelijke afstand (60 cm tot 1,60 m
+    lang, 17 tot 36 cm uit elkaar, minstens vier); een streepjeslijn telt als
+    één lijn, en een trede achter een muur telt mee;
+  - één reeks is een rechte trap; twee reeksen naast elkaar zijn een trap die
+    halfweg 180° draait, met een bordes aan het einde waar ze samenkomen; twee
+    reeksen haaks op elkaar zijn een kwartdraai;
+  - het pijltje in een vlucht wijst naar boven.
+
+  Bij het nakijken staat de trap in het oranje op het plan, met een pijl naar
+  boven. In 3D (`drie/trappen.ts`) gaat hij van het peil van de verdieping
+  tot dat van de verdieping erboven, met treden van gelijke hoogte en het
+  bordes halfweg. Boven komt een gat in de vloer met een leuning, behalve waar
+  de trap aankomt.
+  Zonder trap op het plan komt er een onder een gat in de verdieping erboven
+  met de vorm van een trapgat (smal: recht, breed: met een bordes), of in een
+  ruimte van het soort Trap. Bij **Trappen** in het 3D-scherm draai je een
+  trap om, kies je een andere vorm, of zeg je dat het gat een vide is; dat
+  wordt per verdieping bewaard (`bouw_verdiepingen.trappen`). Een grondplan
+  dat omgezet werd voor de app trappen las, zet je opnieuw om.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
@@ -211,9 +231,13 @@ grondplannen.
   ramen het schrijnwerk, de wanden de binnenmuren, en een vloer of tegels de
   ruimtes die eraan gekoppeld zijn. Een optie met een foto wordt een textuur.
   Een andere optie uitproberen kan in het 3D-scherm, zonder iets te bewaren.
-- **Bekijken.** Rondkijken met de muis of twee vingers; een verdieping, het
-  dak of de punten weglaten; een doorsnede op een hoogte; rondwandelen op
-  ooghoogte met W A S D of de knoppen, zonder door muren te lopen; een beeld
+- **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
+  krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
+  (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
+  **−** op het beeld, het muiswiel of de toetsen + en −; **Passend** zet alles
+  weer in beeld. Een verdieping, het dak of de punten weglaten; een doorsnede
+  op een hoogte; rondwandelen op ooghoogte met W A S D of de knoppen, zonder
+  door muren te lopen, en de trap op en af (`drie/wandelen.ts`); een beeld
   downloaden.
 - **Meer gebouwen** komen naast elkaar te staan, niet op hun echte plaats op
   het perceel: elk grondplan heeft zijn eigen assenstelsel.
@@ -608,6 +632,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/vastgoed/[huis]/3d/` | Het 3D-scherm (three.js, enkel in de browser) en de opbouw van de scène |
 | `web/lib/bouw/drie/` | Het 3D-model als gewone gegevens: muren, ramen en deuren, vloeren, platen, daken, materialen; puur, met tests |
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
+| `web/lib/bouw/omzetting/trappen.ts` | De trappen uit een grondplan: treden, vluchten, bordes en de pijl |
+| `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, en de trap op en af wandelen |
+| `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat |
+| `supabase/migrations/20261003200000_bouw_trappen.sql` | De keuzes voor de trappen, per verdieping |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -722,10 +750,13 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    Vastgoed niet.
 3. **Een tweede huis**, bv. het huidige huis: bij **Vastgoed → Huizen**, met
    het soort *Bestaand huis*. Zie [Huizen](#huizen).
-4. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
+4. **De trap in 3D:** het gelijkvloers opnieuw omzetten (of **Alles
+   omzetten**), zodat de app de trap van het plan leest. Bij het nakijken
+   staat hij in het oranje; kijk na of hij naar boven wijst.
+5. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
    Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
    Er hoeft niets bij GitHub of Vercel.
-5. **Na het uitrollen nakijken:**
+6. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
@@ -772,6 +803,10 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       facturen insturen via de link van een aannemer
 - [x] **5** Het huis in 3D, met de muren uit de PDF, de gekozen materialen,
       een doorsnede en rondwandelen
+- [x] **5b** Het 3D-scherm op de volle breedte met zoomknoppen, en de trap
+      van het plan, ook met een bordes, die je op en af wandelt
+- [ ] **5c** De gebouwen automatisch op het inplantingsplan, en de omgeving
+      uit Vlaanderen: perceelgrenzen, de huizen van de buren en de luchtfoto
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

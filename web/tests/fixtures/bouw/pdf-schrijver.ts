@@ -40,6 +40,8 @@ export const pdf = {
   lijn: (a: [number, number], b: [number, number]) => `${g(a[0])} ${g(a[1])} m ${g(b[0])} ${g(b[1])} l`,
   boog: (p0: [number, number], p1: [number, number], p2: [number, number], p3: [number, number]) =>
     `${g(p0[0])} ${g(p0[1])} m ${[p1, p2, p3].map(([x, y]) => `${g(x)} ${g(y)}`).join(" ")} c`,
+  /** Een streepjeslijn: afwisselend zo lang getrokken en zo lang open; leeg is weer een volle lijn. */
+  streep: (patroon: number[]) => `[${patroon.map(g).join(" ")}] 0 d`,
   vul: () => "f",
   trek: () => "S",
   vulEnTrek: () => "B",

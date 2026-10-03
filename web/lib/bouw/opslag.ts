@@ -5,9 +5,10 @@ import { db } from "@/lib/supabase";
 import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
+import { schoneTrapstanden } from "./drie/trappen";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
-import type { Xy } from "./omzetting/types";
+import type { Trapdeel, Trapvoorstel, Xy } from "./omzetting/types";
 import type { Nieuwpunt, Punt, StatusPunt } from "./punten";
 import type {
   Bestand,
@@ -21,6 +22,7 @@ import type {
   SoortPartij,
   SoortPlan,
   SoortRuimte,
+  Trapstand,
   Verdieping,
 } from "./types";
 
@@ -144,7 +146,19 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
     vloerpeil_m: getal(rij.vloerpeil_m),
     verdiepingshoogte_m: getal(rij.verdiepingshoogte_m),
     plafondhoogte_m: getal(rij.plafondhoogte_m),
+    trapstanden: schoneTrapstanden(rij.trappen),
   };
+}
+
+/** Hoe de trappen van een verdieping gekozen werden, zoals het 3D-scherm ze bewaart. */
+export async function bewaarTrapstanden(huisId: number, verdiepingId: number, standen: Trapstand[]): Promise<void> {
+  if (!(await leesVerdieping(huisId, verdiepingId))) throw new Bouwfout("Deze verdieping bestaat niet meer.");
+  geraakt(
+    check(
+      await db().from("bouw_verdiepingen").update({ trappen: schoneTrapstanden(standen) }).eq("id", verdiepingId).select("id"),
+      "Trappen bewaren",
+    ),
+  );
 }
 
 export async function lijstVerdiepingen(huisId: number): Promise<Verdieping[]> {
@@ -415,12 +429,12 @@ const isGetal = (waarde: unknown): waarde is number => typeof waarde === "number
  */
 export async function leesMurenEnOpeningen(
   versieIds: number[],
-): Promise<Map<number, { muren: Xy[][]; openingen: Gekendeopening[] }>> {
+): Promise<Map<number, { muren: Xy[][]; openingen: Gekendeopening[]; trappen: Trapvoorstel[]; werkwijze: number }>> {
   if (versieIds.length === 0) return new Map();
   const rijen = check(
-    await db().from("bouw_omzettingen").select("planversie_id, voorstel").in("planversie_id", versieIds),
+    await db().from("bouw_omzettingen").select("planversie_id, voorstel, werkwijze").in("planversie_id", versieIds),
     "Omzettingen lezen",
-  ) as { planversie_id: number; voorstel: Record<string, unknown> | null }[];
+  ) as { planversie_id: number; voorstel: Record<string, unknown> | null; werkwijze: number | null }[];
   const punt = (p: unknown): p is Xy => Array.isArray(p) && p.length === 2 && isGetal(p[0]) && isGetal(p[1]);
   return new Map(
     rijen.map((rij) => {
@@ -433,7 +447,20 @@ export async function leesMurenEnOpeningen(
           ? [{ soort: o.soort, x: o.x, y: o.y, breedte: o.breedte, hoogte: isGetal(o.hoogte) ? o.hoogte : null } as Gekendeopening]
           : [],
       );
-      return [Number(rij.planversie_id), { muren, openingen }];
+      // Een omzetting van vóór de trappen (werkwijze 1 en 2) heeft er geen.
+      const trappen = (Array.isArray(voorstel.trappen) ? voorstel.trappen : []).flatMap((t: Record<string, unknown>) => {
+        const delen = (Array.isArray(t?.delen) ? t.delen : []).flatMap((d: Record<string, unknown>) =>
+          (d?.soort === "vlucht" || d?.soort === "bordes") &&
+          Array.isArray(d.hoeken) &&
+          d.hoeken.length === 4 &&
+          d.hoeken.every(punt) &&
+          Number.isInteger(d.treden)
+            ? [{ soort: d.soort, hoeken: d.hoeken as Trapdeel["hoeken"], treden: Number(d.treden) } as Trapdeel]
+            : [],
+        );
+        return delen.length > 0 ? [{ delen, richting: t.richting === "pijl" ? "pijl" : "geraden" } as Trapvoorstel] : [];
+      });
+      return [Number(rij.planversie_id), { muren, openingen, trappen, werkwijze: Number(rij.werkwijze ?? 1) }];
     }),
   );
 }

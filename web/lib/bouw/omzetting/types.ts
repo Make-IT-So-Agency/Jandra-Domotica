@@ -130,6 +130,26 @@ export interface Opening {
   ruimte: string | null;
 }
 
+/** Een deel van een trap: een vlucht met treden, of een bordes. */
+export interface Trapdeel {
+  soort: "vlucht" | "bordes";
+  /**
+   * De rechthoek. Bij een vlucht is hoeken[0]-hoeken[1] de onderste rand,
+   * waar je opstapt, en hoeken[3]-hoeken[2] de bovenste.
+   */
+  hoeken: [Xy, Xy, Xy, Xy];
+  /** Hoeveel keer je in deze vlucht een trede hoger stapt; 0 bij een bordes. */
+  treden: number;
+}
+
+/** Een trap zoals de omzetting hem op het plan vindt; zie omzetting/trappen.ts. */
+export interface Trapvoorstel {
+  /** Van onder naar boven: een vlucht, of een vlucht, een bordes en een vlucht. */
+  delen: Trapdeel[];
+  /** "pijl": de richting staat op het plan. "geraden": het 3D-model kiest. */
+  richting: "pijl" | "geraden";
+}
+
 export interface Voorstel {
   /** Verandert als de regels van de omzetting veranderen. */
   werkwijze: number;
@@ -140,6 +160,8 @@ export interface Voorstel {
   openingen: Opening[];
   /** De doorgesneden muren: de grijze vlakken tussen en rond de ruimtes. Voor het 3D-model. */
   muren: Xy[][];
+  /** De trappen: reeksen treden, met hun bordes. Voor het 3D-model. */
+  trappen: Trapvoorstel[];
   /** Het peil en de plafondhoogte die het meest op het blad staan, in meter. */
   verdieping: { vloerpeil: number | null; plafondhoogte: number | null };
   /** Waar het gebouw op het blad ligt: de ruimtes, met wat marge. */

@@ -1,16 +1,22 @@
 import { nettoOppervlakte } from "../omzetting/geometrie";
-import type { Xy } from "../omzetting/types";
+import type { Trapvoorstel, Xy } from "../omzetting/types";
 import type { SoortRuimte } from "../types";
 import { maakDak, type Dak } from "./dak";
 import type { Dakinstelling } from "./dakregels";
 import { vindGaten, type Gat, type Gekendeopening } from "./gaten";
+import { maakTrappen, type Trap3d, type Trapstand } from "./trappen";
 import { binnenVeelhoeken, verschil, vereniging, type Veelhoek } from "./vlak";
 
 /**
  * Het huis in 3D, als gewone gegevens: per verdieping de muren met welke kant
- * binnen of buiten is, de ramen en deuren, de vloeren, de vloerplaat, en de
- * daken. Het 3D-scherm maakt er driehoeken van met three.js. Puur, zodat het
- * te testen valt zonder grafische kaart.
+ * binnen of buiten is, de ramen en deuren, de vloeren, de vloerplaat, de
+ * trappen naar boven, en de daken. Het 3D-scherm maakt er driehoeken van met
+ * three.js. Puur, zodat het te testen valt zonder grafische kaart.
+ *
+ * Elk gebouw blijft in zijn eigen assenstelsel, dat van zijn grondplannen:
+ * het grondplan van een bijgebouw ligt niet op zijn echte plaats tegenover de
+ * woning. Waar een gebouw op het terrein staat, beslist de scène; zie
+ * drie/plaatsing.ts.
  *
  * x en y zoals op het plan (meter, y naar beneden), z naar boven.
  */
@@ -42,6 +48,10 @@ export interface Invoerverdieping {
   /** De muren uit de omzetting, in meter. Leeg als het plan er geen had. */
   muren: Xy[][];
   openingen: Gekendeopening[];
+  /** De trappen die de omzetting op het plan vond, in meter. */
+  trappen?: Trapvoorstel[];
+  /** Hoe de trappen van deze verdieping gekozen werden. */
+  trapstanden?: Trapstand[];
 }
 
 export type Zijde = "binnen" | "buiten";
@@ -70,8 +80,6 @@ export interface Verdieping3d {
   id: number;
   gebouwId: number;
   naam: string;
-  /** Hoeveel het gebouw opzij geschoven is, om naast de vorige te staan. Ook voor de punten. */
-  verschuiving: Xy;
   /** De vloer. */
   z0: number;
   /** De bovenkant van de muren. */
@@ -84,12 +92,23 @@ export interface Verdieping3d {
   plaat: Plaat;
   /** Een plat dak over wat de verdieping erboven niet bedekt. */
   dakplaat: Plaat | null;
+  /** De trappen die hier beginnen en naar de verdieping erboven gaan. */
+  trappen: Trap3d[];
+  /** De leuningen rond een trapgat in deze vloer. */
+  leuningen: [Xy, Xy][];
+}
+
+/** Een gebouw in zijn eigen assenstelsel: waar het ligt, en hoe hoog het komt. */
+export interface Gebouw3d {
+  id: number;
+  kader: { x0: number; y0: number; x1: number; y1: number };
+  z1: number;
 }
 
 export interface Model3d {
   verdiepingen: Verdieping3d[];
   daken: { gebouwId: number; dak: Dak }[];
-  kader: { x0: number; y0: number; x1: number; y1: number; z1: number };
+  gebouwen: Gebouw3d[];
 }
 
 /**
@@ -137,56 +156,28 @@ export function stapel(verdiepingen: readonly Invoerverdieping[]): { verdieping:
   return uit;
 }
 
-const schuif = (p: Xy, d: Xy): Xy => [p[0] + d[0], p[1] + d[1]];
+/** De buitenranden, zonder hun gaten: een trapgat of een vide bedekt de verdieping eronder ook. */
+const zonderGaten = (veelhoeken: Veelhoek[]): Veelhoek[] => veelhoeken.map((veelhoek) => [veelhoek[0]]);
 
-/** Een verdieping, verschoven: de ruimtes, de muren en de openingen. */
-function verschoven(verdieping: Invoerverdieping, d: Xy): Invoerverdieping {
-  if (d[0] === 0 && d[1] === 0) return verdieping;
-  return {
-    ...verdieping,
-    ruimtes: verdieping.ruimtes.map((r) => ({ ...r, ringen: r.ringen.map((ring) => ring.map((p) => schuif(p, d))) })),
-    muren: verdieping.muren.map((ring) => ring.map((p) => schuif(p, d))),
-    openingen: verdieping.openingen.map((o) => ({ ...o, x: o.x + d[0], y: o.y + d[1] })),
-  };
-}
-
-/** Tussen twee gebouwen, als ze naast elkaar gezet worden. */
-const TUSSENRUIMTE = 5;
-
-/**
- * Elk gebouw heeft zijn eigen assenstelsel: het grondplan van een bijgebouw
- * ligt niet op zijn echte plaats tegenover de woning. Daarom komt elk gebouw
- * naast het vorige, met wat ruimte ertussen.
- */
 export function maakModel(
   gebouwen: readonly { id: number; dak: Dakinstelling }[],
   invoer: readonly Invoerverdieping[],
 ): Model3d {
-  const verschuivingen = new Map<number, Xy>();
-  let rechts: number | null = null;
-  for (const gebouw of gebouwen) {
-    const punten = invoer
-      .filter((v) => v.gebouwId === gebouw.id && v.ruimtes.length > 0)
-      .flatMap((v) => [...v.ruimtes.flatMap((r) => r.ringen[0] ?? []), ...v.muren.flat()]);
-    if (punten.length === 0) continue;
-    const links = Math.min(...punten.map((p) => p[0]));
-    const d: Xy = rechts === null ? [0, 0] : [rechts + TUSSENRUIMTE - links, 0];
-    verschuivingen.set(gebouw.id, d);
-    rechts = Math.max(...punten.map((p) => p[0])) + d[0];
-  }
-  const verdiepingen = invoer.map((v) => verschoven(v, verschuivingen.get(v.gebouwId) ?? [0, 0]));
-
   const uit: Verdieping3d[] = [];
   const daken: Model3d["daken"] = [];
-  let x0 = Infinity;
-  let y0 = Infinity;
-  let x1 = -Infinity;
-  let y1 = -Infinity;
-  let zmax = 0;
+  const kaders: Gebouw3d[] = [];
 
   for (const gebouw of gebouwen) {
-    const gestapeld = stapel(verdiepingen.filter((v) => v.gebouwId === gebouw.id && v.ruimtes.length > 0));
+    const gestapeld = stapel(invoer.filter((v) => v.gebouwId === gebouw.id && v.ruimtes.length > 0));
+    if (gestapeld.length === 0) continue;
     const voetafdrukken: Veelhoek[][] = [];
+    const murenPer: Veelhoek[][] = [];
+    const eigen: Verdieping3d[] = [];
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    let zmax = 0;
 
     for (const [i, { verdieping, z0, hoogte }] of gestapeld.entries()) {
       const plafond = verdieping.plafondhoogte ?? STANDAARD_PLAFOND;
@@ -197,6 +188,7 @@ export function maakModel(
       const gaten = vindGaten(verdieping.ruimtes, muren, verdieping.openingen, plafond);
       const voetafdruk = vereniging([...ruimtes, ...muren, ...gaten.map(rechthoekVan)]);
       voetafdrukken.push(voetafdruk);
+      murenPer.push(muren);
 
       for (const veelhoek of voetafdruk) {
         for (const [x, y] of veelhoek[0]) {
@@ -208,11 +200,10 @@ export function maakModel(
       }
       zmax = Math.max(zmax, z1);
 
-      uit.push({
+      eigen.push({
         id: verdieping.id,
         gebouwId: gebouw.id,
         naam: verdieping.naam,
-        verschuiving: verschuivingen.get(gebouw.id) ?? [0, 0],
         z0,
         z1,
         plafond,
@@ -227,15 +218,32 @@ export function maakModel(
         vloeren: verdieping.ruimtes.map((r) => ({ ruimteId: r.id, soort: r.soort, ringen: r.ringen })),
         plaat: { veelhoeken: voetafdruk, z0: mm(z0 - PLAAT), z1: z0 },
         dakplaat: null,
+        trappen: [],
+        leuningen: [],
       });
     }
 
+    // De trappen van elke verdieping naar die erboven, met een gat en een leuning boven.
+    for (let i = 0; i + 1 < eigen.length; i++) {
+      const [onder, boven] = [eigen[i], eigen[i + 1]];
+      const [invoerOnder, invoerBoven] = [gestapeld[i].verdieping, gestapeld[i + 1].verdieping];
+      const { trappen, uitsparingen, leuningen } = maakTrappen({
+        onder: { id: onder.id, z0: onder.z0, ruimtes: invoerOnder.ruimtes, trappen: invoerOnder.trappen ?? [], standen: invoerOnder.trapstanden ?? [] },
+        boven: { id: boven.id, z0: boven.z0, ruimtes: invoerBoven.ruimtes, voetafdruk: voetafdrukken[i + 1], muren: murenPer[i + 1] },
+      });
+      onder.trappen = trappen;
+      boven.leuningen = leuningen;
+      if (uitsparingen.length > 0) {
+        boven.plaat = { ...boven.plaat, veelhoeken: verschil(boven.plaat.veelhoeken, uitsparingen) };
+        boven.vloeren = boven.vloeren.flatMap((vloer) => verschil([vloer.ringen], uitsparingen).map((ringen) => ({ ...vloer, ringen })));
+      }
+    }
+
     // Wat de verdieping erboven niet bedekt, krijgt een plat dak; de bovenste het dak van het gebouw.
-    const eigen = uit.filter((v) => v.gebouwId === gebouw.id);
     for (const [i, verdieping] of eigen.entries()) {
       const boven = voetafdrukken[i + 1];
       if (boven) {
-        const bloot = verschil(voetafdrukken[i], boven).filter((veelhoek) => nettoOppervlakte(veelhoek) > 0.5);
+        const bloot = verschil(voetafdrukken[i], zonderGaten(boven)).filter((veelhoek) => nettoOppervlakte(veelhoek) > 0.5);
         if (bloot.length > 0) verdieping.dakplaat = { veelhoeken: bloot, z0: verdieping.z1, z1: mm(verdieping.z1 + DAKPLAAT) };
       } else if (gebouw.dak.type === "plat") {
         verdieping.dakplaat = { veelhoeken: voetafdrukken[i], z0: verdieping.z1, z1: mm(verdieping.z1 + DAKPLAAT) };
@@ -248,11 +256,10 @@ export function maakModel(
         }
       }
     }
+
+    uit.push(...eigen);
+    if (Number.isFinite(x0)) kaders.push({ id: gebouw.id, kader: { x0, y0, x1, y1 }, z1: zmax });
   }
 
-  return {
-    verdiepingen: uit,
-    daken,
-    kader: Number.isFinite(x0) ? { x0, y0, x1, y1, z1: zmax } : { x0: 0, y0: 0, x1: 10, y1: 10, z1: 3 },
-  };
+  return { verdiepingen: uit, daken, gebouwen: kaders };
 }

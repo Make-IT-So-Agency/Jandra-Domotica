@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { laadDrie, type Driegegevens } from "@/lib/bouw/drie/laden";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
+import { heeftOnderdeel } from "@/lib/bouw/onderdelen";
 import { huispad } from "@/lib/bouw/paden";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
@@ -32,11 +33,17 @@ export default async function Driepagina({ params }: { params: Promise<{ huis: s
   const zonderMuren = metRuimtes.filter((v) => !v.metMuren);
 
   return (
-    <>
+    // De 3D-pagina gebruikt de volle breedte van het venster; zie .drie-pagina in globals.css.
+    <div className="drie-pagina">
       <h1>3D</h1>
       <p className="inleiding">
-        Het huis uit de omgezette grondplannen: de muren, ramen en deuren zoals de architect ze tekende, op de hoogte
-        van elke verdieping, met de materialen uit de <Link href={huispad(huis.id, "/keuzes")}>keuzes</Link>.
+        Het huis uit de omgezette grondplannen
+        {heeftOnderdeel(huis.soort, "keuzes") ? (
+          <>
+            , met de materialen uit de <Link href={huispad(huis.id, "/keuzes")}>keuzes</Link>
+          </>
+        ) : null}
+        .
       </p>
 
       {metRuimtes.length === 0 ? (
@@ -63,6 +70,6 @@ export default async function Driepagina({ params }: { params: Promise<{ huis: s
           <DrieLader huisId={huis.id} gegevens={gegevens} />
         </>
       )}
-    </>
+    </div>
   );
 }

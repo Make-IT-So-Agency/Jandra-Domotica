@@ -45,6 +45,12 @@ export interface Testdeur {
   van: number;
 }
 
+/** Een trap op het plan: de treden van elke vlucht, en eventueel een pijltje naar boven. */
+export interface Testtrap {
+  vluchten: { treden: [Xy, Xy][]; streepjes?: boolean }[];
+  pijl?: { op: Xy; richting: Xy };
+}
+
 export interface Testgrondplan {
   titel: string[];
   bladcode: string | null;
@@ -55,6 +61,7 @@ export interface Testgrondplan {
   muren: [Xy, Xy][];
   deuren: Testdeur[];
   ramen: { label: string; op: Xy }[];
+  trappen?: Testtrap[];
   /** Waar het huis op het blad ligt, in meter vanaf de linkerbovenhoek van het tekenvak. */
   verschuiving: Xy;
   draai?: 0 | 90 | 180 | 270;
@@ -68,8 +75,24 @@ const BUITENMUREN: [Xy, Xy][] = [
   [[9.6, 0.4], [10, 7.6]],
 ];
 
+/**
+ * Een trap die halfweg 180° draait, zoals in een echt dossier: de onderste
+ * vlucht in volle lijnen met een pijl naar het bordes, de bovenste (boven de
+ * snede) in streepjes terug.
+ */
+export function keertrap(): Testtrap {
+  const xs = Array.from({ length: 8 }, (_, k) => 0.6 + k * 0.22);
+  return {
+    vluchten: [
+      { treden: xs.map((x) => [[x, 6.3], [x, 7.3]] as [Xy, Xy]) },
+      { treden: xs.map((x) => [[x, 5.14], [x, 6.14]] as [Xy, Xy]), streepjes: true },
+    ],
+    pijl: { op: [1.3, 6.8], richting: [1, 0] },
+  };
+}
+
 /** Het gelijkvloers: leefruimte in L-vorm, keuken, inkom met trapbordes, berging/technieken. */
-export function gelijkvloers(opties: { keukenwand?: number } = {}): Testgrondplan {
+export function gelijkvloers(opties: { keukenwand?: number; trap?: boolean } = {}): Testgrondplan {
   const wand = opties.keukenwand ?? 6.0;
   const leef = (wand - 0.4) * 3.6 + 3.6 * 3.6;
   const keuken = (9.6 - wand - 0.14) * 3.6;
@@ -131,6 +154,7 @@ export function gelijkvloers(opties: { keukenwand?: number } = {}): Testgrondpla
       { label: "205 x 275", op: [2.0, -0.7] },
       { label: "120 x 275", op: [8.0, -0.7] },
     ],
+    trappen: opties.trap ? [keertrap()] : [],
     verschuiving: [2.0, 2.0],
     datum: "01/10/2026",
   };
@@ -287,6 +311,23 @@ export function grondplanblad(plan: Testgrondplan): Bladzijde {
   for (const deur of plan.deuren) {
     const [p0, p1, p2, p3] = kwartboog(deur.scharnier, deur.straal, deur.van);
     inhoud.push(pdf.boog(p0, p1, p2, p3), pdf.trek(), pdf.lijn(deur.scharnier, p3), pdf.trek());
+  }
+
+  // De trappen: elke trede een lijn, het deel boven de snede in streepjes, en een gevuld pijltje.
+  for (const trap of plan.trappen ?? []) {
+    for (const vlucht of trap.vluchten) {
+      if (vlucht.streepjes) inhoud.push(pdf.streep([0.2, 0.07]));
+      for (const [a, b] of vlucht.treden) inhoud.push(pdf.lijn(a, b), pdf.trek());
+      if (vlucht.streepjes) inhoud.push(pdf.streep([]));
+    }
+    if (trap.pijl) {
+      const { op, richting: r } = trap.pijl;
+      const n: Xy = [-r[1], r[0]];
+      const top: Xy = [op[0] + r[0] * 0.12, op[1] + r[1] * 0.12];
+      const a: Xy = [op[0] - r[0] * 0.08 + n[0] * 0.04, op[1] - r[1] * 0.08 + n[1] * 0.04];
+      const b: Xy = [op[0] - r[0] * 0.08 - n[0] * 0.04, op[1] - r[1] * 0.08 - n[1] * 0.04];
+      inhoud.push(pdf.vulkleur("#000000"), pdf.veelhoek([top, a, b]), pdf.vul());
+    }
   }
   inhoud.push(pdf.herstel());
 
