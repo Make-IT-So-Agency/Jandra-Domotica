@@ -193,7 +193,11 @@ grondplannen.
   ertegenaan is een muur (`omzetting/muren.ts`); een grijs meubel ligt in een
   ruimte en valt weg. De muren gaan mee bij het bevestigen en staan in meter
   in `bouw_omzettingen`. Een grondplan dat vóór deze versie omgezet werd, zet
-  je opnieuw om.
+  je opnieuw om. Een muurkant die naar een ruimte kijkt, is binnen (pleister),
+  net als een kant naar een kleine ingesloten zone zonder naam (tot 12 m²: een
+  trapzone, een kast, een schacht) of naar een trap. Al de rest is gevel. Door
+  zo'n kleine zone loopt de vloerplaat, behalve waar de trap van beneden
+  doorkomt; een grotere zone is een patio.
 - **Ramen en deuren** zijn de open plekken in een muur, langs de rand van een
   ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam (met
   een borstwering van 90 cm, of tot de vloer als het breder is dan 2,40 m)
