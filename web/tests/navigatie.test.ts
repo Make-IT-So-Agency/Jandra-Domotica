@@ -14,6 +14,7 @@ import {
   menuVoor,
   paginasVan,
   wisselPad,
+  type Menuhuis,
 } from "@/lib/navigatie";
 import type { Gebruiker } from "@/lib/rollen";
 
@@ -21,9 +22,9 @@ const HOOFD: Gebruiker = { id: "h", email: "jan@voorbeeld.be", naam: null, rol: 
 const BEHEERDER: Gebruiker = { ...HOOFD, id: "b", rol: "vennootschapsbeheerder", vennootschap_id: "v1" };
 const KIJKER: Gebruiker = { ...HOOFD, id: "k", rol: "kijker", vennootschap_id: "v1" };
 
-const HUIZEN = [
-  { id: 1, naam: "Nieuwbouw" },
-  { id: 12, naam: "Testhuis" },
+const HUIZEN: Menuhuis[] = [
+  { id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" },
+  { id: 12, naam: "Testhuis", soort: "verbouwing" },
 ];
 
 /** Het menu als tekst: groepen met hun pagina's, om in één oogopslag te vergelijken. */
@@ -87,6 +88,31 @@ describe("het menu per rol", () => {
       { pad: "/vastgoed/12/plannen", naam: "Plannen" },
     ]);
     expect(vastgoed.los).toEqual(VASTGOEDPAGINAS);
+  });
+});
+
+describe("het menu volgens het soort huis", () => {
+  it("geeft een bestaand huis geen keuzes, planning of werf", () => {
+    const bestaand = huismenu({ id: 3, naam: "Huidig huis", soort: "bestaand" });
+    const namen = bestaand.paginas.map((pagina) => pagina.naam);
+    expect(namen).not.toContain("Keuzes");
+    expect(namen).not.toContain("Planning");
+    expect(namen).not.toContain("Werf");
+    expect(namen).toEqual(HUISPAGINAS.map((p) => p.naam).filter((naam) => !["Keuzes", "Planning", "Werf"].includes(naam)));
+  });
+
+  it("geeft een nieuwbouw en een verbouwing alles", () => {
+    for (const soort of ["nieuwbouw", "verbouwing"] as const) {
+      expect(huismenu({ id: 3, naam: "Huis", soort }).paginas).toHaveLength(HUISPAGINAS.length);
+    }
+  });
+
+  it("stuurt naar het overzicht als het gekozen huis het onderdeel niet heeft", () => {
+    const nieuwbouw = huismenu(HUIZEN[0]);
+    const bestaand = huismenu({ id: 3, naam: "Huidig huis", soort: "bestaand" });
+    expect(wisselPad("/vastgoed/1/werf/dagboek", nieuwbouw, bestaand)).toBe("/vastgoed/3");
+    expect(wisselPad("/vastgoed/1/geld", nieuwbouw, bestaand)).toBe("/vastgoed/3/geld");
+    expect(wisselPad("/vastgoed/3/dossier/onderhoud", bestaand, nieuwbouw)).toBe("/vastgoed/1/dossier");
   });
 });
 
@@ -164,7 +190,7 @@ describe("geen pagina raakt zoek", () => {
   }
 
   it("zet elke pagina van het eerste niveau, van Vastgoed en van een huis in het menu van de hoofdbeheerder", () => {
-    const paden = allePaden(menuVoor(HOOFD, [{ id: 1, naam: "Nieuwbouw" }]));
+    const paden = allePaden(menuVoor(HOOFD, [{ id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" }]));
     const eersteNiveau = paginamappen(app, "", 1);
     const vastgoed = paginamappen(path.join(app, "vastgoed"), "/vastgoed", 1);
     const huis = paginamappen(path.join(app, "vastgoed", "[huis]"), "/vastgoed/1", 1);

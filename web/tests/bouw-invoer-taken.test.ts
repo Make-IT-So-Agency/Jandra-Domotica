@@ -61,6 +61,10 @@ describe("takenVoorBouw", () => {
   it("noemt alles wat ontbreekt bij een leeg project", () => {
     const taken = takenVoorBouw({ projectnaam: null, verdiepingen: 0, plannen: [], partijen: [] }, BASIS);
     expect(taken.map((t) => t.link)).toEqual(["/vastgoed/1#project", "/vastgoed/1/verdiepingen", "/vastgoed/1/plannen", "/vastgoed/1/partijen"]);
+    // Een bestaand huis heeft geen architect nodig.
+    const bestaand = takenVoorBouw({ projectnaam: null, bestaand: true, verdiepingen: 0, plannen: [], partijen: [] }, BASIS);
+    expect(bestaand.map((t) => t.link)).toEqual(["/vastgoed/1#project", "/vastgoed/1/verdiepingen", "/vastgoed/1/plannen"]);
+    expect(bestaand[2].tekst).toBe("Laad het eerste plan van het huis op.");
   });
 
   it("wijst een plan zonder versie aan", () => {

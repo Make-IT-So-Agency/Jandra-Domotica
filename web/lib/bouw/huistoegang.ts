@@ -7,6 +7,7 @@ import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 import { leesHuis, standaardHuis } from "./huizen";
 import { id as leesId } from "./invoer";
+import { nietVoorSoort, type Bouwonderdeel } from "./onderdelen";
 import type { Huis } from "./types";
 
 /**
@@ -20,12 +21,18 @@ function alsId(waarde: unknown): number | null {
   return typeof waarde === "string" ? leesId(waarde) : null;
 }
 
-/** Voor formulieracties: gooit als de gebruiker of het huis niet klopt. */
-export async function vereistHuisrechten(huisId: unknown): Promise<{ ik: Gebruiker; huis: Huis }> {
+/**
+ * Voor formulieracties: gooit als de gebruiker of het huis niet klopt, of als
+ * het huis het onderdeel van de actie niet heeft (een bestaand huis heeft geen
+ * keuzes, planning of werf).
+ */
+export async function vereistHuisrechten(huisId: unknown, onderdeel?: Bouwonderdeel): Promise<{ ik: Gebruiker; huis: Huis }> {
   const ik = await vereistBouwrechten();
   const id = alsId(huisId);
   const huis = id === null ? null : await leesHuis(id);
   if (!huis) throw new Error("Dit huis bestaat niet (meer). Laad de pagina opnieuw.");
+  const nee = onderdeel ? nietVoorSoort(huis, onderdeel) : null;
+  if (nee) throw new Error(nee);
   return { ik, huis };
 }
 

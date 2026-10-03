@@ -315,7 +315,7 @@ describe("de dagelijkse ronde", () => {
 });
 
 describe("met meer huizen", () => {
-  const TWEEDE = { ...TESTHUIS, id: 2, naam: "Testhuis", soort: "bestaand", volgorde: 1 };
+  const TWEEDE = { ...TESTHUIS, id: 2, naam: "Testhuis", soort: "verbouwing", volgorde: 1 };
 
   beforeEach(() => {
     db.tabellen.bouw_huizen.push({ ...TWEEDE });
@@ -369,6 +369,34 @@ describe("met meer huizen", () => {
     const sleutels = db.tabellen.bouw_meldingen.map((m) => String(m.sleutel));
     expect(sleutels).toEqual(expect.arrayContaining(["week:2:2026-10-05", "mijlpaal:20:2026-10-05"]));
     expect(sleutels).not.toContain("week:1:2026-10-05");
+  });
+
+  it("geeft een bestaand huis geen planning, deadlines of actiepunten, wel facturen en onderhoud", async () => {
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: String(GROEP) });
+    db.tabellen.bouw_huizen[1].soort = "bestaand";
+    db.tabellen.bouw_keuzes.push(
+      ...metHuis(
+        [{ id: 21, titel: "Verf", categorie: "afwerking", deadline: "2026-10-12", planning_id: null, levertermijn_weken: null, eenheid: "totaal", hoeveelheid: null, partij_id: null, gekozen_optie_id: null }],
+        2,
+      ),
+    );
+    db.tabellen.bouw_actiepunten = metHuis(
+      [{ id: 22, titel: "Ladder", omschrijving: null, partij_id: null, deadline: "2026-10-06", status: "open", klaar_op: null }],
+      2,
+    );
+    db.tabellen.bouw_facturen = metHuis(
+      [{ id: 23, post_id: null, partij_id: null, nummer: "F-3", omschrijving: null, bedrag: 300, factuurdatum: "2026-09-08", vervaldag: "2026-10-08", betaald_op: null, bestand_id: null, vennootschap_id: null, opmerking: null }],
+      2,
+    );
+    expect(await dagelijkseRonde(TOKEN, new Date(), "https://jandra.voorbeeld.be")).toEqual({ verstuurd: 5, alGemeld: 0 });
+    const vanTweede = verstuurd.map((b) => String(b.text)).filter((tekst) => tekst.startsWith("🏠 Testhuis"));
+    expect(vanTweede).toEqual(["🏠 Testhuis\n💶 Factuur F-3 (€\u00a0300,00): betalen over 3 dagen (tegen 8 okt)."]);
+
+    // De commando's over de planning en de keuzes slaan het over.
+    verstuurd = [];
+    await stuurUpdate(bericht("/week"));
+    await stuurUpdate(bericht("/deadlines"));
+    expect(verstuurd.map((b) => String(b.text).split("\n")[0])).toEqual(["🏠 Nieuwbouw", "🏠 Nieuwbouw"]);
   });
 
   it("antwoordt op een commando met één bericht per huis", async () => {

@@ -57,7 +57,7 @@ async function leesItem(huisId: number, formulier: FormData, eigenId: number | n
 }
 
 export async function voegPlanningToeActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "planning");
   const terugNaar = pad(huis.id);
   const item = await leesItem(huis.id, formulier, null);
   try {
@@ -69,7 +69,7 @@ export async function voegPlanningToeActie(huisId: unknown, formulier: FormData)
 }
 
 export async function wijzigPlanningActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "planning");
   const terugNaar = pad(huis.id);
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(terugNaar, "fout", "Onbekend item.");
@@ -83,7 +83,7 @@ export async function wijzigPlanningActie(huisId: unknown, formulier: FormData):
 }
 
 export async function verwijderPlanningActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "planning");
   const terugNaar = pad(huis.id);
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(terugNaar, "fout", "Onbekend item.");
@@ -100,7 +100,7 @@ export async function verwijderPlanningActie(huisId: unknown, formulier: FormDat
  * na zijn begindatum begint en nog niet klaar is.
  */
 export async function schuifOpActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "planning");
   const itemId = id(formulier.get("id"));
   if (!itemId) terug(pad(huis.id), "fout", "Onbekend item.");
   const terugNaar = itempad(huis.id, itemId);
@@ -135,7 +135,7 @@ export async function schuifOpActie(huisId: unknown, formulier: FormData): Promi
 }
 
 export async function voorbeeldplanningActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "planning");
   const terugNaar = pad(huis.id);
   const begin = datum(formulier.get("begindatum"));
   if (!begin) terug(terugNaar, "fout", "Kies de datum waarop de vergunningsaanvraag vertrekt.");

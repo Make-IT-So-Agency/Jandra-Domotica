@@ -7,6 +7,7 @@ import { db } from "@/lib/supabase";
 import { check, geraakt, idsVanHuis, zelfdeHuis } from "./databank";
 import { leesHuis } from "./huizen";
 import { TOKENVORM, standVanLink, type Inzendgegevens, type RechtLink, type SoortInzending } from "./linkregels";
+import { rechtenBinnenSoort } from "./onderdelen";
 import type { SoortHuis, SoortPartij } from "./types";
 
 /**
@@ -153,7 +154,8 @@ export async function leesLink(token: string, nu = new Date()): Promise<Externe 
     partijId: Number(partij.id),
     partijnaam: partij.naam,
     partijsoort: partij.soort,
-    rechten: link.rechten,
+    // Wat het soort huis niet heeft, mag ook een oudere link niet meer.
+    rechten: rechtenBinnenSoort(link.rechten, huis.soort),
     vervaltOp: link.vervalt_op,
     huisId: huis.id,
     huissoort: huis.soort,
