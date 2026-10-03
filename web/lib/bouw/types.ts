@@ -173,6 +173,23 @@ export interface Gebouw {
   volgorde: number;
 }
 
+/**
+ * Hoe een trap in het 3D-scherm gekozen werd, per verdieping bewaard bij het
+ * midden van de trap (meter, in het gebouw). Zie drie/trappen.ts.
+ */
+export interface Trapstand {
+  x: number;
+  y: number;
+  /** Enkel voor een trap die niet van het plan komt. */
+  vorm?: "recht" | "keer";
+  /** De andere kant op: je begint waar je anders aankomt. */
+  omgekeerd?: boolean;
+  /** Enkel bij een trap die 180° draait en niet van het plan komt: het bordes aan het andere einde. */
+  bordesAnderEinde?: boolean;
+  /** Geen trap: dan is het gat een vide. */
+  geen?: boolean;
+}
+
 export interface Verdieping {
   id: number;
   gebouw_id: number;
@@ -181,6 +198,8 @@ export interface Verdieping {
   vloerpeil_m: number | null;
   verdiepingshoogte_m: number | null;
   plafondhoogte_m: number | null;
+  /** De keuzes voor de trappen die hier beginnen. */
+  trapstanden?: Trapstand[];
 }
 
 export interface Plan {

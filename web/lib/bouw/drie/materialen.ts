@@ -19,7 +19,7 @@ export const SLOTNAMEN: Record<Slot, string> = {
 };
 
 /** Wat er staat zolang er niets gekozen is. */
-export const STANDAARDKLEUREN: Record<Slot | "plaat" | "plafond" | "muurtop" | "glas" | "grond" | "dakrand", string> = {
+export const STANDAARDKLEUREN: Record<Slot | "plaat" | "plafond" | "muurtop" | "glas" | "grond" | "dakrand" | "trap", string> = {
   gevel: "#a65a3a",
   dak: "#3d4248",
   schrijnwerk: "#2e3238",
@@ -31,6 +31,7 @@ export const STANDAARDKLEUREN: Record<Slot | "plaat" | "plafond" | "muurtop" | "
   glas: "#9fc3e0",
   grond: "#7d9f5c",
   dakrand: "#5b6066",
+  trap: "#b08a5c",
 };
 
 const SLOT_VAN: Partial<Record<CategorieKeuze, Slot>> = {

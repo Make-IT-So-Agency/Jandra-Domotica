@@ -32,6 +32,8 @@ export interface Drieverdieping extends Invoerverdieping {
   omgezet: boolean;
   metMuren: boolean;
   grondplanId: number | null;
+  /** Met welke regels de omzetting gemaakt werd: vóór 3 zocht ze nog geen trappen. */
+  werkwijze: number | null;
 }
 
 export interface Driegegevens {
@@ -98,9 +100,12 @@ export async function laadDrie(huisId: number, ik: string): Promise<Driegegevens
           })),
         muren: opgeslagen?.muren ?? [],
         openingen: opgeslagen?.openingen ?? [],
+        trappen: opgeslagen?.trappen ?? [],
+        trapstanden: verdieping.trapstanden ?? [],
         omgezet: grondplan !== null,
         metMuren: (opgeslagen?.muren.length ?? 0) > 0,
         grondplanId: grondplan?.plan.id ?? null,
+        werkwijze: opgeslagen?.werkwijze ?? null,
       };
     }),
     materialen: materiaalkeuzes(keuzes, opties, voorkeuren, fotos, ik),

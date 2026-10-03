@@ -1,7 +1,7 @@
 import { gelukt, isSoortRuimte, mislukt, type SoortRuimte, type Uitkomst } from "../types";
 import { naarHuis, nettoOppervlakte, rond, type Kalibratie } from "./geometrie";
 import { WERKWIJZE } from "./pijplijn";
-import type { Opening, Schaal, Xy } from "./types";
+import type { Opening, Schaal, Trapdeel, Trapvoorstel, Xy } from "./types";
 
 /**
  * Wat de browser stuurt als een omzetting bevestigd wordt, en hoe de server
@@ -39,6 +39,8 @@ export interface Bevestiging {
   openingen: Opening[];
   /** De muren, in paginapunten: de grijze vlakken van het blad. Voor het 3D-model. */
   muren: Xy[][];
+  /** De trappen, in paginapunten. Voor het 3D-model. */
+  trappen: Trapvoorstel[];
   verdieping: { bijwerken: boolean; vloerpeil: number | null; plafondhoogte: number | null };
   schaal: Pick<Schaal, "noemer" | "bron" | "titelblok" | "kloppend" | "getoetst"> | null;
 }
@@ -76,6 +78,24 @@ function ringen(waarde: unknown): Xy[][] | null {
     uit.push(punten);
   }
   return uit;
+}
+
+/** Een trap zoals de browser hem stuurt, of null als hij niet klopt: dan valt hij weg, zoals een muur. */
+function trapVan(ruw: unknown): Trapvoorstel | null {
+  const t = (ruw ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(t.delen) || t.delen.length < 1 || t.delen.length > 3) return null;
+  const delen: Trapdeel[] = [];
+  for (const deel of t.delen as Record<string, unknown>[]) {
+    const soort = deel?.soort;
+    if (soort !== "vlucht" && soort !== "bordes") return null;
+    const ring = ringen([deel.hoeken]);
+    if (!ring || ring[0].length !== 4) return null;
+    const treden = Number(deel.treden);
+    if (!Number.isInteger(treden) || treden < 0 || treden > 40 || (soort === "vlucht" ? treden < 2 : treden !== 0)) return null;
+    delen.push({ soort, hoeken: ring[0] as Trapdeel["hoeken"], treden });
+  }
+  if (delen[0].soort !== "vlucht" || delen.at(-1)!.soort !== "vlucht") return null;
+  return { delen, richting: t.richting === "pijl" ? "pijl" : "geraden" };
 }
 
 /** Kijkt na wat de browser stuurt. Een serveractie kan van overal aangeroepen worden. */
@@ -151,6 +171,11 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
     if (ring && ring[0].length <= 500) muren.push(ring[0]);
   }
 
+  const trappen = (Array.isArray(b.trappen) ? b.trappen : [])
+    .slice(0, 20)
+    .map(trapVan)
+    .filter((trap): trap is Trapvoorstel => trap !== null);
+
   const v = (b.verdieping ?? {}) as Record<string, unknown>;
   const vloerpeil = optioneel(v.vloerpeil, -100, 100);
   const plafondhoogte = optioneel(v.plafondhoogte, 0, 20);
@@ -174,6 +199,7 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
     ruimtes,
     openingen,
     muren,
+    trappen,
     verdieping: { bijwerken: v.bijwerken === true, vloerpeil, plafondhoogte },
     schaal,
   });
@@ -210,8 +236,8 @@ export function naarRuimterijen(bevestiging: Bevestiging): Uitkomst<Ruimterij[]>
 
 /**
  * Wat bewaard wordt als bewijs van de omzetting: de schaal, de kalibratie,
- * de ruimtes in het kort, en de openingen en de muren in meter (voor het
- * 3D-model). Geen andere teksten van het blad.
+ * de ruimtes in het kort, en de openingen, de muren en de trappen in meter
+ * (voor het 3D-model). Geen andere teksten van het blad.
  */
 export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[]): Record<string, unknown> {
   const k = bevestiging.kalibratie;
@@ -238,5 +264,10 @@ export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[])
       };
     }),
     muren: bevestiging.muren.map((ring) => inMeter(ring, k)),
+    // Een kwartslag houdt een rechthoek een rechthoek, en de volgorde van de hoeken de looprichting.
+    trappen: bevestiging.trappen.map((trap) => ({
+      richting: trap.richting,
+      delen: trap.delen.map((deel) => ({ soort: deel.soort, treden: deel.treden, hoeken: inMeter(deel.hoeken, k) })),
+    })),
   };
 }

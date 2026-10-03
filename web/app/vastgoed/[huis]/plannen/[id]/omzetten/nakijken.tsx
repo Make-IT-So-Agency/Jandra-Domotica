@@ -24,6 +24,7 @@ import type { Referentie } from "@/lib/bouw/omzetting/referentie";
 import { vergelijkRuimtes, type Oudruimte } from "@/lib/bouw/omzetting/ruimtediff";
 import { bewijs } from "@/lib/bouw/omzetting/schaal";
 import { raadSoort } from "@/lib/bouw/omzetting/soorten";
+import { trapdraai } from "@/lib/bouw/omzetting/trappen";
 import type { Blad, Kandidaat, Opening, Ruimtevoorstel, Voorstel, Xy } from "@/lib/bouw/omzetting/types";
 import { lijnUitOpLijnen, lijnUitOpNamen, muurlijnen, type Lijnstuk } from "@/lib/bouw/omzetting/uitlijnen";
 import { huispad } from "@/lib/bouw/paden";
@@ -401,6 +402,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
       })),
       openingen: voorstel.openingen,
       muren: voorstel.muren,
+      trappen: voorstel.trappen,
       verdieping: {
         bijwerken: verdiepingBijwerken,
         vloerpeil: voorstel.verdieping.vloerpeil,
@@ -443,6 +445,27 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
   const laag = (zoom: number) => (
     <>
       {voorstel.muren.length > 0 ? <path className="laag-muur" d={pad(voorstel.muren)} /> : null}
+      {voorstel.trappen.flatMap((trap, i) =>
+        trap.delen.map((deel, j) => {
+          const [a, b, c, d] = deel.hoeken;
+          if (deel.soort === "bordes") return <path key={`${i}-${j}`} d={pad([deel.hoeken])} className="laag-trap" />;
+          // Een vlucht met een pijl naar boven: van het midden van de onderste rand naar dat van de bovenste.
+          const onder: Xy = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+          const boven: Xy = [(c[0] + d[0]) / 2, (c[1] + d[1]) / 2];
+          const lengte = Math.hypot(boven[0] - onder[0], boven[1] - onder[1]) || 1;
+          const r: Xy = [(boven[0] - onder[0]) / lengte, (boven[1] - onder[1]) / lengte];
+          const punt = 8 / zoom;
+          return (
+            <g key={`${i}-${j}`}>
+              <path d={pad([deel.hoeken])} className="laag-trap" />
+              <path
+                d={`M${onder[0]},${onder[1]}L${boven[0]},${boven[1]}M${boven[0] - r[0] * punt - r[1] * punt * 0.6},${boven[1] - r[1] * punt + r[0] * punt * 0.6}L${boven[0]},${boven[1]}L${boven[0] - r[0] * punt + r[1] * punt * 0.6},${boven[1] - r[1] * punt - r[0] * punt * 0.6}`}
+                className="laag-traplijn"
+              />
+            </g>
+          );
+        }),
+      )}
       {ruimtes.map((r) => (
         <path
           key={r.sleutel}
@@ -586,6 +609,25 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
             </button>
           )}
         </section>
+
+        {voorstel.trappen.length > 0 ? (
+          <section className="kaart">
+            <h3>{voorstel.trappen.length === 1 ? "Trap" : "Trappen"}</h3>
+            {voorstel.trappen.map((trap, i) => {
+              const treden = trap.delen.reduce((som, deel) => som + deel.treden, 0);
+              const vorm = trap.delen.length === 1 ? "recht" : trapdraai(trap) === 180 ? "draait halfweg 180°, met een bordes" : "draait een kwartslag, met een bordes";
+              return (
+                <p key={i} className={trap.richting === "pijl" ? "status-goed" : "status-nakijken"}>
+                  {trap.richting === "pijl" ? "✔ " : "⚠ "}
+                  {`Gevonden: ${vorm}, ${treden} treden. `}
+                  <span className="hulp">
+                    {trap.richting === "pijl" ? "Naar boven volgens de pijl op het plan." : "Geen pijl op het plan: de richting kies je in 3D."}
+                  </span>
+                </p>
+              );
+            })}
+          </section>
+        ) : null}
 
         {referentie ? (
           <section className="kaart">
