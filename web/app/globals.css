@@ -37,12 +37,6 @@
   box-sizing: border-box;
 }
 
-html {
-  /* Het menu plakt bovenaan op een telefoon; zonder deze marge scrolt de
-     browser een element er precies achter wanneer je ernaartoe springt. */
-  scroll-padding-top: 60px;
-}
-
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -70,37 +64,92 @@ a {
   padding-right: max(20px, env(safe-area-inset-right));
 }
 
-/* --- Navigatie ---------------------------------------------------------- */
-.balk {
-  border-bottom: 1px solid var(--lijn);
-  background: var(--vlak);
-  margin-bottom: 32px;
-}
-
-.balk-binnen {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 12px 20px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
-}
-
+/* --- Het menu links ------------------------------------------------------
+   Op een breed scherm staat het menu vast links en de pagina ernaast. Op een
+   smal scherm (gsm, iPad staand) is er bovenaan een balk met de knop Menu, en
+   schuift het menu over de pagina. */
 .merk {
   font-weight: 700;
-  margin-right: 8px;
   text-decoration: none;
   color: var(--tekst);
 }
 
-.hoofdmenu {
+.zijmenu {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  width: 232px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 12px 16px;
+  padding-left: max(12px, env(safe-area-inset-left));
+  background: var(--vlak);
+  border-right: 1px solid var(--lijn);
+  /* Het merk staat bovenaan en wie er aangemeld is onderaan; de lijst
+     ertussen scrolt als ze niet past. */
+  overflow: hidden;
 }
 
-.hoofdmenu a {
+.zijmenu > .merk {
+  font-size: 17px;
+  padding: 0 10px;
+}
+
+.zijmenu nav {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menugroep summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--zacht);
+}
+
+.menugroep summary::-webkit-details-marker {
+  display: none;
+}
+
+.menugroep summary::after {
+  content: "▸";
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+
+.menugroep[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.menugroep summary:hover {
+  background: var(--accent-zacht);
+  color: var(--tekst);
+}
+
+.menulijst {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.menulijst a {
+  display: block;
   padding: 6px 10px;
   border-radius: var(--radius);
   text-decoration: none;
@@ -108,29 +157,107 @@ a {
   font-size: 14px;
 }
 
-.hoofdmenu a:hover {
+.menulijst a:hover {
   background: var(--accent-zacht);
 }
 
-.hoofdmenu a[aria-current="page"] {
+.menulijst a[aria-current="page"] {
   background: var(--accent-zacht);
   color: var(--accent);
   font-weight: 600;
 }
 
-/* Het tweede menu voor smalle schermen staat standaard uit; de mediaquery
-   onderaan zet het aan en het brede menu uit. */
-.mobielmenu {
+/* Welk huis: nu enkel de nieuwbouw, later misschien ook het huidige huis. */
+.huiskeuze {
+  display: grid;
+  gap: 2px;
+  margin: 2px 10px 6px;
+  font-size: 12px;
+  color: var(--zacht);
+}
+
+.huiskeuze select {
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.zijmenu-voet {
+  display: grid;
+  gap: 8px;
+  padding: 12px 10px 0;
+  border-top: 1px solid var(--lijn);
+  font-size: 13px;
+  color: var(--zacht);
+  overflow-wrap: anywhere;
+}
+
+/* Enkel op een smal scherm, zie de mediaquery hieronder. */
+.topbalk,
+.zijmenu-laag {
   display: none;
 }
 
-.balk .rechts {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--zacht);
+@media (min-width: 900px) {
+  .app {
+    padding-left: 232px;
+  }
+
+  .app > .omhulsel {
+    padding-top: 28px;
+  }
+}
+
+@media (max-width: 899.98px) {
+  html {
+    /* De balk plakt bovenaan; zonder deze marge scrolt de browser een
+       element er precies achter wanneer je ernaartoe springt. */
+    scroll-padding-top: 64px;
+  }
+
+  .topbalk {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+    background: var(--vlak);
+    border-bottom: 1px solid var(--lijn);
+  }
+
+  .menuknop {
+    padding: 7px 16px;
+  }
+
+  .zijmenu {
+    width: min(300px, 86vw);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+
+  .zijmenu[data-open] {
+    transform: none;
+    visibility: visible;
+    box-shadow: 0 0 28px rgb(0 0 0 / 0.25);
+  }
+
+  .zijmenu-laag {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgb(0 0 0 / 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zijmenu {
+    transition: none;
+  }
 }
 
 /* --- Bouwstenen --------------------------------------------------------- */
@@ -734,36 +861,6 @@ td.smal {
 
 /* --- Bouw ----------------------------------------------------------------- */
 
-/* Het submenu van een module: dezelfde links als het hoofdmenu, maar als
-   tabs onder elkaar gezet. */
-.submenu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: -8px 0 22px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--lijn);
-}
-
-.submenu a {
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: var(--zacht);
-  font-size: 14px;
-}
-
-.submenu a:hover {
-  background: var(--vlak);
-  color: var(--tekst);
-}
-
-.submenu a[aria-current="page"] {
-  color: var(--tekst);
-  font-weight: 600;
-  background: var(--vlak);
-}
-
 .partij summary {
   cursor: pointer;
   display: flex;
@@ -906,7 +1003,8 @@ td.smal {
 }
 
 /* Een omzetting nakijken: het plan links, de stappen rechts. Op een tablet
-   in staande stand komen de stappen onder het plan. */
+   komen de stappen onder het plan. Het menu links neemt 232 px van het
+   venster: twee kolommen dus pas vanaf 1240 px. */
 .omzetten {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -938,7 +1036,7 @@ td.smal {
   font-size: 15px;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1240px) {
   .omzetten {
     grid-template-columns: 1fr;
   }
@@ -2072,75 +2170,6 @@ tr.deze-maand td {
 
   h1 {
     font-size: 22px;
-  }
-
-  /* --- Balk bovenaan ---------------------------------------------------- */
-  .balk-binnen {
-    padding: 10px 16px;
-    gap: 8px 12px;
-  }
-
-  /* De kop met je adres en de afmeldknop mag wegscrollen; het menu niet. */
-  .menu-breed {
-    display: none;
-  }
-
-  .balk {
-    margin-bottom: 0;
-  }
-
-  .balk .rechts {
-    margin-left: auto;
-    font-size: 12px;
-  }
-
-  .mobielmenu {
-    display: block;
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    background: var(--vlak);
-    border-bottom: 1px solid var(--lijn);
-    margin-bottom: 22px;
-  }
-
-  .mobielmenu .hoofdmenu {
-    /* Eén strook die je opzij schuift; wrappen zou de balk te hoog maken. */
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 6px max(12px, env(safe-area-inset-left)) 6px
-      max(12px, env(safe-area-inset-right));
-    /* De rechterrand vervaagt zodat zichtbaar is dat er nog meer staat. */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-
-  .mobielmenu .hoofdmenu::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mobielmenu .hoofdmenu a {
-    white-space: nowrap;
-    padding: 9px 13px;
-  }
-
-  /* Het submenu schuift opzij, net als het hoofdmenu. */
-  .submenu {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-top: -12px;
-  }
-
-  .submenu::-webkit-scrollbar {
-    display: none;
-  }
-
-  .submenu a {
-    white-space: nowrap;
-    padding: 9px 12px;
   }
 
   .viewer {

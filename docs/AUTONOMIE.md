@@ -24,7 +24,7 @@ de samenvatting.
 `IACTIVE_EMAIL`, `IACTIVE_WACHTWOORD`
 
 De bot van Bouw staat niet in deze lijst: zijn token vul je in de app in, bij
-**Bouw → Telegram**, en het staat versleuteld in de databank (zie
+**Vastgoed → Telegram**, en het staat versleuteld in de databank (zie
 [bouw/LEESMIJ.md](../bouw/LEESMIJ.md)).
 
 **Variables** — verwijzingen, geen geheimen:

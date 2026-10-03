@@ -77,7 +77,7 @@ export interface Rondeverslag {
 export async function dagelijkseRonde(token: string, nu: Date, adres: string): Promise<Rondeverslag> {
   const chat = Number(await leesInstelling(CHAT_SLEUTEL));
   if (!Number.isSafeInteger(chat) || chat === 0) {
-    return { verstuurd: 0, alGemeld: 0, reden: "Nog geen chat gekozen: kies er een bij Bouw → Telegram, of stuur /hier in de groep." };
+    return { verstuurd: 0, alGemeld: 0, reden: "Nog geen chat gekozen: kies er een bij Vastgoed → Telegram, of stuur /hier in de groep." };
   }
 
   const dag = vandaag(nu);

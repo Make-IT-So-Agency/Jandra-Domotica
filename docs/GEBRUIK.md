@@ -8,7 +8,8 @@ kennis nodig.
 1. Ga naar je app en log in met Google.
 2. Kijk of het beginscherm groen meldt dat alles klaarstaat. Zo niet, staat er
    letterlijk bij wat er nog moet gebeuren en een knop die je erheen brengt.
-3. Klik op **Rapporten**.
+3. Klik in het menu links, onder **Laadpalen**, op **Rapporten**. Op een gsm
+   staat het menu achter de knop **Menu** bovenaan.
 4. Kies de vennootschap en daarna de periode uit de lijst. Die staat vol met
    kant-en-klare keuzes — *Vorig kwartaal*, *Q1 2026*, *juni 2026* — met het
    vorige kwartaal al voorgeselecteerd. Heb je iets nodig dat er niet bij staat,
@@ -90,7 +91,7 @@ zelf aanmaakt, gaat automatisch de deur uit — de rest stuur je met die knop.
 
 **"X sessie(s) horen bij een laadpaal die nog nergens aan gekoppeld is"**
 Er is een nieuwe laadpaal in evcc bijgekomen, of er is er een hernoemd. Ga naar
-**Laadpalen** en koppel hem aan de juiste vennootschap. Die sessies staan tot
+**Laadpalen → Laadpunten** en koppel hem aan de juiste vennootschap. Die sessies staan tot
 zolang op geen enkel rapport.
 
 **"Bij Garage verschilt de meterstand 3,4 kWh van de optelling van de sessies"**

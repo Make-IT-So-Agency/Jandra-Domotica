@@ -29,7 +29,7 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
   const toegelaten = await toegelatenSet();
   if (!heeftToegang(bericht, toegelaten)) {
     // Enkel op /start en /id: dan komt de vraag om toegang in de app, bij
-    // Bouw → Telegram, waar toelaten één tik is. Alle andere berichten van
+    // Vastgoed → Telegram, waar toelaten één tik is. Alle andere berichten van
     // onbekenden: stilte.
     if (cmd === "start" || cmd === "id") {
       await noteerAanvragen(chatsVan(bericht).filter((kandidaat) => !toegelaten.has(kandidaat.id)));
@@ -37,7 +37,7 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
       await stuurBouwbericht(
         token,
         chat,
-        `${wie} De vraag om toegang staat klaar in Jandra, bij Bouw → Telegram: daar kan je toegelaten worden.\n\n${idRegels(bericht)}`,
+        `${wie} De vraag om toegang staat klaar in Jandra, bij Vastgoed → Telegram: daar kan je toegelaten worden.\n\n${idRegels(bericht)}`,
       );
     }
     return;
