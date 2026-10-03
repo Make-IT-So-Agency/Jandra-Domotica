@@ -1,4 +1,4 @@
-import { afstandTotSegment, nettoOppervlakte, oppervlakte, vereenvoudig, zwaartepunt } from "../omzetting/geometrie";
+import { afstandTotSegment, binnen, nettoOppervlakte, oppervlakte, vereenvoudig, zwaartepunt } from "../omzetting/geometrie";
 import { meestVoorkomend, METER_PER_PUNT } from "../omzetting/schaal";
 import { leesSchaal } from "../omzetting/teksten";
 import type { Blad, Xy } from "../omzetting/types";
@@ -27,6 +27,11 @@ import { doorsnede, omhullende, verschil, vereniging, vergrootConvex, type Veelh
  * zonder dat gebouw, blijft een kandidaat: een bijgebouw dat tegen de woning
  * staat, vormt op het plan vaak één geheel met haar.
  *
+ * Een gearceerde vorm is meestal een bestaand gebouw, zoals dat van de buren.
+ * Een gebouw komt daar enkel op als het overtuigend past. En ligt het eerste
+ * gebouw in een grotere gesloten vorm, het perceel, dan liggen de andere daar
+ * ook in.
+ *
  * Het terrein is het blad in meter: (x, y) in punten maal de schaal, met y
  * naar beneden, zoals in plaatsing.ts.
  */
@@ -42,6 +47,8 @@ const GANGBAAR = [100, 200, 250, 500, 1000, 2500];
 const BIJDRAAIEN = 3;
 /** Hoe dicht een muur bij een getekende lijn moet liggen om mee te tellen, in meter. */
 const MUURAFSTAND = 0.12;
+/** Hoe ver een arceerlijn van de rand van haar vorm mag ophouden, in meter. */
+const ARCEERRAND = 0.15;
 
 export interface Zoekgebouw {
   id: number;
@@ -95,21 +102,93 @@ export function schaalVanBlad(blad: Pick<Blad, "teksten">): number | null {
 export function vormenVan(blad: Blad): Bladvorm[] {
   const vormen: Bladvorm[] = [];
   const grens = blad.breedte * blad.hoogte * 0.5;
+  const voegToe = (punten: Xy[], stijl: string) => {
+    const ring = vereenvoudig(punten, 0.05);
+    if (ring.length < 3) return;
+    const opp = Math.abs(oppervlakte(ring));
+    if (opp >= 1 && opp <= grens) vormen.push({ ring, stijl, oppervlakte: opp });
+  };
+  const open = new Map<string, Xy[][]>();
   for (const pad of blad.paden) {
     const stijl = `${pad.vul ?? "-"}|${pad.lijn ?? "-"}`;
     for (const deel of pad.delen) {
-      if (deel.punten.length < 3) continue;
       const eerste = deel.punten[0];
       const laatste = deel.punten[deel.punten.length - 1];
-      const rond = Math.hypot(eerste[0] - laatste[0], eerste[1] - laatste[1]) < 0.5;
-      if (!deel.gesloten && !rond && pad.vul === null) continue;
-      const ring = vereenvoudig(deel.punten, 0.05);
-      if (ring.length < 3) continue;
-      const opp = Math.abs(oppervlakte(ring));
-      if (opp >= 1 && opp <= grens) vormen.push({ ring, stijl, oppervlakte: opp });
+      const rond = deel.punten.length >= 3 && Math.hypot(eerste[0] - laatste[0], eerste[1] - laatste[1]) < 0.5;
+      if (deel.gesloten || rond || pad.vul !== null) {
+        if (deel.punten.length >= 3) voegToe(deel.punten, stijl);
+      } else if (pad.lijn !== null && deel.punten.length >= 2) {
+        const sleutel = `${pad.lijn}|${pad.dikte.toFixed(1)}`;
+        const lijst = open.get(sleutel);
+        if (lijst) lijst.push(deel.punten);
+        else open.set(sleutel, [deel.punten]);
+      }
     }
   }
+  for (const [sleutel, stukken] of open) {
+    for (const lus of lussenVan(stukken)) voegToe(lus, `-|${sleutel.split("|")[0]}`);
+  }
   return vormen;
+}
+
+/** Hoe dicht de uiteinden van twee lijnstukken moeten liggen om aan te sluiten, in punten. */
+const SLUITEN = 1;
+
+/**
+ * Lijnstukken in dezelfde stijl die aan elkaar sluiten tot een gesloten lus:
+ * een perceelgrens of een gebouw, getekend als losse zijden. Elk hoekpunt van
+ * de lus raakt precies twee stukken; een kruising of een lijn die verder
+ * loopt, maakt er geen lus van.
+ */
+function lussenVan(stukken: readonly Xy[][]): Xy[][] {
+  if (stukken.length < 3 || stukken.length > 5000) return [];
+  // De uiteinden die samenvallen, worden één knoop.
+  const knopen: Xy[] = [];
+  const rooster = new Map<string, number[]>();
+  const knoopVan = (p: Xy): number => {
+    const [cx, cy] = [Math.floor(p[0] / SLUITEN), Math.floor(p[1] / SLUITEN)];
+    for (let x = cx - 1; x <= cx + 1; x++) {
+      for (let y = cy - 1; y <= cy + 1; y++) {
+        for (const k of rooster.get(`${x},${y}`) ?? []) if (Math.hypot(knopen[k][0] - p[0], knopen[k][1] - p[1]) <= SLUITEN) return k;
+      }
+    }
+    knopen.push(p);
+    const sleutel = `${cx},${cy}`;
+    rooster.set(sleutel, [...(rooster.get(sleutel) ?? []), knopen.length - 1]);
+    return knopen.length - 1;
+  };
+  const randen = stukken
+    .map((punten) => ({ punten, a: knoopVan(punten[0]), b: knoopVan(punten[punten.length - 1]) }))
+    // Een stukje dat in één knoop valt (een hoekje van een halve punt), doet niet mee.
+    .filter((rand) => rand.a !== rand.b);
+  const aan = new Map<number, number[]>();
+  randen.forEach((rand, i) => {
+    for (const k of [rand.a, rand.b]) aan.set(k, [...(aan.get(k) ?? []), i]);
+  });
+
+  const lussen: Xy[][] = [];
+  const gebruikt = new Set<number>();
+  randen.forEach((begin, i) => {
+    if (gebruikt.has(i)) return;
+    const lus: Xy[] = [...begin.punten];
+    const deze = new Set([i]);
+    let knoop = begin.b;
+    while (knoop !== begin.a) {
+      const verder = aan.get(knoop) ?? [];
+      if (verder.length !== 2) return;
+      const volgende = verder[0] === [...deze].at(-1) ? verder[1] : verder[0];
+      if (deze.has(volgende) || deze.size > 200) return;
+      const rand = randen[volgende];
+      const punten = rand.a === knoop ? rand.punten : [...rand.punten].reverse();
+      lus.push(...punten.slice(1));
+      deze.add(volgende);
+      knoop = rand.a === knoop ? rand.b : rand.a;
+    }
+    if ((aan.get(begin.a) ?? []).length !== 2 || deze.size < 2) return;
+    deze.forEach((j) => gebruikt.add(j));
+    lussen.push(lus.slice(0, -1));
+  });
+  return lussen;
 }
 
 /** Alle getekende randen van het blad, in paginapunten: om muren op te herkennen. */
@@ -372,6 +451,31 @@ function pasOp(maat: Gebouwmaat, kandidaat: Kandidaat, rooster: () => Lijnrooste
 // Zoeken op een schaal
 // ---------------------------------------------------------------------------
 
+/**
+ * Is een vorm gearceerd? Minstens vier evenwijdige lijnen binnenin, van rand
+ * tot rand en schuin op de vorm: zo tekent een architect een bestaand gebouw.
+ * Muren binnenin een gebouw lopen evenwijdig met zijn randen.
+ */
+function gearceerd(kandidaat: Kandidaat, lijnen: readonly [Xy, Xy][]): boolean {
+  const ring = kandidaat.veelhoek[0];
+  const xs = ring.map(([x]) => x);
+  const ys = ring.map(([, y]) => y);
+  const [x0, y0, x1, y1] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  const opRand = (p: Xy) => ring.some((a, i) => afstandTotSegment(p, a, ring[(i + 1) % ring.length]) <= ARCEERRAND);
+  const hoeken: number[] = [];
+  for (const [a, b] of lijnen) {
+    if (Math.max(a[0], b[0]) < x0 || Math.min(a[0], b[0]) > x1 || Math.max(a[1], b[1]) < y0 || Math.min(a[1], b[1]) > y1) continue;
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.3) continue;
+    if (!binnen([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], ring) || !opRand(a) || !opRand(b)) continue;
+    const hoek = ((((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI) % 180) + 180) % 180;
+    const schuin = (((hoek - kandidaat.richting) % 90) + 90) % 90;
+    if (schuin >= 10 && schuin <= 80) hoeken.push(hoek);
+  }
+  // Vier binnen 2°, ook rond 0° en 180°.
+  const rond = [...hoeken, ...hoeken.map((h) => h + 180)].sort((p, q) => p - q);
+  return rond.some((h, i) => i + 3 < rond.length && rond[i + 3] - h <= 2);
+}
+
 /** Twee kandidaten die zo goed als samenvallen, tellen één keer. */
 function zonderDubbels(kandidaten: Kandidaat[]): Kandidaat[] {
   const uit: Kandidaat[] = [];
@@ -505,17 +609,22 @@ function zoekOpSchaal(maten: readonly Gebouwmaat[], vormen: readonly Bladvorm[],
   let kandidaten = kandidatenOpSchaal(vormen, meterPerPunt, maten);
   if (kandidaten.length === 0) return gevonden;
   // Pas gemaakt als er een vorm te vergelijken valt.
+  let inMeter: [Xy, Xy][] | null = null;
+  const lijnenInMeter = () =>
+    (inMeter ??= lijnen.map(([a, b]) => [
+      [a[0] * meterPerPunt, a[1] * meterPerPunt],
+      [b[0] * meterPerPunt, b[1] * meterPerPunt],
+    ]));
   let rooster: Lijnrooster | null = null;
-  const lijnrooster = () =>
-    (rooster ??= new Lijnrooster(
-      lijnen.map(([a, b]) => [
-        [a[0] * meterPerPunt, a[1] * meterPerPunt],
-        [b[0] * meterPerPunt, b[1] * meterPerPunt],
-      ]),
-      0.5,
-    ));
+  const lijnrooster = () => (rooster ??= new Lijnrooster(lijnenInMeter(), 0.5));
+  const arcering = new Map<Kandidaat, boolean>();
+  const isGearceerd = (k: Kandidaat) => {
+    if (!arcering.has(k)) arcering.set(k, gearceerd(k, lijnenInMeter()));
+    return arcering.get(k)!;
+  };
   const geplaatst: Veelhoek[] = [];
   const paren = new Map<string, Paar>();
+  let perceel: Xy[] | null = null;
 
   for (let ronde = 0; ronde < maten.length; ronde++) {
     let beste: { maat: Gebouwmaat; paar: Paar } | null = null;
@@ -526,12 +635,16 @@ function zoekOpSchaal(maten: readonly Gebouwmaat[], vormen: readonly Bladvorm[],
         .filter((k) => k.oppervlakte >= maat.oppervlakte * 0.5 && k.oppervlakte <= maat.oppervlakte * 2)
         .map((k) => ({ k, ruw: Math.max(...kwartslagen(maat, k).map((stand) => stand.score)) }))
         .filter((paar) => paar.ruw >= 0.3)
-        .sort((a, b) => b.ruw - a.ruw)
-        .slice(0, 3);
-      for (const { k } of passend) {
+        .sort((a, b) => b.ruw - a.ruw);
+      let verfijnd = 0;
+      for (const [i, { k }] of passend.entries()) {
+        if (verfijnd >= 3 || i >= 6) break;
         const sleutel = `${maat.gebouw.id}:${k.zwaartepunt.join(",")}:${k.oppervlakte}`;
         const paar = paren.get(sleutel) ?? pasOp(maat, k, lijnrooster);
         paren.set(sleutel, paar);
+        // Een gearceerde vorm is meestal een bestaand gebouw: enkel als het overtuigend past.
+        if (paar.vondst.overeenkomst < OVERTUIGEND && isGearceerd(k)) continue;
+        verfijnd++;
         if (beter(paar, beste?.paar ?? null)) beste = { maat, paar };
       }
     }
@@ -539,6 +652,9 @@ function zoekOpSchaal(maten: readonly Gebouwmaat[], vormen: readonly Bladvorm[],
     gevonden.set(beste.maat.gebouw.id, beste.paar.vondst);
     const voetafdruk = opTerrein(beste.maat.vorm, beste.maat.gebouw.midden, beste.paar.vondst.plaatsing);
     geplaatst.push(...voetafdruk);
+    // Na het eerste gebouw: de andere liggen op hetzelfde perceel, niet in het titelblok of bij de buren.
+    if (ronde === 0) perceel = perceelRond(voetafdruk, vormen, meterPerPunt);
+    const op = perceel;
     // Wat het gebouw bedekt, is niet meer vrij.
     kandidaten = zonderDubbels(
       kandidaten.flatMap((k) => {
@@ -547,9 +663,26 @@ function zoekOpSchaal(maten: readonly Gebouwmaat[], vormen: readonly Bladvorm[],
           .filter((rest) => Math.abs(oppervlakte(rest[0])) >= 1)
           .map((rest) => kandidaatVan(rest[0]));
       }),
-    );
+    ).filter((k) => !op || binnen(k.zwaartepunt, op));
   }
   return gevonden;
+}
+
+/**
+ * Het perceel rond een geplaatst gebouw: de grootste gesloten vorm op het blad
+ * waar het (bijna) helemaal in ligt, minstens drie keer zo groot. Een gebouw
+ * tegen de perceelgrens steekt er soms een haar buiten. Null als er geen is.
+ */
+function perceelRond(voetafdruk: readonly Veelhoek[], vormen: readonly Bladvorm[], meterPerPunt: number): Xy[] | null {
+  const opp = totaal(voetafdruk);
+  let beste: { ring: Xy[]; opp: number } | null = null;
+  for (const vorm of vormen) {
+    const o = vorm.oppervlakte * meterPerPunt * meterPerPunt;
+    if (o < 3 * opp || (beste && o <= beste.opp)) continue;
+    const ring = vorm.ring.map(([x, y]): Xy => [x * meterPerPunt, y * meterPerPunt]);
+    if (totaal(doorsnede([...voetafdruk], [[ring]])) >= 0.9 * opp) beste = { ring, opp: o };
+  }
+  return beste?.ring ?? null;
 }
 
 // ---------------------------------------------------------------------------

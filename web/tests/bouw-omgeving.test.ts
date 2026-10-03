@@ -148,6 +148,22 @@ describe("ons perceel op het inplantingsplan", () => {
     verwacht(perceelOpPlan(omgeving(rechthoek, [buur], [huisVanBuur]), plan, 200), waar);
   });
 
+  it("vindt het perceel ook als het in losse zijden getekend is, zoals een streep-punt-lijn uit een tekenpakket", () => {
+    const waar: Plaatsing = { x: 70, y: 55, hoek: -12 };
+    const hoeken = opPlan(EIGEN, waar);
+    const zijden = hoeken.flatMap((a, i): Pad[] => {
+      const b = hoeken[(i + 1) % hoeken.length];
+      const zijde = (p: Xy, q: Xy): Pad => ({ vul: null, lijn: "#000000", dikte: 2, delen: [{ punten: [p, q], gesloten: false }], bogen: [] });
+      // De eerste zijde in twee stukken, en een hoekje van een halve punt.
+      if (i === 0) {
+        const m: Xy = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        return [zijde(a, m), zijde(m, b), zijde(b, [b[0] + 0.5, b[1]])];
+      }
+      return [zijde(a, b)];
+    });
+    verwacht(perceelOpPlan(omgeving(EIGEN), blad(zijden), 200), waar);
+  });
+
   it("geeft niets als het perceel niet op het plan staat, of als we geen perceel hebben", () => {
     expect(perceelOpPlan(omgeving(EIGEN), blad([]), 200)).toBeNull();
     const zonder: Omgeving = { ...omgeving(EIGEN), percelen: [] };

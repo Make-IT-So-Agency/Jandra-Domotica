@@ -103,6 +103,21 @@ const boom = (midden: Xy, noemer = 200): Pad =>
     "#7fbf6a",
   );
 
+/** Een bestaand gebouw zoals architecten het tekenen: een wit vlak met schuine arceerlijnen om de 0,8 m. */
+function gearceerd(ring: Xy[], noemer = 200): Pad[] {
+  const xs = ring.map(([x]) => x);
+  const ys = ring.map(([, y]) => y);
+  const [x0, y0, x1, y1] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  const strepen: Pad[] = [];
+  // De lijnen x - y = c, tussen de randen.
+  for (let c = x0 - y1 + 0.4; c < x1 - y0; c += 0.8) {
+    const [xa, xb] = [Math.max(x0, y0 + c), Math.min(x1, y1 + c)];
+    if (xb - xa < 0.1) continue;
+    strepen.push({ vul: null, lijn: "#000000", dikte: 0.07, delen: [{ punten: [naarBlad([xa, xa - c], noemer), naarBlad([xb, xb - c], noemer)], gesloten: false }], bogen: [] });
+  }
+  return [vlak([ring.map((p) => naarBlad(p, noemer))], "#ffffff"), ...strepen];
+}
+
 const WAAR_WONING: Plaatsing = { x: 60, y: 45, hoek: 23.5 };
 const WAAR_BERGING: Plaatsing = { x: 85, y: 70, hoek: -8 };
 
@@ -173,6 +188,34 @@ describe("de vormen op het blad", () => {
     );
     expect(vormen.map((v) => Math.round(v.oppervlakte))).toEqual([2500, 2400, 3000]);
   });
+
+  it("neemt losse zijden in dezelfde stijl die rondgaan, zoals een perceelgrens in streep-punt", () => {
+    const zijde = (a: Xy, b: Xy, dikte = 2): Pad => ({ vul: null, lijn: "#000000", dikte, delen: [{ punten: [a, b], gesloten: false }], bogen: [] });
+    const vormen = vormenVan(
+      blad([
+        // Een vijfhoek in zes stukken, met een hoekje van een halve punt.
+        zijde([100, 600], [400, 600]),
+        zijde([400, 600], [400.5, 600]),
+        zijde([400.5, 600], [380, 300]),
+        zijde([380, 300], [450, 100]),
+        zijde([450, 100], [250, 80]),
+        zijde([250, 80], [175, 340]),
+        zijde([175, 340], [100, 600]),
+        // Drie zijden die niet rondgaan, en een driehoek met één zijde in een andere stijl.
+        zijde([1000, 100], [1200, 100]),
+        zijde([1200, 100], [1200, 300]),
+        zijde([1200, 300], [1050, 300]),
+        zijde([1500, 100], [1700, 100]),
+        zijde([1700, 100], [1600, 300]),
+        zijde([1600, 300], [1500, 100], 0.5),
+      ]),
+    );
+    expect(vormen).toHaveLength(1);
+    expect(vormen[0].stijl).toBe("-|#000000");
+    // Het punt halfweg de linkerzijde valt weg: de vijfhoek, 116 000 vierkante punten.
+    expect(vormen[0].ring).toHaveLength(5);
+    expect(Math.round(vormen[0].oppervlakte)).toBe(116000);
+  });
 });
 
 describe("automatisch plaatsen", () => {
@@ -211,6 +254,28 @@ describe("automatisch plaatsen", () => {
     const vondst = plaatsAutomatisch([woning, berging], inplantingsplan({ berging: false }));
     verwacht(vondst.gevonden.get(1), WAAR_WONING);
     expect(vondst.gevonden.has(2)).toBe(false);
+  });
+
+  it("zet een gebouw dat niet op het plan staat, niet buiten het perceel, zoals in een vak van het titelblok", () => {
+    // Een vak van 7 × 5 m onderaan, buiten het perceel: de berging (6 × 4 m) zou er voor 69% op vallen.
+    const plan = inplantingsplan({ berging: false });
+    const vak = vlak([rechthoek(102, 98, 109, 103).map((p) => naarBlad(p, 200))], "#ffffff");
+    const vondst = plaatsAutomatisch([woning, berging], { ...plan, paden: [...plan.paden, vak] });
+    verwacht(vondst.gevonden.get(1), WAAR_WONING);
+    expect(vondst.gevonden.has(2)).toBe(false);
+  });
+
+  it("zet een gebouw niet op een gearceerd bestaand gebouw, tenzij het overtuigend past", () => {
+    // Zonder gesloten perceel: de woning, en een gearceerd huis van een buur van 7 × 5 m.
+    const buur = rechthoek(110, 60, 117, 65);
+    const plan = blad([vlak([geplaatst(woning, WONING, WAAR_WONING)]), ...gearceerd(buur)], ["1/200"]);
+    const vondst = plaatsAutomatisch([woning, berging], plan);
+    verwacht(vondst.gevonden.get(1), WAAR_WONING);
+    expect(vondst.gevonden.has(2)).toBe(false);
+    // Een gearceerde berging die precies past, komt er wel op.
+    const berging6x4 = rechthoek(110, 60, 116, 64);
+    const metBerging = plaatsAutomatisch([woning, berging], blad([vlak([geplaatst(woning, WONING, WAAR_WONING)]), ...gearceerd(berging6x4)], ["1/200"]));
+    verwacht(metBerging.gevonden.get(2), { x: 113, y: 62, hoek: 0 });
   });
 
   it("vindt een bijgebouw dat tegen de woning staat en er op het plan één vlak mee vormt", () => {
