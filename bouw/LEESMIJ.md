@@ -3,7 +3,9 @@
 Ons bouwproject opvolgen in de webapp: de plannen van de architect met hun
 versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien op
 dat plan, de keuzes, de planning, het geld, de werf, het woningdossier, en
-iedereen met wie we te maken hebben. Op de laptop, de tablet en de gsm, onder **Bouw** in het menu.
+iedereen met wie we te maken hebben. Op de laptop, de tablet en de gsm: in het
+menu links onder **Vastgoed**, huis **Nieuwbouw**. Het huidige huis kan daar
+later bij, met een eigen keuze in hetzelfde menu.
 
 We tekenen niets van nul: de app leest de PDF van de architect en maakt er
 een digitaal plan van. Fase 1a, 1b en 2 tot en met 7 zijn klaar; enkel 1c
@@ -11,7 +13,7 @@ een digitaal plan van. Fase 1a, 1b en 2 tot en met 7 zijn klaar; enkel 1c
 
 ```
 Browser (Jan, Sandra)
-   │  aanmelden met Google; enkel de hoofdbeheerder ziet Bouw
+   │  aanmelden met Google; enkel de hoofdbeheerder ziet Vastgoed
    ▼
 Vercel: web/app/bouw            schermen en serveracties
    │                 │
@@ -341,7 +343,7 @@ geheim. Hij meldt; het werk gebeurt in de webapp, en elk bericht heeft een
 knop naar het juiste scherm. Hij is niet nodig: zonder bot werkt de rest van
 Bouw gewoon.
 
-**Koppelen gebeurt in de app**, bij **Bouw → Telegram** (`/bouw/telegram`),
+**Koppelen gebeurt in de app**, bij **Vastgoed → Telegram** (`/bouw/telegram`),
 met de uitleg erbij. Enkel de bot zelf maak je in Telegram, bij BotFather.
 
 1. Maak bij @BotFather een bot met `/newbot`, met een neutrale naam zonder
@@ -620,9 +622,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    `20261002202508_bouw_werf.sql` en `20261002202509_bouw_dossier.sql`.
    Een nieuwe migratie krijgt een later nummer: de Supabase-CLI weigert er
    een die vóór de laatste toegepaste valt.
-2. **Sandra moet hoofdbeheerder zijn** (bij Gebruikers), anders ziet ze Bouw
-   niet.
-3. **De bot van Bouw** (mag later, of nooit): in de app, bij **Bouw →
+2. **Sandra moet hoofdbeheerder zijn** (bij Gebruikers), anders ziet ze
+   Vastgoed niet.
+3. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
    Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
    Er hoeft niets bij GitHub of Vercel.
 4. **Na het uitrollen nakijken:**

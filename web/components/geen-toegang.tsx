@@ -6,7 +6,7 @@ export function GeenToegang({ wat }: { wat: string }) {
         <p>{wat} is voorbehouden aan de hoofdbeheerder.</p>
         <p>
           Heb je die rechten nodig? Vraag ze aan wie de app beheert. Wat je wél kan zien,
-          staat in het menu bovenaan.
+          staat in het menu.
         </p>
       </div>
     </>

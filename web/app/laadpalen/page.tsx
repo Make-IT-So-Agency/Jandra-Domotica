@@ -28,7 +28,7 @@ export default async function Laadpalenpagina() {
   if (palenResultaat.error || vennResultaat.error) {
     return (
       <>
-        <h1>Laadpalen</h1>
+        <h1>Laadpunten</h1>
         <div className="melding fout">
           {palenResultaat.error?.message ?? vennResultaat.error?.message}
         </div>
@@ -41,7 +41,7 @@ export default async function Laadpalenpagina() {
 
   return (
     <>
-      <h1>Laadpalen</h1>
+      <h1>Laadpunten</h1>
       <p className="inleiding">
         Elke laadpaal hoort bij één vennootschap. Alles wat op die paal geladen wordt, komt
         op het rapport van die vennootschap. Nieuwe palen verschijnen hier vanzelf zodra

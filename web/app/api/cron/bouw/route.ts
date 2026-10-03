@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   try {
     token = await leesBottoken();
     if (!token) {
-      return NextResponse.json({ ok: true, verstuurd: 0, alGemeld: 0, reden: "Nog geen bot gekoppeld: zie Bouw → Telegram." });
+      return NextResponse.json({ ok: true, verstuurd: 0, alGemeld: 0, reden: "Nog geen bot gekoppeld: zie Vastgoed → Telegram." });
     }
     const verslag = await dagelijkseRonde(token, new Date(), appAdres(request));
     return NextResponse.json({ ok: true, ...verslag });

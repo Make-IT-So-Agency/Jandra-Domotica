@@ -299,6 +299,6 @@ describe("de dagelijkse ronde zonder bot", () => {
       new Request("https://jandra.voorbeeld.be/api/cron/bouw", { headers: { authorization: "Bearer cron-testgeheim" } }),
     );
     expect(antwoord.status).toBe(200);
-    expect(await antwoord.json()).toEqual({ ok: true, verstuurd: 0, alGemeld: 0, reden: "Nog geen bot gekoppeld: zie Bouw → Telegram." });
+    expect(await antwoord.json()).toEqual({ ok: true, verstuurd: 0, alGemeld: 0, reden: "Nog geen bot gekoppeld: zie Vastgoed → Telegram." });
   });
 });
