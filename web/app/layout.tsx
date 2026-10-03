@@ -26,10 +26,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Kan mislukken als de databank onbereikbaar is; het menu mag daar niet de
   // hele app voor onderuit halen.
   const gebruiker = await huidigeGebruiker().catch(() => null);
-  // De actieve huizen onder Vastgoed: enkel het nummer en de naam gaan naar de browser.
+  // De actieve huizen onder Vastgoed: enkel het nummer, de naam en het soort gaan naar de browser.
   const huizen =
     gebruiker && magBouwZien(gebruiker)
-      ? (await lijstHuizen().catch(() => [])).map(({ id, naam }) => ({ id, naam }))
+      ? (await lijstHuizen().catch(() => [])).map(({ id, naam, soort }) => ({ id, naam, soort }))
       : [];
 
   return (

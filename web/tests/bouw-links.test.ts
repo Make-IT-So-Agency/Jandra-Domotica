@@ -355,6 +355,33 @@ describe("een link geeft maar één huis vrij", () => {
     expect((await vraag(token, 52)).status).toBe(404);
   });
 
+  it("geeft een link enkel de rechten die bij het soort huis passen", async () => {
+    // Het tweede huis is een bestaand huis: geen keuzes, planning of oplevering.
+    const { token } = await linkVan(2, 3, ["plannen", "keuzes", "planning", "oplevering", "facturen"]);
+    expect((await leesLink(token))?.rechten).toEqual(["plannen", "facturen"]);
+    // Wordt het een verbouwing, dan werken ze weer.
+    db.tabellen.bouw_huizen[1].soort = "verbouwing";
+    expect((await leesLink(token))?.rechten).toEqual(["plannen", "keuzes", "planning", "oplevering", "facturen"]);
+  });
+
+  it("laat een aannemer van een bestaand huis niets melden bij de oplevering", async () => {
+    const formulier = new FormData();
+    formulier.set("punt_id", "6");
+    db.tabellen.bouw_opleverpunten = metHuis(
+      [
+        {
+          id: 6, titel: "Punt 6", omschrijving: null, partij_id: 3, verdieping_id: null, ruimte_id: null, x_m: null, y_m: null,
+          ronde: "voorlopig", status: "gemeld", gemeld_op: "2026-10-01T08:00:00Z", hersteld_op: null, hersteld_door: null,
+          herstelopmerking: null, gecontroleerd_op: null, gecontroleerd_door: null,
+        },
+      ],
+      2,
+    );
+    const { token } = await linkVan(2, 3, ["oplevering"]);
+    await expect(meldHersteldActie(token, formulier)).rejects.toThrow("soort=fout");
+    expect(db.tabellen.bouw_opleverpunten[0]).toMatchObject({ status: "gemeld" });
+  });
+
   it("maakt geen link voor een partij van een ander huis, en trekt er geen in", async () => {
     await expect(linkVan(1, 3, ["plannen"])).rejects.toThrow("Dat hoort niet bij dit huis");
     const { id, token } = await linkVan(2, 3, ["plannen"]);

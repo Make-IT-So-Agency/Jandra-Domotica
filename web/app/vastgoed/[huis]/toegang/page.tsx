@@ -6,6 +6,7 @@ import { plusDagen, vandaag } from "@/lib/bouw/kalender";
 import { korteNaam } from "@/lib/bouw/keuzes";
 import { RECHTNAMEN, STANDAARD_GELDIG_DAGEN, standVanLink } from "@/lib/bouw/linkregels";
 import { lijstInzendingen, lijstLinks, type Inzending, type Link as Toegangslink } from "@/lib/bouw/links";
+import { rechtenBinnenSoort, rechtenVoorSoort } from "@/lib/bouw/onderdelen";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import type { Partij } from "@/lib/bouw/types";
@@ -89,7 +90,7 @@ export default async function Toegangspagina({
                       {naam(link.partij_id)}{" "}
                       <span className={`label-vlag${stand === "actief" ? " goed" : ""}`}>{STANDNAMEN[stand]}</span>
                     </td>
-                    <td data-label="Mag">{link.rechten.map((recht) => RECHTNAMEN[recht]).join("; ")}</td>
+                    <td data-label="Mag">{rechtenBinnenSoort(link.rechten, huis.soort).map((recht) => RECHTNAMEN[recht]).join("; ")}</td>
                     <td data-label="Werkt tot">{stand === "ingetrokken" ? `ingetrokken op ${datum(link.ingetrokken_op)}` : datum(link.vervalt_op)}</td>
                     <td data-label="Laatst gebruikt">{link.laatst_gebruikt_op ? datumTijd(link.laatst_gebruikt_op) : "nog niet"}</td>
                     <td data-label="Ingestuurd">{inzendingen.filter((inzending) => inzending.link_id === link.id).length}</td>
@@ -118,6 +119,7 @@ export default async function Toegangspagina({
       <h2>Nieuwe link</h2>
       <NieuweLink
         huisId={huis.id}
+        mogelijk={rechtenVoorSoort(huis.soort)}
         partijen={partijen.map((partij) => ({
           id: partij.id,
           naam: partij.naam,

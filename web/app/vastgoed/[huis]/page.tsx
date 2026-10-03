@@ -9,6 +9,7 @@ import { lijstActiepunten, lijstOpleverpunten, lijstWerffotos } from "@/lib/bouw
 import { dagMetWeekdag, dagenTekst, dagenTussen, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, openDeadlines } from "@/lib/bouw/keuzes";
 import { nazorgstand } from "@/lib/bouw/nazorg";
+import { heeftOnderdeel } from "@/lib/bouw/onderdelen";
 import { lijstDocumenten, lijstGaranties, lijstOnderhoud } from "@/lib/bouw/nazorg-opslag";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { leesBouwstand } from "@/lib/bouw/opslag";
@@ -38,6 +39,12 @@ export default async function Bouwoverzicht({
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   const huis = await vereistHuis(params);
+  // Een bestaand huis heeft geen keuzes, planning en werf: geen tegels, geen taken.
+  const met = {
+    keuzes: heeftOnderdeel(huis.soort, "keuzes"),
+    planning: heeftOnderdeel(huis.soort, "planning"),
+    werf: heeftOnderdeel(huis.soort, "werf"),
+  };
   let stand;
   let keuzes;
   let planning;
@@ -61,16 +68,16 @@ export default async function Bouwoverzicht({
       garanties,
     ] = await Promise.all([
       leesBouwstand(huis),
-      lijstKeuzes(huis.id),
-      lijstPlanning(huis.id),
+      met.keuzes ? lijstKeuzes(huis.id) : [],
+      met.planning ? lijstPlanning(huis.id) : [],
       lijstPosten(huis.id),
       lijstOffertes(huis.id),
       lijstMeerwerken(huis.id),
       lijstFacturen(huis.id),
       lijstInzendingen(huis.id, { status: "nieuw" }),
-      lijstActiepunten(huis.id),
-      lijstWerffotos(huis.id),
-      lijstOpleverpunten(huis.id),
+      met.werf ? lijstActiepunten(huis.id) : [],
+      met.werf ? lijstWerffotos(huis.id) : [],
+      met.werf ? lijstOpleverpunten(huis.id) : [],
       lijstDocumenten(huis.id),
       lijstOnderhoud(huis.id),
       lijstGaranties(huis.id),
@@ -93,7 +100,7 @@ export default async function Bouwoverzicht({
   } catch (fout) {
     return (
       <>
-        <h1>Bouw</h1>
+        <h1>{huis.naam}</h1>
         <div className="melding fout">{fout instanceof Error ? fout.message : "Lezen mislukt."}</div>
       </>
     );
@@ -107,6 +114,7 @@ export default async function Bouwoverzicht({
     partijId === null ? null : (stand.partijen.find((partij) => partij.id === partijId)?.naam ?? null);
   const taken = takenVoorBouw({
     projectnaam: stand.project.projectnaam,
+    bestaand: huis.soort === "bestaand",
     verdiepingen: stand.verdiepingen,
     plannen: stand.plannen,
     partijen: stand.partijen,
@@ -138,10 +146,11 @@ export default async function Bouwoverzicht({
 
   return (
     <>
-      <h1>{stand.project.projectnaam ?? "Bouw"}</h1>
+      <h1>{stand.project.projectnaam ?? huis.naam}</h1>
       <p className="inleiding">
-        Ons bouwproject: de plannen van de architect, omgezet naar ruimtes per verdieping, de keuzes en de
-        planning, en iedereen met wie we te maken hebben.
+        {met.planning
+          ? "Ons bouwproject: de plannen van de architect, omgezet naar ruimtes per verdieping, de keuzes en de planning, en iedereen met wie we te maken hebben."
+          : "Het huis: de plannen en de ruimtes, het geld, het dossier met het onderhoud, en iedereen met wie we te maken hebben."}
       </p>
 
       <Melding soort={soort} melding={melding} />
@@ -176,18 +185,22 @@ export default async function Bouwoverzicht({
               : `${stand.verdiepingen} ${stand.verdiepingen === 1 ? "verdieping" : "verdiepingen"}`}
           </div>
         </div>
-        <div className="tegel">
-          <div className="label">Keuzes</div>
-          <div className="waarde">{keuzes.length - beslist}</div>
-          <div className="bij">
-            {keuzes.length === 0 ? "nog geen" : `te beslissen, ${beslist} beslist`}
+        {met.keuzes ? (
+          <div className="tegel">
+            <div className="label">Keuzes</div>
+            <div className="waarde">{keuzes.length - beslist}</div>
+            <div className="bij">
+              {keuzes.length === 0 ? "nog geen" : `te beslissen, ${beslist} beslist`}
+            </div>
           </div>
-        </div>
-        <div className="tegel">
-          <div className="label">Planning</div>
-          <div className="waarde">{mijlpaal ? dagenTekst(dagenTussen(nu, mijlpaal.begindatum)) : "—"}</div>
-          <div className="bij">{mijlpaal ? mijlpaal.titel : planning.length === 0 ? "nog geen planning" : "geen mijlpaal meer"}</div>
-        </div>
+        ) : null}
+        {met.planning ? (
+          <div className="tegel">
+            <div className="label">Planning</div>
+            <div className="waarde">{mijlpaal ? dagenTekst(dagenTussen(nu, mijlpaal.begindatum)) : "—"}</div>
+            <div className="bij">{mijlpaal ? mijlpaal.titel : planning.length === 0 ? "nog geen planning" : "geen mijlpaal meer"}</div>
+          </div>
+        ) : null}
         <div className="tegel">
           <div className="label">Geld</div>
           <div className="waarde">{cijfers.posten.length === 0 ? "—" : euroRond(cijfers.totaal.verwacht)}</div>
@@ -199,17 +212,19 @@ export default async function Bouwoverzicht({
                 : `verwacht, ${euroRond(cijfers.totaal.betaald)} betaald`}
           </div>
         </div>
-        <div className="tegel">
-          <div className="label">Werf</div>
-          <div className="waarde">{cijfers.fotos === 1 ? "1 foto" : `${cijfers.fotos} foto's`}</div>
-          <div className="bij">
-            {cijfers.actiepunten.length === 0
-              ? "geen actiepunten open"
-              : cijfers.actiepunten.length === 1
-                ? "1 actiepunt open"
-                : `${cijfers.actiepunten.length} actiepunten open`}
+        {met.werf ? (
+          <div className="tegel">
+            <div className="label">Werf</div>
+            <div className="waarde">{cijfers.fotos === 1 ? "1 foto" : `${cijfers.fotos} foto's`}</div>
+            <div className="bij">
+              {cijfers.actiepunten.length === 0
+                ? "geen actiepunten open"
+                : cijfers.actiepunten.length === 1
+                  ? "1 actiepunt open"
+                  : `${cijfers.actiepunten.length} actiepunten open`}
+            </div>
           </div>
-        </div>
+        ) : null}
         <div className="tegel">
           <div className="label">Dossier</div>
           <div className="waarde">{cijfers.documenten === 1 ? "1 document" : `${cijfers.documenten} documenten`}</div>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
+import { nietVoorSoort } from "@/lib/bouw/onderdelen";
 import { datum, getal, id, tekst } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { korteNaam } from "@/lib/bouw/keuzes";
@@ -49,6 +50,8 @@ export async function vraagWerffotoUploadAan(
 ): Promise<Uitkomst<Gestart>> {
   const toegang = await huisgebruiker(huisId);
   if (!toegang) return mislukt(GEEN_TOEGANG);
+  const nee = nietVoorSoort(toegang.huis, "werf");
+  if (nee) return mislukt(nee);
   try {
     return await startUpload(
       toegang.huis.id,
@@ -86,6 +89,8 @@ export async function bewaarWerffotoActie(
 ): Promise<Uitkomst<{ id: number }>> {
   const toegang = await huisgebruiker(huisId);
   if (!toegang) return mislukt(GEEN_TOEGANG);
+  const nee = nietVoorSoort(toegang.huis, "werf");
+  if (nee) return mislukt(nee);
   const bestandId = id(String(vraag?.bestandId ?? ""));
   const duimId = id(String(vraag?.duimId ?? ""));
   if (!bestandId) return mislukt("Onbekend bestand.");
@@ -134,7 +139,7 @@ function leesPlaats(formulier: FormData, terugNaar: string) {
 }
 
 export async function wijzigWerffotoActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const fotoId = id(formulier.get("foto_id"));
   if (!fotoId || !(await leesWerffoto(huis.id, fotoId))) terug(fotos(huis.id), "fout", "Deze foto bestaat niet meer.");
   const pagina = huispad(huis.id, `/werf/foto/${fotoId}`);
@@ -148,7 +153,7 @@ export async function wijzigWerffotoActie(huisId: unknown, formulier: FormData):
 }
 
 export async function verwijderWerffotoActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = fotos(huis.id);
   const fotoId = id(formulier.get("foto_id"));
   if (!fotoId) terug(terugNaar, "fout", "Onbekende foto.");
@@ -179,7 +184,7 @@ function leesDag(formulier: FormData, terugNaar: string) {
 }
 
 export async function voegDagboekToeActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { ik, huis } = await vereistHuisrechten(huisId);
+  const { ik, huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = dagboek(huis.id);
   const dag = leesDag(formulier, terugNaar);
   try {
@@ -191,7 +196,7 @@ export async function voegDagboekToeActie(huisId: unknown, formulier: FormData):
 }
 
 export async function wijzigDagboekActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = dagboek(huis.id);
   const dagId = id(formulier.get("dag_id"));
   if (!dagId) terug(terugNaar, "fout", "Onbekende dag.");
@@ -205,7 +210,7 @@ export async function wijzigDagboekActie(huisId: unknown, formulier: FormData): 
 }
 
 export async function verwijderDagboekActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = dagboek(huis.id);
   const dagId = id(formulier.get("dag_id"));
   if (!dagId) terug(terugNaar, "fout", "Onbekende dag.");
@@ -231,7 +236,7 @@ function leesActiepunt(formulier: FormData, terugNaar: string) {
 }
 
 export async function voegActiepuntToeActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { ik, huis } = await vereistHuisrechten(huisId);
+  const { ik, huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = actiepunten(huis.id);
   const punt = leesActiepunt(formulier, terugNaar);
   try {
@@ -243,7 +248,7 @@ export async function voegActiepuntToeActie(huisId: unknown, formulier: FormData
 }
 
 export async function wijzigActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = actiepunten(huis.id);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(terugNaar, "fout", "Onbekend actiepunt.");
@@ -259,7 +264,7 @@ export async function wijzigActiepuntActie(huisId: unknown, formulier: FormData)
 
 /** Klaar, of toch nog niet. */
 export async function zetActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = actiepunten(huis.id);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(terugNaar, "fout", "Onbekend actiepunt.");
@@ -273,7 +278,7 @@ export async function zetActiepuntActie(huisId: unknown, formulier: FormData): P
 }
 
 export async function verwijderActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = actiepunten(huis.id);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(terugNaar, "fout", "Onbekend actiepunt.");
@@ -311,7 +316,7 @@ function leesOpleverformulier(formulier: FormData, terugNaar: string) {
 }
 
 export async function voegOpleverpuntToeActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { ik, huis } = await vereistHuisrechten(huisId);
+  const { ik, huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = opleverpad(huis.id, formulier);
   const punt = leesOpleverformulier(formulier, terugNaar);
   try {
@@ -323,7 +328,7 @@ export async function voegOpleverpuntToeActie(huisId: unknown, formulier: FormDa
 }
 
 export async function wijzigOpleverpuntActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = oplevering(huis.id);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(terugNaar, "fout", "Onbekend opleverpunt.");
@@ -338,7 +343,7 @@ export async function wijzigOpleverpuntActie(huisId: unknown, formulier: FormDat
 }
 
 export async function verwijderOpleverpuntActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { huis } = await vereistHuisrechten(huisId);
+  const { huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = oplevering(huis.id);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(terugNaar, "fout", "Onbekend opleverpunt.");
@@ -352,7 +357,7 @@ export async function verwijderOpleverpuntActie(huisId: unknown, formulier: Form
 
 /** Een stap op een opleverpunt; de knop zegt welke (name="stap"). */
 export async function zetOpleverstapActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { ik, huis } = await vereistHuisrechten(huisId);
+  const { ik, huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = opleverpad(huis.id, formulier);
   const puntId = id(formulier.get("punt_id"));
   const stap = String(formulier.get("stap") ?? "");
@@ -372,7 +377,7 @@ export async function zetOpleverstapActie(huisId: unknown, formulier: FormData):
 
 /** Alles wat van één aannemer nog open staat, op gemeld zetten: als je hem de lijst bezorgt. */
 export async function meldAllesActie(huisId: unknown, formulier: FormData): Promise<void> {
-  const { ik, huis } = await vereistHuisrechten(huisId);
+  const { ik, huis } = await vereistHuisrechten(huisId, "werf");
   const terugNaar = opleverpad(huis.id, formulier);
   const partijId = id(formulier.get("partij_id"));
   if (!partijId) terug(terugNaar, "fout", "Kies een aannemer.");
@@ -401,6 +406,8 @@ export async function zetVinkjeActie(
 ): Promise<Uitkomst<null>> {
   const toegang = await huisgebruiker(huisId);
   if (!toegang) return mislukt(GEEN_TOEGANG);
+  const nee = nietVoorSoort(toegang.huis, "werf");
+  if (nee) return mislukt(nee);
   const ruimteId = id(String(vraag?.ruimteId ?? ""));
   const sleutel = String(vraag?.sleutel ?? "");
   if (!ruimteId || !isChecksleutel(sleutel)) return mislukt("Onbekend punt van de checklist.");

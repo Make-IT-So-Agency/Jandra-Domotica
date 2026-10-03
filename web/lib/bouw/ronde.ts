@@ -10,12 +10,14 @@ import { vandaag } from "./kalender";
 import { openDeadlines } from "./keuzes";
 import { nazorgherinneringen } from "./nazorg";
 import { lijstGaranties, lijstOnderhoud } from "./nazorg-opslag";
+import { heeftOnderdeel, type Bouwonderdeel } from "./onderdelen";
 import { lijstPartijen } from "./opslag";
 import { huispad } from "./paden";
 import { tweeWeken } from "./planning";
 import { leesInstelling, lijstKeuzes, lijstPlanning, meldEenKeer, vergeetMelding } from "./regie-opslag";
 import { stuurBouwbericht } from "./telegram";
 import { CHAT_SLEUTEL } from "./telegramregels";
+import type { Huis } from "./types";
 
 /**
  * De dagelijkse ronde van de bot van Bouw, en wat de commando's nodig hebben.
@@ -28,15 +30,21 @@ import { CHAT_SLEUTEL } from "./telegramregels";
 /** In bouw_instellingen: de chat waar de bot zijn herinneringen heen stuurt, gekozen in de app of met /hier. */
 export { CHAT_SLEUTEL };
 
-export async function laadBotstand(huisId: number, dag: string) {
+/**
+ * Wat de bot over een huis weet. Een bestaand huis heeft geen keuzes, planning
+ * en werf: daar zijn die lijsten leeg, dus geen deadlines, geen week en geen
+ * actiepunten.
+ */
+export async function laadBotstand(huis: Huis, dag: string) {
+  const met = (onderdeel: Bouwonderdeel) => heeftOnderdeel(huis.soort, onderdeel);
   const [keuzes, planning, partijen, facturen, actiepunten, onderhoud, garanties] = await Promise.all([
-    lijstKeuzes(huisId),
-    lijstPlanning(huisId),
-    lijstPartijen(huisId),
-    lijstFacturen(huisId),
-    lijstActiepunten(huisId),
-    lijstOnderhoud(huisId),
-    lijstGaranties(huisId),
+    met("keuzes") ? lijstKeuzes(huis.id) : [],
+    met("planning") ? lijstPlanning(huis.id) : [],
+    lijstPartijen(huis.id),
+    lijstFacturen(huis.id),
+    met("werf") ? lijstActiepunten(huis.id) : [],
+    lijstOnderhoud(huis.id),
+    lijstGaranties(huis.id),
   ]);
   const open = openDeadlines(keuzes, planning, dag);
   const deadlines: Openstaand[] = open.map(({ keuze, deadline, dagen }) => ({
@@ -98,7 +106,7 @@ export async function dagelijkseRonde(token: string, nu: Date, adres: string): P
   let eersteFout: unknown = null;
   for (const huis of huizen) {
     try {
-      const stand = await laadBotstand(huis.id, dag);
+      const stand = await laadBotstand(huis, dag);
       const teMelden = [
         ...herinneringen(huis.id, stand.deadlines, stand.planning, stand.week, dag),
         ...factuurherinneringen(stand.facturen, stand.partijnaam, dag, huispad(huis.id)),

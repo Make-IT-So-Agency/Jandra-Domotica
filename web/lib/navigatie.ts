@@ -1,4 +1,6 @@
+import { heeftOnderdeel, onderdeelVan } from "./bouw/onderdelen";
 import { VASTGOED, deelVan, huisUitPad, huispad } from "./bouw/paden";
+import type { SoortHuis } from "./bouw/types";
 import { magBouwZien, magGebruikersBeheren, magInstellingenBeheren, type Gebruiker } from "./rollen";
 
 /**
@@ -11,10 +13,11 @@ export interface Paginalink {
   naam: string;
 }
 
-/** Wat het menu van een huis weet: het nummer en de korte naam, niets meer. */
+/** Wat het menu van een huis weet: het nummer, de korte naam en het soort, niets meer. */
 export interface Menuhuis {
   id: number;
   naam: string;
+  soort: SoortHuis;
 }
 
 /** Een huis onder Vastgoed, met zijn eigen pagina's. */
@@ -51,11 +54,16 @@ export const VASTGOEDPAGINAS: Paginalink[] = [
   { pad: `${VASTGOED}/telegram`, naam: "Telegram" },
 ];
 
+/** De pagina's van een huis, zonder wat zijn soort niet heeft: een bestaand huis heeft geen keuzes, planning of werf. */
 export function huismenu(huis: Menuhuis): Huismenu {
   return {
     id: huis.id,
     naam: huis.naam,
-    paginas: HUISPAGINAS.map((pagina) => ({ pad: huispad(huis.id, pagina.deel), naam: pagina.naam })),
+    soort: huis.soort,
+    paginas: HUISPAGINAS.filter((pagina) => {
+      const onderdeel = onderdeelVan(pagina.deel);
+      return onderdeel === null || heeftOnderdeel(huis.soort, onderdeel);
+    }).map((pagina) => ({ pad: huispad(huis.id, pagina.deel), naam: pagina.naam })),
   };
 }
 

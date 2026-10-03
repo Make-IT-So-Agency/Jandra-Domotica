@@ -28,6 +28,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
 
 ## Wat het doet
 
+- **Huizen** (`/vastgoed`): elk huis met zijn soort. Een huis toevoegen is een
+  naam en een soort; zie [Huizen](#huizen).
 - **Overzicht** (`/vastgoed/1`): wat er nog moet gebeuren (een keuze waarvan de
   deadline binnen twee weken valt, een factuur die binnen de week vervalt, een
   grondplan dat nog omgezet moet worden, onderhoud dat deze week aan de beurt
@@ -365,6 +367,31 @@ Voor na de oplevering, en voor wie later aan het huis werkt.
   verkeerde onderhoud schrap je bij **Wijzigen**. Wat nog nooit gebeurde,
   krijgt een volgende datum na de eerste beurt.
 
+## Huizen
+
+Elk huis heeft zijn eigen plannen, partijen, geld, werf en dossier. Het menu
+toont de actieve huizen; bij **Vastgoed → Huizen** (`/vastgoed`) beheer je ze.
+
+- **Toevoegen:** een naam voor het menu (1 tot 60 tekens) en een soort. Het
+  adres en de projectnaam vul je in op het overzicht van het huis. Een nieuw
+  huis krijgt geen gebouw vooraf: de Woning komt er zodra je een verdieping
+  toevoegt of een dossier inleest.
+- **Het soort:**
+  - een nieuwbouw en een verbouwing hebben alles;
+  - een bestaand huis heeft geen keuzes, planning en werf. Die pagina's staan
+    niet in zijn menu, hun adres toont uitleg, hun acties weigeren, en de bot
+    meldt er niets over;
+  - een link voor een partij van een bestaand huis kan geen keuzes, planning
+    of oplevering tonen, ook een oudere link niet;
+  - het soort kan altijd wijzigen. Wat er al was, blijft bewaard en komt terug
+    met het soort.
+- **Archiveren:** het huis verdwijnt uit het menu en uit de bot, en zijn links
+  werken niet meer. Alles blijft bewaard en te bekijken via Huizen;
+  terugzetten maakt het weer actief.
+- **Verwijderen** kan enkel met een leeg huis, bv. een huis dat je per
+  vergissing toevoegde. Wat er nog aan bestanden is (een upload die nooit
+  afgerond werd), gaat eerst weg. Een huis met gegevens archiveer je.
+
 ## De bot van Bouw
 
 Een eigen Telegram-bot, los van Opvang_bot: een eigen token, een eigen lijst
@@ -372,6 +399,11 @@ toegelaten id's, een eigen webhook (`/api/bouw/telegram`) met een eigen
 geheim. Hij meldt; het werk gebeurt in de webapp, en elk bericht heeft een
 knop naar het juiste scherm. Hij is niet nodig: zonder bot werkt de rest van
 Bouw gewoon.
+
+**Eén bot voor alle huizen.** De ronde en de commando's lopen over de actieve
+huizen. Zijn er meer, dan staat de naam van het huis boven elk bericht, ook
+bij wat een partij via haar link instuurt. `/week` en `/deadlines` slaan een
+bestaand huis over: dat heeft geen planning en geen keuzes.
 
 **Koppelen gebeurt in de app**, bij **Vastgoed → Telegram** (`/vastgoed/telegram`),
 met de uitleg erbij. Enkel de bot zelf maak je in Telegram, bij BotFather.
@@ -531,10 +563,12 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261002202502_bouw_punten.sql` | De punten op het plan |
 | `supabase/migrations/20261002202503_bouw_regie.sql` | De planning, de keuzes met opties en voorkeuren, het beslissingslog, en wat de bot al meldde |
 | `web/app/vastgoed/[huis]/` | De schermen van een huis en hun serveracties |
-| `web/app/vastgoed/page.tsx`, `layout.tsx` | De lijst van de huizen, en wie Vastgoed mag zien |
+| `web/app/vastgoed/page.tsx`, `acties.ts`, `layout.tsx` | De huizen beheren: toevoegen, wijzigen, archiveren, een leeg huis verwijderen; en wie Vastgoed mag zien |
 | `web/app/bouw/[[...pad]]/route.ts` | De oude adressen: door naar het eerste huis, of naar `/vastgoed/telegram` |
 | `web/components/bouw/` | Wat meer schermen delen: de melding, de bevestigknop, de wenstabel en de tijdlijn |
 | `web/lib/bouw/paden.ts` | De adressen van een huis; puur, ook voor het menu in de browser |
+| `web/lib/bouw/onderdelen.ts` | Wat elk soort huis heeft, en welke rechten een link er kan krijgen; puur |
+| `web/components/bouw/onderdeelpoort.tsx` | Uitleg in plaats van keuzes, planning of werf bij een bestaand huis |
 | `web/app/vastgoed/[huis]/plannen/dossier.tsx` | Een dossier inlezen |
 | `web/app/vastgoed/[huis]/plannen/[id]/planvlak.tsx`, `planblad.ts` | Een blad tonen, verschuiven en zoomen (pdf.js, enkel in de browser) |
 | `web/app/vastgoed/[huis]/plannen/[id]/gebaren.ts` | Muis, vinger en pen: slepen, knijpen, tikken |
@@ -686,10 +720,12 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    een die vóór de laatste toegepaste valt.
 2. **Sandra moet hoofdbeheerder zijn** (bij Gebruikers), anders ziet ze
    Vastgoed niet.
-3. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
+3. **Een tweede huis**, bv. het huidige huis: bij **Vastgoed → Huizen**, met
+   het soort *Bestaand huis*. Zie [Huizen](#huizen).
+4. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
    Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
    Er hoeft niets bij GitHub of Vercel.
-4. **Na het uitrollen nakijken:**
+5. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
@@ -742,3 +778,6 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **7** Woningdossier en nazorg: de documenten van het huis, de
       garanties met hun einde, en het onderhoud met wat wanneer opnieuw moet,
       met herinneringen van de bot
+- [x] **Huizen** Meer huizen onder Vastgoed, elk met zijn eigen gegevens en
+      adressen, een soort (nieuwbouw, verbouwing, bestaand huis), archiveren
+      en een leeg huis verwijderen, en één bot voor alle huizen

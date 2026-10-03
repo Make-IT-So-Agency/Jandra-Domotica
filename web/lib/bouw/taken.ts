@@ -9,6 +9,8 @@ import type { SoortPartij, SoortPlan } from "./types";
 
 export interface Bouwstand {
   projectnaam: string | null;
+  /** Een bestaand huis: er wordt niet gebouwd, dus geen architect nodig. */
+  bestaand?: boolean;
   verdiepingen: number;
   plannen: {
     id: number;
@@ -158,7 +160,11 @@ export function takenVoorBouw(stand: Bouwstand, basis: string): Taak[] {
     });
   }
   if (stand.plannen.length === 0) {
-    taken.push({ tekst: "Laad het eerste plan van de architect op.", link: `${basis}/plannen`, knop: "Plannen" });
+    taken.push({
+      tekst: stand.bestaand ? "Laad het eerste plan van het huis op." : "Laad het eerste plan van de architect op.",
+      link: `${basis}/plannen`,
+      knop: "Plannen",
+    });
   }
   // Eén grondplan om te zetten: naar dat plan. Meer: alles in één keer.
   const teOmzetten = stand.plannen.filter(
@@ -194,7 +200,7 @@ export function takenVoorBouw(stand: Bouwstand, basis: string): Taak[] {
       knop: "Alles omzetten",
     });
   }
-  if (!stand.partijen.some((partij) => partij.soort === "architect")) {
+  if (!stand.bestaand && !stand.partijen.some((partij) => partij.soort === "architect")) {
     taken.push({ tekst: "Voeg de architect toe bij de partijen.", link: `${basis}/partijen`, knop: "Partijen" });
   }
 

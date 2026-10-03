@@ -7,6 +7,7 @@ import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { id } from "@/lib/bouw/invoer";
 import { MAX_GELDIG_DAGEN, schoneRechten } from "@/lib/bouw/linkregels";
 import { maakLink, trekLinkIn } from "@/lib/bouw/links";
+import { rechtenBinnenSoort } from "@/lib/bouw/onderdelen";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { foutmelding, terug } from "@/lib/bouw/terug";
@@ -34,7 +35,8 @@ export async function maakLinkActie(
   const partij = partijId ? (await lijstPartijen(huis.id)).find((p) => p.id === partijId) : undefined;
   if (!partij) return mislukt("Kies voor wie de link is.");
 
-  const rechten = schoneRechten(Array.isArray(vraag.rechten) ? vraag.rechten : []);
+  // Enkel wat bij het soort huis past: een bestaand huis heeft geen keuzes, planning of oplevering.
+  const rechten = rechtenBinnenSoort(schoneRechten(Array.isArray(vraag.rechten) ? vraag.rechten : []), huis.soort);
   if (rechten.length === 0) return mislukt("Kies minstens één ding dat de link mag.");
 
   const datum = String(vraag.vervaltOp ?? "");

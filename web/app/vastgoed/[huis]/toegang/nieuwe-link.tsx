@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { RECHTEN_LINK, RECHTNAMEN, standaardRechten, type RechtLink } from "@/lib/bouw/linkregels";
+import { RECHTNAMEN, standaardRechten, type RechtLink } from "@/lib/bouw/linkregels";
 import { PARTIJNAMEN, type SoortPartij } from "@/lib/bouw/types";
 
 import { maakLinkActie } from "./acties";
@@ -24,11 +24,14 @@ const lang = new Intl.DateTimeFormat("nl-BE", { day: "numeric", month: "long", y
  */
 export function NieuweLink({
   huisId,
+  mogelijk,
   partijen,
   vervaldatum,
   afzender,
 }: {
   huisId: number;
+  /** De rechten die bij het soort huis passen: een bestaand huis heeft geen keuzes, planning of oplevering. */
+  mogelijk: RechtLink[];
   partijen: Linkpartij[];
   vervaldatum: string;
   afzender: string;
@@ -36,7 +39,8 @@ export function NieuweLink({
   const router = useRouter();
   const eerste = partijen.find((partij) => partij.soort === "architect") ?? partijen[0];
   const [partijId, setPartijId] = useState<number>(eerste?.id ?? 0);
-  const [rechten, setRechten] = useState<RechtLink[]>(eerste ? standaardRechten(eerste.soort) : ["plannen"]);
+  const standaard = (soort: SoortPartij) => standaardRechten(soort).filter((recht) => mogelijk.includes(recht));
+  const [rechten, setRechten] = useState<RechtLink[]>(eerste ? standaard(eerste.soort) : ["plannen"]);
   const [tot, setTot] = useState(vervaldatum);
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
@@ -117,7 +121,7 @@ export function NieuweLink({
             onChange={(g) => {
               const gekozen = partijen.find((p) => p.id === Number(g.currentTarget.value));
               setPartijId(Number(g.currentTarget.value));
-              if (gekozen) setRechten(standaardRechten(gekozen.soort));
+              if (gekozen) setRechten(standaard(gekozen.soort));
             }}
           >
             {partijen.map((p) => (
@@ -134,7 +138,7 @@ export function NieuweLink({
       </div>
       <fieldset className="keuzerij">
         <legend>Wat de link mag</legend>
-        {RECHTEN_LINK.map((recht) => (
+        {mogelijk.map((recht) => (
           <label key={recht} className="keuzevak">
             <input
               type="checkbox"
@@ -144,7 +148,7 @@ export function NieuweLink({
                 // Eerst lezen: currentTarget is leeg tegen dat React de update uitvoert.
                 const aan = g.currentTarget.checked;
                 setRechten((huidig) =>
-                  aan ? RECHTEN_LINK.filter((r) => r === recht || huidig.includes(r)) : huidig.filter((r) => r !== recht),
+                  aan ? mogelijk.filter((r) => r === recht || huidig.includes(r)) : huidig.filter((r) => r !== recht),
                 );
               }}
             />

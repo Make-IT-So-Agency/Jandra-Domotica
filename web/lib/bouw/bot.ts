@@ -8,6 +8,7 @@ import { lijstHuizen } from "./huizen";
 import { dagenTussen, vandaag } from "./kalender";
 import { lijstInzendingen } from "./links";
 import { nazorgstand } from "./nazorg";
+import { heeftOnderdeel, type Bouwonderdeel } from "./onderdelen";
 import { lijstOpleverpunten } from "./werf-opslag";
 import { leesBouwstand } from "./opslag";
 import { huispad } from "./paden";
@@ -50,11 +51,19 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
   }
 
   const dag = vandaag();
-  /** Eén antwoord per actief huis, met de naam erboven als er meer zijn. */
-  const perHuis = async (maak: (huis: Huis) => Promise<{ tekst: string; pad: string }>) => {
+  /**
+   * Eén antwoord per actief huis, met de naam erboven als er meer zijn. Met een
+   * onderdeel enkel de huizen die het hebben: een bestaand huis heeft geen
+   * keuzes en geen planning.
+   */
+  const perHuis = async (maak: (huis: Huis) => Promise<{ tekst: string; pad: string }>, onderdeel?: Bouwonderdeel) => {
     const huizen = await lijstHuizen();
     if (huizen.length === 0) return stuurBouwbericht(token, chat, "Er is nog geen huis in Jandra.");
-    for (const huis of huizen) {
+    const met = onderdeel ? huizen.filter((huis) => heeftOnderdeel(huis.soort, onderdeel)) : huizen;
+    if (met.length === 0) {
+      return stuurBouwbericht(token, chat, `Geen huis met ${onderdeel === "keuzes" ? "keuzes" : "een planning"}.`);
+    }
+    for (const huis of met) {
       const { tekst, pad } = await maak(huis);
       await stuurBouwbericht(token, chat, metHuisnaam(tekst, huis.naam, huizen.length > 1), `${adres}${pad}`);
     }
@@ -78,20 +87,23 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
       );
       return;
     case "week":
-      await perHuis(async (huis) => ({
-        tekst: weekbericht((await laadBotstand(huis.id, dag)).week),
-        pad: huispad(huis.id, "/planning"),
-      }));
+      await perHuis(
+        async (huis) => ({ tekst: weekbericht((await laadBotstand(huis, dag)).week), pad: huispad(huis.id, "/planning") }),
+        "planning",
+      );
       return;
     case "deadlines":
-      await perHuis(async (huis) => ({
-        tekst: deadlinebericht((await laadBotstand(huis.id, dag)).deadlines, dag),
-        pad: huispad(huis.id, "/keuzes"),
-      }));
+      await perHuis(
+        async (huis) => ({
+          tekst: deadlinebericht((await laadBotstand(huis, dag)).deadlines, dag),
+          pad: huispad(huis.id, "/keuzes"),
+        }),
+        "keuzes",
+      );
       return;
     case "facturen":
       await perHuis(async (huis) => ({
-        tekst: factuurbericht((await laadBotstand(huis.id, dag)).teBetalen, dag),
+        tekst: factuurbericht((await laadBotstand(huis, dag)).teBetalen, dag),
         pad: huispad(huis.id, "/geld/facturen"),
       }));
       return;
@@ -107,12 +119,13 @@ export async function verwerkBouwbericht(bericht: Bouwbericht, token: string, ad
 async function takenbericht(huis: Huis, dag: string): Promise<string> {
   const [stand, { deadlines, teBetalen, actiepunten, onderhoud, garanties, partijnaam }, inzendingen, opleverpunten] = await Promise.all([
     leesBouwstand(huis),
-    laadBotstand(huis.id, dag),
+    laadBotstand(huis, dag),
     lijstInzendingen(huis.id, { status: "nieuw" }),
-    lijstOpleverpunten(huis.id),
+    heeftOnderdeel(huis.soort, "werf") ? lijstOpleverpunten(huis.id) : [],
   ]);
   const taken = takenVoorBouw({
     projectnaam: stand.project.projectnaam,
+    bestaand: huis.soort === "bestaand",
     verdiepingen: stand.verdiepingen,
     plannen: stand.plannen,
     partijen: stand.partijen,
