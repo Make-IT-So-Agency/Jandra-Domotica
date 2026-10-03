@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase, TESTHUIS } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -32,16 +32,17 @@ const pdf = new TextEncoder().encode("%PDF-1.7\nnep");
 beforeEach(() => {
   verstuurd = [];
   db = nepSupabase({
-    bouw_partijen: [
+    bouw_huizen: [{ ...TESTHUIS }],
+    bouw_partijen: metHuis([
       { id: 1, soort: "architect", naam: "Architectenbureau Voorbeeld" },
       { id: 2, soort: "aannemer", naam: "Bouwbedrijf Voorbeeld" },
-    ],
+    ]),
     bouw_links: [],
-    bouw_bestanden: [
+    bouw_bestanden: metHuis([
       { id: 50, pad: "plannen/dossier.pdf", doel: "plan", status: "klaar", oorspronkelijke_naam: "dossier.pdf", opgeladen_door: "jan@voorbeeld.be" },
       { id: 51, pad: "fotos/foto.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg", opgeladen_door: "jan@voorbeeld.be" },
-    ],
-    bouw_plannen: [{ id: 7, titel: "Grondplan", soort: "grondplan", gebouw_id: null, verdieping_id: null, bladcode: null }],
+    ]),
+    bouw_plannen: metHuis([{ id: 7, titel: "Grondplan", soort: "grondplan", gebouw_id: null, verdieping_id: null, bladcode: null }]),
     bouw_planversies: [{ id: 70, plan_id: 7, bestand_id: 50, label: "v1", pagina: 1 }],
     bouw_inzendingen: [],
     bouw_instellingen: [],
@@ -115,27 +116,27 @@ describe("de regels van een link", () => {
 
 describe("een link maken en nakijken", () => {
   it("bewaart enkel de hash, en het token is lang en willekeurig", async () => {
-    const { token } = await maakLink({ partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan@voorbeeld.be" });
+    const { token } = await maakLink(1, { partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan@voorbeeld.be" });
     expect(token).toMatch(TOKENVORM);
     const rij = db.tabellen.bouw_links[0];
     expect(rij.token_hash).toBe(hashVan(token));
     expect(JSON.stringify(db.tabellen.bouw_links)).not.toContain(token);
-    const ander = await maakLink({ partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan@voorbeeld.be" });
+    const ander = await maakLink(1, { partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan@voorbeeld.be" });
     expect(ander.token).not.toBe(token);
   });
 
   it("laat een geldige link binnen en onthoudt wanneer", async () => {
-    const { token, id } = await maakLink({ partijId: 1, rechten: ["plannen", "inzenden"], vervaltOp: morgen(), door: "jan" });
+    const { token, id } = await maakLink(1, { partijId: 1, rechten: ["plannen", "inzenden"], vervaltOp: morgen(), door: "jan" });
     expect(await leesLink(token)).toMatchObject({ linkId: id, partijnaam: "Architectenbureau Voorbeeld", rechten: ["plannen", "inzenden"] });
     expect(db.tabellen.bouw_links[0].laatst_gebruikt_op).toBeTruthy();
   });
 
   it("weigert een verlopen, ingetrokken, onbekend of misvormd token", async () => {
-    const verlopen = await maakLink({ partijId: 1, rechten: ["plannen"], vervaltOp: new Date(Date.now() - 1000), door: "jan" });
+    const verlopen = await maakLink(1, { partijId: 1, rechten: ["plannen"], vervaltOp: new Date(Date.now() - 1000), door: "jan" });
     expect(await leesLink(verlopen.token)).toBeNull();
 
-    const ingetrokken = await maakLink({ partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
-    await trekLinkIn(ingetrokken.id);
+    const ingetrokken = await maakLink(1, { partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
+    await trekLinkIn(1, ingetrokken.id);
     expect(await leesLink(ingetrokken.token)).toBeNull();
 
     expect(await leesLink("A".repeat(43))).toBeNull();
@@ -145,8 +146,8 @@ describe("een link maken en nakijken", () => {
 });
 
 describe("insturen via een link", () => {
-  async function link(rechten: Parameters<typeof maakLink>[0]["rechten"]) {
-    return maakLink({ partijId: 1, rechten, vervaltOp: morgen(), door: "jan" });
+  async function link(rechten: Parameters<typeof maakLink>[1]["rechten"]) {
+    return maakLink(1, { partijId: 1, rechten, vervaltOp: morgen(), door: "jan" });
   }
 
   it("mag enkel met het recht om in te sturen", async () => {
@@ -167,7 +168,7 @@ describe("insturen via een link", () => {
     db.objecten.set(String(rij.pad), { inhoud: pdf, type: "application/pdf" });
 
     expect(await rondInzendingAfActie(token, { bestandId: start.data.bestandId, opmerking: "Trap verplaatst" })).toEqual({ ok: true, data: null });
-    expect(await lijstInzendingen({ status: "nieuw" })).toEqual([
+    expect(await lijstInzendingen(1, { status: "nieuw" })).toEqual([
       expect.objectContaining({ link_id: id, partij_id: 1, bestand_id: start.data.bestandId, opmerking: "Trap verplaatst" }),
     ]);
     expect(String(verstuurd[0].text)).toContain("Architectenbureau Voorbeeld stuurde dossier v2.pdf in");
@@ -181,7 +182,7 @@ describe("insturen via een link", () => {
   it("stopt na het maximum per etmaal", async () => {
     const { token, id } = await link(["inzenden"]);
     for (let i = 0; i < MAX_INZENDINGEN_PER_DAG; i++) {
-      db.tabellen.bouw_bestanden.push({ id: 900 + i, pad: `plannen/${i}.pdf`, status: "wacht", opgeladen_door: `link:${id}`, created_at: new Date().toISOString() });
+      db.tabellen.bouw_bestanden.push({ id: 900 + i, huis_id: 1, pad: `plannen/${i}.pdf`, status: "wacht", opgeladen_door: `link:${id}`, created_at: new Date().toISOString() });
     }
     expect(await telUploadsVanLink(id, new Date(Date.now() - 60_000))).toBe(MAX_INZENDINGEN_PER_DAG);
     const uitkomst = await startInzendingActie(token, { naam: "nog een.pdf", type: "application/pdf", grootte: 1000 });
@@ -189,19 +190,19 @@ describe("insturen via een link", () => {
   });
 
   it("houdt een inzending vast tot ze ingelezen of genegeerd is", async () => {
-    db.tabellen.bouw_bestanden.push({ id: 60, pad: "plannen/inzending.pdf", status: "klaar", opgeladen_door: "link:1" });
-    db.tabellen.bouw_inzendingen.push({ id: 1, bestand_id: 60, status: "nieuw" });
-    await ruimOngebruikteBestandenOp([60]);
+    db.tabellen.bouw_bestanden.push({ id: 60, huis_id: 1, pad: "plannen/inzending.pdf", status: "klaar", opgeladen_door: "link:1" });
+    db.tabellen.bouw_inzendingen.push({ id: 1, huis_id: 1, bestand_id: 60, status: "nieuw" });
+    await ruimOngebruikteBestandenOp(1, [60]);
     expect(db.verwijderd).toEqual([]);
     db.tabellen.bouw_inzendingen[0].status = "genegeerd";
-    await ruimOngebruikteBestandenOp([60]);
+    await ruimOngebruikteBestandenOp(1, [60]);
     expect(db.verwijderd).toEqual(["plannen/inzending.pdf"]);
   });
 });
 
 describe("een offerte of factuur insturen via een link", () => {
-  async function link(rechten: Parameters<typeof maakLink>[0]["rechten"]) {
-    return maakLink({ partijId: 2, rechten, vervaltOp: morgen(), door: "jan" });
+  async function link(rechten: Parameters<typeof maakLink>[1]["rechten"]) {
+    return maakLink(1, { partijId: 2, rechten, vervaltOp: morgen(), door: "jan" });
   }
 
   it("zet een offerte met haar bedrag bij Geld, en verwittigt de bot", async () => {
@@ -219,11 +220,11 @@ describe("een offerte of factuur insturen via een link", () => {
 
     const af = await rondInzendingAfActie(token, { bestandId: start.data.bestandId, opmerking: "Ruwbouw", soort: "offerte", velden });
     expect(af).toEqual({ ok: true, data: null });
-    expect(await lijstInzendingen({ status: "nieuw", soorten: ["offerte", "factuur"] })).toEqual([
+    expect(await lijstInzendingen(1, { status: "nieuw", soorten: ["offerte", "factuur"] })).toEqual([
       expect.objectContaining({ soort: "offerte", partij_id: 2, bedrag: 12_100, datum: "2026-09-30", opmerking: "Ruwbouw" }),
     ]);
     // Bij Plannen komt ze niet.
-    expect(await lijstInzendingen({ status: "nieuw", soorten: ["plan"] })).toEqual([]);
+    expect(await lijstInzendingen(1, { status: "nieuw", soorten: ["plan"] })).toEqual([]);
     expect(String(verstuurd[0].text)).toBe('📥 Bouwbedrijf Voorbeeld stuurde een offerte in: €\u00a012.100,00.\n\n"Ruwbouw"');
     expect(JSON.stringify(verstuurd[0].reply_markup)).toContain("/bouw/geld#inzendingen");
   });
@@ -276,8 +277,8 @@ describe("opleverpunten via de link van een aannemer", () => {
   it("laat de aannemer melden wat hersteld is, en enkel van zijn eigen punten", async () => {
     await bewaarBottoken("654321:nep-token-voor-de-bouwbot", "JandraBouwBot");
     db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
-    db.tabellen.bouw_opleverpunten = [punt(1, 2, "gemeld"), punt(2, 1, "open")];
-    const { token } = await maakLink({ partijId: 2, rechten: ["oplevering"], vervaltOp: morgen(), door: "jan" });
+    db.tabellen.bouw_opleverpunten = metHuis([punt(1, 2, "gemeld"), punt(2, 1, "open")]);
+    const { token } = await maakLink(1, { partijId: 2, rechten: ["oplevering"], vervaltOp: morgen(), door: "jan" });
 
     await expect(meldHersteldActie(token, formulier({ punt_id: "1", opmerking: "Voeg opnieuw gezet" }))).rejects.toThrow(
       `NAAR /extern/${token}?soort=goed`,
@@ -293,8 +294,8 @@ describe("opleverpunten via de link van een aannemer", () => {
   });
 
   it("vraagt het recht om de oplevering te zien", async () => {
-    db.tabellen.bouw_opleverpunten = [punt(1, 2, "gemeld")];
-    const { token } = await maakLink({ partijId: 2, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
+    db.tabellen.bouw_opleverpunten = metHuis([punt(1, 2, "gemeld")]);
+    const { token } = await maakLink(1, { partijId: 2, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
     await expect(meldHersteldActie(token, formulier({ punt_id: "1" }))).rejects.toThrow("soort=fout");
     expect(db.tabellen.bouw_opleverpunten[0]).toMatchObject({ status: "gemeld" });
   });
@@ -307,7 +308,7 @@ describe("een dossier openen via een link", () => {
     });
 
   it("stuurt door naar een korte URL, enkel voor een bestand van een plan", async () => {
-    const { token } = await maakLink({ partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
+    const { token } = await maakLink(1, { partijId: 1, rechten: ["plannen"], vervaltOp: morgen(), door: "jan" });
     const antwoord = await vraag(token, 50);
     expect(antwoord.status).toBe(303);
     expect(antwoord.headers.get("location")).toBe("https://opslag.test/plannen/dossier.pdf");
@@ -317,7 +318,101 @@ describe("een dossier openen via een link", () => {
   });
 
   it("weigert zonder het recht om plannen te bekijken", async () => {
-    const { token } = await maakLink({ partijId: 1, rechten: ["planning"], vervaltOp: morgen(), door: "jan" });
+    const { token } = await maakLink(1, { partijId: 1, rechten: ["planning"], vervaltOp: morgen(), door: "jan" });
     expect((await vraag(token, 50)).status).toBe(404);
+  });
+});
+
+describe("een link geeft maar één huis vrij", () => {
+  const TWEEDE = { ...TESTHUIS, id: 2, naam: "Testhuis", soort: "bestaand", projectnaam: "Ons tweede huis", volgorde: 1 };
+  const vraag = (token: string, bestandId: number) =>
+    openBestand(new Request(`https://jandra.voorbeeld.be/extern/${token}/bestand/${bestandId}`), {
+      params: Promise.resolve({ token, bestandId: String(bestandId) }),
+    });
+  const linkVan = (huisId: number, partijId: number, rechten: Parameters<typeof maakLink>[1]["rechten"]) =>
+    maakLink(huisId, { partijId, rechten, vervaltOp: morgen(), door: "jan" });
+
+  beforeEach(() => {
+    db.tabellen.bouw_huizen.push({ ...TWEEDE });
+    db.tabellen.bouw_partijen.push(...metHuis([{ id: 3, soort: "aannemer", naam: "Schrijnwerk Test" }], 2));
+    db.tabellen.bouw_bestanden.push(
+      ...metHuis(
+        [{ id: 52, pad: "plannen/tweede.pdf", doel: "plan", status: "klaar", oorspronkelijke_naam: "tweede.pdf", opgeladen_door: "jan@voorbeeld.be" }],
+        2,
+      ),
+    );
+    db.tabellen.bouw_plannen.push(
+      ...metHuis([{ id: 8, titel: "Grondplan", soort: "grondplan", gebouw_id: null, verdieping_id: null, bladcode: null }], 2),
+    );
+    db.tabellen.bouw_planversies.push({ id: 80, plan_id: 8, bestand_id: 52, label: "v1", pagina: 1 });
+  });
+
+  it("geeft het huis van de partij mee, en een gearchiveerd huis maakt de link ongeldig", async () => {
+    const { token } = await linkVan(2, 3, ["plannen"]);
+    expect(await leesLink(token)).toMatchObject({ partijId: 3, huisId: 2, huissoort: "bestaand", projectnaam: "Ons tweede huis" });
+    db.tabellen.bouw_huizen[1].gearchiveerd_op = "2026-10-01T10:00:00Z";
+    expect(await leesLink(token)).toBeNull();
+    expect((await vraag(token, 52)).status).toBe(404);
+  });
+
+  it("maakt geen link voor een partij van een ander huis, en trekt er geen in", async () => {
+    await expect(linkVan(1, 3, ["plannen"])).rejects.toThrow("Dat hoort niet bij dit huis");
+    const { id, token } = await linkVan(2, 3, ["plannen"]);
+    await expect(trekLinkIn(1, id)).rejects.toThrow("Dat hoort niet bij dit huis");
+    expect(await leesLink(token)).not.toBeNull();
+  });
+
+  it("opent enkel de dossiers van het eigen huis", async () => {
+    const eerste = await linkVan(1, 1, ["plannen"]);
+    expect((await vraag(eerste.token, 50)).status).toBe(303);
+    expect((await vraag(eerste.token, 52)).status).toBe(404);
+    const tweede = await linkVan(2, 3, ["plannen"]);
+    expect((await vraag(tweede.token, 52)).status).toBe(303);
+    expect((await vraag(tweede.token, 50)).status).toBe(404);
+  });
+
+  it("zet een inzending bij het huis van de link, en de bot noemt dat huis", async () => {
+    await bewaarBottoken("654321:nep-token-voor-de-bouwbot", "JandraBouwBot");
+    db.tabellen.bouw_instellingen.push({ sleutel: "telegram_chat_id", waarde: "-100300" });
+    const { token } = await linkVan(2, 3, ["offertes"]);
+    const velden = { bedrag: "1.250", datum: "2026-09-30" };
+
+    const start = await startInzendingActie(token, { naam: "offerte.pdf", type: "application/pdf", grootte: pdf.length, soort: "offerte", velden });
+    if (!start.ok) throw new Error(start.melding);
+    const rij = db.tabellen.bouw_bestanden.find((b) => b.id === start.data.bestandId)!;
+    expect(rij.huis_id).toBe(2);
+    db.objecten.set(String(rij.pad), { inhoud: pdf, type: "application/pdf" });
+
+    expect(await rondInzendingAfActie(token, { bestandId: start.data.bestandId, opmerking: "", soort: "offerte", velden })).toEqual({
+      ok: true,
+      data: null,
+    });
+    expect(await lijstInzendingen(1)).toEqual([]);
+    expect(await lijstInzendingen(2)).toEqual([expect.objectContaining({ soort: "offerte", partij_id: 3, bedrag: 1_250 })]);
+    expect(String(verstuurd[0].text)).toBe("🏠 Testhuis\n📥 Schrijnwerk Test stuurde een offerte in: € 1.250,00.");
+  });
+
+  it("aanvaardt geen bestand dat de link in een ander huis zou opladen", async () => {
+    const { token, id } = await linkVan(2, 3, ["inzenden"]);
+    // Een bestand van deze link, maar in het eerste huis: kan niet bestaan, en telt dus niet.
+    db.tabellen.bouw_bestanden.push({ id: 61, huis_id: 1, pad: "plannen/vreemd.pdf", doel: "plan", status: "wacht", opgeladen_door: `link:${id}` });
+    expect(await rondInzendingAfActie(token, { bestandId: 61, opmerking: "" })).toEqual({ ok: false, melding: "Onbekend bestand." });
+    expect(db.tabellen.bouw_inzendingen).toEqual([]);
+  });
+
+  it("laat een aannemer enkel punten van zijn eigen huis melden", async () => {
+    const formulier = new FormData();
+    formulier.set("punt_id", "5");
+    // Een punt in het eerste huis dat (verkeerd) aan de partij van het tweede hangt.
+    db.tabellen.bouw_opleverpunten = metHuis([
+      {
+        id: 5, titel: "Punt 5", omschrijving: null, partij_id: 3, verdieping_id: null, ruimte_id: null, x_m: null, y_m: null,
+        ronde: "voorlopig", status: "gemeld", gemeld_op: "2026-10-01T08:00:00Z", hersteld_op: null, hersteld_door: null,
+        herstelopmerking: null, gecontroleerd_op: null, gecontroleerd_door: null,
+      },
+    ]);
+    const { token } = await linkVan(2, 3, ["oplevering"]);
+    await expect(meldHersteldActie(token, formulier)).rejects.toThrow("soort=fout");
+    expect(db.tabellen.bouw_opleverpunten[0]).toMatchObject({ status: "gemeld" });
   });
 });

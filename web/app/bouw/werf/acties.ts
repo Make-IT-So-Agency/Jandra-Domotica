@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { datum, getal, id, tekst } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { korteNaam } from "@/lib/bouw/keuzes";
@@ -29,7 +30,6 @@ import {
   wijzigWerffoto,
   zetActiepuntKlaar,
 } from "@/lib/bouw/werf-opslag";
-import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 const FOTOS = "/bouw/werf";
 const DAGBOEK = "/bouw/werf/dagboek";
@@ -42,14 +42,18 @@ const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
 // ---------------------------------------------------------------------------
 
 /** Stap 1, voor de foto en voor haar kleine versie: de browser heeft ze al verkleind tot een JPEG. */
-export async function vraagWerffotoUploadAan(aanbod: { naam: string; grootte: number }): Promise<Uitkomst<Gestart>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function vraagWerffotoUploadAan(
+  huisId: unknown,
+  aanbod: { naam: string; grootte: number },
+): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
   try {
     return await startUpload(
+      toegang.huis.id,
       { naam: String(aanbod?.naam ?? "foto.jpg"), type: "image/jpeg", grootte: Number(aanbod?.grootte) },
       "foto",
-      ik.email,
+      toegang.ik.email,
     );
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
@@ -66,18 +70,21 @@ function genomenOp(waarde: unknown, nu = new Date()): string {
 }
 
 /** Stap 3: beide bestanden nakijken en de foto bewaren. */
-export async function bewaarWerffotoActie(vraag: {
-  bestandId: number;
-  duimId?: number | null;
-  genomenOp: string;
-  ruimteId?: number | null;
-  verdiepingId?: number | null;
-  onderschrift?: string | null;
-  dagboekId?: number | null;
-  opleverpuntId?: number | null;
-}): Promise<Uitkomst<{ id: number }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function bewaarWerffotoActie(
+  huisId: unknown,
+  vraag: {
+    bestandId: number;
+    duimId?: number | null;
+    genomenOp: string;
+    ruimteId?: number | null;
+    verdiepingId?: number | null;
+    onderschrift?: string | null;
+    dagboekId?: number | null;
+    opleverpuntId?: number | null;
+  },
+): Promise<Uitkomst<{ id: number }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
   const bestandId = id(String(vraag?.bestandId ?? ""));
   const duimId = id(String(vraag?.duimId ?? ""));
   if (!bestandId) return mislukt("Onbekend bestand.");
@@ -85,11 +92,11 @@ export async function bewaarWerffotoActie(vraag: {
 
   try {
     for (const nummer of bestanden) {
-      const afgerond = await rondUploadAf(nummer);
+      const afgerond = await rondUploadAf(toegang.huis.id, nummer);
       if (!afgerond.ok) throw new Error(afgerond.melding);
       if (afgerond.data.doel !== "foto") throw new Error("Dit bestand is geen foto.");
     }
-    const fotoId = await voegWerffotoToe({
+    const fotoId = await voegWerffotoToe(toegang.huis.id, {
       bestand_id: bestandId,
       duim_bestand_id: duimId,
       genomen_op: genomenOp(vraag?.genomenOp),
@@ -100,12 +107,12 @@ export async function bewaarWerffotoActie(vraag: {
       y_m: null,
       dagboek_id: id(String(vraag?.dagboekId ?? "")),
       opleverpunt_id: id(String(vraag?.opleverpuntId ?? "")),
-      door: korteNaam(ik.naam, ik.email),
+      door: korteNaam(toegang.ik.naam, toegang.ik.email),
     });
     revalidatePath("/bouw/werf", "layout");
     return gelukt({ id: fotoId });
   } catch (fout) {
-    await ruimOngebruikteBestandenOp(bestanden).catch(() => undefined);
+    await ruimOngebruikteBestandenOp(toegang.huis.id, bestanden).catch(() => undefined);
     return mislukt(foutmelding(fout, "De foto bewaren is mislukt."));
   }
 }
@@ -124,26 +131,26 @@ function leesPlaats(formulier: FormData, terugNaar: string) {
   };
 }
 
-export async function wijzigWerffotoActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigWerffotoActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const fotoId = id(formulier.get("foto_id"));
-  if (!fotoId || !(await leesWerffoto(fotoId))) terug(FOTOS, "fout", "Deze foto bestaat niet meer.");
+  if (!fotoId || !(await leesWerffoto(huis.id, fotoId))) terug(FOTOS, "fout", "Deze foto bestaat niet meer.");
   const pagina = `${FOTOS}/foto/${fotoId}`;
   const plaats = leesPlaats(formulier, pagina);
   try {
-    await wijzigWerffoto(fotoId, { onderschrift: tekst(formulier.get("onderschrift")), ...plaats });
+    await wijzigWerffoto(huis.id, fotoId, { onderschrift: tekst(formulier.get("onderschrift")), ...plaats });
   } catch (fout) {
     terug(pagina, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(pagina, "goed", "Foto bewaard.");
 }
 
-export async function verwijderWerffotoActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderWerffotoActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const fotoId = id(formulier.get("foto_id"));
   if (!fotoId) terug(FOTOS, "fout", "Onbekende foto.");
   try {
-    await ruimOngebruikteBestandenOp(await verwijderWerffoto(fotoId));
+    await ruimOngebruikteBestandenOp(huis.id, await verwijderWerffoto(huis.id, fotoId));
   } catch (fout) {
     terug(`${FOTOS}/foto/${fotoId}`, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -168,36 +175,36 @@ function leesDag(formulier: FormData, terugNaar: string) {
   };
 }
 
-export async function voegDagboekToeActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function voegDagboekToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const dag = leesDag(formulier, DAGBOEK);
   try {
-    await voegDagboekdagToe({ ...dag, door: korteNaam(ik.naam, ik.email) });
+    await voegDagboekdagToe(huis.id, { ...dag, door: korteNaam(ik.naam, ik.email) });
   } catch (fout) {
     terug(DAGBOEK, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(DAGBOEK, "goed", "In het dagboek gezet.");
 }
 
-export async function wijzigDagboekActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigDagboekActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const dagId = id(formulier.get("dag_id"));
   if (!dagId) terug(DAGBOEK, "fout", "Onbekende dag.");
   const dag = leesDag(formulier, DAGBOEK);
   try {
-    await wijzigDagboekdag(dagId, dag);
+    await wijzigDagboekdag(huis.id, dagId, dag);
   } catch (fout) {
     terug(DAGBOEK, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(DAGBOEK, "goed", "Bewaard.");
 }
 
-export async function verwijderDagboekActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderDagboekActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const dagId = id(formulier.get("dag_id"));
   if (!dagId) terug(DAGBOEK, "fout", "Onbekende dag.");
   try {
-    await verwijderDagboekdag(dagId);
+    await verwijderDagboekdag(huis.id, dagId);
   } catch (fout) {
     terug(DAGBOEK, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -217,25 +224,25 @@ function leesActiepunt(formulier: FormData, terugNaar: string) {
   return { titel, omschrijving: tekst(formulier.get("omschrijving")), partij_id: id(formulier.get("partij_id")), deadline };
 }
 
-export async function voegActiepuntToeActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function voegActiepuntToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const punt = leesActiepunt(formulier, ACTIEPUNTEN);
   try {
-    await voegActiepuntToe({ ...punt, door: korteNaam(ik.naam, ik.email) });
+    await voegActiepuntToe(huis.id, { ...punt, door: korteNaam(ik.naam, ik.email) });
   } catch (fout) {
     terug(ACTIEPUNTEN, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(ACTIEPUNTEN, "goed", "Actiepunt toegevoegd.");
 }
 
-export async function wijzigActiepuntActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(ACTIEPUNTEN, "fout", "Onbekend actiepunt.");
   const opnieuw = `${ACTIEPUNTEN}?punt=${puntId}`;
   const punt = leesActiepunt(formulier, opnieuw);
   try {
-    await wijzigActiepunt(puntId, punt);
+    await wijzigActiepunt(huis.id, puntId, punt);
   } catch (fout) {
     terug(opnieuw, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
@@ -243,25 +250,25 @@ export async function wijzigActiepuntActie(formulier: FormData): Promise<void> {
 }
 
 /** Klaar, of toch nog niet. */
-export async function zetActiepuntActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function zetActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(ACTIEPUNTEN, "fout", "Onbekend actiepunt.");
   const klaar = formulier.get("klaar") === "ja";
   try {
-    await zetActiepuntKlaar(puntId, klaar);
+    await zetActiepuntKlaar(huis.id, puntId, klaar);
   } catch (fout) {
     terug(ACTIEPUNTEN, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(ACTIEPUNTEN, "goed", klaar ? "Klaar. Goed zo." : "Het actiepunt staat terug open.");
 }
 
-export async function verwijderActiepuntActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderActiepuntActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(ACTIEPUNTEN, "fout", "Onbekend actiepunt.");
   try {
-    await verwijderActiepunt(puntId);
+    await verwijderActiepunt(huis.id, puntId);
   } catch (fout) {
     terug(ACTIEPUNTEN, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -292,38 +299,38 @@ function leesOpleverformulier(formulier: FormData, terugNaar: string) {
   };
 }
 
-export async function voegOpleverpuntToeActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function voegOpleverpuntToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const terugNaar = opleverpad(formulier);
   const punt = leesOpleverformulier(formulier, terugNaar);
   try {
-    await voegOpleverpuntToe({ ...punt, door: korteNaam(ik.naam, ik.email) });
+    await voegOpleverpuntToe(huis.id, { ...punt, door: korteNaam(ik.naam, ik.email) });
   } catch (fout) {
     terug(terugNaar, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(terugNaar, "goed", "Opleverpunt toegevoegd. Een foto zet je erbij in de lijst.");
 }
 
-export async function wijzigOpleverpuntActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigOpleverpuntActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(OPLEVERING, "fout", "Onbekend opleverpunt.");
   const opnieuw = `${OPLEVERING}?punt=${puntId}`;
   const punt = leesOpleverformulier(formulier, opnieuw);
   try {
-    await wijzigOpleverpunt(puntId, punt);
+    await wijzigOpleverpunt(huis.id, puntId, punt);
   } catch (fout) {
     terug(opnieuw, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(OPLEVERING, "goed", "Opleverpunt bewaard.");
 }
 
-export async function verwijderOpleverpuntActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderOpleverpuntActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const puntId = id(formulier.get("punt_id"));
   if (!puntId) terug(OPLEVERING, "fout", "Onbekend opleverpunt.");
   try {
-    await verwijderOpleverpunt(puntId);
+    await verwijderOpleverpunt(huis.id, puntId);
   } catch (fout) {
     terug(OPLEVERING, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -331,18 +338,18 @@ export async function verwijderOpleverpuntActie(formulier: FormData): Promise<vo
 }
 
 /** Een stap op een opleverpunt; de knop zegt welke (name="stap"). */
-export async function zetOpleverstapActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function zetOpleverstapActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const terugNaar = opleverpad(formulier);
   const puntId = id(formulier.get("punt_id"));
   const stap = String(formulier.get("stap") ?? "");
-  const punt = puntId ? await leesOpleverpunt(puntId) : null;
+  const punt = puntId ? await leesOpleverpunt(huis.id, puntId) : null;
   if (!punt || !isStap(stap)) terug(terugNaar, "fout", "Dit opleverpunt bestaat niet meer.");
   const uitkomst = pasStapToe(punt, stap, "wij", korteNaam(ik.naam, ik.email), new Date(), tekst(formulier.get("opmerking")));
   if (!uitkomst.ok) terug(terugNaar, "fout", uitkomst.melding);
   let gelukt = false;
   try {
-    gelukt = await zetOpleverstap(punt.id, punt.status, uitkomst.waarde);
+    gelukt = await zetOpleverstap(huis.id, punt.id, punt.status, uitkomst.waarde);
   } catch (fout) {
     terug(terugNaar, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
@@ -351,18 +358,18 @@ export async function zetOpleverstapActie(formulier: FormData): Promise<void> {
 }
 
 /** Alles wat van één aannemer nog open staat, op gemeld zetten: als je hem de lijst bezorgt. */
-export async function meldAllesActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function meldAllesActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const terugNaar = opleverpad(formulier);
   const partijId = id(formulier.get("partij_id"));
   if (!partijId) terug(terugNaar, "fout", "Kies een aannemer.");
   let aantal = 0;
   try {
     const nu = new Date();
-    for (const punt of await lijstOpleverpunten({ partijId })) {
+    for (const punt of await lijstOpleverpunten(huis.id, { partijId })) {
       if (punt.status !== "open") continue;
       const stap = pasStapToe(punt, "melden", "wij", korteNaam(ik.naam, ik.email), nu);
-      if (stap.ok && (await zetOpleverstap(punt.id, "open", stap.waarde))) aantal++;
+      if (stap.ok && (await zetOpleverstap(huis.id, punt.id, "open", stap.waarde))) aantal++;
     }
   } catch (fout) {
     terug(terugNaar, "fout", foutmelding(fout, "Melden mislukt."));
@@ -375,14 +382,17 @@ export async function meldAllesActie(formulier: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Een vinkje zetten of weghalen; de browser roept dit zelf aan. */
-export async function zetVinkjeActie(vraag: { ruimteId: number; sleutel: string; aan: boolean }): Promise<Uitkomst<null>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function zetVinkjeActie(
+  huisId: unknown,
+  vraag: { ruimteId: number; sleutel: string; aan: boolean },
+): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
   const ruimteId = id(String(vraag?.ruimteId ?? ""));
   const sleutel = String(vraag?.sleutel ?? "");
   if (!ruimteId || !isChecksleutel(sleutel)) return mislukt("Onbekend punt van de checklist.");
   try {
-    await zetVinkje(ruimteId, sleutel, vraag?.aan === true, korteNaam(ik.naam, ik.email));
+    await zetVinkje(toegang.huis.id, ruimteId, sleutel, vraag?.aan === true, korteNaam(toegang.ik.naam, toegang.ik.email));
     revalidatePath("/bouw/werf/checklist");
     return gelukt(null);
   } catch (fout) {

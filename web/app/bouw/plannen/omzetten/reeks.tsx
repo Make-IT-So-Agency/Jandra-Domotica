@@ -28,6 +28,7 @@ import { bevestigOmzettingActie } from "../[id]/omzetten/acties";
 import { leesReferentie, leesVersieblad, murenInHuis } from "../omzetting-lezen";
 
 export interface Reeksgegevens {
+  huisId: number;
   /** De plannen in de volgorde waarin ze gelezen en bewaard worden. */
   reeks: {
     planId: number;
@@ -112,7 +113,11 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
     const referenties = new Map<number, Promise<Lijnstuk[]>>();
 
     async function verwerk(item: Item): Promise<Gelezen> {
-      const blad = await leesVersieblad({ versieId: item.versie.id, bestandId: item.versie.bestandId, pagina: item.versie.pagina });
+      const blad = await leesVersieblad(begin.huisId, {
+        versieId: item.versie.id,
+        bestandId: item.versie.bestandId,
+        pagina: item.versie.pagina,
+      });
       await adem();
       const voorstel = zetOm(blad);
       const bestaand = begin.bestaand[item.verdieping.id] ?? [];
@@ -138,7 +143,7 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
           referentielijnen = murenInHuis(eerder.blad, eerder.kalibratie, eerder.voorstel.gebied);
         } else {
           if (!referenties.has(referentie.versieId)) {
-            referenties.set(referentie.versieId, leesReferentie(referentie).catch(() => []));
+            referenties.set(referentie.versieId, leesReferentie(begin.huisId, referentie).catch(() => []));
           }
           referentielijnen = (await referenties.get(referentie.versieId)) ?? [];
         }
@@ -254,7 +259,7 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
             })
           : null;
       setBewaren((huidig) => ({ ...huidig, [item.versie.id]: { soort: "bezig" } }));
-      const uitkomst = bevestiging ? await bevestigOmzettingActie(bevestiging).catch(() => null) : null;
+      const uitkomst = bevestiging ? await bevestigOmzettingActie(begin.huisId, bevestiging).catch(() => null) : null;
       if (!uitkomst?.ok) {
         const tekst = !bevestiging ? "Dit plan kan niet bevestigd worden." : !uitkomst ? "Geen verbinding met de app." : uitkomst.melding;
         setBewaren((huidig) => ({ ...huidig, [item.versie.id]: { soort: "fout", melding: tekst } }));

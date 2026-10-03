@@ -4,9 +4,10 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { db } from "@/lib/supabase";
 
+import { check, geraakt, idsVanHuis, zelfdeHuis } from "./databank";
+import { leesHuis } from "./huizen";
 import { TOKENVORM, standVanLink, type Inzendgegevens, type RechtLink, type SoortInzending } from "./linkregels";
-import { check } from "./opslag";
-import type { SoortPartij } from "./types";
+import type { SoortHuis, SoortPartij } from "./types";
 
 /**
  * Persoonlijke links voor een partij, en wat die partij via haar link
@@ -15,6 +16,9 @@ import type { SoortPartij } from "./types";
  *
  * Het token zelf wordt nergens bewaard, enkel de SHA-256 ervan. Wie de link
  * kwijt is, krijgt een nieuwe.
+ *
+ * Een link hoort via zijn partij bij één huis, en geeft enkel dat huis vrij.
+ * Inzendingen hebben een eigen huis_id.
  */
 
 export function hashVan(token: string): string {
@@ -51,12 +55,16 @@ function alsLink(rij: Record<string, unknown>): Link {
 }
 
 /** Maakt een link en geeft het token terug: dit is de enige keer dat het bestaat. */
-export async function maakLink(link: {
-  partijId: number;
-  rechten: RechtLink[];
-  vervaltOp: Date;
-  door: string;
-}): Promise<{ id: number; token: string }> {
+export async function maakLink(
+  huisId: number,
+  link: {
+    partijId: number;
+    rechten: RechtLink[];
+    vervaltOp: Date;
+    door: string;
+  },
+): Promise<{ id: number; token: string }> {
+  await zelfdeHuis(huisId, ["bouw_partijen", link.partijId]);
   const { token, hash } = maakToken();
   const rij = check(
     await db()
@@ -76,22 +84,26 @@ export async function maakLink(link: {
   return { id: Number(rij.id), token };
 }
 
-export async function lijstLinks(): Promise<Link[]> {
+/** De links van de partijen van het huis. */
+export async function lijstLinks(huisId: number): Promise<Link[]> {
+  const partijen = await idsVanHuis("bouw_partijen", huisId);
+  if (partijen.length === 0) return [];
   const rijen = check(
-    await db().from("bouw_links").select("*").order("created_at", { ascending: false }),
+    await db().from("bouw_links").select("*").in("partij_id", partijen).order("created_at", { ascending: false }),
     "Links lezen",
   ) as Record<string, unknown>[];
   return rijen.map(alsLink);
 }
 
-export async function trekLinkIn(id: number): Promise<void> {
+export async function trekLinkIn(huisId: number, id: number): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_links", id]);
   check(
     await db().from("bouw_links").update({ ingetrokken_op: new Date().toISOString() }).eq("id", id).is("ingetrokken_op", null),
     "Link intrekken",
   );
 }
 
-/** Wie er met een geldige link binnenkomt. */
+/** Wie er met een geldige link binnenkomt, en voor welk huis. */
 export interface Externe {
   linkId: number;
   partijId: number;
@@ -99,6 +111,10 @@ export interface Externe {
   partijsoort: SoortPartij;
   rechten: RechtLink[];
   vervaltOp: string;
+  huisId: number;
+  huissoort: SoortHuis;
+  /** De titel boven de pagina; nooit het adres. */
+  projectnaam: string | null;
 }
 
 /** Hoe vaak "laatst gebruikt" bijgewerkt wordt: niet bij elke klik een schrijfactie. */
@@ -106,7 +122,8 @@ const GEBRUIK_BIJWERKEN_NA_MS = 60 * 60 * 1000;
 
 /**
  * Het token uit een URL nakijken. Null bij een onbekend, verlopen of
- * ingetrokken token: wie de link heeft, hoeft niet te weten welke van de drie.
+ * ingetrokken token, of als het huis gearchiveerd is: wie de link heeft, hoeft
+ * niet te weten welke van de vier.
  */
 export async function leesLink(token: string, nu = new Date()): Promise<Externe | null> {
   if (!TOKENVORM.test(token)) return null;
@@ -119,10 +136,12 @@ export async function leesLink(token: string, nu = new Date()): Promise<Externe 
   if (standVanLink(link, nu) !== "actief") return null;
 
   const partij = check(
-    await db().from("bouw_partijen").select("id, naam, soort").eq("id", link.partij_id).maybeSingle(),
+    await db().from("bouw_partijen").select("id, naam, soort, huis_id").eq("id", link.partij_id).maybeSingle(),
     "Partij lezen",
-  ) as { id: number; naam: string; soort: SoortPartij } | null;
+  ) as { id: number; naam: string; soort: SoortPartij; huis_id: number | string } | null;
   if (!partij) return null;
+  const huis = await leesHuis(Number(partij.huis_id));
+  if (!huis || huis.gearchiveerd_op !== null) return null;
 
   const laatst = link.laatst_gebruikt_op ? new Date(link.laatst_gebruikt_op).getTime() : 0;
   if (nu.getTime() - laatst > GEBRUIK_BIJWERKEN_NA_MS) {
@@ -136,6 +155,9 @@ export async function leesLink(token: string, nu = new Date()): Promise<Externe 
     partijsoort: partij.soort,
     rechten: link.rechten,
     vervaltOp: link.vervalt_op,
+    huisId: huis.id,
+    huissoort: huis.soort,
+    projectnaam: huis.projectnaam,
   };
 }
 
@@ -200,6 +222,7 @@ function alsInzending(rij: Record<string, unknown>): Inzending {
 }
 
 export async function voegInzendingToe(
+  huisId: number,
   inzending: {
     linkId: number;
     partijId: number;
@@ -208,10 +231,12 @@ export async function voegInzendingToe(
     soort?: SoortInzending;
   } & Partial<Inzendgegevens>,
 ): Promise<number> {
+  await zelfdeHuis(huisId, ["bouw_partijen", inzending.partijId], ["bouw_bestanden", inzending.bestandId]);
   const rij = check(
     await db()
       .from("bouw_inzendingen")
       .insert({
+        huis_id: huisId,
         link_id: inzending.linkId,
         partij_id: inzending.partijId,
         bestand_id: inzending.bestandId,
@@ -230,9 +255,10 @@ export async function voegInzendingToe(
 }
 
 export async function lijstInzendingen(
+  huisId: number,
   filter: { status?: StatusInzending; linkId?: number; soorten?: SoortInzending[] } = {},
 ): Promise<Inzending[]> {
-  let vraag = db().from("bouw_inzendingen").select("*");
+  let vraag = db().from("bouw_inzendingen").select("*").eq("huis_id", huisId);
   if (filter.status) vraag = vraag.eq("status", filter.status);
   if (filter.linkId !== undefined) vraag = vraag.eq("link_id", filter.linkId);
   if (filter.soorten) vraag = vraag.in("soort", filter.soorten);
@@ -240,25 +266,30 @@ export async function lijstInzendingen(
   return rijen.map(alsInzending);
 }
 
-export async function leesInzending(id: number): Promise<Inzending | null> {
+export async function leesInzending(huisId: number, id: number): Promise<Inzending | null> {
   const rij = check(
-    await db().from("bouw_inzendingen").select("*").eq("id", id).maybeSingle(),
+    await db().from("bouw_inzendingen").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(),
     "Inzending lezen",
   ) as Record<string, unknown> | null;
   return rij ? alsInzending(rij) : null;
 }
 
 export async function zetInzendingStatus(
+  huisId: number,
   id: number,
   status: StatusInzending,
   door: string,
   koppeling: { offerte_id?: number; factuur_id?: number } = {},
 ): Promise<void> {
-  check(
-    await db()
-      .from("bouw_inzendingen")
-      .update({ status, verwerkt_op: new Date().toISOString(), verwerkt_door: door, ...koppeling })
-      .eq("id", id),
-    "Inzending bijwerken",
+  geraakt(
+    check(
+      await db()
+        .from("bouw_inzendingen")
+        .update({ status, verwerkt_op: new Date().toISOString(), verwerkt_door: door, ...koppeling })
+        .eq("id", id)
+        .eq("huis_id", huisId)
+        .select("id"),
+      "Inzending bijwerken",
+    ),
   );
 }

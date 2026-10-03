@@ -66,7 +66,7 @@ const VASTE_KLEUREN: Record<string, string> = {
   glas: STANDAARDKLEUREN.glas,
 };
 
-export default function Drie({ gegevens }: { gegevens: Driegegevens }) {
+export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: Driegegevens }) {
   const vak = useRef<HTMLDivElement>(null);
   const [daken, setDaken] = useState<Map<number, Dakinstelling>>(() => new Map(gegevens.gebouwen.map((g) => [g.id, g.dak])));
   const [proef, setProef] = useState<Map<number, number>>(new Map());
@@ -421,7 +421,7 @@ export default function Drie({ gegevens }: { gegevens: Driegegevens }) {
     const dak = daken.get(gebouwId);
     if (!dak) return;
     setBezig(true);
-    const uitkomst = await bewaarDakActie({ gebouwId, dak }).catch(() => null);
+    const uitkomst = await bewaarDakActie(huisId, { gebouwId, dak }).catch(() => null);
     setBezig(false);
     setMelding(
       !uitkomst

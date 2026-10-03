@@ -35,6 +35,7 @@ import { Planvlak } from "../planvlak";
 import { bevestigOmzettingActie } from "./acties";
 
 export interface Omzetgegevens {
+  huisId: number;
   planId: number;
   versie: { id: number; label: string; bestandId: number; pagina: number; kalibratie: Kalibratie | null };
   verdieping: { id: number; naam: string; vloerpeil_m: number | null; plafondhoogte_m: number | null };
@@ -94,9 +95,9 @@ function pad(ringen: Xy[][]): string {
  * ruimtes aan te tikken.
  */
 export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
-  const { versie, verdieping, bestaand, referentie } = gegevens;
+  const { huisId, versie, verdieping, bestaand, referentie } = gegevens;
   const router = useRouter();
-  const { blad, fout: bladfout } = usePlanblad(versie.id, versie.bestandId, versie.pagina);
+  const { blad, fout: bladfout } = usePlanblad(huisId, versie.id, versie.bestandId, versie.pagina);
 
   const [klein, setKlein] = useState(false);
   const [gelezen, setGelezen] = useState<Blad | null>(null);
@@ -161,7 +162,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
   useEffect(() => {
     if (!referentie) return;
     let weg = false;
-    leesReferentie(referentie).then(
+    leesReferentie(huisId, referentie).then(
       (lijnen) => {
         if (!weg) setReferentielijnen(lijnen);
       },
@@ -172,7 +173,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
     return () => {
       weg = true;
     };
-  }, [referentie]);
+  }, [huisId, referentie]);
 
   const meterPerPunt = voorstel?.schaal?.meterPerPunt ?? null;
 
@@ -385,7 +386,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
     };
     setBezig(true);
     setMelding({ soort: "info", tekst: "Bewaren…" });
-    const uitkomst = await bevestigOmzettingActie({
+    const uitkomst = await bevestigOmzettingActie(huisId, {
       versieId: versie.id,
       kalibratie: volledig,
       ruimtes: mee.map((r) => ({

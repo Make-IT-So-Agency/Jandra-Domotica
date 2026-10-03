@@ -17,9 +17,12 @@ import { vraagPlanUrl } from "./acties";
  */
 
 /** Haalt de PDF (uit de cache van de browser als het kan), leest het blad en ruimt pdf.js meteen op. */
-export async function leesVersieblad(versie: { versieId: number; bestandId: number; pagina: number }): Promise<Blad> {
+export async function leesVersieblad(
+  huisId: number,
+  versie: { versieId: number; bestandId: number; pagina: number },
+): Promise<Blad> {
   const bytes = await haalPdfBytes(versie.bestandId, async () => {
-    const antwoord = await vraagPlanUrl(versie.versieId);
+    const antwoord = await vraagPlanUrl(huisId, versie.versieId);
     if (!antwoord.ok) throw new Error(antwoord.melding);
     return antwoord.data.url;
   });
@@ -43,7 +46,11 @@ export function murenInHuis(blad: Blad, kalibratie: Kalibratie, gebied?: Kader |
 }
 
 /** Leest een tweede blad, om op uit te lijnen: enkel de muurlijnen zijn nodig. */
-export async function leesReferentie(referentie: Referentie): Promise<Lijnstuk[]> {
-  const blad = await leesVersieblad({ versieId: referentie.versieId, bestandId: referentie.bestandId, pagina: referentie.pagina });
+export async function leesReferentie(huisId: number, referentie: Referentie): Promise<Lijnstuk[]> {
+  const blad = await leesVersieblad(huisId, {
+    versieId: referentie.versieId,
+    bestandId: referentie.bestandId,
+    pagina: referentie.pagina,
+  });
   return murenInHuis(blad, referentie.kalibratie);
 }

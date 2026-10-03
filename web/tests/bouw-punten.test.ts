@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -161,23 +161,30 @@ describe("de wensenlijst", () => {
 describe("punten in de databank", () => {
   let db: ReturnType<typeof nepSupabase>;
   beforeEach(() => {
-    db = nepSupabase({ bouw_punten: [] });
+    db = nepSupabase({
+      bouw_gebouwen: metHuis([{ id: 1, naam: "Woning", volgorde: 0 }]),
+      bouw_verdiepingen: [
+        { id: 1, gebouw_id: 1, naam: "Gelijkvloers", volgorde: 0 },
+        { id: 2, gebouw_id: 1, naam: "Verdieping", volgorde: 1 },
+      ],
+      bouw_punten: [],
+    });
     nep.client = db.client;
   });
 
   it("voegt toe, wijzigt, leest en verwijdert", async () => {
-    const nieuw = await voegPuntToe(1, { soort: "lichtpunt", x_m: 1, y_m: 2, hoogte_m: null, aantal: 1, label: null, opmerking: null, status: "gewenst" });
+    const nieuw = await voegPuntToe(1, 1, { soort: "lichtpunt", x_m: 1, y_m: 2, hoogte_m: null, aantal: 1, label: null, opmerking: null, status: "gewenst" });
     expect(nieuw).toMatchObject({ verdieping_id: 1, soort: "lichtpunt", x_m: 1, y_m: 2, hoogte_m: null });
 
-    const gewijzigd = await wijzigPunt(nieuw.id, { soort: "inbouwspot", x_m: 3, y_m: 2, hoogte_m: null, aantal: 4, label: "keuken", opmerking: null, status: "in_offerte" });
+    const gewijzigd = await wijzigPunt(1, nieuw.id, { soort: "inbouwspot", x_m: 3, y_m: 2, hoogte_m: null, aantal: 4, label: "keuken", opmerking: null, status: "in_offerte" });
     expect(gewijzigd).toMatchObject({ soort: "inbouwspot", aantal: 4, status: "in_offerte" });
-    expect(await wijzigPunt(9999, { soort: "lichtpunt", x_m: 0, y_m: 0, hoogte_m: null, aantal: 1, label: null, opmerking: null, status: "gewenst" })).toBeNull();
+    expect(await wijzigPunt(1, 9999, { soort: "lichtpunt", x_m: 0, y_m: 0, hoogte_m: null, aantal: 1, label: null, opmerking: null, status: "gewenst" })).toBeNull();
 
-    await voegPuntToe(2, { soort: "schakelaar", x_m: 0, y_m: 0, hoogte_m: 1.1, aantal: 1, label: null, opmerking: null, status: "gewenst" });
-    expect((await lijstPunten(1)).map((p) => p.soort)).toEqual(["inbouwspot"]);
-    expect(await lijstPunten()).toHaveLength(2);
+    await voegPuntToe(1, 2, { soort: "schakelaar", x_m: 0, y_m: 0, hoogte_m: 1.1, aantal: 1, label: null, opmerking: null, status: "gewenst" });
+    expect((await lijstPunten(1, 1)).map((p) => p.soort)).toEqual(["inbouwspot"]);
+    expect(await lijstPunten(1)).toHaveLength(2);
 
-    await verwijderPunt(nieuw.id);
-    expect((await lijstPunten()).map((p) => p.verdieping_id)).toEqual([2]);
+    await verwijderPunt(1, nieuw.id);
+    expect((await lijstPunten(1)).map((p) => p.verdieping_id)).toEqual([2]);
   });
 });

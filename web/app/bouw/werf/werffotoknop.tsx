@@ -38,6 +38,7 @@ async function genomenOp(bestand: File): Promise<string> {
  * dinsdag die je woensdag oplaadt, bij dinsdag staat.
  */
 export function Werffotoknop({
+  huisId,
   groepen = [],
   dagboekId = null,
   opleverpuntId = null,
@@ -45,6 +46,7 @@ export function Werffotoknop({
   compact = false,
   label = "📷 Foto's nemen of kiezen",
 }: {
+  huisId: number;
   groepen?: Ruimtegroep[];
   dagboekId?: number | null;
   opleverpuntId?: number | null;
@@ -75,17 +77,17 @@ export function Werffotoknop({
         const klein = await verkleinFoto(bestand, DUIM_ZIJDE, 0.72);
 
         setStand(`${nummer}opladen…`);
-        const startGroot = await vraagWerffotoUploadAan({ naam: bestand.name, grootte: groot.size });
+        const startGroot = await vraagWerffotoUploadAan(huisId, { naam: bestand.name, grootte: groot.size });
         if (!startGroot.ok) throw new Error(startGroot.melding);
         await zetOp(startGroot.data.uploadUrl, groot, startGroot.data.contentType, (fractie) =>
           setStand(`${nummer}opladen… ${Math.round(fractie * 100)} %`),
         );
-        const startKlein = await vraagWerffotoUploadAan({ naam: `klein-${bestand.name}`, grootte: klein.size });
+        const startKlein = await vraagWerffotoUploadAan(huisId, { naam: `klein-${bestand.name}`, grootte: klein.size });
         if (!startKlein.ok) throw new Error(startKlein.melding);
         await zetOp(startKlein.data.uploadUrl, klein, startKlein.data.contentType);
 
         setStand(`${nummer}bewaren…`);
-        const bewaard = await bewaarWerffotoActie({
+        const bewaard = await bewaarWerffotoActie(huisId, {
           bestandId: startGroot.data.bestandId,
           duimId: startKlein.data.bestandId,
           genomenOp: tijd,

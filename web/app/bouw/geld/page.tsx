@@ -17,6 +17,7 @@ import {
   type Poststand,
 } from "@/lib/bouw/geld";
 import { laadGeld, type Geldgegevens } from "@/lib/bouw/geld-laden";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { sleutelVan } from "@/lib/bouw/invoer";
 import { dagenTekst, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { euroRond, meerprijsTekst } from "@/lib/bouw/keuzes";
@@ -146,10 +147,14 @@ export default async function Geldpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let g: Geldgegevens;
   let inzendingen: Inzending[];
   try {
-    [g, inzendingen] = await Promise.all([laadGeld(), lijstInzendingen({ status: "nieuw", soorten: ["offerte", "factuur"] })]);
+    [g, inzendingen] = await Promise.all([
+      laadGeld(huis),
+      lijstInzendingen(huis.id, { status: "nieuw", soorten: ["offerte", "factuur"] }),
+    ]);
   } catch (fout) {
     return (
       <>
@@ -184,7 +189,7 @@ export default async function Geldpagina({
         inclusief btw.
       </p>
 
-      <Geldmenu actief="posten" />
+      <Geldmenu huisId={huis.id} actief="posten" />
       <Melding soort={soort} melding={melding} />
 
       {inzendingen.length > 0 ? (
@@ -211,7 +216,7 @@ export default async function Geldpagina({
                     </span>
                   </div>
                   {inzending.opmerking ? <div className="hulp">&quot;{inzending.opmerking}&quot;</div> : null}
-                  <form action={boekInzendingInActie} className="knoppenrij">
+                  <form action={boekInzendingInActie.bind(null, huis.id)} className="knoppenrij">
                     <input type="hidden" name="inzending_id" value={inzending.id} />
                     <select name="post_id" aria-label="Post" defaultValue={voorstel ?? ""} required={soort === "offerte"}>
                       <option value="">{soort === "offerte" ? "— kies de post —" : "— geen post —"}</option>
@@ -222,12 +227,17 @@ export default async function Geldpagina({
                       ))}
                     </select>
                     <button type="submit">Inboeken als {soort}</button>
-                    <a className="knop stil" href={`/api/bouw/document/${inzending.bestand_id}`} target="_blank" rel="noopener noreferrer">
+                    <a
+                      className="knop stil"
+                      href={`/api/bouw/document/${inzending.bestand_id}?huis=${huis.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       PDF
                     </a>
                     <BevestigKnop
                       vraag="Deze inzending negeren? Het bestand wordt verwijderd."
-                      formAction={negeerGeldinzendingActie}
+                      formAction={negeerGeldinzendingActie.bind(null, huis.id)}
                       className="stil"
                     >
                       Negeren
@@ -307,7 +317,7 @@ export default async function Geldpagina({
       {g.posten.length === 0 ? (
         <div className="kaart">
           <p className="leeg">Nog geen posten.</p>
-          <form action={voegStandaardpostenToeActie}>
+          <form action={voegStandaardpostenToeActie.bind(null, huis.id)}>
             <button type="submit">Begin met de gewone posten</button>
           </form>
           <p className="hulp" style={{ marginTop: 8 }}>
@@ -341,7 +351,7 @@ export default async function Geldpagina({
       <hr className="scheiding" />
 
       <h2>Post toevoegen</h2>
-      <form action={voegPostToeActie} className="kaart">
+      <form action={voegPostToeActie.bind(null, huis.id)} className="kaart">
         <Postvelden partijen={g.partijen} planning={g.planning} voorvoegsel="nieuw" />
         <p className="hulp">
           Met een taak in de planning weet de kasplanning wanneer het geld nodig is.
@@ -352,7 +362,7 @@ export default async function Geldpagina({
       </form>
 
       {g.posten.length > 0 && ontbrekend.length > 0 ? (
-        <form action={voegStandaardpostenToeActie} className="hulp" style={{ marginTop: 12 }}>
+        <form action={voegStandaardpostenToeActie.bind(null, huis.id)} className="hulp" style={{ marginTop: 12 }}>
           Nog niet in de lijst: {ontbrekend.map((standaard) => standaard.naam).join(", ")}.{" "}
           <button type="submit" className="link">
             Zet ze erbij
@@ -361,7 +371,7 @@ export default async function Geldpagina({
       ) : null}
 
       <h2 id="financiering">Financiering</h2>
-      <form action={bewaarFinancieringActie} className="kaart">
+      <form action={bewaarFinancieringActie.bind(null, huis.id)} className="kaart">
         <div className="veldenrij">
           <div>
             <label htmlFor="krediet">Bouwkrediet (€)</label>

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { adresVanApp } from "@/lib/bouw/adres";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
 import { euroBedrag } from "@/lib/bouw/geld";
+import { lijstHuizen } from "@/lib/bouw/huizen";
 import { id, tekst } from "@/lib/bouw/invoer";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import {
@@ -22,7 +23,7 @@ import { doorLink, leesLink, telUploadsVanLink, voegInzendingToe } from "@/lib/b
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import { leesBestand } from "@/lib/bouw/opslag";
 import { leesInstelling } from "@/lib/bouw/regie-opslag";
-import { CHAT_SLEUTEL } from "@/lib/bouw/ronde";
+import { CHAT_SLEUTEL, metHuisnaam } from "@/lib/bouw/ronde";
 import { leesBottoken } from "@/lib/bouw/telegram-koppeling";
 import { stuurBouwbericht } from "@/lib/bouw/telegram";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
@@ -64,6 +65,7 @@ export async function startInzendingActie(
     return mislukt(`Je stuurde vandaag al ${MAX_INZENDINGEN_PER_DAG} bestanden. Probeer het morgen opnieuw.`);
   }
   return startUpload(
+    externe.huisId,
     { naam: String(aanbod?.naam ?? ""), type: String(aanbod?.type ?? ""), grootte: Number(aanbod?.grootte) },
     DOEL_VOOR_INZENDING[soort],
     doorLink(externe.linkId),
@@ -82,7 +84,7 @@ export async function rondInzendingAfActie(
   if (!bestandId) return mislukt("Onbekend bestand.");
 
   // Enkel een bestand dat deze link zelf begon op te laden, voor deze soort.
-  const bestand = await leesBestand(bestandId);
+  const bestand = await leesBestand(externe.huisId, bestandId);
   if (!bestand || bestand.opgeladen_door !== doorLink(externe.linkId) || bestand.doel !== DOEL_VOOR_INZENDING[soort]) {
     return mislukt("Onbekend bestand.");
   }
@@ -91,15 +93,23 @@ export async function rondInzendingAfActie(
   const opmerking = tekst(String(vraag?.opmerking ?? "").slice(0, 1000));
 
   try {
-    const afgerond = await rondUploadAf(bestandId);
+    const afgerond = await rondUploadAf(externe.huisId, bestandId);
     if (!afgerond.ok) return afgerond;
-    await voegInzendingToe({ linkId: externe.linkId, partijId: externe.partijId, bestandId, opmerking, soort, ...velden.waarde });
+    await voegInzendingToe(externe.huisId, {
+      linkId: externe.linkId,
+      partijId: externe.partijId,
+      bestandId,
+      opmerking,
+      soort,
+      ...velden.waarde,
+    });
   } catch {
-    await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    await ruimOngebruikteBestandenOp(externe.huisId, [bestandId]).catch(() => undefined);
     return mislukt("Het bestand bewaren is mislukt. Probeer het opnieuw.");
   }
 
   await verwittig(
+    externe.huisId,
     `📥 ${externe.partijnaam} ${watIngestuurd(soort, velden.waarde, bestand.oorspronkelijke_naam, bestand.grootte_bytes ?? 0)}.${opmerking ? `\n\n"${opmerking}"` : ""}`,
     soort === "plan" ? "/bouw/plannen#inzendingen" : "/bouw/geld#inzendingen",
   );
@@ -118,15 +128,21 @@ function watIngestuurd(soort: SoortInzending, gegevens: Inzendgegevens, naam: st
   }`;
 }
 
-/** Via de bot van Bouw, als die er is. Een melding die niet vertrekt, mag de inzending niet tegenhouden. */
-async function verwittig(tekstVanMelding: string, pad: string): Promise<void> {
+/**
+ * Via de bot van Bouw, als die er is. Een melding die niet vertrekt, mag de
+ * inzending niet tegenhouden. Met meer huizen staat de naam van het huis erboven.
+ */
+async function verwittig(huisId: number, tekstVanMelding: string, pad: string): Promise<void> {
   let token: string | null = null;
   try {
     token = await leesBottoken();
     if (!token) return;
     const chat = Number(await leesInstelling(CHAT_SLEUTEL));
     if (!Number.isSafeInteger(chat) || chat === 0) return;
-    await stuurBouwbericht(token, chat, tekstVanMelding, `${await adresVanApp()}${pad}`);
+    const huizen = await lijstHuizen();
+    const huis = huizen.find((kandidaat) => kandidaat.id === huisId);
+    const tekst = huis ? metHuisnaam(tekstVanMelding, huis.naam, huizen.length > 1) : tekstVanMelding;
+    await stuurBouwbericht(token, chat, tekst, `${await adresVanApp()}${pad}`);
   } catch (fout) {
     console.error("Bouw: melding van een inzending niet verstuurd:", verbergToken(String(fout), token ?? ""));
   }
@@ -147,7 +163,7 @@ export async function meldHersteldActie(token: string, formulier: FormData): Pro
   const externe = await leesLink(String(token ?? "")).catch(() => null);
   if (!externe || !externe.rechten.includes("oplevering")) naar("fout", ONGELDIG);
   const puntId = id(formulier.get("punt_id"));
-  const punt = puntId ? await leesOpleverpunt(puntId) : null;
+  const punt = puntId ? await leesOpleverpunt(externe.huisId, puntId) : null;
   // Enkel een punt van deze partij.
   if (!punt || punt.partij_id !== externe.partijId) naar("fout", "Dit punt bestaat niet (meer).");
   const opmerking = tekst(String(formulier.get("opmerking") ?? "").slice(0, 1000));
@@ -155,16 +171,17 @@ export async function meldHersteldActie(token: string, formulier: FormData): Pro
   if (!stap.ok) naar("fout", "Dit punt staat al als hersteld, of is al nagekeken.");
   let bewaard = false;
   try {
-    bewaard = await zetOpleverstap(punt.id, punt.status, stap.waarde);
+    bewaard = await zetOpleverstap(externe.huisId, punt.id, punt.status, stap.waarde);
   } catch {
     naar("fout", "Bewaren mislukt. Probeer het opnieuw.");
   }
   if (!bewaard) naar("fout", "Dit punt werd net aangepast. Kijk het opnieuw na.");
 
-  const waar = await laadPlaatsen()
+  const waar = await laadPlaatsen(externe.huisId)
     .then((plaatsen) => ruimtenaamIn(plaatsen)(punt.ruimte_id))
     .catch(() => null);
   await verwittig(
+    externe.huisId,
     `🔧 ${externe.partijnaam} meldt hersteld: ${punt.titel}${waar ? ` (${waar})` : ""}.${opmerking ? `\n\n"${opmerking}"` : ""}\n\nKijk het na voor je het afvinkt.`,
     `/bouw/werf/oplevering?partij=${externe.partijId}`,
   );

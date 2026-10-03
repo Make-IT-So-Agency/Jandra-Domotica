@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -157,10 +157,26 @@ describe("een bevestiging nakijken", () => {
   });
 });
 
+/** Huis 1: een gebouw met twee verdiepingen, en een grondplan van het gelijkvloers met twee versies. */
+const huis = {
+  bouw_gebouwen: metHuis([{ id: 5, naam: "Woning", volgorde: 0 }]),
+  bouw_verdiepingen: [
+    { id: 1, gebouw_id: 5, naam: "Gelijkvloers", volgorde: 0 },
+    { id: 2, gebouw_id: 5, naam: "Verdieping", volgorde: 1 },
+  ],
+  bouw_plannen: metHuis([{ id: 10, titel: "Grondplan gelijkvloers", soort: "grondplan", gebouw_id: 5, verdieping_id: 1 }]),
+  bouw_planversies: [
+    { id: 20, plan_id: 10, bestand_id: 30, label: "v1" },
+    { id: 21, plan_id: 10, bestand_id: 31, label: "v2" },
+  ],
+};
+
 describe("ruimtes wegschrijven", () => {
   let db: ReturnType<typeof nepSupabase>;
   beforeEach(() => {
     db = nepSupabase({
+      ...huis,
+      bouw_omzettingen: [{ id: 50, planversie_id: 21 }],
       bouw_ruimtes: [
         { id: 7, verdieping_id: 1, naam: "leefruimte", soort: "leefruimte", veelhoek: [], oppervlakte_m2: "24.000" },
         { id: 8, verdieping_id: 1, naam: "berging", soort: "berging", veelhoek: [], oppervlakte_m2: "4.000" },
@@ -182,23 +198,31 @@ describe("ruimtes wegschrijven", () => {
   });
 
   it("werkt bij wat blijft, voegt toe wat nieuw is, en haalt weg wat verdwijnt", async () => {
-    const uitkomst = await schrijfRuimtes(1, 50, [rij(7, "leefruimte"), rij(null, "trapbordes")]);
+    const uitkomst = await schrijfRuimtes(1, 1, 50, [rij(7, "leefruimte"), rij(null, "trapbordes")]);
     expect(uitkomst).toEqual({ bijgewerkt: 1, nieuw: 1, verwijderd: 1 });
-    expect((await lijstRuimtes(1)).map((r) => [r.naam, r.omzetting_id])).toEqual([
+    expect((await lijstRuimtes(1, 1)).map((r) => [r.naam, r.omzetting_id])).toEqual([
       ["leefruimte", 50],
       ["trapbordes", 50],
     ]);
     // Een andere verdieping blijft ongemoeid.
-    expect((await lijstRuimtes(2)).map((r) => r.id)).toEqual([9]);
+    expect((await lijstRuimtes(1, 2)).map((r) => r.id)).toEqual([9]);
   });
 
   it("weigert een ruimte van een andere verdieping", async () => {
-    await expect(schrijfRuimtes(1, 50, [rij(9, "slaapkamer")])).rejects.toThrow("hoort niet (meer) bij deze verdieping");
+    await expect(schrijfRuimtes(1, 1, 50, [rij(9, "slaapkamer")])).rejects.toThrow("hoort niet (meer) bij deze verdieping");
+  });
+});
+
+describe("een omzetting bewaren", () => {
+  let db: ReturnType<typeof nepSupabase>;
+  beforeEach(() => {
+    db = nepSupabase(huis);
+    nep.client = db.client;
   });
 
   it("bewaart een omzetting één keer per versie", async () => {
-    const eerste = await bewaarOmzetting({ planversie_id: 21, werkwijze: 1, voorstel: { a: 1 }, bevestigd_door: "jan@example.be" });
-    const tweede = await bewaarOmzetting({ planversie_id: 21, werkwijze: 1, voorstel: { a: 2 }, bevestigd_door: "jan@example.be" });
+    const eerste = await bewaarOmzetting(1, { planversie_id: 21, werkwijze: 1, voorstel: { a: 1 }, bevestigd_door: "jan@example.be" });
+    const tweede = await bewaarOmzetting(1, { planversie_id: 21, werkwijze: 1, voorstel: { a: 2 }, bevestigd_door: "jan@example.be" });
     expect(tweede).toBe(eerste);
     expect(db.tabellen.bouw_omzettingen).toHaveLength(1);
     expect(db.tabellen.bouw_omzettingen[0].voorstel).toEqual({ a: 2 });

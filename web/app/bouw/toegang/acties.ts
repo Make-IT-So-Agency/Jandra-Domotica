@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { adresVanApp } from "@/lib/bouw/adres";
+import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { id } from "@/lib/bouw/invoer";
 import { MAX_GELDIG_DAGEN, schoneRechten } from "@/lib/bouw/linkregels";
 import { maakLink, trekLinkIn } from "@/lib/bouw/links";
 import { lijstPartijen } from "@/lib/bouw/opslag";
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
-import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 const PAD = "/bouw/toegang";
 
@@ -17,16 +17,20 @@ const PAD = "/bouw/toegang";
  * Maakt een link en geeft ze één keer terug: enkel de hash wordt bewaard. De
  * browser toont ze, met een knop om te kopiëren of te mailen.
  */
-export async function maakLinkActie(vraag: {
-  partijId: number;
-  rechten: string[];
-  vervaltOp: string;
-}): Promise<Uitkomst<{ url: string; vervaltOp: string }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+export async function maakLinkActie(
+  huisId: unknown,
+  vraag: {
+    partijId: number;
+    rechten: string[];
+    vervaltOp: string;
+  },
+): Promise<Uitkomst<{ url: string; vervaltOp: string }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const { ik, huis } = toegang;
 
   const partijId = id(String(vraag?.partijId));
-  const partij = partijId ? (await lijstPartijen()).find((p) => p.id === partijId) : undefined;
+  const partij = partijId ? (await lijstPartijen(huis.id)).find((p) => p.id === partijId) : undefined;
   if (!partij) return mislukt("Kies voor wie de link is.");
 
   const rechten = schoneRechten(Array.isArray(vraag.rechten) ? vraag.rechten : []);
@@ -43,7 +47,7 @@ export async function maakLinkActie(vraag: {
   }
 
   try {
-    const { token } = await maakLink({ partijId: partij.id, rechten, vervaltOp, door: ik.email });
+    const { token } = await maakLink(huis.id, { partijId: partij.id, rechten, vervaltOp, door: ik.email });
     revalidatePath(PAD);
     return gelukt({ url: `${await adresVanApp()}/extern/${token}`, vervaltOp: vervaltOp.toISOString() });
   } catch (fout) {
@@ -51,12 +55,12 @@ export async function maakLinkActie(vraag: {
   }
 }
 
-export async function trekLinkInActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function trekLinkInActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const linkId = id(formulier.get("id"));
   if (!linkId) terug(PAD, "fout", "Onbekende link.");
   try {
-    await trekLinkIn(linkId);
+    await trekLinkIn(huis.id, linkId);
   } catch (fout) {
     terug(PAD, "fout", foutmelding(fout, "Intrekken mislukt."));
   }

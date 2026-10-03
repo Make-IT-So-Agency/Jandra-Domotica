@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { lijstRuimtes } from "@/lib/bouw/opslag";
 import { checklistVoor } from "@/lib/bouw/werf";
 import { laadPlaatsen } from "@/lib/bouw/werf-laden";
@@ -19,7 +20,13 @@ export default async function Checklistpagina() {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [plaatsen, ruimtes, vinkjes, fotos] = await Promise.all([laadPlaatsen(), lijstRuimtes(), lijstVinkjes(), lijstWerffotos()]);
+  const huis = await standaardHuis();
+  const [plaatsen, ruimtes, vinkjes, fotos] = await Promise.all([
+    laadPlaatsen(huis.id),
+    lijstRuimtes(huis.id),
+    lijstVinkjes(huis.id),
+    lijstWerffotos(huis.id),
+  ]);
   const soortVan = new Map(ruimtes.map((ruimte) => [ruimte.id, ruimte.soort]));
   const vinkjeVan = (ruimteId: number, sleutel: string) => vinkjes.find((v) => v.ruimte_id === ruimteId && v.sleutel === sleutel);
   const aantalFotos = (ruimteId: number) => fotos.filter((foto) => foto.ruimte_id === ruimteId).length;
@@ -70,6 +77,7 @@ export default async function Checklistpagina() {
                           return (
                             <Vinkje
                               key={punt.sleutel}
+                              huisId={huis.id}
                               ruimteId={ruimte.id}
                               sleutel={punt.sleutel}
                               tekst={punt.tekst}
@@ -80,7 +88,13 @@ export default async function Checklistpagina() {
                         })}
                       </ul>
                       <div className="knoppenrij" style={{ marginTop: 8 }}>
-                        <Werffotoknop standaardRuimte={ruimte.id} groepen={[{ id: plaats.id, naam: plaats.naam, ruimtes: [{ id: ruimte.id, naam: ruimte.naam }] }]} compact label="📷 Foto's" />
+                        <Werffotoknop
+                          huisId={huis.id}
+                          standaardRuimte={ruimte.id}
+                          groepen={[{ id: plaats.id, naam: plaats.naam, ruimtes: [{ id: ruimte.id, naam: ruimte.naam }] }]}
+                          compact
+                          label="📷 Foto's"
+                        />
                         {fotoTelling > 0 ? (
                           <Link className="knop stil" href={`/bouw/werf?ruimte=${ruimte.id}`}>
                             {fotoTelling === 1 ? "1 foto" : `${fotoTelling} foto's`}

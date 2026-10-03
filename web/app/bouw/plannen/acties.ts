@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import type { Aanbod } from "@/lib/bouw/bestanden";
 import { bekijkDossier, leesDossierIn } from "@/lib/bouw/dossier-inlezen";
 import { controleerAanvraag, type Dossieraanvraag, type Dossieruitkomst } from "@/lib/bouw/dossierregels";
+import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
 import { datum, id, tekst } from "@/lib/bouw/invoer";
 import { korteNaam } from "@/lib/bouw/keuzes";
 import { leesInzending, zetInzendingStatus } from "@/lib/bouw/links";
@@ -24,7 +25,6 @@ import {
 import { tijdelijkeUrl } from "@/lib/bouw/opslagruimte";
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { gelukt, isSoortPlan, mislukt, type Uitkomst } from "@/lib/bouw/types";
-import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 const LIJST = "/bouw/plannen";
 const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
@@ -48,54 +48,54 @@ function leesPlanformulier(formulier: FormData, terugNaar: string): NieuwPlan {
   };
 }
 
-export async function voegPlanToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegPlanToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const plan = leesPlanformulier(formulier, LIJST);
   let planId: number;
   try {
-    planId = await voegPlanToe(plan);
+    planId = await voegPlanToe(huis.id, plan);
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(`${LIJST}/${planId}`, "goed", "Plan aangemaakt. Laad nu de eerste versie op.");
 }
 
-export async function wijzigPlanActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigPlanActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const planId = id(formulier.get("id"));
   if (!planId) terug(LIJST, "fout", "Onbekend plan.");
   const pagina = `${LIJST}/${planId}`;
   const plan = leesPlanformulier(formulier, pagina);
   try {
-    await wijzigPlan(planId, plan);
+    await wijzigPlan(huis.id, planId, plan);
   } catch (fout) {
     terug(pagina, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(pagina, "goed", "Plan bewaard.");
 }
 
-export async function verwijderPlanActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderPlanActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const planId = id(formulier.get("id"));
   if (!planId) terug(LIJST, "fout", "Onbekend plan.");
   try {
-    const bestanden = await verwijderPlan(planId);
-    await ruimOngebruikteBestandenOp(bestanden);
+    const bestanden = await verwijderPlan(huis.id, planId);
+    await ruimOngebruikteBestandenOp(huis.id, bestanden);
   } catch (fout) {
     terug(`${LIJST}/${planId}`, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
   terug(LIJST, "goed", "Plan en versies verwijderd.");
 }
 
-export async function verwijderVersieActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderVersieActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const versieId = id(formulier.get("versie_id"));
   const planId = id(formulier.get("plan_id"));
   if (!versieId || !planId) terug(LIJST, "fout", "Onbekende versie.");
   const pagina = `${LIJST}/${planId}`;
   try {
-    const bestandId = await verwijderVersie(versieId);
-    if (bestandId) await ruimOngebruikteBestandenOp([bestandId]);
+    const bestandId = await verwijderVersie(huis.id, versieId);
+    if (bestandId) await ruimOngebruikteBestandenOp(huis.id, [bestandId]);
   } catch (fout) {
     terug(pagina, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -103,11 +103,11 @@ export async function verwijderVersieActie(formulier: FormData): Promise<void> {
 }
 
 /** Het oorspronkelijke bestand downloaden, onder zijn eigen naam. */
-export async function downloadVersieActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function downloadVersieActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const versieId = id(formulier.get("versie_id"));
-  const versie = versieId ? await leesVersie(versieId) : null;
-  const bestand = versie ? await leesBestand(versie.bestand_id) : null;
+  const versie = versieId ? await leesVersie(huis.id, versieId) : null;
+  const bestand = versie ? await leesBestand(huis.id, versie.bestand_id) : null;
   if (!versie || !bestand || bestand.status !== "klaar") terug(LIJST, "fout", "Dit bestand is er niet meer.");
 
   let url: string;
@@ -138,14 +138,14 @@ function leesLabel(label: unknown): string | null {
  * Stap 1 van het opladen. Kijkt eerst na of het label nog vrij is, zodat een
  * dubbel label niet pas na het opladen van 40 MB opvalt.
  */
-export async function vraagUploadAan(vraag: Uploadvraag): Promise<Uitkomst<Gestart>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function vraagUploadAan(huisId: unknown, vraag: Uploadvraag): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const label = leesLabel(vraag.label);
   if (!label) return mislukt("Geef de versie een label van hoogstens 40 tekens, bv. v3 of vergunning.");
   const planId = id(String(vraag.planId));
-  const plan = planId ? await leesPlan(planId) : null;
+  const plan = planId ? await leesPlan(toegang.huis.id, planId) : null;
   if (!plan) return mislukt("Dit plan bestaat niet meer.");
   if (plan.versies.some((versie) => versie.label === label)) {
     return mislukt(`Dit plan heeft al een versie "${label}".`);
@@ -153,9 +153,10 @@ export async function vraagUploadAan(vraag: Uploadvraag): Promise<Uitkomst<Gesta
 
   try {
     return await startUpload(
+      toegang.huis.id,
       { naam: String(vraag.naam ?? ""), type: String(vraag.type ?? ""), grootte: Number(vraag.grootte) },
       "plan",
-      ik.email,
+      toegang.ik.email,
     );
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
@@ -171,9 +172,9 @@ export interface Nieuweversievraag {
 }
 
 /** Stap 3: het bestand nakijken en de versie aanmaken. Werkt ook met een PDF die er al staat. */
-export async function voegVersieToeActie(vraag: Nieuweversievraag): Promise<Uitkomst<{ versieId: number }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function voegVersieToeActie(huisId: unknown, vraag: Nieuweversievraag): Promise<Uitkomst<{ versieId: number }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const label = leesLabel(vraag.label);
   if (!label) return mislukt("Geef de versie een label van hoogstens 40 tekens.");
@@ -184,11 +185,11 @@ export async function voegVersieToeActie(vraag: Nieuweversievraag): Promise<Uitk
   if (!Number.isInteger(pagina) || pagina < 1 || pagina > 9999) return mislukt("Kies een geldige pagina.");
 
   try {
-    const afgerond = await rondUploadAf(bestandId);
+    const afgerond = await rondUploadAf(toegang.huis.id, bestandId);
     if (!afgerond.ok) return afgerond;
     if (afgerond.data.doel !== "plan") return mislukt("Dit bestand is geen plan.");
 
-    const versieId = await voegVersieToe({
+    const versieId = await voegVersieToe(toegang.huis.id, {
       plan_id: planId,
       bestand_id: bestandId,
       label,
@@ -199,18 +200,18 @@ export async function voegVersieToeActie(vraag: Nieuweversievraag): Promise<Uitk
     return gelukt({ versieId });
   } catch (fout) {
     // Een nieuw bestand dat toch geen versie werd, mag niet blijven rondslingeren.
-    await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    await ruimOngebruikteBestandenOp(toegang.huis.id, [bestandId]).catch(() => undefined);
     return mislukt(foutmelding(fout, "De versie bewaren is mislukt."));
   }
 }
 
 /** Een URL om een versie te tonen, twee minuten geldig. Enkel nodig als de browser het plan nog niet bewaard heeft. */
-export async function vraagPlanUrl(versieId: number): Promise<Uitkomst<{ url: string }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function vraagPlanUrl(huisId: unknown, versieId: number): Promise<Uitkomst<{ url: string }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
-  const versie = await leesVersie(Number(versieId));
-  const bestand = versie ? await leesBestand(versie.bestand_id) : null;
+  const versie = await leesVersie(toegang.huis.id, Number(versieId));
+  const bestand = versie ? await leesBestand(toegang.huis.id, versie.bestand_id) : null;
   if (!versie || !bestand || bestand.status !== "klaar") return mislukt("Dit plan is er niet meer.");
 
   try {
@@ -233,20 +234,21 @@ export interface Dossieruploadvraag {
  * Stap 1: kijkt het nagekeken voorstel na (labels die al bestaan, bladen die
  * bij hetzelfde plan horen), nog voor de PDF opgeladen wordt.
  */
-export async function vraagDossierUploadAan(vraag: Dossieruploadvraag): Promise<Uitkomst<Gestart>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function vraagDossierUploadAan(huisId: unknown, vraag: Dossieruploadvraag): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const aanvraag = controleerAanvraag(vraag?.aanvraag);
   if (!aanvraag.ok) return aanvraag;
   try {
-    const { fouten } = await bekijkDossier(aanvraag.data);
+    const { fouten } = await bekijkDossier(toegang.huis.id, aanvraag.data);
     if (fouten.length > 0) return mislukt(fouten.join(" "));
     const aanbod = vraag.aanbod ?? {};
     return await startUpload(
+      toegang.huis.id,
       { naam: String(aanbod.naam ?? ""), type: String(aanbod.type ?? ""), grootte: Number(aanbod.grootte) },
       "plan",
-      ik.email,
+      toegang.ik.email,
     );
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
@@ -254,12 +256,12 @@ export async function vraagDossierUploadAan(vraag: Dossieruploadvraag): Promise<
 }
 
 /** Stap 3: het bestand nakijken en het dossier wegschrijven. */
-export async function leesDossierInActie(vraag: {
-  bestandId: number;
-  aanvraag: Dossieraanvraag;
-}): Promise<Uitkomst<Dossieruitkomst>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function leesDossierInActie(
+  huisId: unknown,
+  vraag: { bestandId: number; aanvraag: Dossieraanvraag },
+): Promise<Uitkomst<Dossieruitkomst>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const aanvraag = controleerAanvraag(vraag?.aanvraag);
   if (!aanvraag.ok) return aanvraag;
@@ -268,15 +270,15 @@ export async function leesDossierInActie(vraag: {
 
   let uitkomst: Uitkomst<Dossieruitkomst>;
   try {
-    const afgerond = await rondUploadAf(bestandId);
+    const afgerond = await rondUploadAf(toegang.huis.id, bestandId);
     if (!afgerond.ok) return afgerond;
     if (afgerond.data.doel !== "plan") return mislukt("Dit bestand is geen plan.");
-    uitkomst = await leesDossierIn(aanvraag.data, bestandId);
+    uitkomst = await leesDossierIn(toegang.huis.id, aanvraag.data, bestandId);
   } catch (fout) {
     uitkomst = mislukt(foutmelding(fout, "Het dossier inlezen is mislukt."));
   }
   // Een PDF waar geen enkele versie uit kwam, mag niet blijven rondslingeren.
-  if (!uitkomst.ok) await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+  if (!uitkomst.ok) await ruimOngebruikteBestandenOp(toegang.huis.id, [bestandId]).catch(() => undefined);
   revalidatePath("/bouw", "layout");
   return uitkomst;
 }
@@ -286,11 +288,11 @@ export async function leesDossierInActie(vraag: {
 // ---------------------------------------------------------------------------
 
 /** Een URL om een ingestuurd dossier in de browser te lezen, een minuut geldig. */
-export async function vraagInzendingUrl(inzendingId: number): Promise<Uitkomst<{ url: string }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
-  const inzending = await leesInzending(Number(inzendingId));
-  const bestand = inzending ? await leesBestand(inzending.bestand_id) : null;
+export async function vraagInzendingUrl(huisId: unknown, inzendingId: number): Promise<Uitkomst<{ url: string }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  const inzending = await leesInzending(toegang.huis.id, Number(inzendingId));
+  const bestand = inzending ? await leesBestand(toegang.huis.id, inzending.bestand_id) : null;
   if (!inzending || !bestand || bestand.status !== "klaar") return mislukt("Dit bestand is er niet meer.");
   try {
     return gelukt({ url: await tijdelijkeUrl(bestand.pad, 60) });
@@ -303,26 +305,26 @@ export async function vraagInzendingUrl(inzendingId: number): Promise<Uitkomst<{
  * Een ingestuurd dossier inlezen. Zoals leesDossierInActie, maar het bestand
  * staat er al: niets op te laden, en niets weg te gooien als het mislukt.
  */
-export async function leesInzendingInActie(vraag: {
-  inzendingId: number;
-  aanvraag: Dossieraanvraag;
-}): Promise<Uitkomst<Dossieruitkomst & { bestandId: number }>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt(GEEN_TOEGANG);
+export async function leesInzendingInActie(
+  huisId: unknown,
+  vraag: { inzendingId: number; aanvraag: Dossieraanvraag },
+): Promise<Uitkomst<Dossieruitkomst & { bestandId: number }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
 
   const aanvraag = controleerAanvraag(vraag?.aanvraag);
   if (!aanvraag.ok) return aanvraag;
-  const inzending = await leesInzending(Number(vraag?.inzendingId));
+  const inzending = await leesInzending(toegang.huis.id, Number(vraag?.inzendingId));
   if (!inzending) return mislukt("Deze inzending bestaat niet meer.");
   if (inzending.soort !== "plan") return mislukt("Een offerte of factuur boek je in bij Geld.");
   if (inzending.status !== "nieuw") return mislukt("Deze inzending is al ingelezen of genegeerd.");
 
   try {
-    const { fouten } = await bekijkDossier(aanvraag.data);
+    const { fouten } = await bekijkDossier(toegang.huis.id, aanvraag.data);
     if (fouten.length > 0) return mislukt(fouten.join(" "));
-    const uitkomst = await leesDossierIn(aanvraag.data, inzending.bestand_id);
+    const uitkomst = await leesDossierIn(toegang.huis.id, aanvraag.data, inzending.bestand_id);
     if (!uitkomst.ok) return uitkomst;
-    await zetInzendingStatus(inzending.id, "verwerkt", korteNaam(ik.naam, ik.email));
+    await zetInzendingStatus(toegang.huis.id, inzending.id, "verwerkt", korteNaam(toegang.ik.naam, toegang.ik.email));
     revalidatePath("/bouw", "layout");
     return gelukt({ ...uitkomst.data, bestandId: inzending.bestand_id });
   } catch (fout) {
@@ -331,11 +333,11 @@ export async function leesInzendingInActie(vraag: {
 }
 
 /** Downloaden zoals een versie, onder de naam waaronder het ingestuurd werd. */
-export async function downloadInzendingActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function downloadInzendingActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const inzendingId = id(formulier.get("id"));
-  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
-  const bestand = inzending ? await leesBestand(inzending.bestand_id) : null;
+  const inzending = inzendingId ? await leesInzending(huis.id, inzendingId) : null;
+  const bestand = inzending ? await leesBestand(huis.id, inzending.bestand_id) : null;
   if (!inzending || !bestand || bestand.status !== "klaar") terug(LIJST, "fout", "Dit bestand is er niet meer.");
 
   let url: string;
@@ -348,14 +350,14 @@ export async function downloadInzendingActie(formulier: FormData): Promise<void>
 }
 
 /** Niet nodig: weg ermee, ook uit de opslag. */
-export async function negeerInzendingActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function negeerInzendingActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const inzendingId = id(formulier.get("id"));
-  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  const inzending = inzendingId ? await leesInzending(huis.id, inzendingId) : null;
   if (!inzending) terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
   try {
-    await zetInzendingStatus(inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
-    await ruimOngebruikteBestandenOp([inzending.bestand_id]);
+    await zetInzendingStatus(huis.id, inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
+    await ruimOngebruikteBestandenOp(huis.id, [inzending.bestand_id]);
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Negeren mislukt."));
   }

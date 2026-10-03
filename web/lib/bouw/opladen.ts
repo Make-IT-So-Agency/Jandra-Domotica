@@ -25,6 +25,8 @@ import { gelukt, mislukt, type Bestand, type Uitkomst } from "./types";
  *
  * Een upload die nooit afgerond wordt, blijft op "wacht" staan en wordt na
  * drie uur opgeruimd. De toelating zelf is twee uur geldig.
+ *
+ * Een bestand hoort bij het huis waarvoor het opgeladen werd.
  */
 
 const VERLATEN_NA_MS = 3 * 60 * 60 * 1000;
@@ -35,7 +37,7 @@ export interface Gestart {
   contentType: string;
 }
 
-export async function startUpload(aanbod: Aanbod, doel: Doel, door: string): Promise<Uitkomst<Gestart>> {
+export async function startUpload(huisId: number, aanbod: Aanbod, doel: Doel, door: string): Promise<Uitkomst<Gestart>> {
   const controle = controleerUpload(aanbod, doel);
   if (!controle.ok) return mislukt(controle.melding);
 
@@ -44,7 +46,7 @@ export async function startUpload(aanbod: Aanbod, doel: Doel, door: string): Pro
     console.error("Bouw: verlaten uploads opruimen mislukt", fout instanceof Error ? fout.message : fout);
   });
 
-  const bestand = await registreerBestand({
+  const bestand = await registreerBestand(huisId, {
     pad: maakPad(doel, randomUUID()),
     doel,
     oorspronkelijke_naam: aanbod.naam.slice(0, 255),
@@ -68,8 +70,8 @@ async function gooiWeg(bestand: Bestand): Promise<void> {
   await verwijderBestandRij(bestand.id).catch(() => undefined);
 }
 
-export async function rondUploadAf(bestandId: number): Promise<Uitkomst<Bestand>> {
-  const bestand = await leesBestand(bestandId);
+export async function rondUploadAf(huisId: number, bestandId: number): Promise<Uitkomst<Bestand>> {
+  const bestand = await leesBestand(huisId, bestandId);
   if (!bestand) return mislukt("Dit bestand is niet (meer) gekend. Laad het opnieuw op.");
   if (bestand.status === "klaar") return gelukt(bestand);
 
@@ -99,11 +101,11 @@ export async function rondUploadAf(bestandId: number): Promise<Uitkomst<Bestand>
   return gelukt({ ...bestand, status: "klaar", grootte_bytes: info.grootte });
 }
 
-/** Ruimt bestanden op die geen versie of optie nog gebruikt, bv. na het verwijderen van een plan. */
-export async function ruimOngebruikteBestandenOp(ids: number[]): Promise<void> {
+/** Ruimt bestanden van het huis op die geen versie of optie nog gebruikt, bv. na het verwijderen van een plan. */
+export async function ruimOngebruikteBestandenOp(huisId: number, ids: number[]): Promise<void> {
   for (const bestandId of ids) {
     if (await wordtGebruikt(bestandId)) continue;
-    const bestand = await leesBestand(bestandId);
+    const bestand = await leesBestand(huisId, bestandId);
     if (bestand) await gooiWeg(bestand);
   }
 }

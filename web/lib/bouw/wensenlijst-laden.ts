@@ -1,17 +1,17 @@
 import "server-only";
 
-import { leesProject, lijstGebouwen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "./opslag";
+import { lijstGebouwen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "./opslag";
 import { maakWensenlijst, type Wensenlijst } from "./punten";
+import type { Huis } from "./types";
 import { sorteerVerdiepingen, verdiepingNaam } from "./weergave";
 
-/** De wensenlijst van het hele project, met de projectnaam voor op de PDF. */
-export async function laadWensenlijst(): Promise<{ lijst: Wensenlijst; project: string | null }> {
-  const [gebouwen, verdiepingen, ruimtes, punten, project] = await Promise.all([
-    lijstGebouwen(),
-    lijstVerdiepingen(),
-    lijstRuimtes(),
-    lijstPunten(),
-    leesProject(),
+/** De wensenlijst van een huis, met de projectnaam voor op de PDF. */
+export async function laadWensenlijst(huis: Huis): Promise<{ lijst: Wensenlijst; project: string | null }> {
+  const [gebouwen, verdiepingen, ruimtes, punten] = await Promise.all([
+    lijstGebouwen(huis.id),
+    lijstVerdiepingen(huis.id),
+    lijstRuimtes(huis.id),
+    lijstPunten(huis.id),
   ]);
   const lijst = maakWensenlijst(
     sorteerVerdiepingen(verdiepingen, gebouwen).map((v) => ({
@@ -28,5 +28,5 @@ export async function laadWensenlijst(): Promise<{ lijst: Wensenlijst; project: 
     })),
     punten,
   );
-  return { lijst, project: project.projectnaam };
+  return { lijst, project: huis.projectnaam };
 }

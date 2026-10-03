@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -192,13 +192,17 @@ describe("de werf in de databank", () => {
   let db: ReturnType<typeof nepSupabase>;
   beforeEach(() => {
     db = nepSupabase({
+      bouw_partijen: metHuis([{ id: 4, soort: "aannemer", naam: "Bouwbedrijf Voorbeeld" }]),
+      bouw_gebouwen: metHuis([{ id: 1, naam: "Woning", volgorde: 0 }]),
+      bouw_verdiepingen: [{ id: 2, gebouw_id: 1, naam: "Gelijkvloers", volgorde: 0 }],
+      bouw_ruimtes: [{ id: 5, verdieping_id: 2, naam: "badkamer", soort: "badkamer", veelhoek: [] }],
       bouw_opleverpunten: [],
       bouw_werffotos: [],
       bouw_checklist: [],
-      bouw_bestanden: [
+      bouw_bestanden: metHuis([
         { id: 80, pad: "fotos/werf.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg" },
         { id: 81, pad: "fotos/werf-klein.jpg", doel: "foto", status: "klaar", oorspronkelijke_naam: "IMG.jpg" },
-      ],
+      ]),
       bouw_planversies: [],
       bouw_opties: [],
       bouw_offertes: [],
@@ -209,35 +213,35 @@ describe("de werf in de databank", () => {
   });
 
   it("bewaart een stap enkel als het punt nog in dezelfde stand staat", async () => {
-    const id = await voegOpleverpuntToe({
+    const id = await voegOpleverpuntToe(1, {
       titel: "Barst in de voeg", omschrijving: null, partij_id: 4, verdieping_id: null, ruimte_id: null, x_m: null, y_m: null, ronde: "voorlopig", door: "Jan",
     });
-    const punt = (await leesOpleverpunt(id)) as Opleverpunt;
+    const punt = (await leesOpleverpunt(1, id)) as Opleverpunt;
     const stap = pasStapToe(punt, "melden", "wij", "Jan", NU);
     if (!stap.ok) throw new Error(stap.melding);
-    expect(await zetOpleverstap(id, "open", stap.waarde)).toBe(true);
+    expect(await zetOpleverstap(1, id, "open", stap.waarde)).toBe(true);
     // Iemand anders drukte ook: het punt staat niet meer op open.
-    expect(await zetOpleverstap(id, "open", stap.waarde)).toBe(false);
-    expect(await leesOpleverpunt(id)).toMatchObject({ status: "gemeld" });
+    expect(await zetOpleverstap(1, id, "open", stap.waarde)).toBe(false);
+    expect(await leesOpleverpunt(1, id)).toMatchObject({ status: "gemeld" });
   });
 
   it("vinkt aan en weer af, één keer per ruimte en punt", async () => {
-    await zetVinkje(5, "sanitair", true, "Jan");
-    await zetVinkje(5, "sanitair", true, "Sandra");
-    expect(await lijstVinkjes()).toEqual([expect.objectContaining({ ruimte_id: 5, sleutel: "sanitair", door: "Sandra" })]);
-    await zetVinkje(5, "sanitair", false, "Jan");
-    expect(await lijstVinkjes()).toEqual([]);
+    await zetVinkje(1, 5, "sanitair", true, "Jan");
+    await zetVinkje(1, 5, "sanitair", true, "Sandra");
+    expect(await lijstVinkjes(1)).toEqual([expect.objectContaining({ ruimte_id: 5, sleutel: "sanitair", door: "Sandra" })]);
+    await zetVinkje(1, 5, "sanitair", false, "Jan");
+    expect(await lijstVinkjes(1)).toEqual([]);
   });
 
   it("houdt de foto in de opslag zolang de werf ze gebruikt", async () => {
-    const fotoId = await voegWerffotoToe({
+    const fotoId = await voegWerffotoToe(1, {
       bestand_id: 80, duim_bestand_id: 81, genomen_op: "2026-10-02T08:00:00Z", onderschrift: "Leidingen keuken", verdieping_id: null,
       ruimte_id: null, x_m: null, y_m: null, dagboek_id: null, opleverpunt_id: null, door: "Jan",
     });
-    await ruimOngebruikteBestandenOp([80, 81]);
+    await ruimOngebruikteBestandenOp(1, [80, 81]);
     expect(db.verwijderd).toEqual([]);
-    expect(await verwijderWerffoto(fotoId)).toEqual([80, 81]);
-    await ruimOngebruikteBestandenOp([80, 81]);
+    expect(await verwijderWerffoto(1, fotoId)).toEqual([80, 81]);
+    await ruimOngebruikteBestandenOp(1, [80, 81]);
     expect(db.verwijderd).toEqual(["fotos/werf.jpg", "fotos/werf-klein.jpg"]);
   });
 });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -206,22 +206,25 @@ describe("het dossier in de databank", () => {
       bouw_onderhoud: [],
       bouw_onderhoudsbeurten: [],
       bouw_documenten: [],
-      bouw_bestanden: [{ id: 90, pad: "documenten/keuring.pdf", doel: "document", status: "klaar", oorspronkelijke_naam: "keuring.pdf" }],
+      bouw_bestanden: metHuis([
+        { id: 90, pad: "documenten/keuring.pdf", doel: "document", status: "klaar", oorspronkelijke_naam: "keuring.pdf" },
+      ]),
     });
     nep.client = db.client;
   });
 
   it("schuift laatst gedaan enkel vooruit, en bewaart elke beurt", async () => {
     const id = await voegOnderhoudToe(
+      1,
       { wat: "Rookmelders testen", interval_maanden: 6, laatst_gedaan: "2026-09-01", partij_id: null, opmerking: null },
       "Jan",
     );
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-08-01", "Jan", "vergeten te noteren");
-    expect(await leesOnderhoud(id)).toMatchObject({ laatst_gedaan: "2026-09-01" });
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-10-02", "Sandra", null);
-    expect(await leesOnderhoud(id)).toMatchObject({ laatst_gedaan: "2026-10-02" });
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-08-01", "Jan", "vergeten te noteren");
+    expect(await leesOnderhoud(1, id)).toMatchObject({ laatst_gedaan: "2026-09-01" });
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-10-02", "Sandra", null);
+    expect(await leesOnderhoud(1, id)).toMatchObject({ laatst_gedaan: "2026-10-02" });
     // De datum van bij het toevoegen is ook een beurt.
-    expect((await lijstBeurten()).map((beurt) => [beurt.datum, beurt.door, beurt.opmerking])).toEqual([
+    expect((await lijstBeurten(1)).map((beurt) => [beurt.datum, beurt.door, beurt.opmerking])).toEqual([
       ["2026-10-02", "Sandra", null],
       ["2026-09-01", "Jan", null],
       ["2026-08-01", "Jan", "vergeten te noteren"],
@@ -229,37 +232,37 @@ describe("het dossier in de databank", () => {
   });
 
   it("telt een dubbele tik één keer", async () => {
-    const id = await voegOnderhoudToe({ wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null });
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-10-02", "Jan", "met soda");
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-10-02", "Jan", null);
-    expect((await lijstBeurten()).map((beurt) => [beurt.datum, beurt.opmerking])).toEqual([["2026-10-02", "met soda"]]);
+    const id = await voegOnderhoudToe(1, { wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null });
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-10-02", "Jan", "met soda");
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-10-02", "Jan", null);
+    expect((await lijstBeurten(1)).map((beurt) => [beurt.datum, beurt.opmerking])).toEqual([["2026-10-02", "met soda"]]);
   });
 
   it("schrapt een verkeerde beurt, en laatst gedaan wordt weer de vorige", async () => {
-    const id = await voegOnderhoudToe({ wat: "Dakgoten reinigen", interval_maanden: 12, laatst_gedaan: "2025-10-01", partij_id: null, opmerking: null });
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-10-02", "Jan", null);
-    const [verkeerd, eerste] = await lijstBeurten();
-    expect(await verwijderBeurt(verkeerd.id)).toBe(id);
-    expect(await leesOnderhoud(id)).toMatchObject({ laatst_gedaan: "2025-10-01" });
-    await verwijderBeurt(eerste.id);
-    expect(await leesOnderhoud(id)).toMatchObject({ laatst_gedaan: null });
-    expect(await verwijderBeurt(eerste.id)).toBeNull();
+    const id = await voegOnderhoudToe(1, { wat: "Dakgoten reinigen", interval_maanden: 12, laatst_gedaan: "2025-10-01", partij_id: null, opmerking: null });
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-10-02", "Jan", null);
+    const [verkeerd, eerste] = await lijstBeurten(1);
+    expect(await verwijderBeurt(1, verkeerd.id)).toBe(id);
+    expect(await leesOnderhoud(1, id)).toMatchObject({ laatst_gedaan: "2025-10-01" });
+    await verwijderBeurt(1, eerste.id);
+    expect(await leesOnderhoud(1, id)).toMatchObject({ laatst_gedaan: null });
+    expect(await verwijderBeurt(1, eerste.id)).toBeNull();
   });
 
   it("maakt van de eerste beurt de laatste", async () => {
-    const id = await voegOnderhoudToe({ wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null });
-    await registreerBeurt((await leesOnderhoud(id))!, "2026-09-15", "Jan", null);
-    expect(await leesOnderhoud(id)).toMatchObject({ laatst_gedaan: "2026-09-15" });
+    const id = await voegOnderhoudToe(1, { wat: "Sifons reinigen", interval_maanden: 6, laatst_gedaan: null, partij_id: null, opmerking: null });
+    await registreerBeurt(1, (await leesOnderhoud(1, id))!, "2026-09-15", "Jan", null);
+    expect(await leesOnderhoud(1, id)).toMatchObject({ laatst_gedaan: "2026-09-15" });
   });
 
   it("houdt een PDF in de opslag zolang het dossier ze gebruikt", async () => {
-    const id = await voegDocumentToe({
+    const id = await voegDocumentToe(1, {
       bestand_id: 90, soort: "arei", titel: "Keuringsverslag", partij_id: null, datum: "2026-09-30", opmerking: null, door: "Jan",
     });
-    await ruimOngebruikteBestandenOp([90]);
+    await ruimOngebruikteBestandenOp(1, [90]);
     expect(db.verwijderd).toEqual([]);
-    expect(await verwijderDocument(id)).toBe(90);
-    await ruimOngebruikteBestandenOp([90]);
+    expect(await verwijderDocument(1, id)).toBe(90);
+    await ruimOngebruikteBestandenOp(1, [90]);
     expect(db.verwijderd).toEqual(["documenten/keuring.pdf"]);
   });
 });

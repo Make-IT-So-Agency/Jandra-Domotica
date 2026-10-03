@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { dagVan, dagkop } from "@/lib/bouw/werf";
@@ -31,11 +32,16 @@ export default async function Fotopagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const fotoId = leesId(id);
-  const foto = fotoId ? await leesWerffoto(fotoId) : null;
+  const foto = fotoId ? await leesWerffoto(huis.id, fotoId) : null;
   if (!foto) notFound();
 
-  const [plaatsen, alle, groot] = await Promise.all([laadPlaatsen(), lijstWerffotos(), fotoUrls([foto], true)]);
+  const [plaatsen, alle, groot] = await Promise.all([
+    laadPlaatsen(huis.id),
+    lijstWerffotos(huis.id),
+    fotoUrls(huis.id, [foto], true),
+  ]);
   const url = groot.get(foto.id) ?? null;
   const ruimtenaam = ruimtenaamIn(plaatsen);
   // Bladeren in volgorde van nemen, zoals in een fotoalbum: ouder links, nieuwer rechts.
@@ -96,7 +102,7 @@ export default async function Fotopagina({
       </nav>
 
       <h2>Onderschrift en plaats</h2>
-      <form action={wijzigWerffotoActie} className="kaart">
+      <form action={wijzigWerffotoActie.bind(null, huis.id)} className="kaart">
         <input type="hidden" name="foto_id" value={foto.id} />
         <div className="veldenrij">
           <div>
@@ -117,7 +123,7 @@ export default async function Fotopagina({
         />
         <div className="knoppenrij" style={{ marginTop: 12 }}>
           <button type="submit">Bewaren</button>
-          <BevestigKnop vraag="Deze foto verwijderen?" formAction={verwijderWerffotoActie}>
+          <BevestigKnop vraag="Deze foto verwijderen?" formAction={verwijderWerffotoActie.bind(null, huis.id)}>
             Verwijderen
           </BevestigKnop>
         </div>

@@ -8,8 +8,18 @@ import { Planvlak } from "./planvlak";
  * Het nakijkscherm van de omzetting gebruikt dezelfde onderdelen, met een
  * laag met de ruimtes erover.
  */
-export default function Viewer({ versieId, bestandId, pagina }: { versieId: number; bestandId: number; pagina: number }) {
-  const { blad, fout } = usePlanblad(versieId, bestandId, pagina);
+export default function Viewer({
+  huisId,
+  versieId,
+  bestandId,
+  pagina,
+}: {
+  huisId: number;
+  versieId: number;
+  bestandId: number;
+  pagina: number;
+}) {
+  const { blad, fout } = usePlanblad(huisId, versieId, bestandId, pagina);
 
   if (fout) return <div className="viewer viewer-leeg melding fout">{fout}</div>;
   if (!blad) {

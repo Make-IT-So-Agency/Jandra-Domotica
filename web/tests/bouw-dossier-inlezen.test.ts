@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -12,19 +12,19 @@ let db: ReturnType<typeof nepSupabase>;
 
 beforeEach(() => {
   db = nepSupabase({
-    bouw_gebouwen: [{ id: 5, naam: "Woning", volgorde: 0 }],
+    bouw_gebouwen: metHuis([{ id: 5, naam: "Woning", volgorde: 0 }]),
     bouw_verdiepingen: [
       { id: 1, gebouw_id: 5, naam: "Gelijkvloers", volgorde: 0, vloerpeil_m: null, verdiepingshoogte_m: null, plafondhoogte_m: "2.700" },
     ],
-    bouw_plannen: [
+    bouw_plannen: metHuis([
       { id: 10, titel: "Gelijkvloers", soort: "grondplan", gebouw_id: 5, verdieping_id: 1, bladcode: "BA_woning_P_N_1", opmerking: null },
       { id: 11, titel: "Voorgevel", soort: "gevel", gebouw_id: 5, verdieping_id: null, bladcode: null, opmerking: null },
-    ],
+    ]),
     bouw_planversies: [{ id: 20, plan_id: 10, bestand_id: 30, label: "v1", pagina: 14, created_at: "2026-09-01T10:00:00Z" }],
-    bouw_bestanden: [
+    bouw_bestanden: metHuis([
       { id: 30, pad: "plannen/a.pdf", doel: "plan", status: "klaar", grootte_bytes: 1000 },
       { id: 31, pad: "plannen/b.pdf", doel: "plan", status: "klaar", grootte_bytes: 2000 },
-    ],
+    ]),
   });
   nep.client = db.client;
 });
@@ -92,7 +92,7 @@ describe("bladen koppelen aan wat er al is", () => {
 
 describe("een dossier wegschrijven", () => {
   it("maakt de gebouwen, verdiepingen, plannen en versies, en hergebruikt wat er al is", async () => {
-    const uitkomst = await leesDossierIn(aanvraag(), 31);
+    const uitkomst = await leesDossierIn(1, aanvraag(), 31);
     expect(uitkomst).toEqual({ ok: true, data: { plannen: 5, nieuwePlannen: 3, verdiepingen: 2, gebouwen: 1 } });
 
     expect(db.tabellen.bouw_gebouwen.map((g) => g.naam)).toEqual(["Woning", "Bijgebouw"]);
@@ -130,16 +130,16 @@ describe("een dossier wegschrijven", () => {
   });
 
   it("schrijft niets als een label al bestaat", async () => {
-    const uitkomst = await leesDossierIn(aanvraag("v1"), 31);
+    const uitkomst = await leesDossierIn(1, aanvraag("v1"), 31);
     expect(uitkomst.ok).toBe(false);
     expect(db.tabellen.bouw_planversies).toHaveLength(1);
     expect(db.tabellen.bouw_gebouwen).toHaveLength(1);
   });
 
   it("een tweede dossier wordt een nieuwe versie van dezelfde plannen", async () => {
-    await leesDossierIn(aanvraag("v2"), 31);
+    await leesDossierIn(1, aanvraag("v2"), 31);
     const plannen = db.tabellen.bouw_plannen.length;
-    const uitkomst = await leesDossierIn(aanvraag("v3"), 31);
+    const uitkomst = await leesDossierIn(1, aanvraag("v3"), 31);
     expect(uitkomst).toEqual({ ok: true, data: { plannen: 5, nieuwePlannen: 0, verdiepingen: 0, gebouwen: 0 } });
     expect(db.tabellen.bouw_plannen).toHaveLength(plannen);
   });

@@ -47,10 +47,10 @@ function pad(ringen: Xy[][], k: Kalibratie): string {
  * meteen bewaard, in meter, zodat het een nieuwe versie van het plan
  * overleeft. Op een laptop of tablet.
  */
-export default function Puntenplan({ gegevens }: { gegevens: Puntengegevens }) {
+export default function Puntenplan({ huisId, gegevens }: { huisId: number; gegevens: Puntengegevens }) {
   const { verdieping, versie, ruimtes } = gegevens;
   const router = useRouter();
-  const { blad, fout } = usePlanblad(versie.id, versie.bestandId, versie.pagina);
+  const { blad, fout } = usePlanblad(huisId, versie.id, versie.bestandId, versie.pagina);
   const k = versie.kalibratie;
 
   const [klein, setKlein] = useState(false);
@@ -90,7 +90,7 @@ export default function Puntenplan({ gegevens }: { gegevens: Puntengegevens }) {
   async function zetPunt(p: Xy) {
     const [x_m, y_m] = naarHuis(p, k);
     setBezig(true);
-    const uitkomst = await voegPuntToeActie({
+    const uitkomst = await voegPuntToeActie(huisId, {
       verdiepingId: verdieping.id,
       punt: { soort, x_m, y_m, hoogte_m: standaardHoogte(soort), aantal: 1, label: null, opmerking: null, status: "gewenst" },
     }).catch(() => null);
@@ -105,7 +105,7 @@ export default function Puntenplan({ gegevens }: { gegevens: Puntengegevens }) {
   async function bewaar(punt: Punt, wijzigingen: Partial<Punt>): Promise<boolean> {
     const nieuw = { ...punt, ...wijzigingen };
     setBezig(true);
-    const uitkomst = await wijzigPuntActie({ id: punt.id, punt: nieuw }).catch(() => null);
+    const uitkomst = await wijzigPuntActie(huisId, { id: punt.id, punt: nieuw }).catch(() => null);
     setBezig(false);
     if (!uitkomst || !uitkomst.ok) {
       setMelding({ soort: "fout", tekst: uitkomst ? uitkomst.melding : "Geen verbinding met de app." });
@@ -118,7 +118,7 @@ export default function Puntenplan({ gegevens }: { gegevens: Puntengegevens }) {
   async function verwijder(punt: Punt) {
     if (!window.confirm(`${soortVan(punt.soort)?.naam ?? "Dit punt"} verwijderen?`)) return;
     setBezig(true);
-    const uitkomst = await verwijderPuntActie(punt.id).catch(() => null);
+    const uitkomst = await verwijderPuntActie(huisId, punt.id).catch(() => null);
     setBezig(false);
     if (!uitkomst || !uitkomst.ok) {
       return setMelding({ soort: "fout", tekst: uitkomst ? uitkomst.melding : "Geen verbinding met de app." });

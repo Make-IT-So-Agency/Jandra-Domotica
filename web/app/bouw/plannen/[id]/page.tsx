@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { GeenToegang } from "@/components/geen-toegang";
 import { leesbareGrootte } from "@/lib/bouw/bestanden";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import {
   leesBestanden,
@@ -37,16 +38,17 @@ export default async function Plandetail({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const planId = leesId(id);
   if (!planId) notFound();
-  const plan = await leesPlan(planId);
+  const plan = await leesPlan(huis.id, planId);
   if (!plan) notFound();
 
   const [verdiepingen, gebouwen, bestanden, allePdfs, omzettingen] = await Promise.all([
-    lijstVerdiepingen(),
-    lijstGebouwen(),
-    leesBestanden([...new Set(plan.versies.map((v) => v.bestand_id))]),
-    lijstPlanbestanden(),
+    lijstVerdiepingen(huis.id),
+    lijstGebouwen(huis.id),
+    leesBestanden(huis.id, [...new Set(plan.versies.map((v) => v.bestand_id))]),
+    lijstPlanbestanden(huis.id),
     lijstOmzettingen(plan.versies.map((v) => v.id)),
   ]);
   const omzettingVan = new Map(omzettingen.map((o) => [o.planversie_id, o]));
@@ -95,6 +97,7 @@ export default async function Plandetail({
           </div>
           <ViewerLader
             key={getoond.id}
+            huisId={huis.id}
             versieId={getoond.id}
             bestandId={getoond.bestand_id}
             pagina={getoond.pagina}
@@ -153,13 +156,13 @@ export default async function Plandetail({
                       ) : null}
                       <td>
                         <div className="knoppenrij">
-                          <form action={downloadVersieActie}>
+                          <form action={downloadVersieActie.bind(null, huis.id)}>
                             <input type="hidden" name="versie_id" value={versie.id} />
                             <button type="submit" className="stil">
                               Downloaden
                             </button>
                           </form>
-                          <form action={verwijderVersieActie}>
+                          <form action={verwijderVersieActie.bind(null, huis.id)}>
                             <input type="hidden" name="versie_id" value={versie.id} />
                             <input type="hidden" name="plan_id" value={plan.id} />
                             <BevestigKnop vraag={`Versie ${versie.label} verwijderen?`}>Verwijderen</BevestigKnop>
@@ -177,6 +180,7 @@ export default async function Plandetail({
 
       <h2>Nieuwe versie</h2>
       <NieuweVersie
+        huisId={huis.id}
         planId={plan.id}
         voorstelLabel={volgendLabel(plan.versies.map((v) => v.label))}
         bestaandePdfs={allePdfs.map((b) => ({
@@ -190,7 +194,7 @@ export default async function Plandetail({
         <summary>
           <strong>Plan wijzigen of verwijderen</strong>
         </summary>
-        <form action={wijzigPlanActie} style={{ marginTop: 14 }}>
+        <form action={wijzigPlanActie.bind(null, huis.id)} style={{ marginTop: 14 }}>
           <input type="hidden" name="id" value={plan.id} />
           <div className="veldenrij">
             <div>
@@ -240,7 +244,7 @@ export default async function Plandetail({
             <button type="submit">Bewaren</button>
             <BevestigKnop
               vraag={`"${plan.titel}" en alle versies verwijderen? Dat kan niet ongedaan gemaakt worden.`}
-              formAction={verwijderPlanActie}
+              formAction={verwijderPlanActie.bind(null, huis.id)}
             >
               Plan en alle versies verwijderen
             </BevestigKnop>

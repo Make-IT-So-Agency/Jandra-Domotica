@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { plusDagen, vandaag } from "@/lib/bouw/kalender";
 import { korteNaam } from "@/lib/bouw/keuzes";
 import { RECHTNAMEN, STANDAARD_GELDIG_DAGEN, standVanLink } from "@/lib/bouw/linkregels";
@@ -29,11 +30,16 @@ export default async function Toegangspagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   let links: Toegangslink[];
   let partijen: Partij[];
   let inzendingen: Inzending[];
   try {
-    [links, partijen, inzendingen] = await Promise.all([lijstLinks(), lijstPartijen(), lijstInzendingen()]);
+    [links, partijen, inzendingen] = await Promise.all([
+      lijstLinks(huis.id),
+      lijstPartijen(huis.id),
+      lijstInzendingen(huis.id),
+    ]);
   } catch (fout) {
     return (
       <>
@@ -86,7 +92,7 @@ export default async function Toegangspagina({
                     <td data-label="Ingestuurd">{inzendingen.filter((inzending) => inzending.link_id === link.id).length}</td>
                     <td>
                       {stand === "actief" ? (
-                        <form action={trekLinkInActie}>
+                        <form action={trekLinkInActie.bind(null, huis.id)}>
                           <input type="hidden" name="id" value={link.id} />
                           <BevestigKnop vraag={`De link van ${naam(link.partij_id)} intrekken? Hij werkt dan meteen niet meer.`}>
                             Intrekken
@@ -108,6 +114,7 @@ export default async function Toegangspagina({
 
       <h2>Nieuwe link</h2>
       <NieuweLink
+        huisId={huis.id}
         partijen={partijen.map((partij) => ({
           id: partij.id,
           naam: partij.naam,

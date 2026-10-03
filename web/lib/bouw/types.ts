@@ -7,6 +7,41 @@
  * daar horen bij elkaar: wie er een aanpast, past de andere mee aan.
  */
 
+/**
+ * Het soort van een huis bepaalt welke onderdelen het heeft: een bestaand huis
+ * wordt niet meer gebouwd, dus het heeft geen keuzes, planning en werf. Zie
+ * 20261003114500_bouw_huizen.sql.
+ */
+export const SOORTEN_HUIS = ["nieuwbouw", "verbouwing", "bestaand"] as const;
+
+export type SoortHuis = (typeof SOORTEN_HUIS)[number];
+
+export const HUISSOORTNAMEN: Record<SoortHuis, string> = {
+  nieuwbouw: "Nieuwbouw",
+  verbouwing: "Verbouwing",
+  bestaand: "Bestaand huis",
+};
+
+export function isSoortHuis(waarde: string): waarde is SoortHuis {
+  return (SOORTEN_HUIS as readonly string[]).includes(waarde);
+}
+
+/**
+ * Een huis met zijn eigen plannen, geld, werf en dossier. De naam is kort,
+ * voor het menu; de projectnaam en het adres staan op de titels en de PDF's.
+ */
+export interface Huis {
+  id: number;
+  naam: string;
+  soort: SoortHuis;
+  projectnaam: string | null;
+  adres: string | null;
+  krediet_totaal: number | null;
+  eigen_inbreng: number | null;
+  volgorde: number;
+  gearchiveerd_op: string | null;
+}
+
 export const SOORTEN_PARTIJ = [
   "architect",
   "aannemer",

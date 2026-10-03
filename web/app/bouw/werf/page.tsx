@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { datum as leesDatum, id as leesId } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { dagkop, perDag } from "@/lib/bouw/werf";
@@ -28,12 +29,13 @@ export default async function Werfpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
+  const huis = await standaardHuis();
   const ruimteId = leesId(ruimte ?? "");
   const voorDag = leesDatum(voor ?? "");
   let plaatsen: Plaatsverdieping[];
   let fotos: Werffoto[];
   try {
-    [plaatsen, fotos] = await Promise.all([laadPlaatsen(), lijstWerffotos(ruimteId ? { ruimteId } : {})]);
+    [plaatsen, fotos] = await Promise.all([laadPlaatsen(huis.id), lijstWerffotos(huis.id, ruimteId ? { ruimteId } : {})]);
   } catch (fout) {
     return (
       <>
@@ -46,7 +48,7 @@ export default async function Werfpagina({
   const nu = vandaag();
   const dagen = perDag(fotos).filter((dag) => !voorDag || dag.dag < voorDag);
   const getoond = dagen.slice(0, DAGEN_PER_PAGINA);
-  const urls = await fotoUrls(getoond.flatMap((dag) => dag.fotos));
+  const urls = await fotoUrls(huis.id, getoond.flatMap((dag) => dag.fotos));
   const ruimtenaam = ruimtenaamIn(plaatsen);
   const groepen = plaatsen.map((plaats) => ({
     id: plaats.id,
@@ -66,7 +68,7 @@ export default async function Werfpagina({
       <Werfmenu actief="/bouw/werf" />
       <Melding soort={soort} melding={melding} />
 
-      <Werffotoknop groepen={groepen} standaardRuimte={ruimteId} />
+      <Werffotoknop huisId={huis.id} groepen={groepen} standaardRuimte={ruimteId} />
 
       <form method="get" className="knoppenrij filter" style={{ margin: "16px 0" }}>
         <label htmlFor="filter-ruimte" className="hulp">

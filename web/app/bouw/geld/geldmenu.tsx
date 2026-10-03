@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /** De tabs bovenaan Geld, met de Excel ernaast. */
-export function Geldmenu({ actief }: { actief: "posten" | "facturen" | "kasplanning" }) {
+export function Geldmenu({ huisId, actief }: { huisId: number; actief: "posten" | "facturen" | "kasplanning" }) {
   const klasse = (naam: typeof actief) => (naam === actief ? "actief" : undefined);
   return (
     <nav className="tabs" aria-label="Geld">
@@ -14,7 +14,7 @@ export function Geldmenu({ actief }: { actief: "posten" | "facturen" | "kasplann
       <Link href="/bouw/geld/kasplanning" className={klasse("kasplanning")}>
         Kasplanning
       </Link>
-      <a href="/api/bouw/geld/excel">Excel ↓</a>
+      <a href={`/api/bouw/geld/excel?huis=${huisId}`}>Excel ↓</a>
     </nav>
   );
 }

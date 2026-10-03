@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { nepSupabase } from "./stubs/nep-supabase";
+import { metHuis, nepSupabase } from "./stubs/nep-supabase";
 
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
@@ -244,6 +244,16 @@ describe("de regie in de databank", () => {
   let db: ReturnType<typeof nepSupabase>;
   beforeEach(() => {
     db = nepSupabase({
+      bouw_gebouwen: metHuis([{ id: 1, naam: "Woning", volgorde: 0 }]),
+      bouw_verdiepingen: [{ id: 1, gebouw_id: 1, naam: "Gelijkvloers", volgorde: 0 }],
+      bouw_ruimtes: [
+        { id: 11, verdieping_id: 1, naam: "leefruimte" },
+        { id: 12, verdieping_id: 1, naam: "keuken" },
+      ],
+      bouw_bestanden: metHuis([
+        { id: 501, pad: "fotos/eik-1.jpg", doel: "foto", status: "klaar" },
+        { id: 502, pad: "fotos/eik-2.jpg", doel: "foto", status: "klaar" },
+      ]),
       bouw_planning: [],
       bouw_keuzes: [],
       bouw_opties: [],
@@ -258,66 +268,67 @@ describe("de regie in de databank", () => {
 
   it("zet de voorbeeldplanning erin, met elke taak aan haar fase", async () => {
     const items = voorbeeldVanaf("2026-11-02");
-    expect(await voegPlanningenToe(items)).toBe(items.length);
-    const planning = await lijstPlanning();
+    expect(await voegPlanningenToe(1, items)).toBe(items.length);
+    const planning = await lijstPlanning(1);
     const ruwbouw = planning.find((i) => i.titel === "Ruwbouw")!;
     const fundering = planning.find((i) => i.titel === "Grondwerken en fundering")!;
     expect(fundering.fase_id).toBe(ruwbouw.id);
-    await expect(verwijderPlanning(ruwbouw.id)).rejects.toThrow("Deze fase heeft nog 4 taken");
-    await verwijderPlanning(fundering.id);
-    expect((await lijstPlanning()).some((i) => i.id === fundering.id)).toBe(false);
+    await expect(verwijderPlanning(1, ruwbouw.id)).rejects.toThrow("Deze fase heeft nog 4 taken");
+    await verwijderPlanning(1, fundering.id);
+    expect((await lijstPlanning(1)).some((i) => i.id === fundering.id)).toBe(false);
   });
 
   it("keuzes met ruimtes, opties, één basis, een beslissing en voorkeuren", async () => {
-    const taak = await voegPlanningToe({
+    const taak = await voegPlanningToe(1, {
       soort: "taak", titel: "Vloeren", begindatum: "2027-06-01", einddatum: null,
       fase_id: null, partij_id: null, status: "gepland", opmerking: null,
     });
     const keuzeId = await voegKeuzeToe(
+      1,
       { titel: "Vloer leefruimte", categorie: "vloeren", omschrijving: null, deadline: null, planning_id: taak,
         levertermijn_weken: 4, eenheid: "m2", hoeveelheid: null, partij_id: null },
       [11, 12, 11],
     );
-    const [keuze] = await lijstKeuzes();
+    const [keuze] = await lijstKeuzes(1);
     expect(keuze).toMatchObject({ id: keuzeId, eenheid: "m2", gekozen_optie_id: null, ruimte_ids: [11, 12] });
 
     const optie = (naam: string, prijs: number | null) =>
-      voegOptieToe({ keuze_id: keuzeId, naam, leverancier_id: null, prijs, kleur: null, url: null, opmerking: null, volgorde: 0 });
+      voegOptieToe(1, { keuze_id: keuzeId, naam, leverancier_id: null, prijs, kleur: null, url: null, opmerking: null, volgorde: 0 });
     const eik = await optie("Eik", 65);
     const tegel = await optie("Keramische tegel", 48);
-    await zetBasis(keuzeId, tegel);
-    await zetBasis(keuzeId, eik);
-    expect((await lijstOpties([keuzeId])).filter((o) => o.basis).map((o) => o.id)).toEqual([eik]);
+    await zetBasis(1, keuzeId, tegel);
+    await zetBasis(1, keuzeId, eik);
+    expect((await lijstOpties(1, [keuzeId])).filter((o) => o.basis).map((o) => o.id)).toEqual([eik]);
 
-    await zetVoorkeur(keuzeId, "jan@voorbeeld.be", "Jan", eik);
-    await zetVoorkeur(keuzeId, "jan@voorbeeld.be", "Jan", tegel);
-    await zetVoorkeur(keuzeId, "sandra@voorbeeld.be", "Sandra", eik);
-    expect((await lijstVoorkeuren([keuzeId])).map((v) => [v.naam, v.optie_id])).toEqual([
+    await zetVoorkeur(1, keuzeId, "jan@voorbeeld.be", "Jan", eik);
+    await zetVoorkeur(1, keuzeId, "jan@voorbeeld.be", "Jan", tegel);
+    await zetVoorkeur(1, keuzeId, "sandra@voorbeeld.be", "Sandra", eik);
+    expect((await lijstVoorkeuren(1, [keuzeId])).map((v) => [v.naam, v.optie_id])).toEqual([
       ["Jan", tegel],
       ["Sandra", eik],
     ]);
-    await zetVoorkeur(keuzeId, "sandra@voorbeeld.be", "Sandra", null);
-    expect(await lijstVoorkeuren([keuzeId])).toHaveLength(1);
+    await zetVoorkeur(1, keuzeId, "sandra@voorbeeld.be", "Sandra", null);
+    expect(await lijstVoorkeuren(1, [keuzeId])).toHaveLength(1);
 
-    await beslisKeuze(keuzeId, eik, "Sandra");
-    expect((await lijstKeuzes())[0]).toMatchObject({ gekozen_optie_id: eik, beslist_door: "Sandra" });
+    await beslisKeuze(1, keuzeId, eik, "Sandra");
+    expect((await lijstKeuzes(1))[0]).toMatchObject({ gekozen_optie_id: eik, beslist_door: "Sandra" });
 
     // Een foto erbij; de vorige komt terug om op te ruimen.
-    expect(await zetFoto(eik, 501)).toBeNull();
-    expect(await zetFoto(eik, 502)).toBe(501);
+    expect(await zetFoto(1, eik, 501)).toBeNull();
+    expect(await zetFoto(1, eik, 502)).toBe(501);
 
     // De gekozen optie verwijderen maakt de keuze terug open.
-    expect(await verwijderOptie(eik)).toBe(502);
-    expect((await lijstKeuzes())[0]).toMatchObject({ gekozen_optie_id: null, beslist_op: null });
+    expect(await verwijderOptie(1, eik)).toBe(502);
+    expect((await lijstKeuzes(1))[0]).toMatchObject({ gekozen_optie_id: null, beslist_op: null });
 
-    expect(await verwijderKeuze(keuzeId)).toEqual([]);
-    expect(await lijstKeuzes()).toEqual([]);
+    expect(await verwijderKeuze(1, keuzeId)).toEqual([]);
+    expect(await lijstKeuzes(1)).toEqual([]);
   });
 
   it("het log, de meldingen en de instellingen", async () => {
-    await voegBeslissingToe({ datum: "2026-09-01", onderwerp: "Kelder", beslissing: "Geen kelder", keuze_id: null, door: "Jan" });
-    await voegBeslissingToe({ datum: "2026-10-01", onderwerp: "Ventilatie", beslissing: "Systeem D", keuze_id: null, door: "Sandra" });
-    expect((await lijstBeslissingen()).map((b) => b.onderwerp)).toEqual(["Ventilatie", "Kelder"]);
+    await voegBeslissingToe(1, { datum: "2026-09-01", onderwerp: "Kelder", beslissing: "Geen kelder", keuze_id: null, door: "Jan" });
+    await voegBeslissingToe(1, { datum: "2026-10-01", onderwerp: "Ventilatie", beslissing: "Systeem D", keuze_id: null, door: "Sandra" });
+    expect((await lijstBeslissingen(1)).map((b) => b.onderwerp)).toEqual(["Ventilatie", "Kelder"]);
 
     expect(await meldEenKeer("deadline:3:7")).toBe(true);
     expect(await meldEenKeer("deadline:3:7")).toBe(false);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { DOCUMENTNAMEN, DOCUMENTUITLEG, SOORTEN_DOCUMENT, type Dossierdocument } from "@/lib/bouw/nazorg";
@@ -65,7 +66,8 @@ export default async function Dossierpagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [documenten, partijen] = await Promise.all([lijstDocumenten(), lijstPartijen()]);
+  const huis = await standaardHuis();
+  const [documenten, partijen] = await Promise.all([lijstDocumenten(huis.id), lijstPartijen(huis.id)]);
   const nu = vandaag();
   const partijnaam = (partijId: number | null) => partijen.find((p) => p.id === partijId)?.naam ?? null;
   const ontbreekt = VERWACHT.filter((verwacht) => !documenten.some((d) => d.soort === verwacht));
@@ -102,12 +104,15 @@ export default async function Dossierpagina({
       {teWijzigen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{teWijzigen.titel}</h2>
-          <form action={wijzigDocumentActie}>
+          <form action={wijzigDocumentActie.bind(null, huis.id)}>
             <input type="hidden" name="document_id" value={teWijzigen.id} />
             <Documentvelden document={teWijzigen} partijen={partijen} voorvoegsel="wijzig" />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`${teWijzigen.titel} uit het dossier halen, met de PDF?`} formAction={verwijderDocumentActie}>
+              <BevestigKnop
+                vraag={`${teWijzigen.titel} uit het dossier halen, met de PDF?`}
+                formAction={verwijderDocumentActie.bind(null, huis.id)}
+              >
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/dossier">
@@ -131,7 +136,7 @@ export default async function Dossierpagina({
                 .filter((d) => d.soort === soortDocument)
                 .map((d) => (
                   <li key={d.id}>
-                    <a href={`/api/bouw/document/${d.bestand_id}`} target="_blank" rel="noopener noreferrer">
+                    <a href={`/api/bouw/document/${d.bestand_id}?huis=${huis.id}`} target="_blank" rel="noopener noreferrer">
                       {d.titel}
                     </a>
                     <span className="hulp">
@@ -148,10 +153,10 @@ export default async function Dossierpagina({
       )}
 
       <h2>Document toevoegen</h2>
-      <form action={voegDocumentToeActie} className="kaart">
+      <form action={voegDocumentToeActie.bind(null, huis.id)} className="kaart">
         <Documentvelden partijen={partijen} voorvoegsel="nieuw" />
         <div className="veldenrij">
-          <Documentveld id="nieuw-pdf" label="PDF (tot 20 MB)" />
+          <Documentveld huisId={huis.id} id="nieuw-pdf" label="PDF (tot 20 MB)" />
         </div>
         <div className="knoppenrij" style={{ marginTop: 12 }}>
           <button type="submit">Toevoegen</button>

@@ -24,10 +24,12 @@ type Stap = { soort: "rust" } | { soort: "bezig"; tekst: string; voortgang?: num
  * enkel de toelating en kijkt het daarna na.
  */
 export function NieuweVersie({
+  huisId,
   planId,
   voorstelLabel,
   bestaandePdfs,
 }: {
+  huisId: number;
   planId: number;
   voorstelLabel: string;
   bestaandePdfs: BestaandePdf[];
@@ -60,7 +62,7 @@ export function NieuweVersie({
       if (!controle.ok) return setStap({ soort: "fout", tekst: controle.melding });
 
       setStap({ soort: "bezig", tekst: "Voorbereiden…" });
-      const toelating = await vraagUploadAan({
+      const toelating = await vraagUploadAan(huisId, {
         planId,
         label,
         naam: bestand.name,
@@ -81,7 +83,7 @@ export function NieuweVersie({
     }
 
     setStap({ soort: "bezig", tekst: "Nakijken en bewaren…" });
-    const versie = await voegVersieToeActie({ planId, bestandId, label, pagina, datum }).catch(() => null);
+    const versie = await voegVersieToeActie(huisId, { planId, bestandId, label, pagina, datum }).catch(() => null);
     if (!versie) return setStap({ soort: "fout", tekst: "Geen verbinding met de app. Probeer opnieuw." });
     if (!versie.ok) return setStap({ soort: "fout", tekst: versie.melding });
 

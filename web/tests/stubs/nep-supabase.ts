@@ -11,6 +11,11 @@
  * `storage` bootst Supabase Storage na: `objecten` houdt per pad de inhoud
  * bij. Een ondertekende URL wijst naar https://opslag.test/<pad>; een test die
  * fetch nabootst, kan daar de inhoud uit `objecten` voor teruggeven.
+ *
+ * Zoals Postgres botst een lege waarde (null) nooit met een unieke sleutel, en
+ * weigert een tabel van Bouw met een eigen huis_id een rij zonder huis (23502).
+ * De tijdelijke trigger van de migratie die dat in productie opvangt, bootsen
+ * we bewust niet na: zo faalt een vergeten huis meteen in de tests.
  */
 
 type Rij = Record<string, unknown>;
@@ -28,8 +33,10 @@ const SLEUTELS: Record<string, string[]> = {
   opvang_kinderen: ["leerling_id"],
   opvang_slots: ["kind_id", "datum", "moment", "locatie"],
   bouw_instellingen: ["sleutel"],
+  bouw_huizen: ["naam"],
   bouw_bestanden: ["pad"],
-  bouw_gebouwen: ["naam"],
+  bouw_gebouwen: ["huis_id", "naam"],
+  bouw_plannen: ["huis_id", "bladcode"],
   bouw_verdiepingen: ["gebouw_id", "naam"],
   bouw_omzettingen: ["planversie_id"],
   bouw_referentiepunten: ["code"],
@@ -40,6 +47,50 @@ const SLEUTELS: Record<string, string[]> = {
   bouw_voorkeuren: ["keuze_id", "wie"],
   bouw_meldingen: ["sleutel"],
 };
+
+/** De tabellen met een verplicht huis_id; zie lib/bouw/databank.ts. */
+const MET_HUIS = new Set([
+  "bouw_gebouwen",
+  "bouw_partijen",
+  "bouw_plannen",
+  "bouw_planning",
+  "bouw_keuzes",
+  "bouw_beslissingen",
+  "bouw_posten",
+  "bouw_facturen",
+  "bouw_kredietopnames",
+  "bouw_dagboek",
+  "bouw_opleverpunten",
+  "bouw_actiepunten",
+  "bouw_garanties",
+  "bouw_onderhoud",
+  "bouw_documenten",
+  "bouw_werffotos",
+  "bouw_inzendingen",
+  "bouw_bestanden",
+]);
+
+/** Botsen twee rijen op deze sleutel? Een lege waarde botst nooit, zoals in Postgres. */
+function botst(a: Rij, b: Rij, sleutel: string[]): boolean {
+  return sleutel.every((k) => b[k] !== null && b[k] !== undefined && a[k] === b[k]);
+}
+
+/** Het eerste huis van de tests, en rijen die erbij horen. */
+export const TESTHUIS = {
+  id: 1,
+  naam: "Nieuwbouw",
+  soort: "nieuwbouw" as const,
+  projectnaam: null,
+  adres: null,
+  krediet_totaal: null,
+  eigen_inbreng: null,
+  volgorde: 0,
+  gearchiveerd_op: null,
+};
+
+export function metHuis<T extends Rij>(rijen: T[], huisId = 1): (T & { huis_id: number })[] {
+  return rijen.map((rij) => ({ huis_id: huisId, ...rij }));
+}
 
 type Actie =
   | { soort: "select" }
@@ -65,9 +116,14 @@ export function nepSupabase(begin: Record<string, Rij[]> = {}, fouten: Record<st
       if (fout) return { data: [], error: fout };
 
       const sleutel = SLEUTELS[tabel] ?? ["id"];
+      if ((actie.soort === "insert" || actie.soort === "upsert") && MET_HUIS.has(tabel)) {
+        if (actie.nieuw.some((n) => n.huis_id === null || n.huis_id === undefined)) {
+          return { data: [], error: { code: "23502", message: `null value in column "huis_id" of relation "${tabel}"` } };
+        }
+      }
       if (actie.soort === "upsert") {
         for (const n of actie.nieuw) {
-          const bestaand = rijen.find((r) => sleutel.every((k) => r[k] === n[k]));
+          const bestaand = rijen.find((r) => botst(r, n, sleutel));
           if (bestaand) {
             if (!actie.negeer) Object.assign(bestaand, n);
           } else {
@@ -79,7 +135,7 @@ export function nepSupabase(begin: Record<string, Rij[]> = {}, fouten: Record<st
       if (actie.soort === "insert") {
         const toegevoegd: Rij[] = [];
         for (const n of actie.nieuw) {
-          const dubbel = SLEUTELS[tabel] && rijen.some((r) => sleutel.every((k) => r[k] === n[k]));
+          const dubbel = SLEUTELS[tabel] && rijen.some((r) => botst(r, n, sleutel));
           if (dubbel) {
             return { data: [], error: { code: "23505", message: `duplicate key value violates unique constraint on ${tabel}` } };
           }

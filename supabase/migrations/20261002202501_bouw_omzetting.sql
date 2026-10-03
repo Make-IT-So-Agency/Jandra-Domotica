@@ -19,7 +19,9 @@ create table if not exists bouw_gebouwen (
 
 -- Er is altijd minstens één gebouw: de woning. In productie draait een
 -- migratie maar één keer, dus wie ze later hernoemt, krijgt er geen tweede bij.
-insert into bouw_gebouwen (naam) values ('Woning') on conflict (naam) do nothing;
+-- Niet met "on conflict (naam)": sinds 20261003114500_bouw_huizen.sql is de
+-- naam enkel uniek per huis, en CI draait alle migraties twee keer.
+insert into bouw_gebouwen (naam) select 'Woning' where not exists (select 1 from bouw_gebouwen);
 
 -- ---------------------------------------------------------------------------
 -- Verdiepingen horen voortaan bij een gebouw. Wat er al was, hoort bij de

@@ -21,9 +21,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   if (!externe || !externe.rechten.includes("plannen")) return niet();
   const bestandId = id(ruw);
   if (!bestandId) return niet();
-  const plannen = await lijstPlannen();
+  // Enkel de plannen van het huis van deze link.
+  const plannen = await lijstPlannen(externe.huisId);
   if (!plannen.some((plan) => plan.versies.some((versie) => versie.bestand_id === bestandId))) return niet();
-  const bestand = await leesBestand(bestandId);
+  const bestand = await leesBestand(externe.huisId, bestandId);
   if (!bestand || bestand.status !== "klaar") return niet();
 
   const url = await tijdelijkeUrl(bestand.pad, 60);

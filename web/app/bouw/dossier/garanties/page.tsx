@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { standaardHuis } from "@/lib/bouw/huizen";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { dagenTekst, korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { GARANTIEDUREN, garantiestand, type Dossierdocument, type Garantie } from "@/lib/bouw/nazorg";
@@ -87,7 +88,12 @@ export default async function Garantiepagina({
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
-  const [garanties, partijen, documenten] = await Promise.all([lijstGaranties(), lijstPartijen(), lijstDocumenten()]);
+  const huis = await standaardHuis();
+  const [garanties, partijen, documenten] = await Promise.all([
+    lijstGaranties(huis.id),
+    lijstPartijen(huis.id),
+    lijstDocumenten(huis.id),
+  ]);
   const nu = vandaag();
   const partijnaam = (partijId: number | null) => partijen.find((p) => p.id === partijId)?.naam ?? null;
   const metStand = garanties
@@ -117,12 +123,15 @@ export default async function Garantiepagina({
       {teWijzigen ? (
         <section id="wijzigen" className="kaart">
           <h2 style={{ marginTop: 0 }}>{teWijzigen.wat}</h2>
-          <form action={wijzigGarantieActie}>
+          <form action={wijzigGarantieActie.bind(null, huis.id)}>
             <input type="hidden" name="garantie_id" value={teWijzigen.id} />
             <Garantievelden garantie={teWijzigen} partijen={partijen} documenten={documenten} voorvoegsel="wijzig" />
             <div className="knoppenrij" style={{ marginTop: 12 }}>
               <button type="submit">Bewaren</button>
-              <BevestigKnop vraag={`De garantie op ${teWijzigen.wat} verwijderen?`} formAction={verwijderGarantieActie}>
+              <BevestigKnop
+                vraag={`De garantie op ${teWijzigen.wat} verwijderen?`}
+                formAction={verwijderGarantieActie.bind(null, huis.id)}
+              >
                 Verwijderen
               </BevestigKnop>
               <Link className="knop stil" href="/bouw/dossier/garanties">
@@ -167,7 +176,12 @@ export default async function Garantiepagina({
                     <td>
                       <div className="knoppenrij">
                         {bewijs ? (
-                          <a className="knop stil" href={`/api/bouw/document/${bewijs.bestand_id}`} target="_blank" rel="noopener noreferrer">
+                          <a
+                            className="knop stil"
+                            href={`/api/bouw/document/${bewijs.bestand_id}?huis=${huis.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             Bewijs
                           </a>
                         ) : null}
@@ -185,7 +199,7 @@ export default async function Garantiepagina({
       )}
 
       <h2>Garantie toevoegen</h2>
-      <form action={voegGarantieToeActie} className="kaart">
+      <form action={voegGarantieToeActie.bind(null, huis.id)} className="kaart">
         <Garantievelden partijen={partijen} documenten={documenten} voorvoegsel="nieuw" />
         <p className="hulp">
           Een product heeft wettelijk 2 jaar garantie (24 maanden); voor de ruwbouw geldt de tienjarige

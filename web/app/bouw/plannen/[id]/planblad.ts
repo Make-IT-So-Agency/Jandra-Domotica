@@ -21,6 +21,7 @@ export interface Geladenblad {
  * gevraagde blad. Ruimt pdf.js op als het blad niet meer nodig is.
  */
 export function usePlanblad(
+  huisId: number,
   versieId: number,
   bestandId: number,
   paginanummer: number,
@@ -36,7 +37,7 @@ export function usePlanblad(
     (async () => {
       try {
         const bytes = await haalPdfBytes(bestandId, async () => {
-          const antwoord = await vraagPlanUrl(versieId);
+          const antwoord = await vraagPlanUrl(huisId, versieId);
           if (!antwoord.ok) throw new Error(antwoord.melding);
           return antwoord.data.url;
         });
@@ -62,7 +63,7 @@ export function usePlanblad(
       weg = true;
       void laden?.destroy();
     };
-  }, [versieId, bestandId, paginanummer]);
+  }, [huisId, versieId, bestandId, paginanummer]);
 
   return { blad, fout };
 }

@@ -2,13 +2,14 @@ import "server-only";
 
 import { db } from "@/lib/supabase";
 
-import { check } from "./opslag";
+import { check, geraakt, ruimtesVanHuis, zelfdeHuis } from "./databank";
 import type { Actiepunt, Opleverpunt, Ronde, StatusOpleverpunt, Stapwijziging } from "./werf";
 
 /**
- * De werf in de databank: het dagboek, de foto's, de actiepunten, de
- * opleverpunten en de checklist. De tabellen staan in
- * supabase/migrations/20261002202508_bouw_werf.sql.
+ * De werf van een huis in de databank: het dagboek, de foto's, de
+ * actiepunten, de opleverpunten en de checklist. De tabellen staan in
+ * supabase/migrations/20261002202508_bouw_werf.sql. Alles heeft een eigen
+ * huis_id, behalve de checklist: die hoort bij haar ruimte.
  */
 
 const getalOfNull = (waarde: unknown) => (waarde === null || waarde === undefined ? null : Number(waarde));
@@ -40,34 +41,41 @@ function alsDag(rij: Record<string, unknown>): Dagboekdag {
   };
 }
 
-export async function lijstDagboek(): Promise<Dagboekdag[]> {
+export async function lijstDagboek(huisId: number): Promise<Dagboekdag[]> {
   const rijen = check(
-    await db().from("bouw_dagboek").select("*").order("datum", { ascending: false }).order("id", { ascending: false }),
+    await db()
+      .from("bouw_dagboek")
+      .select("*")
+      .eq("huis_id", huisId)
+      .order("datum", { ascending: false })
+      .order("id", { ascending: false }),
     "Dagboek lezen",
   ) as Record<string, unknown>[];
   return rijen.map(alsDag);
 }
 
-export async function leesDagboekdag(id: number): Promise<Dagboekdag | null> {
-  const rij = check(await db().from("bouw_dagboek").select("*").eq("id", id).maybeSingle(), "Dagboek lezen") as Record<
+export async function leesDagboekdag(huisId: number, id: number): Promise<Dagboekdag | null> {
+  const rij = check(await db().from("bouw_dagboek").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(), "Dagboek lezen") as Record<
     string,
     unknown
   > | null;
   return rij ? alsDag(rij) : null;
 }
 
-export async function voegDagboekdagToe(dag: NieuweDagboekdag): Promise<number> {
-  const rij = check(await db().from("bouw_dagboek").insert(dag).select("id").single(), "Dagboek bewaren") as { id: number };
+export async function voegDagboekdagToe(huisId: number, dag: NieuweDagboekdag): Promise<number> {
+  const rij = check(await db().from("bouw_dagboek").insert({ ...dag, huis_id: huisId }).select("id").single(), "Dagboek bewaren") as {
+    id: number;
+  };
   return Number(rij.id);
 }
 
-export async function wijzigDagboekdag(id: number, dag: Omit<NieuweDagboekdag, "door">): Promise<void> {
-  check(await db().from("bouw_dagboek").update(dag).eq("id", id), "Dagboek bewaren");
+export async function wijzigDagboekdag(huisId: number, id: number, dag: Omit<NieuweDagboekdag, "door">): Promise<void> {
+  geraakt(check(await db().from("bouw_dagboek").update(dag).eq("id", id).eq("huis_id", huisId).select("id"), "Dagboek bewaren"));
 }
 
 /** De foto's van die dag blijven, zonder dagboek. */
-export async function verwijderDagboekdag(id: number): Promise<void> {
-  check(await db().from("bouw_dagboek").delete().eq("id", id), "Dagboek verwijderen");
+export async function verwijderDagboekdag(huisId: number, id: number): Promise<void> {
+  check(await db().from("bouw_dagboek").delete().eq("id", id).eq("huis_id", huisId), "Dagboek verwijderen");
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +120,10 @@ function alsFoto(rij: Record<string, unknown>): Werffoto {
 }
 
 export async function lijstWerffotos(
+  huisId: number,
   filter: { ruimteId?: number; dagboekId?: number; opleverpuntIds?: number[] } = {},
 ): Promise<Werffoto[]> {
-  let vraag = db().from("bouw_werffotos").select("*");
+  let vraag = db().from("bouw_werffotos").select("*").eq("huis_id", huisId);
   if (filter.ruimteId !== undefined) vraag = vraag.eq("ruimte_id", filter.ruimteId);
   if (filter.dagboekId !== undefined) vraag = vraag.eq("dagboek_id", filter.dagboekId);
   if (filter.opleverpuntIds) {
@@ -128,35 +137,48 @@ export async function lijstWerffotos(
   return rijen.map(alsFoto);
 }
 
-export async function leesWerffoto(id: number): Promise<Werffoto | null> {
-  const rij = check(await db().from("bouw_werffotos").select("*").eq("id", id).maybeSingle(), "Foto lezen") as Record<
+export async function leesWerffoto(huisId: number, id: number): Promise<Werffoto | null> {
+  const rij = check(await db().from("bouw_werffotos").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(), "Foto lezen") as Record<
     string,
     unknown
   > | null;
   return rij ? alsFoto(rij) : null;
 }
 
-export async function voegWerffotoToe(foto: NieuweWerffoto): Promise<number> {
-  const rij = check(await db().from("bouw_werffotos").insert(foto).select("id").single(), "Foto bewaren", {
+export async function voegWerffotoToe(huisId: number, foto: NieuweWerffoto): Promise<number> {
+  await zelfdeHuis(
+    huisId,
+    ["bouw_bestanden", foto.bestand_id],
+    ["bouw_bestanden", foto.duim_bestand_id],
+    ["bouw_verdiepingen", foto.verdieping_id],
+    ["bouw_ruimtes", foto.ruimte_id],
+    ["bouw_dagboek", foto.dagboek_id],
+    ["bouw_opleverpunten", foto.opleverpunt_id],
+  );
+  const rij = check(await db().from("bouw_werffotos").insert({ ...foto, huis_id: huisId }).select("id").single(), "Foto bewaren", {
     inGebruik: "De ruimte, de dag of het opleverpunt bestaat niet meer.",
   }) as { id: number };
   return Number(rij.id);
 }
 
 export async function wijzigWerffoto(
+  huisId: number,
   id: number,
   foto: Pick<Werffoto, "onderschrift" | "verdieping_id" | "ruimte_id" | "x_m" | "y_m">,
 ): Promise<void> {
-  check(await db().from("bouw_werffotos").update(foto).eq("id", id), "Foto bewaren", {
-    inGebruik: "De ruimte of de verdieping bestaat niet meer.",
-  });
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", foto.verdieping_id], ["bouw_ruimtes", foto.ruimte_id]);
+  geraakt(
+    check(await db().from("bouw_werffotos").update(foto).eq("id", id).eq("huis_id", huisId).select("id"), "Foto bewaren", {
+      inGebruik: "De ruimte of de verdieping bestaat niet meer.",
+    }),
+  );
 }
 
 /** Geeft de bestanden terug, zodat ze uit Storage kunnen. */
-export async function verwijderWerffoto(id: number): Promise<number[]> {
-  const foto = await leesWerffoto(id);
+export async function verwijderWerffoto(huisId: number, id: number): Promise<number[]> {
+  const foto = await leesWerffoto(huisId, id);
   if (!foto) return [];
-  check(await db().from("bouw_werffotos").delete().eq("id", id), "Foto verwijderen");
+  check(await db().from("bouw_werffotos").delete().eq("id", id).eq("huis_id", huisId), "Foto verwijderen");
   return foto.duim_bestand_id ? [foto.bestand_id, foto.duim_bestand_id] : [foto.bestand_id];
 }
 
@@ -180,47 +202,63 @@ function alsActiepunt(rij: Record<string, unknown>): Actiepunt {
   };
 }
 
-export async function lijstActiepunten(): Promise<Actiepunt[]> {
-  const rijen = check(await db().from("bouw_actiepunten").select("*").order("created_at", { ascending: false }), "Actiepunten lezen") as Record<
+export async function lijstActiepunten(huisId: number): Promise<Actiepunt[]> {
+  const rijen = check(
+    await db().from("bouw_actiepunten").select("*").eq("huis_id", huisId).order("created_at", { ascending: false }),
+    "Actiepunten lezen",
+  ) as Record<
     string,
     unknown
   >[];
   return rijen.map(alsActiepunt);
 }
 
-export async function leesActiepunt(id: number): Promise<Actiepunt | null> {
-  const rij = check(await db().from("bouw_actiepunten").select("*").eq("id", id).maybeSingle(), "Actiepunt lezen") as Record<
+export async function leesActiepunt(huisId: number, id: number): Promise<Actiepunt | null> {
+  const rij = check(
+    await db().from("bouw_actiepunten").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(),
+    "Actiepunt lezen",
+  ) as Record<
     string,
     unknown
   > | null;
   return rij ? alsActiepunt(rij) : null;
 }
 
-export async function voegActiepuntToe(punt: NieuwActiepunt): Promise<number> {
-  const rij = check(await db().from("bouw_actiepunten").insert(punt).select("id").single(), "Actiepunt bewaren", {
-    inGebruik: "Deze partij bestaat niet meer.",
-  }) as { id: number };
+export async function voegActiepuntToe(huisId: number, punt: NieuwActiepunt): Promise<number> {
+  await zelfdeHuis(huisId, ["bouw_partijen", punt.partij_id]);
+  const rij = check(
+    await db().from("bouw_actiepunten").insert({ ...punt, huis_id: huisId }).select("id").single(),
+    "Actiepunt bewaren",
+    { inGebruik: "Deze partij bestaat niet meer." },
+  ) as { id: number };
   return Number(rij.id);
 }
 
-export async function wijzigActiepunt(id: number, punt: Omit<NieuwActiepunt, "door">): Promise<void> {
-  check(await db().from("bouw_actiepunten").update(punt).eq("id", id), "Actiepunt bewaren", {
-    inGebruik: "Deze partij bestaat niet meer.",
-  });
-}
-
-export async function zetActiepuntKlaar(id: number, klaar: boolean, nu = new Date()): Promise<void> {
-  check(
-    await db()
-      .from("bouw_actiepunten")
-      .update({ status: klaar ? "klaar" : "open", klaar_op: klaar ? nu.toISOString() : null })
-      .eq("id", id),
-    "Actiepunt bewaren",
+export async function wijzigActiepunt(huisId: number, id: number, punt: Omit<NieuwActiepunt, "door">): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_partijen", punt.partij_id]);
+  geraakt(
+    check(await db().from("bouw_actiepunten").update(punt).eq("id", id).eq("huis_id", huisId).select("id"), "Actiepunt bewaren", {
+      inGebruik: "Deze partij bestaat niet meer.",
+    }),
   );
 }
 
-export async function verwijderActiepunt(id: number): Promise<void> {
-  check(await db().from("bouw_actiepunten").delete().eq("id", id), "Actiepunt verwijderen");
+export async function zetActiepuntKlaar(huisId: number, id: number, klaar: boolean, nu = new Date()): Promise<void> {
+  geraakt(
+    check(
+      await db()
+        .from("bouw_actiepunten")
+        .update({ status: klaar ? "klaar" : "open", klaar_op: klaar ? nu.toISOString() : null })
+        .eq("id", id)
+        .eq("huis_id", huisId)
+        .select("id"),
+      "Actiepunt bewaren",
+    ),
+  );
+}
+
+export async function verwijderActiepunt(huisId: number, id: number): Promise<void> {
+  check(await db().from("bouw_actiepunten").delete().eq("id", id).eq("huis_id", huisId), "Actiepunt verwijderen");
 }
 
 // ---------------------------------------------------------------------------
@@ -255,32 +293,51 @@ function alsOpleverpunt(rij: Record<string, unknown>): Opleverpunt {
   };
 }
 
-export async function lijstOpleverpunten(filter: { partijId?: number } = {}): Promise<Opleverpunt[]> {
-  let vraag = db().from("bouw_opleverpunten").select("*");
+export async function lijstOpleverpunten(huisId: number, filter: { partijId?: number } = {}): Promise<Opleverpunt[]> {
+  let vraag = db().from("bouw_opleverpunten").select("*").eq("huis_id", huisId);
   if (filter.partijId !== undefined) vraag = vraag.eq("partij_id", filter.partijId);
   const rijen = check(await vraag.order("created_at").order("id"), "Opleverpunten lezen") as Record<string, unknown>[];
   return rijen.map(alsOpleverpunt);
 }
 
-export async function leesOpleverpunt(id: number): Promise<Opleverpunt | null> {
-  const rij = check(await db().from("bouw_opleverpunten").select("*").eq("id", id).maybeSingle(), "Opleverpunt lezen") as Record<
+export async function leesOpleverpunt(huisId: number, id: number): Promise<Opleverpunt | null> {
+  const rij = check(
+    await db().from("bouw_opleverpunten").select("*").eq("id", id).eq("huis_id", huisId).maybeSingle(),
+    "Opleverpunt lezen",
+  ) as Record<
     string,
     unknown
   > | null;
   return rij ? alsOpleverpunt(rij) : null;
 }
 
-export async function voegOpleverpuntToe(punt: NieuwOpleverpunt): Promise<number> {
-  const rij = check(await db().from("bouw_opleverpunten").insert(punt).select("id").single(), "Opleverpunt bewaren", {
-    inGebruik: "De partij, de verdieping of de ruimte bestaat niet meer.",
-  }) as { id: number };
+export async function voegOpleverpuntToe(huisId: number, punt: NieuwOpleverpunt): Promise<number> {
+  await zelfdeHuis(
+    huisId,
+    ["bouw_partijen", punt.partij_id],
+    ["bouw_verdiepingen", punt.verdieping_id],
+    ["bouw_ruimtes", punt.ruimte_id],
+  );
+  const rij = check(
+    await db().from("bouw_opleverpunten").insert({ ...punt, huis_id: huisId }).select("id").single(),
+    "Opleverpunt bewaren",
+    { inGebruik: "De partij, de verdieping of de ruimte bestaat niet meer." },
+  ) as { id: number };
   return Number(rij.id);
 }
 
-export async function wijzigOpleverpunt(id: number, punt: Omit<NieuwOpleverpunt, "door">): Promise<void> {
-  check(await db().from("bouw_opleverpunten").update(punt).eq("id", id), "Opleverpunt bewaren", {
-    inGebruik: "De partij, de verdieping of de ruimte bestaat niet meer.",
-  });
+export async function wijzigOpleverpunt(huisId: number, id: number, punt: Omit<NieuwOpleverpunt, "door">): Promise<void> {
+  await zelfdeHuis(
+    huisId,
+    ["bouw_partijen", punt.partij_id],
+    ["bouw_verdiepingen", punt.verdieping_id],
+    ["bouw_ruimtes", punt.ruimte_id],
+  );
+  geraakt(
+    check(await db().from("bouw_opleverpunten").update(punt).eq("id", id).eq("huis_id", huisId).select("id"), "Opleverpunt bewaren", {
+      inGebruik: "De partij, de verdieping of de ruimte bestaat niet meer.",
+    }),
+  );
 }
 
 /**
@@ -288,17 +345,22 @@ export async function wijzigOpleverpunt(id: number, punt: Omit<NieuwOpleverpunt,
  * vertrok: twee mensen die tegelijk op een knop drukken, overschrijven
  * elkaar zo niet.
  */
-export async function zetOpleverstap(id: number, van: StatusOpleverpunt, wijziging: Stapwijziging): Promise<boolean> {
+export async function zetOpleverstap(
+  huisId: number,
+  id: number,
+  van: StatusOpleverpunt,
+  wijziging: Stapwijziging,
+): Promise<boolean> {
   const rijen = check(
-    await db().from("bouw_opleverpunten").update(wijziging).eq("id", id).eq("status", van).select("id"),
+    await db().from("bouw_opleverpunten").update(wijziging).eq("id", id).eq("huis_id", huisId).eq("status", van).select("id"),
     "Opleverpunt bewaren",
   ) as unknown[];
   return rijen.length > 0;
 }
 
 /** De foto's blijven bij de werf, zonder opleverpunt. */
-export async function verwijderOpleverpunt(id: number): Promise<void> {
-  check(await db().from("bouw_opleverpunten").delete().eq("id", id), "Opleverpunt verwijderen");
+export async function verwijderOpleverpunt(huisId: number, id: number): Promise<void> {
+  check(await db().from("bouw_opleverpunten").delete().eq("id", id).eq("huis_id", huisId), "Opleverpunt verwijderen");
 }
 
 // ---------------------------------------------------------------------------
@@ -312,11 +374,13 @@ export interface Vinkje {
   door: string | null;
 }
 
-export async function lijstVinkjes(): Promise<Vinkje[]> {
-  const rijen = check(await db().from("bouw_checklist").select("ruimte_id, sleutel, gedaan_op, door"), "Checklist lezen") as Record<
-    string,
-    unknown
-  >[];
+export async function lijstVinkjes(huisId: number): Promise<Vinkje[]> {
+  const ruimtes = await ruimtesVanHuis(huisId);
+  if (ruimtes.length === 0) return [];
+  const rijen = check(
+    await db().from("bouw_checklist").select("ruimte_id, sleutel, gedaan_op, door").in("ruimte_id", ruimtes),
+    "Checklist lezen",
+  ) as Record<string, unknown>[];
   return rijen.map((rij) => ({
     ruimte_id: Number(rij.ruimte_id),
     sleutel: String(rij.sleutel),
@@ -325,7 +389,8 @@ export async function lijstVinkjes(): Promise<Vinkje[]> {
   }));
 }
 
-export async function zetVinkje(ruimteId: number, sleutel: string, aan: boolean, door: string): Promise<void> {
+export async function zetVinkje(huisId: number, ruimteId: number, sleutel: string, aan: boolean, door: string): Promise<void> {
+  await zelfdeHuis(huisId, ["bouw_ruimtes", ruimteId]);
   if (aan) {
     check(
       await db()

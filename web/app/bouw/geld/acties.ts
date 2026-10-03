@@ -4,7 +4,6 @@ import { bedrag, datum, id, sleutelVan, tekst } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import { korteNaam } from "@/lib/bouw/keuzes";
 import { STANDAARDPOSTEN, euroBedrag, isCategoriePost, isStatusMeerwerk } from "@/lib/bouw/geld";
-import { EIGEN_INBRENG_SLEUTEL, KREDIET_SLEUTEL } from "@/lib/bouw/geld-laden";
 import {
   boekInzendingIn,
   kiesOfferte,
@@ -31,13 +30,14 @@ import {
   zetMeerwerkStatus,
   type NieuwePost,
 } from "@/lib/bouw/geld-opslag";
+import { huisgebruiker, vereistHuisrechten } from "@/lib/bouw/huistoegang";
+import { bewaarFinanciering } from "@/lib/bouw/huizen";
 import { leesInzending, zetInzendingStatus } from "@/lib/bouw/links";
 import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import { lijstPartijen } from "@/lib/bouw/opslag";
-import { voegBeslissingToe, zetInstelling } from "@/lib/bouw/regie-opslag";
+import { voegBeslissingToe } from "@/lib/bouw/regie-opslag";
 import { foutmelding, terug } from "@/lib/bouw/terug";
 import { mislukt, type Uitkomst } from "@/lib/bouw/types";
-import { bouwgebruiker, vereistBouwrechten } from "@/lib/toegang";
 
 const LIJST = "/bouw/geld";
 const FACTUREN = "/bouw/geld/facturen";
@@ -66,10 +66,10 @@ function leesDatum(formulier: FormData, veld: string, naam: string, terugNaar: s
 }
 
 /** Een opgeladen PDF afronden; null als er geen is. Een bestand dat geen document is, valt weg. */
-async function document(formulier: FormData, terugNaar: string): Promise<number | null> {
+async function document(huisId: number, formulier: FormData, terugNaar: string): Promise<number | null> {
   const bestandId = id(formulier.get("bestand_id"));
   if (!bestandId) return null;
-  const afgerond = await rondUploadAf(bestandId);
+  const afgerond = await rondUploadAf(huisId, bestandId);
   if (!afgerond.ok) terug(terugNaar, "fout", afgerond.melding);
   if (afgerond.data.doel !== "document") terug(terugNaar, "fout", "Dit bestand is geen offerte of factuur.");
   return bestandId;
@@ -94,26 +94,33 @@ function leesPostformulier(formulier: FormData, terugNaar: string): NieuwePost {
   };
 }
 
-export async function voegPostToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegPostToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const post = leesPostformulier(formulier, LIJST);
   let postId: number;
   try {
-    postId = await voegPostToe(post);
+    postId = await voegPostToe(huis.id, post);
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(pagina(postId), "goed", `${post.naam} toegevoegd.`);
 }
 
-export async function voegStandaardpostenToeActie(): Promise<void> {
-  await vereistBouwrechten();
+export async function voegStandaardpostenToeActie(huisId: unknown): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   let aantal = 0;
   try {
-    const bestaand = new Set((await lijstPosten()).map((post) => sleutelVan(post.naam)));
+    const bestaand = new Set((await lijstPosten(huis.id)).map((post) => sleutelVan(post.naam)));
     for (const standaard of STANDAARDPOSTEN) {
       if (bestaand.has(sleutelVan(standaard.naam))) continue;
-      await voegPostToe({ naam: standaard.naam, categorie: standaard.categorie, raming: null, partij_id: null, planning_id: null, opmerking: null });
+      await voegPostToe(huis.id, {
+        naam: standaard.naam,
+        categorie: standaard.categorie,
+        raming: null,
+        partij_id: null,
+        planning_id: null,
+        opmerking: null,
+      });
       aantal++;
     }
   } catch (fout) {
@@ -122,25 +129,25 @@ export async function voegStandaardpostenToeActie(): Promise<void> {
   terug(LIJST, "goed", aantal === 0 ? "De gewone posten staan er al." : `${aantal} posten toegevoegd. Vul per post een raming in.`);
 }
 
-export async function wijzigPostActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigPostActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const postId = id(formulier.get("id"));
   if (!postId) terug(LIJST, "fout", "Onbekende post.");
   const post = leesPostformulier(formulier, pagina(postId));
   try {
-    await wijzigPost(postId, post);
+    await wijzigPost(huis.id, postId, post);
   } catch (fout) {
     terug(pagina(postId), "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(pagina(postId), "goed", `${post.naam} bewaard.`);
 }
 
-export async function verwijderPostActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderPostActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const postId = id(formulier.get("id"));
   if (!postId) terug(LIJST, "fout", "Onbekende post.");
   try {
-    await ruimOngebruikteBestandenOp(await verwijderPost(postId));
+    await ruimOngebruikteBestandenOp(huis.id, await verwijderPost(huis.id, postId));
   } catch (fout) {
     terug(pagina(postId), "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -151,8 +158,8 @@ export async function verwijderPostActie(formulier: FormData): Promise<void> {
 // Offertes
 // ---------------------------------------------------------------------------
 
-export async function voegOfferteToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegOfferteToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const postId = id(formulier.get("post_id"));
   if (!postId) terug(LIJST, "fout", "Onbekende post.");
   const terugNaar = pagina(postId);
@@ -167,20 +174,20 @@ export async function voegOfferteToeActie(formulier: FormData): Promise<void> {
     opmerking: tekst(formulier.get("opmerking")),
   };
   // Buiten de try: document() kan terug() aanroepen, en dat is een redirect.
-  const bestandId = await document(formulier, terugNaar);
+  const bestandId = await document(huis.id, formulier, terugNaar);
   try {
-    await voegOfferteToe({ ...offerte, bestand_id: bestandId });
+    await voegOfferteToe(huis.id, { ...offerte, bestand_id: bestandId });
   } catch (fout) {
-    if (bestandId) await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    if (bestandId) await ruimOngebruikteBestandenOp(huis.id, [bestandId]).catch(() => undefined);
     terug(terugNaar, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(terugNaar, "goed", `Offerte van ${euroBedrag(waarde)} toegevoegd.`);
 }
 
-export async function wijzigOfferteActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigOfferteActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const offerteId = id(formulier.get("id"));
-  const bestaand = offerteId ? await leesOfferte(offerteId) : null;
+  const bestaand = offerteId ? await leesOfferte(huis.id, offerteId) : null;
   if (!offerteId || !bestaand) terug(LIJST, "fout", "Deze offerte bestaat niet meer.");
   const terugNaar = pagina(bestaand.post_id);
   // Bij een fout blijft het formulier open.
@@ -194,21 +201,21 @@ export async function wijzigOfferteActie(formulier: FormData): Promise<void> {
     opmerking: tekst(formulier.get("opmerking")),
   };
   try {
-    await wijzigOfferte(offerteId, offerte);
+    await wijzigOfferte(huis.id, offerteId, offerte);
   } catch (fout) {
     terug(opnieuw, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(terugNaar, "goed", "Offerte bewaard.");
 }
 
-export async function verwijderOfferteActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderOfferteActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const offerteId = id(formulier.get("id"));
-  const offerte = offerteId ? await leesOfferte(offerteId) : null;
+  const offerte = offerteId ? await leesOfferte(huis.id, offerteId) : null;
   if (!offerteId || !offerte) terug(LIJST, "fout", "Deze offerte bestaat niet meer.");
   try {
-    const bestand = await verwijderOfferte(offerteId);
-    if (bestand) await ruimOngebruikteBestandenOp([bestand]);
+    const bestand = await verwijderOfferte(huis.id, offerteId);
+    if (bestand) await ruimOngebruikteBestandenOp(huis.id, [bestand]);
   } catch (fout) {
     terug(pagina(offerte.post_id), "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -216,23 +223,23 @@ export async function verwijderOfferteActie(formulier: FormData): Promise<void> 
 }
 
 /** Een offerte kiezen: de andere worden afgewezen, en het komt in het beslissingslog. */
-export async function kiesOfferteActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function kiesOfferteActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const offerteId = id(formulier.get("id"));
-  const offerte = offerteId ? await leesOfferte(offerteId) : null;
+  const offerte = offerteId ? await leesOfferte(huis.id, offerteId) : null;
   if (!offerteId || !offerte) terug(LIJST, "fout", "Deze offerte bestaat niet meer.");
   const terugNaar = pagina(offerte.post_id);
   const opnieuw = offerte.status === "gekozen";
   try {
-    const [post, partijen] = await Promise.all([leesPost(offerte.post_id), lijstPartijen()]);
+    const [post, partijen] = await Promise.all([leesPost(huis.id, offerte.post_id), lijstPartijen(huis.id)]);
     if (!post) throw new Error("Deze post bestaat niet meer.");
     const partij = partijen.find((p) => p.id === offerte.partij_id)?.naam;
-    await kiesOfferte(post.id, opnieuw ? null : offerteId);
+    await kiesOfferte(huis.id, post.id, opnieuw ? null : offerteId);
     if (!opnieuw && offerte.partij_id && post.partij_id === null) {
       // De partij van de gekozen offerte wordt de partij van de post.
-      await wijzigPost(post.id, { ...post, partij_id: offerte.partij_id });
+      await wijzigPost(huis.id, post.id, { ...post, partij_id: offerte.partij_id });
     }
-    await voegBeslissingToe({
+    await voegBeslissingToe(huis.id, {
       datum: vandaag(),
       onderwerp: post.naam,
       beslissing: opnieuw
@@ -251,8 +258,8 @@ export async function kiesOfferteActie(formulier: FormData): Promise<void> {
 // Meer- en minwerken
 // ---------------------------------------------------------------------------
 
-export async function voegMeerwerkToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegMeerwerkToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const postId = id(formulier.get("post_id"));
   if (!postId) terug(LIJST, "fout", "Onbekende post.");
   const terugNaar = pagina(postId);
@@ -262,7 +269,13 @@ export async function voegMeerwerkToeActie(formulier: FormData): Promise<void> {
   const min = formulier.get("soort") === "min";
   const wanneer = leesDatum(formulier, "datum", "De datum", terugNaar) ?? vandaag();
   try {
-    await voegMeerwerkToe({ post_id: postId, omschrijving, bedrag: min ? -waarde : waarde, datum: wanneer, status: "voorgesteld" });
+    await voegMeerwerkToe(huis.id, {
+      post_id: postId,
+      omschrijving,
+      bedrag: min ? -waarde : waarde,
+      datum: wanneer,
+      status: "voorgesteld",
+    });
   } catch (fout) {
     terug(terugNaar, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
@@ -270,15 +283,15 @@ export async function voegMeerwerkToeActie(formulier: FormData): Promise<void> {
 }
 
 /** De knop zegt wat er moet gebeuren: name="status", met de nieuwe status of "weg" als waarde. */
-export async function zetMeerwerkActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function zetMeerwerkActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const meerwerkId = id(formulier.get("meerwerk_id"));
   const postId = id(formulier.get("post_id"));
   const status = String(formulier.get("status") ?? "");
   if (!meerwerkId || !postId) terug(LIJST, "fout", "Onbekend meerwerk.");
   try {
-    if (status === "weg") await verwijderMeerwerk(meerwerkId);
-    else if (isStatusMeerwerk(status)) await zetMeerwerkStatus(meerwerkId, status);
+    if (status === "weg") await verwijderMeerwerk(huis.id, meerwerkId);
+    else if (isStatusMeerwerk(status)) await zetMeerwerkStatus(huis.id, meerwerkId, status);
     else throw new Error("Onbekende status.");
   } catch (fout) {
     terug(pagina(postId), "fout", foutmelding(fout, "Bewaren mislukt."));
@@ -313,29 +326,29 @@ function leesFactuurformulier(formulier: FormData, terugNaar: string) {
   };
 }
 
-export async function voegFactuurToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegFactuurToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const terugNaar = terugpad(formulier);
   const factuur = leesFactuurformulier(formulier, terugNaar);
-  const bestandId = await document(formulier, terugNaar);
+  const bestandId = await document(huis.id, formulier, terugNaar);
   try {
-    await voegFactuurToe({ ...factuur, bestand_id: bestandId });
+    await voegFactuurToe(huis.id, { ...factuur, bestand_id: bestandId });
   } catch (fout) {
-    if (bestandId) await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    if (bestandId) await ruimOngebruikteBestandenOp(huis.id, [bestandId]).catch(() => undefined);
     terug(terugNaar, "fout", foutmelding(fout, "Toevoegen mislukt."));
   }
   terug(terugNaar, "goed", `Factuur van ${euroBedrag(factuur.bedrag)} toegevoegd.`);
 }
 
-export async function wijzigFactuurActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function wijzigFactuurActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const factuurId = id(formulier.get("id"));
-  if (!factuurId || !(await leesFactuur(factuurId))) terug(FACTUREN, "fout", "Deze factuur bestaat niet meer.");
+  if (!factuurId || !(await leesFactuur(huis.id, factuurId))) terug(FACTUREN, "fout", "Deze factuur bestaat niet meer.");
   // Bij een fout blijft het formulier open.
   const opnieuw = `${FACTUREN}?factuur=${factuurId}`;
   const factuur = leesFactuurformulier(formulier, opnieuw);
   try {
-    await wijzigFactuur(factuurId, factuur);
+    await wijzigFactuur(huis.id, factuurId, factuur);
   } catch (fout) {
     terug(opnieuw, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
@@ -343,27 +356,27 @@ export async function wijzigFactuurActie(formulier: FormData): Promise<void> {
 }
 
 /** Betaald vandaag, of terug op niet betaald. */
-export async function betaalActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function betaalActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const factuurId = id(formulier.get("id"));
-  const factuur = factuurId ? await leesFactuur(factuurId) : null;
+  const factuur = factuurId ? await leesFactuur(huis.id, factuurId) : null;
   const terugNaar = terugpad(formulier);
   if (!factuurId || !factuur) terug(terugNaar, "fout", "Deze factuur bestaat niet meer.");
   try {
-    await zetBetaald(factuurId, factuur.betaald_op ? null : vandaag());
+    await zetBetaald(huis.id, factuurId, factuur.betaald_op ? null : vandaag());
   } catch (fout) {
     terug(terugNaar, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(terugNaar, "goed", factuur.betaald_op ? "De factuur staat terug open." : "Betaald. Dank je.");
 }
 
-export async function verwijderFactuurActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderFactuurActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const factuurId = id(formulier.get("id"));
   if (!factuurId) terug(FACTUREN, "fout", "Onbekende factuur.");
   try {
-    const bestand = await verwijderFactuur(factuurId);
-    if (bestand) await ruimOngebruikteBestandenOp([bestand]);
+    const bestand = await verwijderFactuur(huis.id, factuurId);
+    if (bestand) await ruimOngebruikteBestandenOp(huis.id, [bestand]);
   } catch (fout) {
     terug(FACTUREN, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -374,38 +387,42 @@ export async function verwijderFactuurActie(formulier: FormData): Promise<void> 
 // Krediet en eigen inbreng
 // ---------------------------------------------------------------------------
 
-export async function bewaarFinancieringActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function bewaarFinancieringActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const krediet = leesBedrag(formulier, "krediet", "Het krediet", LIJST, false);
   const eigen = leesBedrag(formulier, "eigen_inbreng", "De eigen inbreng", LIJST, false);
   try {
-    await zetInstelling(KREDIET_SLEUTEL, krediet === null ? "" : String(krediet));
-    await zetInstelling(EIGEN_INBRENG_SLEUTEL, eigen === null ? "" : String(eigen));
+    await bewaarFinanciering(huis.id, { krediet, eigenInbreng: eigen });
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(LIJST, "goed", "Financiering bewaard.");
 }
 
-export async function voegKredietopnameToeActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function voegKredietopnameToeActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const waarde = leesBedrag(formulier, "bedrag", "Het bedrag", FACTUREN, true)!;
   if (waarde <= 0) terug(FACTUREN, "fout", "Een opname is een positief bedrag.");
   const wanneer = leesDatum(formulier, "datum", "De datum", FACTUREN) ?? vandaag();
   try {
-    await voegKredietopnameToe({ datum: wanneer, bedrag: waarde, factuur_id: id(formulier.get("factuur_id")), opmerking: tekst(formulier.get("opmerking")) });
+    await voegKredietopnameToe(huis.id, {
+      datum: wanneer,
+      bedrag: waarde,
+      factuur_id: id(formulier.get("factuur_id")),
+      opmerking: tekst(formulier.get("opmerking")),
+    });
   } catch (fout) {
     terug(FACTUREN, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(FACTUREN, "goed", `Opname van ${euroBedrag(waarde)} bewaard.`);
 }
 
-export async function verwijderKredietopnameActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function verwijderKredietopnameActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const opnameId = id(formulier.get("id"));
   if (!opnameId) terug(FACTUREN, "fout", "Onbekende opname.");
   try {
-    await verwijderKredietopname(opnameId);
+    await verwijderKredietopname(huis.id, opnameId);
   } catch (fout) {
     terug(FACTUREN, "fout", foutmelding(fout, "Verwijderen mislukt."));
   }
@@ -417,32 +434,39 @@ export async function verwijderKredietopnameActie(formulier: FormData): Promise<
 // ---------------------------------------------------------------------------
 
 /** Een PDF bij een offerte of factuur die er al is. Een vorige PDF gaat weg. */
-export async function zetDocumentActie(formulier: FormData): Promise<void> {
-  await vereistBouwrechten();
+export async function zetDocumentActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { huis } = await vereistHuisrechten(huisId);
   const terugNaar = terugpad(formulier);
   const soort = formulier.get("soort");
   const doelId = id(formulier.get("id"));
   if (!doelId || (soort !== "offerte" && soort !== "factuur")) terug(terugNaar, "fout", "Onbekende offerte of factuur.");
-  const bestandId = await document(formulier, terugNaar);
+  const bestandId = await document(huis.id, formulier, terugNaar);
   if (!bestandId) terug(terugNaar, "fout", "Kies eerst een PDF.");
   try {
-    const vorig = soort === "offerte" ? await zetBestandVanOfferte(doelId, bestandId) : await zetBestandVanFactuur(doelId, bestandId);
-    if (vorig) await ruimOngebruikteBestandenOp([vorig]);
+    const vorig =
+      soort === "offerte"
+        ? await zetBestandVanOfferte(huis.id, doelId, bestandId)
+        : await zetBestandVanFactuur(huis.id, doelId, bestandId);
+    if (vorig) await ruimOngebruikteBestandenOp(huis.id, [vorig]);
   } catch (fout) {
-    await ruimOngebruikteBestandenOp([bestandId]).catch(() => undefined);
+    await ruimOngebruikteBestandenOp(huis.id, [bestandId]).catch(() => undefined);
     terug(terugNaar, "fout", foutmelding(fout, "Bewaren mislukt."));
   }
   terug(terugNaar, "goed", "PDF bewaard.");
 }
 
-export async function vraagDocumentUploadAan(aanbod: { naam: string; type: string; grootte: number }): Promise<Uitkomst<Gestart>> {
-  const ik = await bouwgebruiker();
-  if (!ik) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+export async function vraagDocumentUploadAan(
+  huisId: unknown,
+  aanbod: { naam: string; type: string; grootte: number },
+): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
   try {
     return await startUpload(
+      toegang.huis.id,
       { naam: String(aanbod?.naam ?? ""), type: String(aanbod?.type ?? ""), grootte: Number(aanbod?.grootte) },
       "document",
-      ik.email,
+      toegang.ik.email,
     );
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
@@ -454,15 +478,15 @@ export async function vraagDocumentUploadAan(aanbod: { naam: string; type: strin
 // ---------------------------------------------------------------------------
 
 /** Een ingestuurde offerte of factuur inboeken. Daarna sta je op de offerte of de factuur, om ze na te kijken. */
-export async function boekInzendingInActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function boekInzendingInActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const inzendingId = id(formulier.get("inzending_id"));
-  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  const inzending = inzendingId ? await leesInzending(huis.id, inzendingId) : null;
   if (!inzending || inzending.soort === "plan") terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
   const postId = id(formulier.get("post_id"));
   let ingeboekt: { soort: "offerte" | "factuur"; id: number };
   try {
-    ingeboekt = await boekInzendingIn(inzending, postId, korteNaam(ik.naam, ik.email));
+    ingeboekt = await boekInzendingIn(huis.id, inzending, postId, korteNaam(ik.naam, ik.email));
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Inboeken mislukt."));
   }
@@ -471,14 +495,14 @@ export async function boekInzendingInActie(formulier: FormData): Promise<void> {
 }
 
 /** Niet nodig: weg ermee, ook uit de opslag. */
-export async function negeerGeldinzendingActie(formulier: FormData): Promise<void> {
-  const ik = await vereistBouwrechten();
+export async function negeerGeldinzendingActie(huisId: unknown, formulier: FormData): Promise<void> {
+  const { ik, huis } = await vereistHuisrechten(huisId);
   const inzendingId = id(formulier.get("inzending_id"));
-  const inzending = inzendingId ? await leesInzending(inzendingId) : null;
+  const inzending = inzendingId ? await leesInzending(huis.id, inzendingId) : null;
   if (!inzending || inzending.soort === "plan" || inzending.status !== "nieuw") terug(LIJST, "fout", "Deze inzending bestaat niet meer.");
   try {
-    await zetInzendingStatus(inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
-    await ruimOngebruikteBestandenOp([inzending.bestand_id]);
+    await zetInzendingStatus(huis.id, inzending.id, "genegeerd", korteNaam(ik.naam, ik.email));
+    await ruimOngebruikteBestandenOp(huis.id, [inzending.bestand_id]);
   } catch (fout) {
     terug(LIJST, "fout", foutmelding(fout, "Negeren mislukt."));
   }

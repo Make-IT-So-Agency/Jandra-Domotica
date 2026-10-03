@@ -64,11 +64,13 @@ export function Postvelden({
 }
 
 export function Offertevelden({
+  huisId,
   offerte,
   partijen,
   voorvoegsel,
   metDocument = false,
 }: {
+  huisId: number;
   offerte?: Offerte;
   partijen: Partij[];
   voorvoegsel: string;
@@ -110,7 +112,7 @@ export function Offertevelden({
       </div>
       {metDocument ? (
         <div className="veldenrij">
-          <Documentveld id={`${voorvoegsel}-pdf`} label="PDF van de offerte" />
+          <Documentveld huisId={huisId} id={`${voorvoegsel}-pdf`} label="PDF van de offerte" />
         </div>
       ) : null}
     </>
@@ -118,6 +120,7 @@ export function Offertevelden({
 }
 
 export function Factuurvelden({
+  huisId,
   factuur,
   posten,
   partijen,
@@ -125,6 +128,7 @@ export function Factuurvelden({
   voorvoegsel,
   vastePost,
 }: {
+  huisId: number;
   factuur?: Factuur;
   posten: Post[];
   partijen: Partij[];
@@ -216,7 +220,7 @@ export function Factuurvelden({
           <label htmlFor={`${voorvoegsel}-opmerking`}>Opmerking</label>
           <input id={`${voorvoegsel}-opmerking`} name="opmerking" defaultValue={factuur?.opmerking ?? ""} />
         </div>
-        {factuur ? null : <Documentveld id={`${voorvoegsel}-pdf`} label="PDF van de factuur" />}
+        {factuur ? null : <Documentveld huisId={huisId} id={`${voorvoegsel}-pdf`} label="PDF van de factuur" />}
       </div>
     </>
   );
