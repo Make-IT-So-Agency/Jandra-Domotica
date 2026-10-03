@@ -265,6 +265,28 @@ grondplannen.
   `bouw_huizen.inplanting_*`); een gebouw zonder bewaarde plaats zoekt de app
   bij elk bezoek opnieuw. Het zoeken loopt in een webworker, zodat het beeld
   vlot blijft. Zonder inplantingsplan staan de gebouwen naast elkaar.
+- **De omgeving uit Vlaanderen.** Met een adres bij Overzicht haalt de server
+  bij Digitaal Vlaanderen (gratis, zonder sleutel; `omgeving-diensten.ts`):
+  - het adrespunt in Lambert 72 (Geolocation);
+  - de percelen en de gebouwen binnen 100 m (de WFS van het GRB): ons perceel
+    is dat met het adrespunt erin;
+  - de luchtfoto van 200 × 200 m, de nieuwste winteropname, op 2048 pixels
+    (ongeveer 10 cm per pixel). De browser bewaart ze een dag; wij nergens.
+
+  In 3D ligt de luchtfoto als grond, met het inplantingsplan erover (het wit
+  valt weg). Ons perceel krijgt een lage oranje boord, de percelen van de
+  buren een dunne lijn, en de huizen van de buren worden volumes van 6 m met
+  een zadeldak langs de lange kant: het GRB kent geen hoogtes. Wat nu op ons
+  perceel staat, is verborgen; een vinkje toont het.
+
+  Waar de omgeving ligt, zoekt de app zelf (`drie/omgeving.ts`): ons perceel
+  uit het GRB op het perceel van het inplantingsplan, met dezelfde overlap
+  als de gebouwen en op de schaal van het plan, met y omgekeerd (Lambert telt
+  naar het noorden). Lukt dat niet, dan komt het adrespunt op de woning met
+  het noorden naar boven. Met **Omgeving verschuiven en draaien** stuur je
+  bij: slepen, draaien rond de woning per 0,1°, 1° of 90°, en de pijltjes.
+  **Omgeving bewaren** bewaart waar de linkerbovenhoek van het plan in Lambert
+  ligt en de hoek (`bouw_huizen.lambert_*`).
 - three.js laadt enkel op deze pagina, en enkel in de browser.
 
 ## Keuzes en planning
@@ -570,6 +592,12 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
   moment gemaakt en nergens bewaard. Er staat geen adres op.
 - De tests maken hun eigen plannen met een kleine PDF-schrijver
   (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
+- De omgeving: het adres gaat enkel van de server naar Digitaal Vlaanderen,
+  zonder cache. Het antwoord aan de browser bevat geen adres en geen
+  perceelnummers. Een fout in het log zegt welke dienst en welke HTTP-status,
+  nooit het adres of de coördinaten. De coördinaten van het terrein staan
+  enkel in de databank; de telling in `scripts/sql/` zegt enkel of ze er zijn.
+  De tests gebruiken verzonnen adressen en coördinaten.
 
 ## Hoe opladen werkt
 
@@ -663,6 +691,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |
 | `supabase/migrations/20261003200000_bouw_trappen.sql` | De keuzes voor de trappen, per verdieping |
 | `supabase/migrations/20261003210000_bouw_inplanting.sql` | De plaats van elk gebouw, en het inplantingsplan en zijn schaal per huis |
+| `web/lib/bouw/drie/omgeving.ts` | Lambert en het terrein, de antwoorden van het GRB lezen, ons perceel op het plan, de huizen van de buren; puur, met tests |
+| `web/lib/bouw/omgeving-diensten.ts`, `web/app/api/bouw/omgeving/` | De diensten van Digitaal Vlaanderen op de server, en de routes voor de omgeving en de luchtfoto |
+| `web/app/vastgoed/[huis]/3d/omgeving-scene.ts` | De omgeving in three.js: luchtfoto, perceelgrenzen en buren |
+| `supabase/migrations/20261003220000_bouw_omgeving.sql` | Waar het terrein op de kaart ligt, per huis |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -785,10 +817,14 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    **Gebouwen verplaatsen**, en **Inplanting bewaren**. Staat het
    inplantingsplan nog niet bij Plannen, laad het dan op als soort
    Inplantingsplan.
-6. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
+6. **De omgeving:** het adres invullen bij **Overzicht**, als het er nog niet
+   staat. Dan bij 3D nakijken of de luchtfoto en de perceelgrenzen op het
+   plan vallen, zo nodig bijsturen met **Omgeving verschuiven en draaien**, en
+   **Omgeving bewaren**.
+7. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →
    Telegram**. De stappen staan daar; zie ook [De bot van Bouw](#de-bot-van-bouw).
    Er hoeft niets bij GitHub of Vercel.
-7. **Na het uitrollen nakijken:**
+8. **Na het uitrollen nakijken:**
    - de bucket `bouw` staat in het Supabase-dashboard als *Private*;
    - het dossier van de architect inlezen bij Plannen;
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
@@ -839,8 +875,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       van het plan, ook met een bordes, die je op en af wandelt
 - [x] **5c** De gebouwen automatisch op het inplantingsplan, het plan op de
       grond, en de gebouwen zelf verplaatsen en draaien
-- [ ] **5d** De omgeving uit Vlaanderen: perceelgrenzen, de huizen van de
-      buren en de luchtfoto
+- [x] **5d** De omgeving uit Vlaanderen: de luchtfoto, de perceelgrenzen en
+      de huizen van de buren, vanzelf op het plan gelegd
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

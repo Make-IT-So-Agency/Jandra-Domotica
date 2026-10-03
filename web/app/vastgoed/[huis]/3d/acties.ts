@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
+import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
 import { huisgebruiker } from "@/lib/bouw/huistoegang";
 import { id } from "@/lib/bouw/invoer";
-import { bewaarDak, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
+import { bewaarDak, bewaarGeoref, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
@@ -60,6 +61,21 @@ export async function bewaarInplantingActie(huisId: unknown, vraag: unknown): Pr
   if (!inplanting) return mislukt("Onbekende plaats, plan of schaal.");
   try {
     await bewaarInplanting(toegang.huis.id, inplanting);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
+}
+
+/** Waar het terrein op de kaart ligt, zoals in het 3D-scherm gelegd; null wist het, dan zoekt het scherm opnieuw. */
+export async function bewaarOmgevingActie(huisId: unknown, vraag: unknown): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const georef = vraag === null ? null : schoneGeoref(vraag);
+  if (vraag !== null && !georef) return mislukt("Onbekende ligging.");
+  try {
+    await bewaarGeoref(toegang.huis.id, georef);
   } catch (fout) {
     return mislukt(foutmelding(fout, "Bewaren mislukt."));
   }
