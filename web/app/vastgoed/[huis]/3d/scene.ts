@@ -290,6 +290,8 @@ export function bouwScene(
     plaat(bouwer, v.plaat, "plaat", "plafond", "gevel");
     for (const t of v.trappen) trap(bouwer, t);
     for (const l of v.leuningen) leuning(bouwer, l, v.z0);
+    // Een luifel hoort bij haar verdieping: met de laag gaat ze mee aan en uit.
+    for (const luifel of v.luifels) plaat(bouwer, luifel, "luifel", "luifel", "luifel");
 
     const groep = new THREE.Group();
     groep.name = `verdieping-${v.id}`;

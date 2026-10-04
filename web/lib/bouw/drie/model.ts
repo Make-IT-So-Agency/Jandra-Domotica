@@ -1,10 +1,11 @@
 import { nettoOppervlakte, oppervlakte } from "../omzetting/geometrie";
 import type { Trapvoorstel, Xy } from "../omzetting/types";
 import type { SoortRuimte } from "../types";
-import { pasCorrectiesToe, vlakVanGat, type Correctie } from "./correcties";
+import { pasCorrectiesToe, vlakVanGat, type Correctie, type Toegepasteluifel } from "./correcties";
 import { maakDak, type Dak } from "./dak";
 import type { Dakinstelling } from "./dakregels";
 import { vindGaten, type Gat, type Gekendeopening } from "./gaten";
+import { MIN_LUIFEL, type Gekendeluifel } from "./luifels";
 import { maakTrappen, type Trap3d, type Trapstand } from "./trappen";
 import { binnenVeelhoeken, doorsnede, vergrootConvex, verschil, vereniging, type Veelhoek } from "./vlak";
 
@@ -64,11 +65,7 @@ export interface Invoerverdieping {
   luifels?: Gekendeluifel[];
 }
 
-/** Een luifel zoals de omzetting ze bewaarde: de lijn in streepjes, van de gevel tot weer op de gevel, en de diepte. */
-export interface Gekendeluifel {
-  lijn: Xy[];
-  diepte: number;
-}
+export type { Gekendeluifel } from "./luifels";
 
 export type Zijde = "binnen" | "buiten";
 
@@ -112,6 +109,8 @@ export interface Verdieping3d {
   trappen: Trap3d[];
   /** De leuningen rond een trapgat in deze vloer. */
   leuningen: [Xy, Xy][];
+  /** De luifels tegen de gevel, buiten de voetafdruk. */
+  luifels: Plaat[];
 }
 
 /** Een gebouw in zijn eigen assenstelsel: waar het ligt, en hoe hoog het komt. */
@@ -184,6 +183,7 @@ export function maakModel(
     const voetafdrukken: Veelhoek[][] = [];
     const murenPer: Veelhoek[][] = [];
     const binnenPer: Veelhoek[][] = [];
+    const luifelsPer: Toegepasteluifel[][] = [];
     const eigen: Verdieping3d[] = [];
     let x0 = Infinity;
     let y0 = Infinity;
@@ -198,8 +198,16 @@ export function maakModel(
       const ruimtes: Veelhoek[] = verdieping.ruimtes.map((r) => r.ringen);
       const omgezet = vereniging(verdieping.muren.map((ring) => [ring]));
       const correcties = verdieping.correcties ?? [];
-      // De muren en openingen met wat iemand op het plan verbeterde; waar een muur weg is, komt vloer.
-      const { muren, gaten, open } = pasCorrectiesToe(omgezet, verdieping.ruimtes, verdieping.openingen, plafond, correcties);
+      // De muren, openingen en luifels met wat iemand op het plan verbeterde; waar een muur weg is, komt vloer.
+      const { muren, gaten, open, luifels } = pasCorrectiesToe(
+        omgezet,
+        verdieping.ruimtes,
+        verdieping.openingen,
+        plafond,
+        correcties,
+        verdieping.luifels ?? [],
+      );
+      luifelsPer.push(luifels);
       const voetafdruk = vereniging([...ruimtes, ...muren, ...gaten.map(vlakVanGat), ...open]);
       voetafdrukken.push(voetafdruk);
       const zones = voetafdruk.flatMap((veelhoek) => veelhoek.slice(1)).filter((ring) => Math.abs(oppervlakte(ring)) <= KLEINE_ZONE);
@@ -244,6 +252,7 @@ export function maakModel(
         dakplaat: null,
         trappen: [],
         leuningen: [],
+        luifels: [],
       });
     }
 
@@ -277,6 +286,20 @@ export function maakModel(
         Math.abs(oppervlakte(gat)) > KLEINE_ZONE || doorsnede([[gat]], vanBeneden).some((stuk) => Math.abs(nettoOppervlakte(stuk)) > 0.05);
       verdieping.plaat = { ...verdieping.plaat, veelhoeken: verdieping.plaat.veelhoeken.map(([rand, ...gaten]) => [rand, ...gaten.filter(open)]) };
     });
+
+    // Een luifel ligt buiten de voetafdruk, en ook niet onder de verdieping erboven: daar is het haar vloer die uitkraagt.
+    // Ze telt niet mee in het kader: zo verschuift het gebouw niet op het terrein.
+    for (const [i, verdieping] of eigen.entries()) {
+      const boven = voetafdrukken[i + 1];
+      verdieping.luifels = luifelsPer[i].flatMap((luifel) => {
+        const veelhoeken = boven
+          ? verschil(luifel.veelhoeken, zonderGaten(boven)).filter((veelhoek) => nettoOppervlakte(veelhoek) >= MIN_LUIFEL)
+          : luifel.veelhoeken;
+        if (veelhoeken.length === 0) return [];
+        const z0 = mm(verdieping.z0 + luifel.onder);
+        return [{ veelhoeken, z0, z1: mm(z0 + luifel.dikte) }];
+      });
+    }
 
     // Wat de verdieping erboven niet bedekt, krijgt een plat dak; de bovenste het dak van het gebouw.
     for (const [i, verdieping] of eigen.entries()) {

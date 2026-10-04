@@ -2,6 +2,7 @@ import { nettoOppervlakte } from "../omzetting/geometrie";
 import type { Xy } from "../omzetting/types";
 import { gedraaid, standaardBlad, type Draai } from "./deuren";
 import { hartVan, vindGaten, type Gat, type Gatsoort, type Gekendeopening } from "./gaten";
+import { LUIFELDIKTE, MIN_LUIFEL, onderkantVanLuifel, sluitLuifel, type Gekendeluifel } from "./luifels";
 import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from "./vlak";
 
 /**
@@ -16,7 +17,12 @@ import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from
  * - opening: een raam, deur of doorgang in een muur, van a naar b op de as;
  * - gat: een opening die de app vond (bij x, y) is een andere soort, heeft
  *   andere hoogtes, of (met een breedte) een andere breedte;
- * - dicht: een opening die de app vond (bij x, y) wordt weer muur.
+ * - dicht: een opening die de app vond (bij x, y) wordt weer muur;
+ * - luifel: een luifel tegen de gevel, langs de as van de muur van a naar b,
+ *   zo diep; zonder onderkant kiest de app ze (zie luifels.ts);
+ * - luifelmaat: een luifel van het plan (waar x, y in ligt) krijgt een
+ *   andere onderkant of dikte;
+ * - luifelweg: een luifel van het plan (waar x, y in ligt) valt weg.
  *
  * Een deur (een opening of een gat) kan ook anders draaien: het scharnier
  * aan de andere kant, of naar de andere kant open (draai). Een nieuwe deur
@@ -31,7 +37,10 @@ export type Correctie =
   | { soort: "weg"; a: Xy; b: Xy }
   | { soort: "opening"; a: Xy; b: Xy; gat: Gatsoort; onder: number; boven: number; draai?: Draai }
   | { soort: "gat"; x: number; y: number; gat: Gatsoort; onder: number; boven: number; breedte?: number; draai?: Draai }
-  | { soort: "dicht"; x: number; y: number };
+  | { soort: "dicht"; x: number; y: number }
+  | { soort: "luifel"; a: Xy; b: Xy; diepte: number; onder?: number; dikte: number }
+  | { soort: "luifelmaat"; x: number; y: number; onder?: number; dikte: number }
+  | { soort: "luifelweg"; x: number; y: number };
 
 export const GATSOORTEN: readonly Gatsoort[] = ["raam", "buitendeur", "deur", "doorgang"];
 export const GATNAMEN: Record<Gatsoort, string> = { raam: "Raam", buitendeur: "Buitendeur", deur: "Deur", doorgang: "Doorgang" };
@@ -221,11 +230,26 @@ function dichtsteGat(gaten: readonly Gat[], p: Xy, max = BIJ_OPENING): Gat | nul
   return beste?.gat ?? null;
 }
 
+/** Een luifel zoals ze gebouwd wordt: buiten de voetafdruk, met haar hoogte boven de vloer. */
+export interface Toegepasteluifel {
+  veelhoeken: Veelhoek[];
+  /** De onderkant boven de vloer, en hoe dik ze is. */
+  onder: number;
+  dikte: number;
+  diepte: number;
+  /** Koos de app de onderkant (de bovenkant van de ramen eronder)? */
+  vanzelf: boolean;
+  /** Van het plan, of zelf gezet; dan met de index van haar correctie. */
+  bron: "plan" | "zelf";
+  correctie?: number;
+}
+
 export interface Toegepast {
   muren: Veelhoek[];
   gaten: Gat[];
   /** Waar een muur weg is: daar komt vloer. */
   open: Veelhoek[];
+  luifels: Toegepasteluifel[];
   /** Per correctie: raakt ze nog iets? Na een nieuwe versie van het plan misschien niet meer. */
   verslag: boolean[];
 }
@@ -265,7 +289,9 @@ function bladenNa(gat: Gat, soort: Gatsoort, draai: Draai | undefined, nieuw: bo
  * 6. wat weg is, wordt een doorgang tot het plafond, en een opening krijgt
  *    de soort en de hoogtes van haar correctie. Een nieuwe opening die
  *    vindGaten niet ziet (in een nieuwe muur midden in een ruimte), komt er
- *    rechtstreeks bij.
+ *    rechtstreeks bij;
+ * 7. de luifels: die van het plan, gesloten langs de gevel, min wat weg
+ *    moet en met hun eigen maten, en de eigen luifels tegen de gevel.
  */
 export function pasCorrectiesToe(
   begin: readonly Veelhoek[],
@@ -273,9 +299,13 @@ export function pasCorrectiesToe(
   openingen: readonly Gekendeopening[],
   plafond: number,
   correcties: readonly Correctie[],
+  luifels: readonly Gekendeluifel[] = [],
 ): Toegepast {
   const verslag = correcties.map(() => true);
-  if (correcties.length === 0) return { muren: [...begin], gaten: vindGaten(ruimtes, begin, openingen, plafond), open: [], verslag };
+  if (correcties.length === 0) {
+    const gaten = vindGaten(ruimtes, begin, openingen, plafond);
+    return { muren: [...begin], gaten, open: [], luifels: luifelsVan(begin, ruimtes, gaten, [], plafond, luifels, correcties, verslag), verslag };
+  }
   let muren = [...begin];
 
   // 1. Muren erbij.
@@ -376,14 +406,102 @@ export function pasCorrectiesToe(
     gaten[j] = { ...gat, soort: c.gat, onder: c.onder, boven: Math.min(c.boven, plafond), ...bladenNa(gat, c.gat, c.draai, false) };
   });
 
-  return { muren, gaten, open, verslag };
+  return { muren, gaten, open, luifels: luifelsVan(muren, ruimtes, gaten, open, plafond, luifels, correcties, verslag), verslag };
+}
+
+/**
+ * Een eigen luifel tegen de gevel: langs de as van de muur van a naar b, aan
+ * de kant waar geen ruimte of muur ligt, vanaf de buitenkant van de muur zo
+ * diep. Zoals een opening wordt ze opnieuw op de gevel gelegd, zodat ze een
+ * nieuwe versie van het plan overleeft. Leeg als daar geen gevel ligt.
+ */
+function luifelLangsGevel(muren: readonly Veelhoek[], voetafdruk: readonly Veelhoek[], a: Xy, b: Xy, diepte: number): Veelhoek[] {
+  const plek = muurLangs(muren, a, b);
+  if (!plek) return [];
+  const n = links(plek.richting);
+  const half = plek.dikte / 2;
+  const midden = opAs(plek, tussen(a, b));
+  const kant = [1, -1].find((teken) => !binnenVeelhoeken(plus(midden, n, teken * (half + 0.05)), voetafdruk));
+  if (kant === undefined) return [];
+  const buiten: Xy = [n[0] * kant, n[1] * kant];
+  const [p, q] = [plus(opAs(plek, a), buiten, half), plus(opAs(plek, b), buiten, half)];
+  const vlak: Veelhoek = [[p, q, plus(q, buiten, diepte), plus(p, buiten, diepte)]];
+  return verschil([vlak], [...voetafdruk]).filter((veelhoek) => nettoOppervlakte(veelhoek) >= MIN_LUIFEL);
+}
+
+/** De luifels: die van het plan met hun correcties, en de eigen. */
+function luifelsVan(
+  muren: readonly Veelhoek[],
+  ruimtes: readonly { ringen: Xy[][] }[],
+  gaten: readonly Gat[],
+  open: readonly Veelhoek[],
+  plafond: number,
+  gevonden: readonly Gekendeluifel[],
+  correcties: readonly Correctie[],
+  verslag: boolean[],
+): Toegepasteluifel[] {
+  const metLuifel = correcties.some((c) => c.soort === "luifel" || c.soort === "luifelmaat" || c.soort === "luifelweg");
+  if (gevonden.length === 0 && !metLuifel) return [];
+  const voetafdruk = vereniging([...ruimtes.map((r) => r.ringen), ...muren, ...gaten.map(vlakVanGat), ...open]);
+
+  const vanHetPlan = gevonden
+    .map((luifel) => ({
+      veelhoeken: sluitLuifel(luifel.lijn, voetafdruk),
+      diepte: luifel.diepte,
+      weg: false,
+      maat: null as { onder?: number; dikte: number } | null,
+    }))
+    .filter((luifel) => luifel.veelhoeken.length > 0);
+  correcties.forEach((c, i) => {
+    if (c.soort !== "luifelmaat" && c.soort !== "luifelweg") return;
+    const luifel = vanHetPlan.find((l) => binnenVeelhoeken([c.x, c.y], l.veelhoeken));
+    if (!luifel) {
+      verslag[i] = false;
+      return;
+    }
+    if (c.soort === "luifelweg") luifel.weg = true;
+    else luifel.maat = { ...(c.onder === undefined ? {} : { onder: c.onder }), dikte: c.dikte };
+  });
+
+  const uit: Toegepasteluifel[] = vanHetPlan
+    .filter((luifel) => !luifel.weg)
+    .map((luifel) => {
+      const onder = luifel.maat?.onder;
+      return {
+        veelhoeken: luifel.veelhoeken,
+        onder: onder ?? onderkantVanLuifel(luifel.veelhoeken, gaten, plafond),
+        dikte: luifel.maat?.dikte ?? LUIFELDIKTE,
+        diepte: luifel.diepte,
+        vanzelf: onder === undefined,
+        bron: "plan" as const,
+      };
+    });
+  correcties.forEach((c, i) => {
+    if (c.soort !== "luifel") return;
+    const veelhoeken = luifelLangsGevel(muren, voetafdruk, c.a, c.b, c.diepte);
+    if (veelhoeken.length === 0) {
+      verslag[i] = false;
+      return;
+    }
+    uit.push({
+      veelhoeken,
+      onder: c.onder ?? onderkantVanLuifel(veelhoeken, gaten, plafond),
+      dikte: c.dikte,
+      diepte: c.diepte,
+      vanzelf: c.onder === undefined,
+      bron: "zelf",
+      correctie: i,
+    });
+  });
+  return uit;
 }
 
 /**
  * De muur langs een stuk van a naar b: in het midden, of als daar geen muur
- * evenwijdig met het stuk ligt (bv. een deur in het midden), wat verder.
+ * evenwijdig met het stuk ligt (bv. een deur in het midden), wat verder. Zo
+ * telt de muur tussen twee tikken, ook als de eerste in een hoek viel.
  */
-function muurLangs(muren: readonly Veelhoek[], a: Xy, b: Xy): Muurplek | null {
+export function muurLangs(muren: readonly Veelhoek[], a: Xy, b: Xy): Muurplek | null {
   const u = eenheid(a, b);
   for (const t of [0.5, 0.3, 0.7, 0.15, 0.85, 0.05, 0.95]) {
     const plek = opMuur(muren, plus(a, [b[0] - a[0], b[1] - a[1]], t), 0.15);
@@ -465,7 +583,37 @@ export function schoneCorrecties(ruw: unknown): Correctie[] {
       const breedte = item.breedte === undefined || item.breedte === null ? undefined : getal(item.breedte, 0.3, 12);
       if (breedte === null) continue;
       uit.push({ soort: "gat", x, y, ...hoogtes, ...(breedte === undefined ? {} : { breedte }), ...draaiVan(item.draai) });
+      continue;
+    }
+    if (item.soort === "luifel") {
+      const [a, b] = [xy(item.a), xy(item.b)];
+      const maten = luifelmatenVan(item);
+      const diepte = getal(item.diepte, 0.2, 5);
+      if (!a || !b || !maten || diepte === null) continue;
+      const lengte = afstand(a, b);
+      if (lengte >= 0.3 && lengte <= 30) uit.push({ soort: "luifel", a, b, diepte, ...maten });
+      continue;
+    }
+    if (item.soort === "luifelmaat" || item.soort === "luifelweg") {
+      const plek = xy([item.x, item.y]);
+      if (!plek) continue;
+      const [x, y] = plek;
+      if (item.soort === "luifelweg") {
+        uit.push({ soort: "luifelweg", x, y });
+        continue;
+      }
+      const maten = luifelmatenVan(item);
+      if (maten) uit.push({ soort: "luifelmaat", x, y, ...maten });
     }
   }
   return uit;
+}
+
+/** De onderkant (als iemand ze gaf) en de dikte van een luifel; null als ze niet kloppen. */
+function luifelmatenVan(item: Record<string, unknown>): { onder?: number; dikte: number } | null {
+  const dikte = getal(item.dikte, 0.05, 1);
+  const zonderOnder = item.onder === undefined || item.onder === null;
+  const onder = zonderOnder ? undefined : getal(item.onder, 0, 6);
+  if (dikte === null || onder === null) return null;
+  return { ...(onder === undefined ? {} : { onder }), dikte };
 }

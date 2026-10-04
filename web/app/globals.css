@@ -1556,6 +1556,20 @@ button.palet-knop.gekozen {
   stroke-width: 3px;
 }
 
+/* Een luifel tegen de gevel, zoals 3D ze bouwt. */
+.laag-luifelvlak {
+  fill: #0d9488;
+  fill-opacity: 0.22;
+  stroke: #0f766e;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-luifelvlak.gekozen {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+}
+
 /* De bogen van de deuren: het blad open, en waar het draait. */
 .laag-deurboog {
   fill: none;
@@ -1579,7 +1593,9 @@ button.palet-knop.gekozen {
 }
 
 .laag-correctie.gat,
-.laag-correctie.dicht {
+.laag-correctie.dicht,
+.laag-correctie.luifelmaat,
+.laag-correctie.luifelweg {
   fill: #16a34a;
   stroke: #ffffff;
   stroke-dasharray: none;
@@ -1590,7 +1606,9 @@ button.palet-knop.gekozen {
 }
 
 .laag-correctie.gat.uit,
-.laag-correctie.dicht.uit {
+.laag-correctie.dicht.uit,
+.laag-correctie.luifelmaat.uit,
+.laag-correctie.luifelweg.uit {
   fill: #9ca3af;
 }
 
@@ -1642,6 +1660,10 @@ button.palet-knop.gekozen {
 
 .legende-kleur.doorgang {
   background: #9ca3af;
+}
+
+.legende-kleur.luifel {
+  background: rgba(13, 148, 136, 0.45);
 }
 
 .legende-kleur.correctie {

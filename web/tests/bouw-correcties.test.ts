@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   eindeOpMuur,
+  muurLangs,
   opMuur,
   pasCorrectiesToe,
   rechtGezet,
@@ -283,3 +284,149 @@ describe("hoe een deur draait", () => {
   });
 });
 
+
+describe("luifels", () => {
+  // Achteraan (boven op het plan) een luifel van 1 m diep, van x = 2 tot 8.
+  const ACHTER = { lijn: [[2, 0], [2, -1], [8, -1], [8, 0]] as Xy[], diepte: 1 };
+  // Links, voor het raam tussen y = 2 en 4.
+  const LINKS_RAAM = { lijn: [[0, 1.5], [-1, 1.5], [-1, 4.5], [0, 4.5]] as Xy[], diepte: 1 };
+  // Rond de hoek rechtsboven: achteraan van x = 8, en rechts tot y = 2.
+  const HOEK = { lijn: [[8, 0], [8, -1], [11, -1], [11, 2], [10, 2]] as Xy[], diepte: 1 };
+  const metLuifels = (luifels: { lijn: Xy[]; diepte: number }[], correcties: Correctie[] = []) =>
+    pasCorrectiesToe(MUREN, RUIMTES, OPENINGEN, PLAFOND, correcties, luifels);
+
+  it("sluit de lijn van het plan langs de gevel, ook rond een hoek", () => {
+    const [achter, hoek] = metLuifels([ACHTER, HOEK]).luifels;
+    expect(oppervlakteVan(achter.veelhoeken)).toBeCloseTo(6, 3);
+    expect(oppervlakteVan(hoek.veelhoeken)).toBeCloseTo(5, 3);
+    expect(binnenVeelhoeken([10.5, 1], hoek.veelhoeken)).toBe(true);
+    expect(achter).toMatchObject({ dikte: 0.3, diepte: 1, vanzelf: true, bron: "plan" });
+  });
+
+  it("legt de onderkant tegen de bovenkant van de ramen eronder, anders op het plafond", () => {
+    const [achter, raam] = metLuifels([ACHTER, LINKS_RAAM]).luifels;
+    // Achteraan geen raam: het plafond.
+    expect(achter.onder).toBe(PLAFOND);
+    // Links het raam tot 2,15 m.
+    expect(raam.onder).toBeCloseTo(2.15);
+    // Voor de voordeur ook.
+    const voordeur = metLuifels([{ lijn: [[6.5, 8], [6.5, 9], [8.5, 9], [8.5, 8]], diepte: 1 }]).luifels[0];
+    expect(voordeur.onder).toBeCloseTo(2.15);
+  });
+
+  it("geeft een luifel van het plan andere maten, of haalt ze weg", () => {
+    const maat = metLuifels([ACHTER], [{ soort: "luifelmaat", x: 5, y: -0.5, onder: 2.5, dikte: 0.2 }]);
+    expect(maat.luifels[0]).toMatchObject({ onder: 2.5, dikte: 0.2, vanzelf: false });
+    expect(maat.verslag).toEqual([true]);
+    // Enkel de dikte: de onderkant blijft die van de app.
+    expect(metLuifels([ACHTER], [{ soort: "luifelmaat", x: 5, y: -0.5, dikte: 0.4 }]).luifels[0]).toMatchObject({ onder: PLAFOND, dikte: 0.4, vanzelf: true });
+    const weg = metLuifels([ACHTER, LINKS_RAAM], [{ soort: "luifelweg", x: 5, y: -0.5 }]);
+    expect(weg.luifels).toHaveLength(1);
+    expect(weg.luifels[0].onder).toBeCloseTo(2.15);
+    // Waar geen luifel ligt, raakt de correctie niets.
+    expect(metLuifels([ACHTER], [{ soort: "luifelweg", x: 5, y: 3 }]).verslag).toEqual([false]);
+  });
+
+  it("zet een eigen luifel tegen de gevel, vanaf de buitenkant van de muur", () => {
+    // Langs de as van de rechtermuur (x = 9,6 tot 10), 1,5 m diep.
+    const { luifels, verslag } = metLuifels([], [{ soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1.5, dikte: 0.3 }]);
+    expect(verslag).toEqual([true]);
+    expect(luifels).toHaveLength(1);
+    expect(luifels[0]).toMatchObject({ bron: "zelf", correctie: 0, onder: PLAFOND, dikte: 0.3, diepte: 1.5, vanzelf: true });
+    expect(oppervlakteVan(luifels[0].veelhoeken)).toBeCloseTo(6, 3);
+    expect(binnenVeelhoeken([11, 3], luifels[0].veelhoeken)).toBe(true);
+    expect(binnenVeelhoeken([9.9, 3], luifels[0].veelhoeken)).toBe(false);
+    // Met een onderkant die iemand koos.
+    const gekozen = metLuifels([], [{ soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1, onder: 2.4, dikte: 0.25 }]).luifels[0];
+    expect(gekozen).toMatchObject({ onder: 2.4, dikte: 0.25, vanzelf: false });
+  });
+
+  it("neemt de muur tussen twee tikken, ook als de eerste in een hoek valt", () => {
+    // In de hoek linksboven lopen de achtermuur en de linkermuur samen.
+    const plek = muurLangs(MUREN, [0.2, 0.2], [9.8, 0.2])!;
+    expect(Math.abs(plek.richting[0])).toBeCloseTo(1);
+    expect(plek.dikte).toBeCloseTo(0.4);
+  });
+
+  it("zet geen luifel tegen een binnenmuur", () => {
+    const { luifels, verslag } = metLuifels([], [{ soort: "luifel", a: [5.07, 0.5], b: [5.07, 2.5], diepte: 1, dikte: 0.3 }]);
+    expect(luifels).toEqual([]);
+    expect(verslag).toEqual([false]);
+  });
+
+  it("leest luifelcorrecties in, en laat weg wat niet klopt", () => {
+    const schoon = schoneCorrecties([
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5.0004], diepte: 1.5, dikte: 0.3 },
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1, onder: 2.4, dikte: 0.25 },
+      { soort: "luifelmaat", x: 5, y: -0.5, dikte: 0.2 },
+      { soort: "luifelmaat", x: 5, y: -0.5, onder: null, dikte: 0.2 },
+      { soort: "luifelweg", x: 5, y: -0.5 },
+      // Te diep, te dik, te kort, een onderkant onder de vloer, geen dikte, en geen plek.
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 10, dikte: 0.3 },
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1, dikte: 2 },
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 1.1], diepte: 1, dikte: 0.3 },
+      { soort: "luifelmaat", x: 5, y: -0.5, onder: -1, dikte: 0.2 },
+      { soort: "luifelmaat", x: 5, y: -0.5 },
+      { soort: "luifelweg", x: "hier", y: -0.5 },
+    ]);
+    expect(schoon).toEqual([
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1.5, dikte: 0.3 },
+      { soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1, onder: 2.4, dikte: 0.25 },
+      { soort: "luifelmaat", x: 5, y: -0.5, dikte: 0.2 },
+      { soort: "luifelmaat", x: 5, y: -0.5, dikte: 0.2 },
+      { soort: "luifelweg", x: 5, y: -0.5 },
+    ]);
+  });
+
+  describe("in het model", () => {
+    const DAK = { type: "plat" as const, helling: 35, nok: "x" as const, overstek: 0.3 };
+    const gelijkvloers = (over: Partial<Invoerverdieping> = {}): Invoerverdieping => ({
+      id: 10,
+      naam: "Gelijkvloers",
+      gebouwId: 1,
+      volgorde: 0,
+      vloerpeil: 0,
+      plafondhoogte: PLAFOND,
+      verdiepingshoogte: 3.2,
+      ruimtes: RUIMTES,
+      muren: RINGEN,
+      openingen: OPENINGEN,
+      luifels: [ACHTER],
+      ...over,
+    });
+    // Een verdieping die achteraan 1 m uitkraagt, over x = 0 tot 4.
+    const verdieping: Invoerverdieping = {
+      id: 11,
+      naam: "Verdieping",
+      gebouwId: 1,
+      volgorde: 1,
+      vloerpeil: 3.2,
+      plafondhoogte: 2.6,
+      verdiepingshoogte: null,
+      ruimtes: [{ id: 3, naam: "slaapkamer", soort: "slaapkamer", ringen: [rechthoek(0, -1, 4, 8)], plafondhoogte: null }],
+      muren: [],
+      openingen: [],
+    };
+
+    it("bouwt de luifel buiten de voetafdruk, op haar hoogte, zonder het gebouw te verschuiven", () => {
+      const model = maakModel([{ id: 1, dak: DAK }], [gelijkvloers()]);
+      const [v] = model.verdiepingen;
+      expect(v.luifels).toHaveLength(1);
+      expect(v.luifels[0]).toMatchObject({ z0: PLAFOND, z1: 3.1 });
+      expect(oppervlakteVan(v.luifels[0].veelhoeken)).toBeCloseTo(6, 3);
+      expect(binnenVeelhoeken([5, -0.5], v.plaat.veelhoeken)).toBe(false);
+      expect(model.gebouwen[0].kader).toEqual(maakModel([{ id: 1, dak: DAK }], [gelijkvloers({ luifels: [] })]).gebouwen[0].kader);
+    });
+
+    it("laat weg wat onder de verdieping erboven ligt, of al een ruimte is", () => {
+      const model = maakModel([{ id: 1, dak: DAK }], [gelijkvloers(), verdieping]);
+      const onder = model.verdiepingen.find((v) => v.id === 10)!;
+      expect(oppervlakteVan(onder.luifels[0].veelhoeken)).toBeCloseTo(4, 3);
+      expect(binnenVeelhoeken([3, -0.5], onder.luifels[0].veelhoeken)).toBe(false);
+      // Een overdekt terras dat als ruimte getekend is: dat is al voetafdruk.
+      const terras = { id: 4, naam: "terras", soort: "terras" as const, ringen: [rechthoek(2, -1, 8, 0)], plafondhoogte: null };
+      const metTerras = maakModel([{ id: 1, dak: DAK }], [gelijkvloers({ ruimtes: [...RUIMTES, terras] })]);
+      expect(metTerras.verdiepingen[0].luifels).toEqual([]);
+    });
+  });
+});
