@@ -245,10 +245,42 @@ grondplannen.
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
   **−** op het beeld, het muiswiel of de toetsen + en −; **Passend** zet alles
-  weer in beeld. Een verdieping, het dak of de punten weglaten; een doorsnede
-  op een hoogte; rondwandelen op ooghoogte met W A S D of de knoppen, zonder
-  door muren te lopen, en de trap op en af (`drie/wandelen.ts`); een beeld
-  downloaden.
+  weer in beeld. Een doorsnede op een hoogte; rondwandelen op ooghoogte met W
+  A S D of de knoppen, zonder door muren te lopen, en de trap op en af
+  (`drie/wandelen.ts`); een beeld downloaden. Er staat altijd maar één
+  gereedschap aan (meten, gebouwen verplaatsen, de omgeving verschuiven); Esc
+  zet terug op kijken.
+- **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
+  daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
+  de buren, wat nu op ons perceel staat (standaard uit), de punten per
+  categorie, de maten en de noordpijl. Het vinkje van een groep zet de hele
+  groep. De browser onthoudt de keuze (`drie/lagen.ts`,
+  `components/bouw/lagen.tsx`).
+- **Meten.** Met **Meten** linksboven op het beeld tik je een begin en een
+  einde: de lijn krijgt haar lengte, en loopt ze niet waterpas, ook wat
+  waterpas en wat in de hoogte ligt ("waterpas 3,40 · hoogte 0,35"). Een tik
+  kleeft aan een hoek van een muur, vloer, trap of buurhuis tot 12 pixels
+  ernaast; anders telt het punt dat je raakt, ook op de grond. Een tik raakt
+  enkel wat te zien is, en niets boven de doorsnede (`3d/kern.ts`). De maten
+  blijven staan tot **Wissen**; Esc breekt een begonnen maat af. **Beeld
+  downloaden** tekent de labels mee (`drie/meten.ts`, `3d/meten.ts`).
+- **De zon.** Bij **Zon** staat de zon op een datum en uur, in Belgische tijd
+  met de zomertijd: met 21 maart, 21 juni en 21 december, **Nu**, en
+  **Afspelen** (de dag in een halve minuut). Het licht komt uit de juiste
+  richting, de huizen van de buren werpen schaduw, en onder de horizon wordt
+  het schemer. De kaart zegt wanneer de zon op- en ondergaat, en hoe hoog en
+  waar ze staat. Het rekenwerk (`drie/zon.ts`):
+  - Lambert 72 naar breedte en lengte: de omgekeerde Lambert-kegelprojectie
+    van EPSG:31370, op de ellipsoïde van Hayford (1924);
+  - het ware noorden op het terrein: de hoek van de omgeving min de
+    convergentie van de meridianen (tot ±1,4° in Vlaanderen);
+  - de stand van de zon, en wanneer ze op- en ondergaat: de formules van de
+    NOAA, op een tiende graad en een minuut.
+
+  Het noorden komt uit de omgeving zoals ze nu ligt. Zonder omgeving is het
+  boven op het plan, en zonder adres staat de zon zoals in het midden van
+  Vlaanderen; de kaart zegt welke. Een noordpijl linksonder op het beeld
+  draait mee met de camera.
 - **Het inplantingsplan.** Elk gebouw heeft zijn eigen assenstelsel, dat van
   zijn grondplannen. Waar het op het terrein staat, haalt de app van het
   inplantingsplan (`drie/inplanting.ts`):
@@ -293,7 +325,7 @@ grondplannen.
   valt weg). Ons perceel krijgt een lage oranje boord, de percelen van de
   buren een dunne lijn, en de huizen van de buren worden volumes van 6 m met
   een zadeldak langs de lange kant: het GRB kent geen hoogtes. Wat nu op ons
-  perceel staat, is verborgen; een vinkje toont het.
+  perceel staat, is verborgen; bij Lagen zet je het aan.
 
   Waar de omgeving ligt, zoekt de app zelf (`drie/omgeving.ts`): ons perceel
   uit het GRB op het perceel van het inplantingsplan, met dezelfde overlap
@@ -894,6 +926,14 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       grond, en de gebouwen zelf verplaatsen en draaien
 - [x] **5d** De omgeving uit Vlaanderen: de luchtfoto, de perceelgrenzen en
       de huizen van de buren, vanzelf op het plan gelegd
+- [x] **5e** Meten in 3D, de zon op datum en uur met het echte noorden, en
+      lagen die je aan en uit zet
+- [ ] **5f** Muren, ramen en deuren verbeteren op het plan, na het omzetten
+- [ ] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
+      verwarming
+- [ ] **5h** Meubels en toestellen
+- [ ] **5i** Leidingen tekenen op het plan, en ze in 3D zien
+- [ ] **5j** Zonnepanelen op het dak
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat
