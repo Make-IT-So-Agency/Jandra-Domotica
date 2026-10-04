@@ -74,6 +74,7 @@ const OUDERS = {
   bouw_verdiepingen: { kolom: "gebouw_id", tabel: "bouw_gebouwen" },
   bouw_ruimtes: { kolom: "verdieping_id", tabel: "bouw_verdiepingen" },
   bouw_punten: { kolom: "verdieping_id", tabel: "bouw_verdiepingen" },
+  bouw_objecten: { kolom: "verdieping_id", tabel: "bouw_verdiepingen" },
   bouw_planversies: { kolom: "plan_id", tabel: "bouw_plannen" },
   bouw_omzettingen: { kolom: "planversie_id", tabel: "bouw_planversies" },
   bouw_opties: { kolom: "keuze_id", tabel: "bouw_keuzes" },

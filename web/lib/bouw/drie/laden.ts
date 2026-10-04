@@ -11,8 +11,10 @@ import {
   lijstPlannen,
   lijstPunten,
   lijstRuimtes,
+  lijstStukken,
   lijstVerdiepingen,
 } from "../opslag";
+import type { GeplaatstStuk } from "../inrichting";
 import { tijdelijkeUrl } from "../opslagruimte";
 import { CATEGORIEKLEUREN, soortVan, type Categorie, type StatusPunt } from "../punten";
 import { lijstKeuzes, lijstOpties, lijstVoorkeuren } from "../regie-opslag";
@@ -27,10 +29,10 @@ import type { Plaatsing } from "./plaatsing";
 /**
  * Alles wat het 3D-scherm nodig heeft, in één keer en als gewone gegevens:
  * de gebouwen met hun dak en hun plaats, de verdiepingen met hun ruimtes,
- * muren en openingen, de materialen uit de keuzes, de punten, en welk
- * inplantingsplan er is. Het model zelf maakt de browser, zodat een ander dak
- * of materiaal meteen te zien is; het inplantingsplan leest de browser ook
- * zelf, met pdf.js.
+ * muren en openingen, de materialen uit de keuzes, de punten, de meubels en
+ * toestellen, en welk inplantingsplan er is. Het model zelf maakt de
+ * browser, zodat een ander dak of materiaal meteen te zien is; het
+ * inplantingsplan leest de browser ook zelf, met pdf.js.
  */
 
 export interface Drieverdieping extends Invoerverdieping {
@@ -74,6 +76,8 @@ export interface Driegegevens {
   verdiepingen: Drieverdieping[];
   materialen: Materiaalkeuze[];
   punten: Driepunt[];
+  /** De meubels en toestellen, met hun verdieping. */
+  stukken: GeplaatstStuk[];
   inplanting: {
     /** Het bewaarde plan en zijn schaal (N van 1/N). */
     planId: number | null;
@@ -90,7 +94,7 @@ export interface Driegegevens {
 }
 
 export async function laadDrie(huisId: number, ik: string, metAdres = false): Promise<Driegegevens> {
-  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, inplanting] = await Promise.all([
+  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, stukken, inplanting] = await Promise.all([
     lijstGebouwen(huisId),
     lijstDaken(huisId),
     lijstVerdiepingen(huisId),
@@ -100,6 +104,7 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
     lijstOpties(huisId),
     lijstVoorkeuren(huisId),
     lijstPunten(huisId),
+    lijstStukken(huisId),
     leesInplanting(huisId),
   ]);
 
@@ -180,6 +185,7 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
         status: punt.status,
       };
     }),
+    stukken,
     inplanting: {
       planId: inplanting.planId,
       schaal: inplanting.schaal,

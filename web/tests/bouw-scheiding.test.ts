@@ -9,6 +9,7 @@ import { lijstFacturen, lijstOffertes, lijstPosten, leesOfferte, leesPost, voegO
 import { lijstHuizen } from "@/lib/bouw/huizen";
 import { lijstGaranties, lijstOnderhoud } from "@/lib/bouw/nazorg-opslag";
 import {
+  bewaarStukken,
   leesBestand,
   leesVerdieping,
   lijstGebouwen,
@@ -16,6 +17,7 @@ import {
   lijstPlannen,
   lijstPunten,
   lijstRuimtes,
+  lijstStukken,
   lijstVerdiepingen,
   verwijderPartij,
   verwijderPunt,
@@ -82,6 +84,9 @@ beforeEach(() => {
     bouw_punten: [
       { id: 1000, verdieping_id: 10, ...punt },
       { id: 2000, verdieping_id: 20, ...punt },
+    ],
+    bouw_objecten: [
+      { id: 3000, verdieping_id: 20, soort: "kast", x_m: 1, y_m: 1, z_m: 0, hoek: 0, kanteling: 0, breedte_m: 1, diepte_m: 0.4, hoogte_m: 2, label: null },
     ],
     bouw_partijen: [
       ...metHuis([{ id: 1, soort: "aannemer", naam: "Bouwbedrijf Een" }], 1),
@@ -237,6 +242,23 @@ describe("twee huizen naast elkaar", () => {
     expect(db.tabellen.bouw_keuzes).toHaveLength(2);
     expect(db.tabellen.bouw_keuze_ruimtes).toEqual([]);
     expect(db.tabellen.bouw_offertes).toHaveLength(2);
+  });
+
+  it("bewaart meubels enkel op een verdieping van het eigen huis", async () => {
+    const kast = { id: -1, soort: "kast", x: 1, y: 1, z: 0, hoek: 0, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: null };
+    await expect(bewaarStukken(1, 20, [kast])).rejects.toThrow("Deze verdieping bestaat niet meer.");
+    // Het id van een kast van het andere huis wordt een nieuw stuk; die van het andere huis blijft staan.
+    const bewaard = await bewaarStukken(1, 10, [kast, { ...kast, id: 3000, x: 2 }]);
+    expect(bewaard.map((s) => [s.verdiepingId, s.x])).toEqual([
+      [10, 1],
+      [10, 2],
+    ]);
+    expect(db.tabellen.bouw_objecten.find((r) => r.id === 3000)).toMatchObject({ verdieping_id: 20, x_m: 1 });
+    // Bijwerken wat er staat, en weghalen wat ontbreekt.
+    const [eerste, tweede] = bewaard;
+    expect(await bewaarStukken(1, 10, [{ ...eerste, hoek: 90 }])).toEqual([{ ...eerste, hoek: 90 }]);
+    expect(db.tabellen.bouw_objecten.some((r) => r.id === tweede.id)).toBe(false);
+    expect((await lijstStukken(2)).map((s) => s.id)).toEqual([3000]);
   });
 
   it("kent de namen van gebouwen en de bladcodes per huis", async () => {

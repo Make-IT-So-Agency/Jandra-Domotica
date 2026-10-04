@@ -1,8 +1,9 @@
 /**
  * De lagen van het 3D-model: wat je aan en uit zet. Elke laag heeft een
- * sleutel ("verdieping:12", "punten:verlichting", "hulp:maten"); de browser
- * onthoudt per sleutel of ze aan staat. Wat niet onthouden is, staat zoals
- * standaard: aan, behalve wat in STANDAARD_UIT staat.
+ * sleutel ("verdieping:12", "punten:verlichting", "inrichting:meubels",
+ * "hulp:maten"); de browser onthoudt per sleutel of ze aan staat. Wat niet
+ * onthouden is, staat zoals standaard: aan, behalve wat in STANDAARD_UIT
+ * staat.
  *
  * Puur, met tests. Het onthouden zelf staat in components/bouw/lagen.tsx.
  */
@@ -41,6 +42,8 @@ export interface Lageninvoer {
   omgeving: boolean;
   /** De categorieën van de punten die er zijn, in de volgorde van de catalogus. */
   punten: readonly { categorie: string; naam: string; kleur: string }[];
+  /** De meubels en de toestellen, als die er zijn (zie inrichting.ts). */
+  inrichting: readonly { laag: string; naam: string }[];
 }
 
 /** De punten per categorie: in 3D, en ook in het puntenscherm. */
@@ -73,6 +76,7 @@ export function lagenVan(invoer: Lageninvoer): Lagengroep[] {
       ],
     },
     puntlagen(invoer.punten),
+    { naam: "Inrichting", lagen: invoer.inrichting.map((i) => ({ sleutel: `inrichting:${i.laag}`, naam: i.naam })) },
     {
       naam: "Hulp",
       lagen: [

@@ -9,6 +9,7 @@ import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
 import { schoneTrapstanden } from "./drie/trappen";
+import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
 import type { Trapdeel, Trapvoorstel, Xy } from "./omzetting/types";
@@ -725,6 +726,90 @@ export async function wijzigPunt(huisId: number, id: number, punt: Nieuwpunt): P
 export async function verwijderPunt(huisId: number, id: number): Promise<void> {
   if ((await huisVanRij("bouw_punten", id)) !== huisId) return;
   check(await db().from("bouw_punten").delete().eq("id", id), "Punt verwijderen");
+}
+
+// ---------------------------------------------------------------------------
+// Meubels en toestellen (zie inrichting.ts)
+// ---------------------------------------------------------------------------
+
+function alsStuk(rij: Record<string, unknown>): GeplaatstStuk {
+  return {
+    id: Number(rij.id),
+    verdiepingId: Number(rij.verdieping_id),
+    soort: String(rij.soort),
+    x: Number(rij.x_m),
+    y: Number(rij.y_m),
+    z: Number(rij.z_m ?? 0),
+    hoek: Number(rij.hoek ?? 0),
+    kanteling: Number(rij.kanteling ?? 0),
+    breedte: Number(rij.breedte_m),
+    diepte: Number(rij.diepte_m),
+    hoogte: Number(rij.hoogte_m),
+    label: (rij.label as string | null) ?? null,
+  };
+}
+
+const stukrij = (stuk: Stuk) => ({
+  soort: stuk.soort,
+  x_m: stuk.x,
+  y_m: stuk.y,
+  z_m: stuk.z,
+  hoek: stuk.hoek,
+  kanteling: stuk.kanteling,
+  breedte_m: stuk.breedte,
+  diepte_m: stuk.diepte,
+  hoogte_m: stuk.hoogte,
+  label: stuk.label,
+});
+
+/** De meubels en toestellen van het huis, op alle verdiepingen. */
+export async function lijstStukken(huisId: number): Promise<GeplaatstStuk[]> {
+  const verdiepingen = await verdiepingenVanHuis(huisId);
+  if (verdiepingen.length === 0) return [];
+  const rijen = check(
+    await db().from("bouw_objecten").select("*").in("verdieping_id", verdiepingen).order("id"),
+    "Meubels lezen",
+  ) as Record<string, unknown>[];
+  return rijen.map(alsStuk);
+}
+
+/**
+ * De meubels en toestellen van een verdieping, allemaal samen, zoals het
+ * 3D-scherm ze doorstuurt. Wat er al stond en veranderde, wordt bijgewerkt;
+ * wat nieuw is, komt erbij; wat ontbreekt, gaat weg. In die volgorde: lukt
+ * een stap niet, dan gaat er niets verloren. Geeft terug wat nu bewaard is.
+ */
+export async function bewaarStukken(huisId: number, verdiepingId: number, stukken: Stuk[]): Promise<GeplaatstStuk[]> {
+  if (!(await leesVerdieping(huisId, verdiepingId))) throw new Bouwfout("Deze verdieping bestaat niet meer.");
+  const lees = async () =>
+    (
+      check(
+        await db().from("bouw_objecten").select("*").eq("verdieping_id", verdiepingId).order("id"),
+        "Meubels lezen",
+      ) as Record<string, unknown>[]
+    ).map(alsStuk);
+  const bestaand = new Map((await lees()).map((stuk) => [stuk.id, stuk]));
+  const schoon = schoneStukken(stukken);
+  // Een id die hier niet (meer) staat, is nieuw: zo gaat een stuk nooit verloren.
+  const blijven = schoon.filter((stuk) => bestaand.has(stuk.id));
+  const nieuw = schoon.filter((stuk) => !bestaand.has(stuk.id));
+
+  for (const stuk of blijven) {
+    const rij = stukrij(stuk);
+    if (JSON.stringify(rij) === JSON.stringify(stukrij(bestaand.get(stuk.id)!))) continue;
+    check(await db().from("bouw_objecten").update(rij).eq("id", stuk.id).eq("verdieping_id", verdiepingId), "Meubels bewaren");
+  }
+  if (nieuw.length > 0) {
+    check(
+      await db().from("bouw_objecten").insert(nieuw.map((stuk) => ({ ...stukrij(stuk), verdieping_id: verdiepingId }))),
+      "Meubels toevoegen",
+    );
+  }
+  const weg = [...bestaand.keys()].filter((id) => !blijven.some((stuk) => stuk.id === id));
+  if (weg.length > 0) {
+    check(await db().from("bouw_objecten").delete().in("id", weg).eq("verdieping_id", verdiepingId), "Meubels weghalen");
+  }
+  return lees();
 }
 
 // ---------------------------------------------------------------------------

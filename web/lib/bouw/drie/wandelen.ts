@@ -5,12 +5,12 @@ import { binnenVeelhoeken, type Veelhoek } from "./vlak";
 /**
  * Rondwandelen in het huis, met de trap op en af. Puur, met tests.
  *
- * Je loopt op een verdieping, zonder door een muur of in een gat. Een trap
- * stap je op aan zijn voet, of van boven waar hij aankomt; langs de zijkant of
- * eronder kan niet. Op een vlucht stijg je mee; op een bordes blijf je op
- * dezelfde hoogte, en van een vlucht naar de volgende gaat het enkel via het
- * bordes. Boven aan de trap loop je verder op de verdieping erboven, onderaan
- * op die eronder.
+ * Je loopt op een verdieping, zonder door een muur of een meubel, en niet in
+ * een gat. Een trap stap je op aan zijn voet, of van boven waar hij aankomt;
+ * langs de zijkant of eronder kan niet. Op een vlucht stijg je mee; op een
+ * bordes blijf je op dezelfde hoogte, en van een vlucht naar de volgende gaat
+ * het enkel via het bordes. Boven aan de trap loop je verder op de verdieping
+ * erboven, onderaan op die eronder.
  *
  * Alles in meter, in het assenstelsel van het gebouw.
  */
@@ -30,6 +30,8 @@ export interface Wandelverdieping {
   gaten: Veelhoek[];
   /** De trappen die hier beginnen. */
   trappen: Trap3d[];
+  /** Meubels en toestellen die je tegenhouden (zie inrichten.ts). */
+  obstakels?: Veelhoek[];
 }
 
 export interface Wandelstand {
@@ -46,11 +48,25 @@ function trapVan(wereld: readonly Wandelverdieping[], trap: Wandelstand["trap"])
   return wereld.find((v) => v.id === trap.van)?.trappen[trap.index] ?? null;
 }
 
-/** Vrij op deze verdieping: niet in een muur, met je breedte erbij. */
-function vrijVanMuren(verdieping: Wandelverdieping, p: Xy): boolean {
-  return [0, 1, 2, 3, 4, 5, 6, 7, 8].every((k) => {
-    const q: Xy = k === 8 ? p : [p[0] + Math.cos((k * Math.PI) / 4) * STRAAL, p[1] + Math.sin((k * Math.PI) / 4) * STRAAL];
-    return !binnenVeelhoeken(q, verdieping.muren);
+/** Je midden en acht punten rond je, met je breedte erbij. */
+function rondom(p: Xy): Xy[] {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) =>
+    k === 8 ? p : [p[0] + Math.cos((k * Math.PI) / 4) * STRAAL, p[1] + Math.sin((k * Math.PI) / 4) * STRAAL],
+  );
+}
+
+/**
+ * Vrij op deze verdieping: niet in een muur, met je breedte erbij, en niet in
+ * een meubel. Sta je al in een meubel (je begon er middenin, of het werd rond
+ * je gezet), dan mag je eruit stappen, maar niet dieper erin.
+ */
+function vrij(verdieping: Wandelverdieping, p: Xy, van?: Xy): boolean {
+  const hier = rondom(p);
+  if (hier.some((q) => binnenVeelhoeken(q, verdieping.muren))) return false;
+  const daar = van ? rondom(van) : null;
+  return (verdieping.obstakels ?? []).every((obstakel) => {
+    const nu = hier.filter((q) => binnenVeelhoeken(q, [obstakel])).length;
+    return nu === 0 || (daar !== null && nu <= daar.filter((q) => binnenVeelhoeken(q, [obstakel])).length);
   });
 }
 
@@ -69,11 +85,11 @@ function probeer(wereld: readonly Wandelverdieping[], stand: Wandelstand, q: Xy)
     const laatste = trap.delen.length - 1;
     if (stand.trap.deel === 0 && (was?.t ?? 0) <= STAPRAND) {
       const onder = wereld.find((v) => v.id === trap.van);
-      return onder && vrijVanMuren(onder, q) && !binnenVeelhoeken(q, onder.gaten) ? { verdieping: onder.id, x: q[0], y: q[1], trap: null } : null;
+      return onder && vrij(onder, q) && !binnenVeelhoeken(q, onder.gaten) ? { verdieping: onder.id, x: q[0], y: q[1], trap: null } : null;
     }
     if (stand.trap.deel === laatste && (trap.delen[laatste].soort === "bordes" || (was?.t ?? 1) >= 1 - STAPRAND)) {
       const boven = wereld.find((v) => v.id === trap.naar);
-      return boven && vrijVanMuren(boven, q) && !binnenVeelhoeken(q, boven.gaten) ? { verdieping: boven.id, x: q[0], y: q[1], trap: null } : null;
+      return boven && vrij(boven, q) && !binnenVeelhoeken(q, boven.gaten) ? { verdieping: boven.id, x: q[0], y: q[1], trap: null } : null;
     }
     return null;
   }
@@ -96,8 +112,8 @@ function probeer(wereld: readonly Wandelverdieping[], stand: Wandelstand, q: Xy)
         : null;
     }
   }
-  // Gewoon lopen: niet door een muur, niet in een gat.
-  if (binnenVeelhoeken(q, hier.gaten) || !vrijVanMuren(hier, q)) return null;
+  // Gewoon lopen: niet door een muur of een meubel, niet in een gat.
+  if (binnenVeelhoeken(q, hier.gaten) || !vrij(hier, q, [stand.x, stand.y])) return null;
   return { ...stand, x: q[0], y: q[1] };
 }
 
