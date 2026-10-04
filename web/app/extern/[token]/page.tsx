@@ -8,6 +8,7 @@ import { korteDatum, vandaag } from "@/lib/bouw/kalender";
 import { CATEGORIENAMEN_KEUZE } from "@/lib/bouw/keuzes";
 import { lijstInzendingen, leesLink, type Inzending } from "@/lib/bouw/links";
 import { leesBestanden, lijstGebouwen, lijstPartijen, lijstPlannen } from "@/lib/bouw/opslag";
+import { VAKKEN, VAKNAMEN } from "@/lib/bouw/punten";
 import { lijstKeuzes, lijstOpties, lijstPlanning } from "@/lib/bouw/regie-opslag";
 import { PLANNAMEN, type Huis } from "@/lib/bouw/types";
 import { laadWensenlijst } from "@/lib/bouw/wensenlijst-laden";
@@ -411,28 +412,35 @@ async function Planning({
   );
 }
 
+/** Per vakgebied een wensenlijst: elektriciteit en domotica, en sanitair en verwarming als er punten zijn. */
 async function Wensenlijst({ huis, token }: { huis: Huis; token: string }) {
-  const { lijst } = await laadWensenlijst(huis);
+  const lijsten = await Promise.all(VAKKEN.map(async (vak) => ({ vak, lijst: (await laadWensenlijst(huis, vak)).lijst })));
   return (
-    <section>
-      <h2>Wensenlijst elektriciteit en domotica</h2>
-      {lijst.aantal === 0 ? (
-        <div className="kaart">
-          <p className="leeg">Nog geen punten.</p>
-        </div>
-      ) : (
-        <>
-          <div className="knoppenrij" style={{ marginBottom: 12 }}>
-            <a className="knop" href={`/extern/${token}/wensenlijst/pdf`}>
-              PDF downloaden
-            </a>
-            <a className="knop stil" href={`/extern/${token}/wensenlijst/excel`}>
-              Excel downloaden
-            </a>
-          </div>
-          <Wenstabel lijst={lijst} metVerdieping />
-        </>
-      )}
-    </section>
+    <>
+      {lijsten
+        .filter(({ vak, lijst }) => vak === "elektriciteit" || lijst.aantal > 0)
+        .map(({ vak, lijst }) => (
+          <section key={vak}>
+            <h2>Wensenlijst {VAKNAMEN[vak].toLowerCase()}</h2>
+            {lijst.aantal === 0 ? (
+              <div className="kaart">
+                <p className="leeg">Nog geen punten.</p>
+              </div>
+            ) : (
+              <>
+                <div className="knoppenrij" style={{ marginBottom: 12 }}>
+                  <a className="knop" href={`/extern/${token}/wensenlijst/pdf?vak=${vak}`}>
+                    PDF downloaden
+                  </a>
+                  <a className="knop stil" href={`/extern/${token}/wensenlijst/excel?vak=${vak}`}>
+                    Excel downloaden
+                  </a>
+                </div>
+                <Wenstabel lijst={lijst} metVerdieping />
+              </>
+            )}
+          </section>
+        ))}
+    </>
   );
 }

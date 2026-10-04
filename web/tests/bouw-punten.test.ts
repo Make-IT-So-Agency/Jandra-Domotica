@@ -15,9 +15,10 @@ import {
   maakWensenlijst,
   ruimteVan,
   standaardHoogte,
+  vakVan,
   type Punt,
 } from "@/lib/bouw/punten";
-import { maakWensenlijstExcel, maakWensenlijstPdf } from "@/lib/bouw/wensenlijst-bestanden";
+import { maakWensenlijstExcel, maakWensenlijstPdf, wensenlijstTitel } from "@/lib/bouw/wensenlijst-bestanden";
 
 const vierkant = (x: number, y: number, b: number): [number, number][][] => [
   [
@@ -139,6 +140,21 @@ describe("de wensenlijst", () => {
       ["2WC", 3],
       ["WCB", 1],
     ]);
+  });
+
+  it("splitst per vakgebied: sanitair en verwarming apart", () => {
+    const met = [...punten, punt(7, "wc_aansluiting", 6, 1), punt(8, "radiator", 1, 4.5)];
+    expect(maakWensenlijst(verdiepingen, ruimtes, met).aantal).toBe(10);
+    expect(maakWensenlijst(verdiepingen, ruimtes, met, "elektriciteit").aantal).toBe(8);
+    const sanitair = maakWensenlijst(verdiepingen, ruimtes, met, "sanitair");
+    expect(sanitair.totalen.map((r) => [r.code, r.aantal])).toEqual([
+      ["TOI", 1],
+      ["RAD", 1],
+    ]);
+    expect(vakVan("thermostaat")).toBe("elektriciteit");
+    expect(vakVan("collector")).toBe("sanitair");
+    expect(vakVan("onbekend")).toBe("elektriciteit");
+    expect(wensenlijstTitel("sanitair")).toBe("Wensenlijst sanitair en verwarming");
   });
 
   it("wordt een PDF en een Excel met de aantallen als getallen", async () => {

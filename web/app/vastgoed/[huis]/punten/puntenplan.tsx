@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { Lagenkeuze, useLagen } from "@/components/bouw/lagen";
 import type { Punt as Schermpunt } from "@/lib/bouw/beeld";
+import { isAan, puntlagen } from "@/lib/bouw/drie/lagen";
 import { getal } from "@/lib/bouw/invoer";
 import { kaderVan, naarHuis, naarPagina, type Kalibratie } from "@/lib/bouw/omzetting/geometrie";
 import type { Xy } from "@/lib/bouw/omzetting/types";
@@ -69,6 +71,22 @@ export default function Puntenplan({ huisId, gegevens }: { huisId: number; gegev
     vraag.addEventListener("change", zet);
     return () => vraag.removeEventListener("change", zet);
   }, []);
+
+  // Wat er te zien is: de punten per categorie, zoals in 3D (de browser onthoudt het).
+  const [lagen, zetLagen] = useLagen();
+  const categorieVan = (punt: Punt) => soortVan(punt.soort)?.categorie ?? "andere";
+  const lagengroep = useMemo(
+    () =>
+      puntlagen(
+        CATEGORIEEN.filter((categorie) => punten.some((p) => categorieVan(p) === categorie)).map((categorie) => ({
+          categorie,
+          naam: CATEGORIENAMEN[categorie],
+          kleur: CATEGORIEKLEUREN[categorie],
+        })),
+      ),
+    [punten],
+  );
+  const zichtbaar = punten.filter((punt) => isAan(lagen, `punten:${categorieVan(punt)}`));
 
   const gekozenPunt = punten.find((p) => p.id === gekozen) ?? null;
   // Bij het begin het gebouw in beeld: de ruimtes, met wat marge.
@@ -141,7 +159,7 @@ export default function Puntenplan({ huisId, gegevens }: { huisId: number; gegev
     // Het dichtste punt binnen een kleine afstand op het scherm.
     const straal = 14 / zoom;
     let beste: { id: number; afstand: number } | null = null;
-    for (const punt of punten) {
+    for (const punt of zichtbaar) {
       const [px, py] = naarPagina([punt.x_m, punt.y_m], k);
       const afstand = Math.hypot(px - p[0], py - p[1]);
       if (afstand <= straal && (!beste || afstand < beste.afstand)) beste = { id: punt.id, afstand };
@@ -171,7 +189,7 @@ export default function Puntenplan({ huisId, gegevens }: { huisId: number; gegev
       {ruimtes.map((ruimte) => (
         <path key={ruimte.id} d={pad(ruimte.veelhoek, k)} fillRule="evenodd" className="laag-ruimte licht" />
       ))}
-      {punten.map((punt) => {
+      {zichtbaar.map((punt) => {
         const [x, y] = naarPagina([punt.x_m, punt.y_m], k);
         const gekend = soortVan(punt.soort);
         const kleur = CATEGORIEKLEUREN[gekend?.categorie ?? "andere"];
@@ -266,6 +284,13 @@ export default function Puntenplan({ huisId, gegevens }: { huisId: number; gegev
             </button>
           ) : null}
         </section>
+
+        {lagengroep.lagen.length > 1 ? (
+          <section className="kaart">
+            <h3>Lagen</h3>
+            <Lagenkeuze groepen={[lagengroep]} stand={lagen} zet={zetLagen} />
+          </section>
+        ) : null}
 
         <section className="kaart">
           <h3>

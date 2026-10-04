@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 
 import { Lagenkeuze, useLagen } from "@/components/bouw/lagen";
 import { DAKNAMEN, DAKTYPES, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
@@ -31,14 +31,15 @@ import { zwaartepunt, oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import { METER_PER_PUNT } from "@/lib/bouw/omzetting/schaal";
 import type { Xy } from "@/lib/bouw/omzetting/types";
 import { huispad } from "@/lib/bouw/paden";
-import { CATEGORIEEN, CATEGORIEKLEUREN, CATEGORIENAMEN } from "@/lib/bouw/punten";
+import { CATEGORIEEN, CATEGORIEKLEUREN, CATEGORIENAMEN, hoogteTekst, ruimteVan, STATUSNAMEN } from "@/lib/bouw/punten";
 import type { Trapstand } from "@/lib/bouw/types";
 
 import { bewaarDakActie, bewaarInplantingActie, bewaarOmgevingActie, bewaarTrappenActie } from "./acties";
 import type { GeladenPlan } from "./inplantingsplan";
-import { richtStraal, zichtbareRaak } from "./kern";
+import { richtStraal, useTik, zichtbareRaak } from "./kern";
 import { useMeten } from "./meten";
 import { bouwOmgeving, type Omgevingsscene } from "./omgeving-scene";
+import { bouwPunten, puntBijTik, type Puntenscene } from "./punten-scene";
 import { bouwScene, plaats, type Opgebouwd, type Sleutel } from "./scene";
 import { Noordpijl, Zonkaart } from "./zon";
 
@@ -295,7 +296,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     materialen: Map<Sleutel, THREE.MeshStandardMaterial>;
     texturen: Map<string, THREE.Texture>;
     opgebouwd: Opgebouwd | null;
-    punten: THREE.Mesh[];
+    punten: THREE.Object3D[];
+    puntenscene: Puntenscene | null;
     /** Het inplantingsplan op de grond, en zijn textuur (één per gelezen plan). */
     plan: THREE.Mesh | null;
     plantextuur: { van: GeladenPlan; textuur: THREE.Texture } | null;
@@ -406,6 +408,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       texturen: new Map(),
       opgebouwd: null,
       punten: [],
+      puntenscene: null,
       plan: null,
       plantextuur: null,
       omgeving: null,
@@ -460,6 +463,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       (d?.plan?.material as THREE.Material | undefined)?.dispose();
       d?.plantextuur?.textuur.dispose();
       d?.omgeving?.opruimen();
+      d?.puntenscene?.opruimen();
       renderer.dispose();
       element.removeChild(renderer.domElement);
       element.removeChild(labels.domElement);
@@ -480,25 +484,10 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     d.scene.add(opgebouwd.wortel);
     d.opgebouwd = opgebouwd;
 
-    // De punten, in de groep van hun verdieping: ze verdwijnen en verschuiven mee.
-    d.punten = [];
-    const bol = new THREE.SphereGeometry(0.06, 14, 10);
-    const kleuren = new Map<string, THREE.MeshStandardMaterial>();
-    for (const punt of gegevens.punten) {
-      const verdieping = model.verdiepingen.find((v) => v.id === punt.verdiepingId);
-      if (!verdieping) continue;
-      let m = kleuren.get(punt.kleur);
-      if (!m) {
-        m = new THREE.MeshStandardMaterial({ color: punt.kleur, emissive: punt.kleur, emissiveIntensity: 0.35 });
-        m.clippingPlanes = [d.snede];
-        kleuren.set(punt.kleur, m);
-      }
-      const mesh = new THREE.Mesh(bol, m);
-      mesh.userData.categorie = punt.categorie;
-      mesh.position.set(punt.x, verdieping.z0 + (punt.hoogte ?? verdieping.plafond - 0.04), punt.y);
-      opgebouwd.verdiepingen.get(punt.verdiepingId)?.add(mesh);
-      d.punten.push(mesh);
-    }
+    // De punten als symbolen, in de groep van hun verdieping: ze verdwijnen en verschuiven mee.
+    d.puntenscene?.opruimen();
+    d.puntenscene = bouwPunten(gegevens.punten, model, opgebouwd.verdiepingen, d.snede);
+    d.punten = d.puntenscene.objecten;
   }, [model, materiaal, gegevens.punten]);
 
   // Een gebouw verzet: enkel zijn groep verplaatsen, niets opnieuw bouwen.
@@ -1183,6 +1172,30 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   const meetlintRef = useRef(meetlint);
   meetlintRef.current = meetlint;
 
+  // Een punt aantikken: een label op het beeld, en in het paneel wat het is.
+  const [gekozenPunt, setGekozenPunt] = useState<number | null>(null);
+  useTik(drie, gereedschap === "kijken", (e) => {
+    const d = drie.current;
+    if (!d) return;
+    const doelen = [d.opgebouwd?.wortel, d.omgeving?.groep].filter((o): o is THREE.Group => o !== undefined);
+    setGekozenPunt(puntBijTik(d.punten, doelen, { x: e.clientX, y: e.clientY }, d.camera, d.renderer.domElement, d.snede));
+  });
+  useEffect(() => {
+    const object = drie.current?.punten.find((o) => o.userData.puntId === gekozenPunt);
+    const punt = gegevens.punten.find((p) => p.id === gekozenPunt);
+    if (!object || !punt) return;
+    const element = document.createElement("div");
+    element.className = "drie-puntlabel";
+    element.textContent = `${punt.code} · ${punt.naam}${punt.aantal > 1 ? ` (${punt.aantal}×)` : ""}`;
+    const label = new CSS2DObject(element);
+    // Net boven het symbool.
+    label.center.set(0.5, 1.5);
+    object.add(label);
+    return () => {
+      object.remove(label);
+    };
+  }, [gekozenPunt, gegevens.punten, model]);
+
   // Volledig scherm: de pagina eronder scrolt niet mee.
   useEffect(() => {
     if (!volledig) return;
@@ -1387,6 +1400,21 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     [model, geladen, omgeving, gegevens.punten],
   );
 
+  // Het gekozen punt: in welke ruimte, en de plafondhoogte voor "aan het plafond".
+  const puntInfo = (() => {
+    const punt = gegevens.punten.find((p) => p.id === gekozenPunt);
+    const verdieping = gegevens.verdiepingen.find((v) => v.id === punt?.verdiepingId);
+    if (!punt || !verdieping) return null;
+    const ruimtes = verdieping.ruimtes.map((r) => ({ id: r.id, naam: r.naam, veelhoek: r.ringen }));
+    const ruimteId = ruimteVan({ x_m: punt.x, y_m: punt.y }, ruimtes);
+    return {
+      punt,
+      verdieping: verdieping.naam,
+      ruimte: ruimtes.find((r) => r.id === ruimteId)?.naam ?? null,
+      plafond: verdieping.plafondhoogte,
+    };
+  })();
+
   /** Een gereedschap aan, of weer uit als het al aan stond. */
   const wissel = (welk: Gereedschap) => setGereedschap((huidig) => (huidig === welk ? "kijken" : welk));
 
@@ -1472,12 +1500,41 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               ? "Sleep een gebouw naar zijn plaats; elders slepen draait. De pijltjes verschuiven het gekozen gebouw 10 cm, met Shift 1 m."
               : omgevingVerplaatsen
                 ? "Slepen schuift de omgeving; rechts slepen schuift het beeld. De pijltjes verschuiven de omgeving 10 cm, met Shift 1 m."
-                : "Slepen draait, rechts slepen of drie vingers schuift. Zoomen met + en −, het muiswiel of twee vingers."}
+                : "Slepen draait, rechts slepen of drie vingers schuift. Zoomen met + en −, het muiswiel of twee vingers. Tik op een punt om te zien wat het is."}
         </p>
       </div>
 
       <div className="omzetten-zijbalk drie-paneel" hidden={!paneel}>
         {melding ? <div className={`melding ${melding.soort}`}>{melding.tekst}</div> : null}
+
+        {puntInfo ? (
+          <section className="kaart">
+            <h3>
+              <span className="palet-code" style={{ background: puntInfo.punt.kleur }}>
+                {puntInfo.punt.code}
+              </span>{" "}
+              {puntInfo.punt.naam}
+            </h3>
+            <ul className="inplanting-gebouwen">
+              {puntInfo.punt.label ? <li>{puntInfo.punt.label}</li> : null}
+              <li>
+                {puntInfo.punt.aantal}× · {hoogteTekst(puntInfo.punt.hoogte, puntInfo.plafond)}
+              </li>
+              <li>
+                {puntInfo.ruimte ?? "Buiten of zonder ruimte"} · {puntInfo.verdieping}
+              </li>
+              <li>{STATUSNAMEN[puntInfo.punt.status]}</li>
+            </ul>
+            <div className="knoppenrij">
+              <a className="knop stil" href={huispad(huisId, `/punten?verdieping=${puntInfo.punt.verdiepingId}`)}>
+                Naar de punten
+              </a>
+              <button type="button" className="stil" onClick={() => setGekozenPunt(null)}>
+                Sluiten
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="kaart">
           <h3>Bekijken</h3>

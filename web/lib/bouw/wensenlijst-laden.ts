@@ -1,12 +1,12 @@
 import "server-only";
 
 import { lijstGebouwen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "./opslag";
-import { maakWensenlijst, type Wensenlijst } from "./punten";
+import { maakWensenlijst, type Vak, type Wensenlijst } from "./punten";
 import type { Huis } from "./types";
 import { sorteerVerdiepingen, verdiepingNaam } from "./weergave";
 
-/** De wensenlijst van een huis, met de projectnaam voor op de PDF. */
-export async function laadWensenlijst(huis: Huis): Promise<{ lijst: Wensenlijst; project: string | null }> {
+/** De wensenlijst van een huis voor een vakgebied, met de projectnaam voor op de PDF. */
+export async function laadWensenlijst(huis: Huis, vak: Vak): Promise<{ lijst: Wensenlijst; project: string | null }> {
   const [gebouwen, verdiepingen, ruimtes, punten] = await Promise.all([
     lijstGebouwen(huis.id),
     lijstVerdiepingen(huis.id),
@@ -27,6 +27,7 @@ export async function laadWensenlijst(huis: Huis): Promise<{ lijst: Wensenlijst;
       plafondhoogte_m: r.plafondhoogte_m,
     })),
     punten,
+    vak,
   );
   return { lijst, project: huis.projectnaam };
 }
