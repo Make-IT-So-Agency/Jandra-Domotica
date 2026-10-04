@@ -868,12 +868,13 @@ function Luifelkaart({
     dikte: komma(luifel.dikte),
   });
   function toepassen() {
-    const diepte = luifelgetal(teksten.diepte, "De diepte", 0.2, 5);
+    // De diepte telt enkel bij een eigen luifel: die van het plan ligt vast.
+    const diepte: Gelezen = eigen ? luifelgetal(teksten.diepte, "De diepte", 0.2, 5) : { ok: true, waarde: luifel.diepte };
     const onder = luifelgetal(teksten.onder, "De onderkant", 0, 6, true);
     const dikte = luifelgetal(teksten.dikte, "De dikte", 0.05, 1);
     for (const uit of [diepte, onder, dikte]) if (!uit.ok) return fout(uit.melding);
     if (!diepte.ok || !onder.ok || !dikte.ok) return;
-    opToepassen({ diepte: eigen ? diepte.waarde! : luifel.diepte, onder: onder.waarde, dikte: dikte.waarde! });
+    opToepassen({ diepte: diepte.waarde ?? luifel.diepte, onder: onder.waarde, dikte: dikte.waarde ?? luifel.dikte });
   }
   const veld = (naam: "diepte" | "onder" | "dikte", label: string, placeholder?: string) => (
     <div>
