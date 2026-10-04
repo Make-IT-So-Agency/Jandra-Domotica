@@ -9,6 +9,7 @@ import { tegenMuur } from "@/lib/bouw/drie/inrichten";
 import { isAan, type Lagenstand } from "@/lib/bouw/drie/lagen";
 import type { Model3d, Verdieping3d } from "@/lib/bouw/drie/model";
 import { binnenVeelhoeken } from "@/lib/bouw/drie/vlak";
+import { legOpDak, MAX_RIJEN, veldmaat, veldVan, vermogen } from "@/lib/bouw/drie/zonnepanelen";
 import {
   GROEPEN,
   GROEPKLEUREN,
@@ -17,6 +18,7 @@ import {
   maattekst,
   MAX_MAAT,
   nieuwStuk,
+  opDak,
   schoonLabel,
   soortStuk,
   STUKSOORTEN,
@@ -33,9 +35,11 @@ import { bouwStukken, type Stukkenscene } from "./stukken-scene";
 /**
  * Inrichten: meubels en toestellen plaatsen, verschuiven, draaien en
  * bewaren, in 3D. Kies een verdieping en een stuk, en tik op de vloer; tik
- * een stuk om het te slepen of aan te passen. Bewaren gebeurt per verdieping
- * in één keer (bewaarStukkenActie). Enkel voor de browser; het rekenwerk
- * staat in lib/bouw/inrichting.ts en lib/bouw/drie/inrichten.ts.
+ * een stuk om het te slepen of aan te passen. Zonnepanelen gaan op een
+ * dakvlak, met de helling mee. Bewaren gebeurt per verdieping in één keer
+ * (bewaarStukkenActie). Enkel voor de browser; het rekenwerk staat in
+ * lib/bouw/inrichting.ts, lib/bouw/drie/inrichten.ts en
+ * lib/bouw/drie/zonnepanelen.ts.
  */
 
 type Driekern = Kern & { controls: OrbitControls; opgebouwd: Opgebouwd | null };
@@ -50,8 +54,10 @@ export interface Inrichting {
   /** Op welke verdieping je inricht. */
   verdieping: Verdieping3d | null;
   kiesVerdieping(id: number): void;
-  /** Tijdens het inrichten: de hoogte waarop alles erboven weg is, zodat je in de ruimtes kijkt. */
+  /** Tijdens het inrichten: de hoogte waarop alles erboven weg is, zodat je in de ruimtes kijkt. Niet op het dak. */
   snede: number | null;
+  /** Wordt er op het dak gewerkt (zonnepanelen)? */
+  dakwerk: boolean;
   /** De soort die je wil zetten; een tik op de vloer zet hem daar. */
   nieuw: string | null;
   kiesNieuw(soort: string | null): void;
@@ -130,6 +136,8 @@ export function useInrichten(
     if (!stuk) return;
     let verzet: GeplaatstStuk = { ...stuk, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
     if (soortStuk(stuk.soort)?.plaats === "muur" && stuk.z > 0.05) verzet = tegenMuur(verzet, murenVan(stuk.verdiepingId), MUURBEREIK) ?? verzet;
+    // Een veld zonnepanelen volgt het dak waar het nu ligt.
+    if (opDak(stuk.soort)) verzet = legOpDak(verzet, stand.current.model) ?? verzet;
     vervang(id, () => verzet);
   }
   const verzetRef = useRef(verzet);
@@ -141,6 +149,24 @@ export function useInrichten(
     const { verdieping: hier, model: m, grond: grondpeil, meld } = stand.current;
     const soort = soortStuk(soortnaam);
     if (!d?.opgebouwd || !hier || !soort) return;
+    if (soort.plaats === "dak") {
+      // Op het dak dat je raakt: het midden van het veld waar je tikt.
+      const straal = new THREE.Raycaster();
+      richtStraal(straal, e, d.renderer.domElement, d.camera);
+      const raak = zichtbareRaak(straal, d.opgebouwd.daken, d.snede)[0];
+      let gebouw: THREE.Object3D | null = raak?.object ?? null;
+      while (gebouw && gebouw.userData.gebouwId === undefined) gebouw = gebouw.parent;
+      const eigen = gebouw ? d.opgebouwd.eigen.get(gebouw.userData.gebouwId as number) : undefined;
+      const bovenste = m.verdiepingen.filter((v) => v.gebouwId === gebouw?.userData.gebouwId).sort((a, b) => b.z0 - a.z0)[0];
+      if (!raak || !eigen || !bovenste) return meld({ soort: "fout", tekst: "Tik op een dak. Zie je het dak niet, zet dan de laag Daken aan." });
+      const lokaal = eigen.worldToLocal(raak.point.clone());
+      const veld = legOpDak({ ...nieuwStuk(soort, [lokaal.x, lokaal.z], volgend.current--, 0), verdiepingId: bovenste.id }, m);
+      if (!veld) return meld({ soort: "fout", tekst: "Hier ligt geen dak." });
+      setStukken((alle) => [...alle, veld]);
+      setGekozenId(veld.id);
+      setNieuw(null);
+      return;
+    }
     const buiten = soort.plaats === "buiten" || soort.plaats === "grond";
     const op = buiten ? gelijkvloersVan(m, hier.gebouwId) : hier;
     const groep = op ? d.opgebouwd.verdiepingen.get(op.id) : undefined;
@@ -234,9 +260,12 @@ export function useInrichten(
       naar: Xy | null;
     } | null = null;
     const druk = (e: PointerEvent) => {
-      if (e.button !== 0 || !scene.current) return;
+      if (e.button !== 0 || !scene.current || !d.opgebouwd) return;
       richtStraal(straal, e, doel, d.camera);
-      let object: THREE.Object3D | null = zichtbareRaak(straal, [...scene.current.objecten.values()], d.snede)[0]?.object ?? null;
+      // Wat de straal eerst raakt: een stuk achter een muur of onder het dak kies je niet. Punten en buizen tellen niet mee.
+      let object: THREE.Object3D | null =
+        zichtbareRaak(straal, [d.opgebouwd.wortel], d.snede).find((r) => r.object.userData.puntId === undefined && r.object.userData.leidingId === undefined)
+          ?.object ?? null;
       while (object && object.userData.stukId === undefined) object = object.parent;
       const id = object?.userData.stukId as number | undefined;
       if (!object || id === undefined) return;
@@ -310,7 +339,8 @@ export function useInrichten(
       }
       if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        vervang(gekozenId, (s) => ({ ...s, hoek: hoekVan(s.hoek + (e.shiftKey ? -15 : 15)) }));
+        // Een veld op een schuin dak volgt de helling: dat draait niet.
+        if (stuk.kanteling <= 0.5) vervang(gekozenId, (s) => ({ ...s, hoek: hoekVan(s.hoek + (e.shiftKey ? -15 : 15)) }));
         return;
       }
       const stap = e.shiftKey ? 0.5 : 0.05;
@@ -375,7 +405,8 @@ export function useInrichten(
       setVerdiepingId(id);
       setGekozenId(null);
     },
-    snede: aan && verdieping ? verdieping.z0 + verdieping.plafond - 0.02 : null,
+    snede: aan && verdieping && !(opDak(nieuw) || opDak(gekozen?.soort)) ? verdieping.z0 + verdieping.plafond - 0.02 : null,
+    dakwerk: opDak(nieuw) || opDak(gekozen?.soort),
     nieuw,
     kiesNieuw(soort) {
       setNieuw(soort);
@@ -387,7 +418,7 @@ export function useInrichten(
       if (gekozen) vervang(gekozen.id, (s) => ({ ...s, ...wijziging }));
     },
     draai(graden) {
-      if (gekozen) vervang(gekozen.id, (s) => ({ ...s, hoek: hoekVan(s.hoek + graden) }));
+      if (gekozen && gekozen.kanteling <= 0.5) vervang(gekozen.id, (s) => ({ ...s, hoek: hoekVan(s.hoek + graden) }));
     },
     tegenDeMuur() {
       if (!gekozen) return;
@@ -447,11 +478,53 @@ function Maatveld({ id, label, meter, min, max, zet }: { id: string; label: stri
   );
 }
 
+const kwptekst = (kwp: number) => kwp.toFixed(2).replace(".", ",");
+
+/** Een veld zonnepanelen: hoeveel rijen en kolommen, staand of liggend. Het midden blijft liggen. */
+function Veldkeuze({ inrichting, stuk }: { inrichting: Inrichting; stuk: GeplaatstStuk }) {
+  const veld = veldVan(stuk.breedte, stuk.diepte);
+  const zet = (wijziging: Partial<typeof veld>) => inrichting.wijzig(veldmaat({ ...veld, ...wijziging }));
+  const aantallen = Array.from({ length: MAX_RIJEN }, (_, i) => i + 1);
+  return (
+    <div className="veldenrij" style={{ marginTop: 8 }}>
+      <div>
+        <label htmlFor="veld-rijen">Rijen</label>
+        <select id="veld-rijen" value={veld.rijen} onChange={(g) => zet({ rijen: Number(g.currentTarget.value) })}>
+          {aantallen.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="veld-kolommen">Kolommen</label>
+        <select id="veld-kolommen" value={veld.kolommen} onChange={(g) => zet({ kolommen: Number(g.currentTarget.value) })}>
+          {aantallen.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="veld-stand">Panelen</label>
+        <select id="veld-stand" value={veld.staand ? "staand" : "liggend"} onChange={(g) => zet({ staand: g.currentTarget.value === "staand" })}>
+          <option value="staand">Staand</option>
+          <option value="liggend">Liggend</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 /** Het gekozen stuk: draaien, de maten, een label, tegen de muur, weg. */
 function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: GeplaatstStuk }) {
   const [hoektekst, setHoektekst] = useState<string | null>(null);
   const [labeltekst, setLabeltekst] = useState<string | null>(null);
   const soort = soortStuk(stuk.soort);
+  const dak = soort?.plaats === "dak";
+  const veld = dak ? vermogen(veldVan(stuk.breedte, stuk.diepte)) : null;
   const draaiknop = (graden: number, tekst: string, uitleg: string) => (
     <button type="button" className="stil" title={uitleg} onClick={() => inrichting.draai(graden)}>
       {tekst}
@@ -460,42 +533,55 @@ function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
   return (
     <div className="verplaatsen">
       <p>
-        <strong>{soort?.naam ?? stuk.soort}</strong> <span className="hulp">· {maattekst(stuk)}</span>
+        <strong>{soort?.naam ?? stuk.soort}</strong>{" "}
+        <span className="hulp">
+          ·{" "}
+          {veld
+            ? `${veld.panelen} panelen, ± ${kwptekst(veld.kwp)} kWp${stuk.kanteling > 0.5 ? `, helling ${Math.round(stuk.kanteling)}°` : ", plat"}`
+            : maattekst(stuk)}
+        </span>
       </p>
-      <div className="draaiknoppen" role="group" aria-label="Draaien">
-        {draaiknop(-90, "⟲ 90°", "Een kwartslag tegen de klok in")}
-        {draaiknop(-15, "⟲ 15°", "15° tegen de klok in (Shift+R)")}
-        <input
-          aria-label="Hoek in graden, met de klok mee"
-          inputMode="decimal"
-          value={hoektekst ?? String(stuk.hoek).replace(".", ",")}
-          onChange={(g) => setHoektekst(g.currentTarget.value)}
-          onBlur={(g) => {
-            const hoek = Number(g.currentTarget.value.replace(",", "."));
-            setHoektekst(null);
-            if (g.currentTarget.value.trim() !== "" && Number.isFinite(hoek)) inrichting.wijzig({ hoek: hoekVan(hoek) });
-          }}
-          onKeyDown={(g) => {
-            if (g.key === "Enter") g.currentTarget.blur();
-          }}
-        />
-        {draaiknop(15, "⟳ 15°", "15° met de klok mee (R)")}
-        {draaiknop(90, "⟳ 90°", "Een kwartslag met de klok mee")}
-      </div>
-      <div className="veldenrij" style={{ marginTop: 8 }}>
-        <Maatveld key={`b${stuk.id}`} id="stuk-breedte" label="Breedte (cm)" meter={stuk.breedte} min={0.05} max={MAX_MAAT} zet={(breedte) => inrichting.wijzig({ breedte })} />
-        <Maatveld key={`d${stuk.id}`} id="stuk-diepte" label="Diepte (cm)" meter={stuk.diepte} min={0.05} max={MAX_MAAT} zet={(diepte) => inrichting.wijzig({ diepte })} />
-        <Maatveld key={`h${stuk.id}`} id="stuk-hoogte" label="Hoogte (cm)" meter={stuk.hoogte} min={0.02} max={MAX_MAAT} zet={(hoogte) => inrichting.wijzig({ hoogte })} />
-        <Maatveld
-          key={`z${stuk.id}`}
-          id="stuk-z"
-          label={soort?.plaats === "grond" ? "Onderkant (cm)" : "Boven de vloer (cm)"}
-          meter={stuk.z}
-          min={-10}
-          max={10}
-          zet={(z) => inrichting.wijzig({ z })}
-        />
-      </div>
+      {/* Een veld op een schuin dak volgt de helling: dat draai je niet. */}
+      {stuk.kanteling <= 0.5 ? (
+        <div className="draaiknoppen" role="group" aria-label="Draaien">
+          {draaiknop(-90, "⟲ 90°", "Een kwartslag tegen de klok in")}
+          {draaiknop(-15, "⟲ 15°", "15° tegen de klok in (Shift+R)")}
+          <input
+            aria-label="Hoek in graden, met de klok mee"
+            inputMode="decimal"
+            value={hoektekst ?? String(stuk.hoek).replace(".", ",")}
+            onChange={(g) => setHoektekst(g.currentTarget.value)}
+            onBlur={(g) => {
+              const hoek = Number(g.currentTarget.value.replace(",", "."));
+              setHoektekst(null);
+              if (g.currentTarget.value.trim() !== "" && Number.isFinite(hoek)) inrichting.wijzig({ hoek: hoekVan(hoek) });
+            }}
+            onKeyDown={(g) => {
+              if (g.key === "Enter") g.currentTarget.blur();
+            }}
+          />
+          {draaiknop(15, "⟳ 15°", "15° met de klok mee (R)")}
+          {draaiknop(90, "⟳ 90°", "Een kwartslag met de klok mee")}
+        </div>
+      ) : null}
+      {dak ? (
+        <Veldkeuze inrichting={inrichting} stuk={stuk} />
+      ) : (
+        <div className="veldenrij" style={{ marginTop: 8 }}>
+          <Maatveld key={`b${stuk.id}`} id="stuk-breedte" label="Breedte (cm)" meter={stuk.breedte} min={0.05} max={MAX_MAAT} zet={(breedte) => inrichting.wijzig({ breedte })} />
+          <Maatveld key={`d${stuk.id}`} id="stuk-diepte" label="Diepte (cm)" meter={stuk.diepte} min={0.05} max={MAX_MAAT} zet={(diepte) => inrichting.wijzig({ diepte })} />
+          <Maatveld key={`h${stuk.id}`} id="stuk-hoogte" label="Hoogte (cm)" meter={stuk.hoogte} min={0.02} max={MAX_MAAT} zet={(hoogte) => inrichting.wijzig({ hoogte })} />
+          <Maatveld
+            key={`z${stuk.id}`}
+            id="stuk-z"
+            label={soort?.plaats === "grond" ? "Onderkant (cm)" : "Boven de vloer (cm)"}
+            meter={stuk.z}
+            min={-10}
+            max={10}
+            zet={(z) => inrichting.wijzig({ z })}
+          />
+        </div>
+      )}
       <label htmlFor="stuk-label" style={{ marginTop: 8 }}>
         Label
       </label>
@@ -503,7 +589,7 @@ function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
         key={`l${stuk.id}`}
         id="stuk-label"
         maxLength={80}
-        placeholder="bv. Kast in de berging"
+        placeholder={dak ? "bv. Zuidkant" : "bv. Kast in de berging"}
         value={labeltekst ?? stuk.label ?? ""}
         onChange={(g) => setLabeltekst(g.currentTarget.value)}
         onBlur={(g) => {
@@ -515,9 +601,11 @@ function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
         }}
       />
       <div className="knoppenrij">
-        <button type="button" className="stil" onClick={inrichting.tegenDeMuur}>
-          Tegen de muur
-        </button>
+        {!dak ? (
+          <button type="button" className="stil" onClick={inrichting.tegenDeMuur}>
+            Tegen de muur
+          </button>
+        ) : null}
         <button type="button" className="stil" onClick={inrichting.verwijder}>
           Weg
         </button>
@@ -542,16 +630,24 @@ export function Inrichtkaart({
   verdiepingen: readonly { id: number; naam: string }[];
 }) {
   const aantal = inrichting.stukken.length;
+  const velden = inrichting.stukken.filter((s) => opDak(s.soort)).map((s) => vermogen(veldVan(s.breedte, s.diepte)));
+  const panelen = velden.reduce((som, v) => som + v.panelen, 0);
+  const kwp = velden.reduce((som, v) => som + v.kwp, 0);
   return (
     <section className="kaart">
       <h3>
         Inrichten {aantal > 0 ? <span className="hulp">· {aantal} {aantal === 1 ? "stuk" : "stukken"}</span> : null}
       </h3>
+      {panelen > 0 ? (
+        <p className="hulp">
+          Op het dak: {panelen} panelen, ± {kwptekst(kwp)} kWp (430 Wp per paneel).
+        </p>
+      ) : null}
       {!aan ? (
         <>
           <p className="hulp">
-            Meubels en toestellen in het huis: een bed, de keuken, een warmtepomp. Ze staan op de lagen Meubels en Toestellen, en
-            houden je tegen bij het rondwandelen.
+            Meubels en toestellen in het huis: een bed, de keuken, een warmtepomp, en zonnepanelen op het dak. Ze staan elk op hun
+            laag, en de meubels houden je tegen bij het rondwandelen.
           </p>
           <div className="knoppenrij">
             <button type="button" className="stil" onClick={wissel}>
@@ -572,8 +668,10 @@ export function Inrichtkaart({
           {inrichting.gekozen ? <Stukkaart key={inrichting.gekozen.id} inrichting={inrichting} stuk={inrichting.gekozen} /> : null}
           <p className="hulp" style={{ marginTop: 10 }}>
             {inrichting.nieuw
-              ? `Tik waar het midden van ${soortStuk(inrichting.nieuw)?.naam.toLowerCase() ?? "het stuk"} moet komen.`
-              : "Kies een stuk en tik op de vloer."}
+              ? opDak(inrichting.nieuw)
+                ? "Tik op het dak, waar het midden van het veld moet komen. Het veld volgt de helling."
+                : `Tik waar het midden van ${soortStuk(inrichting.nieuw)?.naam.toLowerCase() ?? "het stuk"} moet komen.`
+              : "Kies een stuk en tik op de vloer, of zonnepanelen op het dak."}
           </p>
           {GROEPEN.map((groep) => (
             <details key={groep} className="palet">

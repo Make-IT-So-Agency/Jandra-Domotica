@@ -15,15 +15,16 @@
  * - de breedte loopt van links naar rechts, de diepte van de rug naar voren.
  */
 
-export const INRICHTINGSLAGEN = ["meubels", "toestellen"] as const;
+export const INRICHTINGSLAGEN = ["meubels", "toestellen", "zonnepanelen"] as const;
 export type Inrichtingslaag = (typeof INRICHTINGSLAGEN)[number];
 
 export const INRICHTINGSLAAGNAMEN: Record<Inrichtingslaag, string> = {
   meubels: "Meubels",
   toestellen: "Toestellen",
+  zonnepanelen: "Zonnepanelen",
 };
 
-export const GROEPEN = ["slapen", "zitten", "eten", "keuken", "badkamer", "wassen", "klimaat", "energie", "buiten"] as const;
+export const GROEPEN = ["slapen", "zitten", "eten", "keuken", "badkamer", "wassen", "klimaat", "energie", "buiten", "dak"] as const;
 export type Groep = (typeof GROEPEN)[number];
 
 export const GROEPNAMEN: Record<Groep, string> = {
@@ -36,6 +37,7 @@ export const GROEPNAMEN: Record<Groep, string> = {
   klimaat: "Verwarming en ventilatie",
   energie: "Elektriciteit en energie",
   buiten: "Buiten",
+  dak: "Op het dak",
 };
 
 /** Op welke laag een groep komt: meubels richt je in, toestellen horen bij de technieken. */
@@ -49,6 +51,7 @@ export const LAAG_VAN_GROEP: Record<Groep, Inrichtingslaag> = {
   klimaat: "toestellen",
   energie: "toestellen",
   buiten: "toestellen",
+  dak: "zonnepanelen",
 };
 
 /** Zachte kleuren per groep, in 3D en in het palet. */
@@ -62,6 +65,7 @@ export const GROEPKLEUREN: Record<Groep, string> = {
   klimaat: "#b3d5c1",
   energie: "#f1d39b",
   buiten: "#b7c0c7",
+  dak: "#1e3a5f",
 };
 
 /** Hoe een stuk er in 3D uitziet: eenvoudige blokken met een herkenbaar silhouet. */
@@ -82,7 +86,8 @@ export type Vorm =
   | "cilinder"
   | "buitenunit"
   | "paal"
-  | "put";
+  | "put"
+  | "zonnepanelen";
 
 /**
  * Waar een stuk staat:
@@ -90,9 +95,10 @@ export type Vorm =
  * - muur: tegen de muur, op de vloer of hangend op een hoogte. Bij het
  *   plaatsen gaat de rug tegen de dichtste muur;
  * - buiten: op de grond rond het huis, bij het gelijkvloers;
- * - grond: in de grond, met de bovenkant gelijk met de grond.
+ * - grond: in de grond, met de bovenkant gelijk met de grond;
+ * - dak: op een dakvlak, met de helling mee (zie drie/zonnepanelen.ts).
  */
-export type Plaats = "vloer" | "muur" | "buiten" | "grond";
+export type Plaats = "vloer" | "muur" | "buiten" | "grond" | "dak";
 
 export interface Stuksoort {
   soort: string;
@@ -141,6 +147,8 @@ export const STUKSOORTEN: readonly Stuksoort[] = [
   { soort: "warmtepomp_buiten", naam: "Warmtepomp, buitenunit", groep: "buiten", vorm: "buitenunit", plaats: "buiten", maat: [1.1, 0.45, 0.95] },
   { soort: "laadpaal", naam: "Laadpaal", groep: "buiten", vorm: "paal", plaats: "buiten", maat: [0.3, 0.3, 1.3] },
   { soort: "regenwaterput", naam: "Regenwaterput", groep: "buiten", vorm: "put", plaats: "grond", maat: [1.9, 1.9, 2.1] },
+  // Twee rijen van vier staande panelen: zie veldmaat in drie/zonnepanelen.ts.
+  { soort: "zonnepanelen", naam: "Zonnepanelen", groep: "dak", vorm: "zonnepanelen", plaats: "dak", maat: [4.58, 3.46, 0.04] },
 ];
 
 const PER_SOORT = new Map(STUKSOORTEN.map((s) => [s.soort, s]));
@@ -148,6 +156,9 @@ const PER_SOORT = new Map(STUKSOORTEN.map((s) => [s.soort, s]));
 export function soortStuk(soort: string): Stuksoort | null {
   return PER_SOORT.get(soort) ?? null;
 }
+
+/** Komt dit stuk op het dak, zoals een veld zonnepanelen? */
+export const opDak = (soort: string | null | undefined): boolean => soortStuk(soort ?? "")?.plaats === "dak";
 
 /** Op welke laag een stuk komt; een onbekende soort is een meubel. */
 export function laagVan(soort: string): Inrichtingslaag {

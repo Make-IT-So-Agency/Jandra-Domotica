@@ -52,7 +52,8 @@ describe("de catalogus van meubels en toestellen", () => {
     expect(laagVan("bed_2p")).toBe("meubels");
     expect(laagVan("warmtepomp_buiten")).toBe("toestellen");
     expect(laagVan("verdwenen")).toBe("meubels");
-    expect(new Set(GROEPEN.map((g) => LAAG_VAN_GROEP[g]))).toEqual(new Set(["meubels", "toestellen"]));
+    expect(laagVan("zonnepanelen")).toBe("zonnepanelen");
+    expect(new Set(GROEPEN.map((g) => LAAG_VAN_GROEP[g]))).toEqual(new Set(["meubels", "toestellen", "zonnepanelen"]));
   });
 
   it("zet een nieuw stuk op de vloer, aan de muur, op de grond of erin", () => {

@@ -1536,9 +1536,13 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               : "Tik het begin van een maat; een tik dicht bij een hoek kleeft eraan. Slepen draait zoals altijd."
             : gereedschap === "inrichten"
             ? inrichting.nieuw
-              ? "Tik op de vloer waar het stuk moet komen. Esc breekt af."
+              ? inrichting.dakwerk
+                ? "Tik op het dak waar het midden van het veld moet komen. Esc breekt af."
+                : "Tik op de vloer waar het stuk moet komen. Esc breekt af."
               : inrichting.gekozen
-                ? "Sleep het stuk naar zijn plaats. De pijltjes verschuiven het 5 cm (met Shift 50 cm), R draait het 15°, Delete haalt het weg."
+                ? inrichting.dakwerk
+                  ? "Sleep het veld over het dak: het volgt de helling. De pijltjes verschuiven het 5 cm (met Shift 50 cm), Delete haalt het weg."
+                  : "Sleep het stuk naar zijn plaats. De pijltjes verschuiven het 5 cm (met Shift 50 cm), R draait het 15°, Delete haalt het weg."
                 : "Kies een stuk in het paneel en tik op de vloer, of tik een stuk om het te verschuiven. Elders slepen draait zoals altijd."
             : modus === "wandel"
             ? "Slepen kijkt rond. Lopen met W A S D of de pijltjes, sneller met Shift, of met de knoppen."
