@@ -33,6 +33,26 @@ function ruimte(voorstel: Voorstel, naam: string) {
 }
 
 describe("een blad lezen", () => {
+  it("leest de teksten ook in een browser die een stroom niet met for await overloopt, zoals Safari", async () => {
+    // Zoals Safari: een ReadableStream zonder Symbol.asyncIterator. pdf.js' getTextContent breekt dan af.
+    const proto = ReadableStream.prototype as unknown as Record<PropertyKey, unknown>;
+    const weg = [Symbol.asyncIterator, "values"].map((sleutel) => [sleutel, Object.getOwnPropertyDescriptor(proto, sleutel)] as const);
+    for (const [sleutel] of weg) delete proto[sleutel];
+    try {
+      const taak = getDocument({ data: testplanPdf(gelijkvloers()), verbosity: 0 });
+      try {
+        const pagina = await (await taak.promise).getPage(1);
+        await expect(pagina.getTextContent()).rejects.toThrow();
+        const blad = await leesBlad(pagina);
+        expect(blad.teksten.map((t) => t.tekst)).toContain("keuken");
+      } finally {
+        await taak.destroy();
+      }
+    } finally {
+      for (const [sleutel, beschrijving] of weg) if (beschrijving) Object.defineProperty(proto, sleutel, beschrijving);
+    }
+  });
+
   it("volgt de transformatie: de muren zijn 0,72 pt dik op het blad, de arcering 0,07 pt", async () => {
     const blad = await lees(testplanPdf(gelijkvloers()));
     const diktes = new Set(blad.paden.filter((p) => p.lijn).map((p) => Math.round(p.dikte * 100) / 100));
