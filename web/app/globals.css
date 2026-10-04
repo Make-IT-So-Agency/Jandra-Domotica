@@ -1197,6 +1197,11 @@ td.smal {
   gap: 8px 14px;
 }
 
+/* Een lange tekst loopt over meer regels; de knop blijft ernaast zolang er plaats is. */
+.omzetoproep > span {
+  flex: 1 1 20rem;
+}
+
 .reeks-knoppen {
   margin-bottom: 16px;
 }
