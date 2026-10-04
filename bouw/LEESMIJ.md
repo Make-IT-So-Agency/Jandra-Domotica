@@ -312,8 +312,8 @@ grondplannen.
 - **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
   daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
   de buren, wat nu op ons perceel staat (standaard uit), de punten per
-  categorie, de meubels, de toestellen, de leidingen per soort, de maten, de
-  noordpijl en de leidingen door de muren. Het vinkje van een groep zet de hele
+  categorie, de meubels, de toestellen, de zonnepanelen, de leidingen per
+  soort, de maten, de noordpijl en de leidingen door de muren. Het vinkje van een groep zet de hele
   groep. De browser onthoudt de keuze (`drie/lagen.ts`,
   `components/bouw/lagen.tsx`).
 - **Meten.** Met **Meten** linksboven op het beeld tik je een begin en een
@@ -348,8 +348,9 @@ grondplannen.
     de wasmachine, en de toestellen: de warmtepomp (binnen en buiten), de
     ventilatie, de boiler, het buffervat, de meterkast, de verdeelkast, de
     thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
-    regenwaterput. Elk stuk is een eenvoudig blok met een herkenbare vorm, in
-    een zachte kleur per groep;
+    regenwaterput; en zonnepanelen. Elk stuk is een eenvoudig blok met een
+    herkenbare vorm, in een zachte kleur per groep. Een stuk achter een muur
+    of onder het dak tik je niet aan;
   - **plaatsen:** kies een verdieping en een stuk, en tik op de vloer. Alles
     boven het plafond van die verdieping is dan weg, zodat je in de ruimtes
     kijkt. Een kast, een bed of een toestel aan de muur gaat met zijn rug
@@ -365,7 +366,16 @@ grondplannen.
     één keer (`bouw_objecten`), in meter in het assenstelsel van het gebouw,
     zoals de punten. **Herbeginnen** gooit weg wat niet bewaard is;
   - wat hoger komt dan 30 cm houdt je tegen bij het rondwandelen; wat aan de
-    muur hangt boven 1 m niet.
+    muur hangt boven 1 m niet;
+  - **zonnepanelen** (`drie/zonnepanelen.ts`): kies Zonnepanelen bij **Op het
+    dak** en tik op een dakvlak. Daar komt het midden van een veld van twee
+    rijen van vier staande panelen (1,13 × 1,72 m, 2 cm ertussen), 10 cm
+    boven het dak, met de helling mee en de voorkant naar beneden; op een plat
+    dak ligt het plat. Kies het aantal rijen en kolommen en staand of
+    liggend; slepen en de pijltjes houden het op het dak. De kaart telt de
+    panelen en het vermogen (430 Wp per paneel). Zolang je op het dak werkt,
+    blijft alles boven het plafond staan. Een veld is een stuk zoals een
+    meubel (in `bouw_objecten`, met de kanteling), op de laag Zonnepanelen.
 - **Leidingen** (`3d/leidingen-scene.ts`): de buizen liggen 5 cm onder de
   vloer, in de muur op hun hoogte, net onder het plafond, of buiten 60 cm in
   de grond; een stijgleiding loopt recht omhoog tot de vloer van haar
@@ -839,6 +849,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261004100000_bouw_correcties.sql` | Wat op het plan verbeterd werd aan de muren, ramen en deuren |
 | `supabase/migrations/20261004120000_bouw_objecten.sql` | De meubels en toestellen, per verdieping |
 | `web/lib/bouw/inrichting.ts`, `web/lib/bouw/drie/inrichten.ts` | De catalogus van meubels en toestellen, stukken nakijken, tegen de muur zetten en wat je tegenhoudt; puur, met tests |
+| `web/lib/bouw/drie/zonnepanelen.ts` | Een veld zonnepanelen: maat, rijen en kolommen, vermogen, en het dakvlak onder een punt; puur, met tests |
 | `supabase/migrations/20261004140000_bouw_leidingen.sql` | De leidingen, per verdieping |
 | `web/lib/bouw/leidingen.ts`, `web/app/vastgoed/[huis]/punten/leidingen/` | De soorten leidingen, nakijken, kleven, lengtes en hoogtes (puur, met tests), en het tekenscherm |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
@@ -1031,7 +1042,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       verwarming
 - [x] **5h** Meubels en toestellen
 - [x] **5i** Leidingen tekenen op het plan, en ze in 3D zien
-- [ ] **5j** Zonnepanelen op het dak
+- [x] **5j** Zonnepanelen op het dak
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

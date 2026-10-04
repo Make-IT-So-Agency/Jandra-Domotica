@@ -1,7 +1,8 @@
 import * as THREE from "three";
 
-import { GROEPKLEUREN, laagVan, soortStuk, type GeplaatstStuk, type Stuk } from "@/lib/bouw/inrichting";
 import type { Model3d } from "@/lib/bouw/drie/model";
+import { PANEEL, veldVan } from "@/lib/bouw/drie/zonnepanelen";
+import { GROEPKLEUREN, laagVan, soortStuk, type GeplaatstStuk, type Stuk } from "@/lib/bouw/inrichting";
 
 /**
  * De meubels en toestellen in 3D: eenvoudige blokken met een herkenbaar
@@ -21,6 +22,7 @@ const DONKER = "#374151";
 const WERKBLAD = "#6b6259";
 const WATER = "#bfdbfe";
 const SPIEGEL = "#dbeafe";
+const PANEELKLEUR = "#1f2b45";
 
 /** Eén kubus en één cilinder van 1 m voor alles, op maat geschaald. */
 const KUBUS = new THREE.BoxGeometry(1, 1, 1);
@@ -254,6 +256,18 @@ export function bouwStukken(
         blok(kleur, -w / 4, w / 4, 0, h - kop, -d / 4, d / 4);
         blok(kleur, x0, x1, h - kop, h, z0, z1);
         blok(DONKER, x0 + 0.05, x1 - 0.05, h - kop + 0.08, h - 0.08, z1, z1 + 0.01);
+        break;
+      }
+      case "zonnepanelen": {
+        // De rijen liggen langs de helling, de kolommen langs de dakrand; ertussen een spleet.
+        const veld = veldVan(w, d);
+        const [pb, pd] = veld.staand ? [PANEEL.breedte, PANEEL.lengte] : [PANEEL.lengte, PANEEL.breedte];
+        for (let r = 0; r < veld.rijen; r++) {
+          for (let k = 0; k < veld.kolommen; k++) {
+            const [px, pz] = [x0 + k * (pb + PANEEL.tussen), z0 + r * (pd + PANEEL.tussen)];
+            blok(PANEELKLEUR, px, px + pb, 0, h, pz, pz + pd);
+          }
+        }
         break;
       }
       case "put": {
