@@ -8,8 +8,9 @@ import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
 import { huisgebruiker } from "@/lib/bouw/huistoegang";
+import { MAX_STUKKEN, schoneStukken, type GeplaatstStuk } from "@/lib/bouw/inrichting";
 import { id } from "@/lib/bouw/invoer";
-import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
+import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarStukken, bewaarTrapstanden } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
@@ -101,4 +102,24 @@ export async function bewaarCorrectiesActie(huisId: unknown, vraag: { verdieping
   revalidatePath(huispad(toegang.huis.id, "/3d"));
   revalidatePath(huispad(toegang.huis.id, "/3d/verbeteren"));
   return gelukt(null);
+}
+
+/** De meubels en toestellen van een verdieping, allemaal samen; terug komen ze zoals ze bewaard zijn. */
+export async function bewaarStukkenActie(huisId: unknown, vraag: { verdiepingId: number; stukken: unknown }): Promise<Uitkomst<GeplaatstStuk[]>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const verdiepingId = id(String(vraag?.verdiepingId));
+  if (!verdiepingId) return mislukt("Onbekende verdieping.");
+  if (!Array.isArray(vraag?.stukken)) return mislukt("Onbekende meubels.");
+  if (vraag.stukken.length > MAX_STUKKEN) return mislukt(`Hoogstens ${MAX_STUKKEN} meubels en toestellen per verdieping.`);
+  const stukken = schoneStukken(vraag.stukken);
+  if (stukken.length !== vraag.stukken.length) return mislukt("Een meubel of toestel klopt niet. Herlaad de pagina en probeer opnieuw.");
+  let bewaard: GeplaatstStuk[];
+  try {
+    bewaard = await bewaarStukken(toegang.huis.id, verdiepingId, stukken);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(bewaard);
 }

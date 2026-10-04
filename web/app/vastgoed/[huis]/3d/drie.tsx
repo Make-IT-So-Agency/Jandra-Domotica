@@ -7,6 +7,7 @@ import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer
 
 import { Lagenkeuze, useLagen } from "@/components/bouw/lagen";
 import { DAKNAMEN, DAKTYPES, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
+import { obstakels } from "@/lib/bouw/drie/inrichten";
 import { OVERTUIGEND, type Inplantingsvondst, type Zoekgebouw } from "@/lib/bouw/drie/inplanting";
 import type { Driegegevens } from "@/lib/bouw/drie/laden";
 import { isAan, lagenVan } from "@/lib/bouw/drie/lagen";
@@ -27,6 +28,7 @@ import {
 } from "@/lib/bouw/drie/plaatsing";
 import { ooghoogte, wandel, type Wandelstand, type Wandelverdieping } from "@/lib/bouw/drie/wandelen";
 import { noordenVan } from "@/lib/bouw/drie/zon";
+import { INRICHTINGSLAAGNAMEN, INRICHTINGSLAGEN, laagVan } from "@/lib/bouw/inrichting";
 import { zwaartepunt, oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import { METER_PER_PUNT } from "@/lib/bouw/omzetting/schaal";
 import type { Xy } from "@/lib/bouw/omzetting/types";
@@ -36,6 +38,7 @@ import type { Trapstand } from "@/lib/bouw/types";
 
 import { bewaarDakActie, bewaarInplantingActie, bewaarOmgevingActie, bewaarTrappenActie } from "./acties";
 import type { GeladenPlan } from "./inplantingsplan";
+import { Inrichtkaart, useInrichten } from "./inrichten";
 import { richtStraal, useTik, zichtbareRaak } from "./kern";
 import { useMeten } from "./meten";
 import { bouwOmgeving, type Omgevingsscene } from "./omgeving-scene";
@@ -45,7 +48,7 @@ import { Noordpijl, Zonkaart } from "./zon";
 
 type Modus = "rond" | "wandel";
 /** Wat een tik of slepen op het beeld doet. Er staat altijd maar één gereedschap aan. */
-type Gereedschap = "kijken" | "meten" | "verplaatsen" | "omgeving";
+type Gereedschap = "kijken" | "meten" | "verplaatsen" | "omgeving" | "inrichten";
 
 /** Hoe dicht en hoe ver de camera bij het middelpunt mag komen, in meter. */
 const MIN_AFSTAND = 1.5;
@@ -264,19 +267,6 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       }),
     [model],
   );
-  // Wat wandelen nodig heeft: per verdieping de muren, de gaten in de vloer en de trappen naar boven.
-  const wereld: Wandelverdieping[] = useMemo(
-    () =>
-      model.verdiepingen.map((v) => ({
-        id: v.id,
-        gebouwId: v.gebouwId,
-        z0: v.z0,
-        muren: v.muren.map((m) => m.veelhoek),
-        gaten: v.plaat.veelhoeken.flatMap((veelhoek) => veelhoek.slice(1).map((ring) => [ring])),
-        trappen: v.trappen,
-      })),
-    [model],
-  );
 
   // Alles wat three.js nodig heeft, buiten React om.
   const drie = useRef<{
@@ -314,8 +304,6 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   proefRef.current = proef;
   const modelRef = useRef(model);
   modelRef.current = model;
-  const wereldRef = useRef(wereld);
-  wereldRef.current = wereld;
   const plaatsingenRef = useRef(plaatsingen);
   plaatsingenRef.current = plaatsingen;
   const plaatsenRef = useRef(plaatsen);
@@ -880,6 +868,36 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     setVerzet(new Set());
   }
 
+  // Meubels en toestellen: plaatsen, slepen, draaien en bewaren (zie inrichten.tsx).
+  const inrichting = useInrichten(drie, {
+    aan: gereedschap === "inrichten",
+    huisId,
+    model,
+    bewaard: gegevens.stukken,
+    lagen,
+    grond: Math.min(0, ...model.verdiepingen.map((v) => v.z0)) - 0.24,
+    meld: setMelding,
+  });
+  const inrichtingRef = useRef(inrichting);
+  inrichtingRef.current = inrichting;
+
+  // Wat wandelen nodig heeft: per verdieping de muren, de gaten in de vloer, de trappen naar boven en de meubels.
+  const wereld: Wandelverdieping[] = useMemo(
+    () =>
+      model.verdiepingen.map((v) => ({
+        id: v.id,
+        gebouwId: v.gebouwId,
+        z0: v.z0,
+        muren: v.muren.map((m) => m.veelhoek),
+        gaten: v.plaat.veelhoeken.flatMap((veelhoek) => veelhoek.slice(1).map((ring) => [ring])),
+        trappen: v.trappen,
+        obstakels: obstakels(inrichting.stukken.filter((s) => s.verdiepingId === v.id)),
+      })),
+    [model, inrichting.stukken],
+  );
+  const wereldRef = useRef(wereld);
+  wereldRef.current = wereld;
+
   // Een ander materiaal uitproberen: enkel de kleuren en texturen.
   useEffect(() => {
     const d = drie.current;
@@ -895,8 +913,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     // Tijdens het wandelen blijft het dak: anders zie je op de bovenste verdieping de lucht.
     for (const dak of d.opgebouwd.daken) dak.visible = isAan(lagen, "daken") || modus === "wandel";
     for (const punt of d.punten) punt.visible = isAan(lagen, `punten:${punt.userData.categorie}`);
-    d.snede.constant = doorsnede ?? 1000;
-  }, [lagen, doorsnede, model, modus, gegevens.punten]);
+    // Tijdens het inrichten is alles boven het plafond van de verdieping weg: zo kijk je in de ruimtes.
+    d.snede.constant = Math.min(doorsnede ?? 1000, inrichting.snede ?? 1000);
+  }, [lagen, doorsnede, model, modus, gegevens.punten, inrichting.snede]);
 
   // Rondwandelen: de camera op ooghoogte in de grootste ruimte van een verdieping.
   useEffect(() => {
@@ -1206,11 +1225,12 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     };
   }, [volledig]);
 
-  // Esc: eerst een begonnen maat weg, dan terug naar kijken, dan uit het volledig scherm.
+  // Esc: eerst een begonnen maat of een gekozen meubel weg, dan terug naar kijken, dan uit het volledig scherm.
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (meetlintRef.current.breekAf()) return;
+      if (inrichtingRef.current.breekAf()) return;
       if (gereedschap !== "kijken") setGereedschap("kijken");
       else setVolledig(false);
     };
@@ -1396,8 +1416,12 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           naam: CATEGORIENAMEN[categorie],
           kleur: CATEGORIEKLEUREN[categorie],
         })),
+        inrichting: INRICHTINGSLAGEN.filter((laag) => inrichting.stukken.some((s) => laagVan(s.soort) === laag)).map((laag) => ({
+          laag,
+          naam: INRICHTINGSLAAGNAMEN[laag],
+        })),
       }),
-    [model, geladen, omgeving, gegevens.punten],
+    [model, geladen, omgeving, gegevens.punten, inrichting.stukken],
   );
 
   // Het gekozen punt: in welke ruimte, en de plafondhoogte voor "aan het plafond".
@@ -1428,7 +1452,10 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     <div className={`drie-scherm${volledig ? " volledig" : ""}${paneel ? "" : " zonder-paneel"}`}>
       <div className="drie-beeld">
         <div className="drie-raam">
-          <div ref={vak} className={`drie-vak${modus === "wandel" ? " wandel" : ""}${gereedschap === "meten" ? " meten" : ""}`} />
+          <div
+            ref={vak}
+            className={`drie-vak${modus === "wandel" ? " wandel" : ""}${gereedschap === "meten" || (gereedschap === "inrichten" && inrichting.nieuw) ? " meten" : ""}`}
+          />
           <div className="drie-links" role="group" aria-label="Gereedschap">
             <button
               type="button"
@@ -1494,6 +1521,12 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             ? meetlint.bezig
               ? "Tik het einde van de maat. Esc breekt af."
               : "Tik het begin van een maat; een tik dicht bij een hoek kleeft eraan. Slepen draait zoals altijd."
+            : gereedschap === "inrichten"
+            ? inrichting.nieuw
+              ? "Tik op de vloer waar het stuk moet komen. Esc breekt af."
+              : inrichting.gekozen
+                ? "Sleep het stuk naar zijn plaats. De pijltjes verschuiven het 5 cm (met Shift 50 cm), R draait het 15°, Delete haalt het weg."
+                : "Kies een stuk in het paneel en tik op de vloer, of tik een stuk om het te verschuiven. Elders slepen draait zoals altijd."
             : modus === "wandel"
             ? "Slepen kijkt rond. Lopen met W A S D of de pijltjes, sneller met Shift, of met de knoppen."
             : verplaatsen
@@ -1546,8 +1579,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               type="button"
               className={modus === "wandel" ? "" : "stil"}
               onClick={() => {
-                // Verplaatsen kan enkel van buiten; meten blijft.
-                if (verplaatsen || omgevingVerplaatsen) setGereedschap("kijken");
+                // Verplaatsen en inrichten kan enkel van buiten; meten blijft.
+                if (verplaatsen || omgevingVerplaatsen || gereedschap === "inrichten") setGereedschap("kijken");
                 setModus("wandel");
               }}
             >
@@ -1590,6 +1623,16 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             }}
           />
         </section>
+
+        <Inrichtkaart
+          inrichting={inrichting}
+          aan={gereedschap === "inrichten"}
+          wissel={() => {
+            setModus("rond");
+            wissel("inrichten");
+          }}
+          verdiepingen={model.verdiepingen.map((v) => ({ id: v.id, naam: v.naam }))}
+        />
 
         <Zonkaart kern={drie} klaar={klaar} noorden={noorden} terrein={terrein} metOmgeving={omgeving !== null && omgevingsplaats !== null} />
 

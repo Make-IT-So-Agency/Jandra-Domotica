@@ -12,18 +12,20 @@ describe("de lagen van het 3D-model", () => {
     inplantingsplan: false,
     omgeving: true,
     punten: [{ categorie: "verlichting", naam: "Verlichting", kleur: "#f59e0b" }],
+    inrichting: [{ laag: "meubels", naam: "Meubels" }],
   };
 
-  it("groepeert per gebouw, terrein, punten en hulp", () => {
+  it("groepeert per gebouw, terrein, punten, inrichting en hulp", () => {
     const groepen = lagenVan(invoer);
-    expect(groepen.map((g) => g.naam)).toEqual(["Gebouw", "Terrein", "Punten", "Hulp"]);
+    expect(groepen.map((g) => g.naam)).toEqual(["Gebouw", "Terrein", "Punten", "Inrichting", "Hulp"]);
     expect(groepen[0].lagen.map((l) => l.sleutel)).toEqual(["verdieping:7", "verdieping:8", "daken"]);
     expect(groepen[1].lagen.map((l) => l.sleutel)).toEqual(["terrein:luchtfoto", "terrein:grenzen", "terrein:buren", "terrein:opPerceel"]);
     expect(groepen[2].lagen[0]).toEqual({ sleutel: "punten:verlichting", naam: "Verlichting", kleur: "#f59e0b" });
+    expect(groepen[3].lagen).toEqual([{ sleutel: "inrichting:meubels", naam: "Meubels" }]);
   });
 
   it("laat een lege groep weg", () => {
-    const groepen = lagenVan({ ...invoer, omgeving: false, punten: [] });
+    const groepen = lagenVan({ ...invoer, omgeving: false, punten: [], inrichting: [] });
     expect(groepen.map((g) => g.naam)).toEqual(["Gebouw", "Hulp"]);
     expect(lagenVan({ ...invoer, omgeving: false, inplantingsplan: true })[1].lagen.map((l) => l.sleutel)).toEqual(["terrein:plan"]);
   });

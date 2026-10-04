@@ -2935,6 +2935,24 @@ tr.deze-maand td {
   }
 }
 
+/* Het palet met meubels en toestellen, per groep open te klappen. */
+details.palet > summary.palet-kop {
+  cursor: pointer;
+}
+
+details.palet:not([open]) {
+  margin-bottom: 6px;
+}
+
+.stukstaal {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  border-radius: 3px;
+}
+
 /* Het label van een punt dat je in 3D aantikt. */
 .drie-puntlabel {
   padding: 2px 8px;

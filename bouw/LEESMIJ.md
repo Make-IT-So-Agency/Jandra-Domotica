@@ -288,12 +288,12 @@ grondplannen.
   weer in beeld. Een doorsnede op een hoogte; rondwandelen op ooghoogte met W
   A S D of de knoppen, zonder door muren te lopen, en de trap op en af
   (`drie/wandelen.ts`); een beeld downloaden. Er staat altijd maar één
-  gereedschap aan (meten, gebouwen verplaatsen, de omgeving verschuiven); Esc
-  zet terug op kijken.
+  gereedschap aan (meten, inrichten, gebouwen verplaatsen, de omgeving
+  verschuiven); Esc zet terug op kijken.
 - **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
   daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
   de buren, wat nu op ons perceel staat (standaard uit), de punten per
-  categorie, de maten en de noordpijl. Het vinkje van een groep zet de hele
+  categorie, de meubels, de toestellen, de maten en de noordpijl. Het vinkje van een groep zet de hele
   groep. De browser onthoudt de keuze (`drie/lagen.ts`,
   `components/bouw/lagen.tsx`).
 - **Meten.** Met **Meten** linksboven op het beeld tik je een begin en een
@@ -321,6 +321,31 @@ grondplannen.
   boven op het plan, en zonder adres staat de zon zoals in het midden van
   Vlaanderen; de kaart zegt welke. Een noordpijl linksonder op het beeld
   draait mee met de camera.
+- **Inrichten.** Met **Inrichten** zet je meubels en toestellen in het huis
+  (`inrichting.ts`, `drie/inrichten.ts`, `3d/inrichten.tsx`,
+  `3d/stukken-scene.ts`):
+  - **de catalogus:** bedden, kasten, zetels, tafels, de keuken, de badkamer,
+    de wasmachine, en de toestellen: de warmtepomp (binnen en buiten), de
+    ventilatie, de boiler, het buffervat, de meterkast, de verdeelkast, de
+    thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
+    regenwaterput. Elk stuk is een eenvoudig blok met een herkenbare vorm, in
+    een zachte kleur per groep;
+  - **plaatsen:** kies een verdieping en een stuk, en tik op de vloer. Alles
+    boven het plafond van die verdieping is dan weg, zodat je in de ruimtes
+    kijkt. Een kast, een bed of een toestel aan de muur gaat met zijn rug
+    tegen de dichtste muur, en in een hoek ook tegen de muur ernaast. De
+    stukken bij Buiten komen op de grond bij het gelijkvloers, ook buiten de
+    muren; de regenwaterput zit in de grond, en enkel het deksel komt boven;
+  - **aanpassen:** tik een stuk en sleep het, draai het per 15° of 90° of met
+    een getal, en verander de maten, de hoogte boven de vloer of het label.
+    **Tegen de muur** zet het er opnieuw tegen, en **Weg** haalt het weg. Met
+    de toetsen: de pijltjes verschuiven 5 cm (met Shift 50 cm), R draait 15°,
+    Delete haalt weg;
+  - **bewaren:** **Meubels bewaren** bewaart elke verdieping die veranderde in
+    één keer (`bouw_objecten`), in meter in het assenstelsel van het gebouw,
+    zoals de punten. **Herbeginnen** gooit weg wat niet bewaard is;
+  - wat hoger komt dan 30 cm houdt je tegen bij het rondwandelen; wat aan de
+    muur hangt boven 1 m niet.
 - **Het inplantingsplan.** Elk gebouw heeft zijn eigen assenstelsel, dat van
   zijn grondplannen. Waar het op het terrein staat, haalt de app van het
   inplantingsplan (`drie/inplanting.ts`):
@@ -783,6 +808,9 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/omgeving-diensten.ts`, `web/app/api/bouw/omgeving/` | De diensten van Digitaal Vlaanderen op de server, en de routes voor de omgeving en de luchtfoto |
 | `web/app/vastgoed/[huis]/3d/omgeving-scene.ts` | De omgeving in three.js: luchtfoto, perceelgrenzen en buren |
 | `supabase/migrations/20261003220000_bouw_omgeving.sql` | Waar het terrein op de kaart ligt, per huis |
+| `supabase/migrations/20261004100000_bouw_correcties.sql` | Wat op het plan verbeterd werd aan de muren, ramen en deuren |
+| `supabase/migrations/20261004120000_bouw_objecten.sql` | De meubels en toestellen, per verdieping |
+| `web/lib/bouw/inrichting.ts`, `web/lib/bouw/drie/inrichten.ts` | De catalogus van meubels en toestellen, stukken nakijken, tegen de muur zetten en wat je tegenhoudt; puur, met tests |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -971,7 +999,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5f** Muren, ramen en deuren verbeteren op het plan, na het omzetten
 - [x] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
       verwarming
-- [ ] **5h** Meubels en toestellen
+- [x] **5h** Meubels en toestellen
 - [ ] **5i** Leidingen tekenen op het plan, en ze in 3D zien
 - [ ] **5j** Zonnepanelen op het dak
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,

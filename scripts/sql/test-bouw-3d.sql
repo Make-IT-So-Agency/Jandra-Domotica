@@ -1,7 +1,7 @@
 -- Controle bij de migraties (scripts/test-migraties.sh draait elk test-*.sql
 -- bestand hier): de keuzes voor de trappen van een verdieping, de inplanting
--- van de gebouwen op het terrein, waar het terrein op de kaart ligt, en de
--- correcties op de muren, ramen en deuren.
+-- van de gebouwen op het terrein, waar het terrein op de kaart ligt, de
+-- correcties op de muren, ramen en deuren, en de meubels en toestellen.
 -- Verandert niets: alles gebeurt in een transactie die teruggedraaid wordt.
 -- De coördinaten hieronder zijn verzonnen.
 begin;
@@ -117,6 +117,52 @@ begin
   exception when check_violation then
     null;
   end;
+
+  -- 8. Meubels en toestellen: een soort in de juiste vorm, en maten die kloppen.
+  insert into bouw_objecten (verdieping_id, soort, x_m, y_m, z_m, hoek, breedte_m, diepte_m, hoogte_m, label)
+  values (verdieping, 'bed_2p', 2, 1.005, 0, 0, 1.6, 2, 0.5, 'Proefbed');
+  insert into bouw_objecten (verdieping_id, soort, x_m, y_m, z_m, breedte_m, diepte_m, hoogte_m)
+  values (verdieping, 'regenwaterput', 8, 3, -2.34, 1.9, 1.9, 2.1);
+  begin
+    insert into bouw_objecten (verdieping_id, soort, x_m, y_m, breedte_m, diepte_m, hoogte_m)
+    values (verdieping, 'Bed met spatie', 1, 1, 1, 1, 1);
+    raise exception 'een soort in de verkeerde vorm werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_objecten (verdieping_id, soort, x_m, y_m, breedte_m, diepte_m, hoogte_m)
+    values (verdieping, 'kast', 1, 1, 0, 1, 1);
+    raise exception 'een kast zonder breedte werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_objecten (verdieping_id, soort, x_m, y_m, breedte_m, diepte_m, hoogte_m)
+    values (verdieping, 'kast', 'NaN', 1, 1, 1, 1);
+    raise exception 'een plaats die geen getal is, werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_objecten (verdieping_id, soort, x_m, y_m, hoek, breedte_m, diepte_m, hoogte_m)
+    values (verdieping, 'kast', 1, 1, 270, 1, 1, 1);
+    raise exception 'een hoek van 270 graden werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_objecten (verdieping_id, soort, x_m, y_m, breedte_m, diepte_m, hoogte_m, label)
+    values (verdieping, 'kast', 1, 1, 1, 1, 1, repeat('x', 81));
+    raise exception 'een label van 81 tekens werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  -- Weg met de verdieping.
+  delete from bouw_verdiepingen where id = verdieping;
+  if exists (select 1 from bouw_objecten where verdieping_id = verdieping) then
+    raise exception 'de meubels bleven staan nadat de verdieping verwijderd werd';
+  end if;
 end;
 $$;
 
