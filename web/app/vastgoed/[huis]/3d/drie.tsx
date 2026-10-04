@@ -1536,6 +1536,23 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
 
         <Zonkaart kern={drie} klaar={klaar} noorden={noorden} terrein={terrein} metOmgeving={omgeving !== null && omgevingsplaats !== null} />
 
+        {gegevens.verdiepingen.some((v) => v.metMuren) ? (
+          <section className="kaart">
+            <h3>Plan verbeteren</h3>
+            <p className="hulp">Klopt een muur, raam of deur niet? Verbeter het op het plan; 3D bouwt het mee.</p>
+            <ul className="inplanting-gebouwen">
+              {gegevens.verdiepingen
+                .filter((v) => v.metMuren)
+                .map((v) => (
+                  <li key={v.id}>
+                    <a href={huispad(huisId, `/3d/verbeteren?verdieping=${v.id}`)}>{v.naam}</a>
+                    {(v.correcties?.length ?? 0) > 0 ? <span className="hulp"> · {v.correcties?.length} verbeterd</span> : null}
+                  </li>
+                ))}
+            </ul>
+          </section>
+        ) : null}
+
         <section className="kaart">
           <h3>Inplanting</h3>
           {plannen.length === 0 ? (

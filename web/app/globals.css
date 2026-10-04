@@ -1484,6 +1484,156 @@ button.palet-knop.gekozen {
   text-anchor: start;
 }
 
+/* Muren, ramen en deuren verbeteren: de muren zoals 3D ze bouwt, de openingen
+   per soort, en wat verbeterd werd. */
+.laag-muur {
+  fill: rgba(109, 40, 217, 0.32);
+  stroke: #6d28d9;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-muurweg {
+  fill: rgba(220, 38, 38, 0.16);
+  stroke: #dc2626;
+  stroke-width: 1px;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-gat {
+  fill-opacity: 0.6;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-gat.raam {
+  fill: #0284c7;
+  stroke: #0369a1;
+}
+
+.laag-gat.buitendeur {
+  fill: #047857;
+  stroke: #065f46;
+}
+
+.laag-gat.deur {
+  fill: #d97706;
+  stroke: #b45309;
+}
+
+.laag-gat.doorgang {
+  fill: #9ca3af;
+  stroke: #6b7280;
+}
+
+.laag-gat.gekozen {
+  stroke: #1d4ed8;
+  stroke-width: 3px;
+}
+
+.laag-correctie {
+  fill: none;
+  stroke: #16a34a;
+  stroke-width: 2px;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.laag-correctie.weg {
+  stroke: #dc2626;
+  stroke-width: 3px;
+}
+
+.laag-correctie.gat,
+.laag-correctie.dicht {
+  fill: #16a34a;
+  stroke: #ffffff;
+  stroke-dasharray: none;
+}
+
+.laag-correctie.uit {
+  stroke: #9ca3af;
+}
+
+.laag-correctie.gat.uit,
+.laag-correctie.dicht.uit {
+  fill: #9ca3af;
+}
+
+.laag-begin {
+  fill: #16a34a;
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.verbeterlegende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+.verbeterlegende li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legende-kleur {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legende-kleur.muur {
+  background: rgba(109, 40, 217, 0.5);
+}
+
+.legende-kleur.raam {
+  background: #0284c7;
+}
+
+.legende-kleur.buitendeur {
+  background: #047857;
+}
+
+.legende-kleur.deur {
+  background: #d97706;
+}
+
+.legende-kleur.doorgang {
+  background: #9ca3af;
+}
+
+.legende-kleur.correctie {
+  border: 2px dashed #16a34a;
+}
+
+/* De lijst met verbeteringen: wat, en ongedaan maken. */
+.correcties {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.correcties li {
+  margin-bottom: 6px;
+}
+
+.correcties li > span {
+  margin-right: 8px;
+}
+
+.correcties li.uit > span:first-child {
+  color: var(--zacht);
+}
+
 /* Het dossier nakijken: een tabel met velden in de cellen. */
 .dossier table input:not([type="checkbox"]),
 .dossier table select {

@@ -7,6 +7,7 @@ import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
+import { schoneCorrecties, type Correctie } from "./drie/correcties";
 import { schoneTrapstanden } from "./drie/trappen";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
@@ -231,6 +232,7 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
     verdiepingshoogte_m: getal(rij.verdiepingshoogte_m),
     plafondhoogte_m: getal(rij.plafondhoogte_m),
     trapstanden: schoneTrapstanden(rij.trappen),
+    correcties: schoneCorrecties(rij.correcties),
   };
 }
 
@@ -241,6 +243,17 @@ export async function bewaarTrapstanden(huisId: number, verdiepingId: number, st
     check(
       await db().from("bouw_verdiepingen").update({ trappen: schoneTrapstanden(standen) }).eq("id", verdiepingId).select("id"),
       "Trappen bewaren",
+    ),
+  );
+}
+
+/** Wat op het plan verbeterd werd aan de muren, ramen en deuren van een verdieping. */
+export async function bewaarCorrecties(huisId: number, verdiepingId: number, correcties: Correctie[]): Promise<void> {
+  if (!(await leesVerdieping(huisId, verdiepingId))) throw new Bouwfout("Deze verdieping bestaat niet meer.");
+  geraakt(
+    check(
+      await db().from("bouw_verdiepingen").update({ correcties: schoneCorrecties(correcties) }).eq("id", verdiepingId).select("id"),
+      "Correcties bewaren",
     ),
   );
 }

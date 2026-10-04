@@ -1,6 +1,7 @@
 -- Controle bij de migraties (scripts/test-migraties.sh draait elk test-*.sql
 -- bestand hier): de keuzes voor de trappen van een verdieping, de inplanting
--- van de gebouwen op het terrein, en waar het terrein op de kaart ligt.
+-- van de gebouwen op het terrein, waar het terrein op de kaart ligt, en de
+-- correcties op de muren, ramen en deuren.
 -- Verandert niets: alles gebeurt in een transactie die teruggedraaid wordt.
 -- De coördinaten hieronder zijn verzonnen.
 begin;
@@ -94,6 +95,28 @@ begin
     null;
   end;
   update bouw_huizen set lambert_x = null, lambert_y = null, lambert_hoek = null where id = huis;
+
+  -- 7. De correcties op het plan: een lijst, standaard leeg, van hoogstens 200.
+  if (select correcties from bouw_verdiepingen where id = verdieping) <> '[]'::jsonb then
+    raise exception 'een nieuwe verdieping heeft al correcties';
+  end if;
+  update bouw_verdiepingen
+     set correcties = '[{"soort": "muur", "a": [1, 2], "b": [4, 2], "dikte": 0.14}, {"soort": "dicht", "x": 5.07, "y": 3.45}]'::jsonb
+   where id = verdieping;
+  begin
+    update bouw_verdiepingen set correcties = '{"soort": "muur"}'::jsonb where id = verdieping;
+    raise exception 'correcties die geen lijst zijn, werden aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    update bouw_verdiepingen
+       set correcties = (select jsonb_agg(jsonb_build_object('soort', 'dicht', 'x', i, 'y', 1)) from generate_series(1, 201) as i)
+     where id = verdieping;
+    raise exception '201 correcties werden aanvaard';
+  exception when check_violation then
+    null;
+  end;
 end;
 $$;
 

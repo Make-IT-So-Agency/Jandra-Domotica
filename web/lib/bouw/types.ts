@@ -1,3 +1,5 @@
+import type { Correctie } from "./drie/correcties";
+
 /**
  * De vaste lijsten en de vorm van de rijen van de module Bouw. Puur, zonder
  * databank: zowel de server als de browser gebruikt dit bestand.
@@ -200,6 +202,8 @@ export interface Verdieping {
   plafondhoogte_m: number | null;
   /** De keuzes voor de trappen die hier beginnen. */
   trapstanden?: Trapstand[];
+  /** Wat iemand op het plan verbeterde aan de muren, ramen en deuren. */
+  correcties?: Correctie[];
 }
 
 export interface Plan {

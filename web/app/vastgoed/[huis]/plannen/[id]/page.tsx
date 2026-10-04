@@ -95,6 +95,11 @@ export default async function Plandetail({
                 {omzettingVan.has(getoond.id) ? "Ruimtes nakijken" : "Omzetten naar ruimtes"}
               </Link>
             ) : null}
+            {plan.soort === "grondplan" && plan.verdieping_id && omzettingVan.has(getoond.id) ? (
+              <Link className="knop stil" href={huispad(huis.id, `/3d/verbeteren?verdieping=${plan.verdieping_id}`)}>
+                Muren, ramen en deuren verbeteren
+              </Link>
+            ) : null}
           </div>
           <ViewerLader
             key={getoond.id}

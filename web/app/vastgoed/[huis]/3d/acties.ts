@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { schoneCorrecties } from "@/lib/bouw/drie/correcties";
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
 import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
 import { huisgebruiker } from "@/lib/bouw/huistoegang";
 import { id } from "@/lib/bouw/invoer";
-import { bewaarDak, bewaarGeoref, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
+import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarTrapstanden } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
@@ -80,5 +81,24 @@ export async function bewaarOmgevingActie(huisId: unknown, vraag: unknown): Prom
     return mislukt(foutmelding(fout, "Bewaren mislukt."));
   }
   revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
+}
+
+/** Wat op het plan verbeterd werd aan de muren, ramen en deuren van een verdieping. */
+export async function bewaarCorrectiesActie(huisId: unknown, vraag: { verdiepingId: number; correcties: unknown }): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const verdiepingId = id(String(vraag?.verdiepingId));
+  if (!verdiepingId) return mislukt("Onbekende verdieping.");
+  if (!Array.isArray(vraag?.correcties)) return mislukt("Onbekende correcties.");
+  const correcties = schoneCorrecties(vraag.correcties);
+  if (correcties.length !== vraag.correcties.length) return mislukt("Een correctie klopt niet. Herlaad de pagina en probeer opnieuw.");
+  try {
+    await bewaarCorrecties(toegang.huis.id, verdiepingId, correcties);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  revalidatePath(huispad(toegang.huis.id, "/3d/verbeteren"));
   return gelukt(null);
 }
