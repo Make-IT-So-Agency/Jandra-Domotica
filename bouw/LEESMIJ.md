@@ -201,6 +201,25 @@ verwarmingsinstallateur. Via een link met het recht "wensenlijst" ziet een
 partij beide. Een download is een momentopname, met de datum erop. Later
 dient dezelfde lijst om hun offertes te vergelijken.
 
+**Leidingen** (`/punten/leidingen?verdieping=`, `leidingen.ts`): water koud
+en warm, afvoer, regenwater, ventilatie (toevoer en afvoer), elektriciteit,
+data en vloerverwarming, op het omgezette grondplan, met de punten erbij.
+- **tekenen:** kies een soort en tik punt na punt; **Leiding bewaren**
+  bewaart ze meteen, in meter (`bouw_leidingen`). Een punt kleeft aan een
+  punt in de buurt (een kraan, een afvoer) of aan een andere leiding, en
+  anders aan een rechte lijn of 45° met het vorige punt;
+- **waar ze ligt:** in de vloer (volle lijn), in de muur op een hoogte
+  (streepjes), aan het plafond (stippen), buiten in de grond (streep en stip),
+  een stijgleiding (één punt, tot een andere verdieping van het gebouw), of
+  een zone met vloerverwarming (tik de hoeken, en tik op het eerste punt om
+  ze te sluiten). Elke soort heeft een gewone ligging en doorsnede;
+- **aanpassen:** tik een leiding om de soort, de ligging, de hoogte, de
+  doorsnede, de verdieping of het label te veranderen, of om ze te
+  verwijderen;
+- per verdieping staat de lengte per soort, en de oppervlakte van de zones.
+  Bij **Lagen** zet je een soort aan of uit, net als in 3D. Op een gsm kan je
+  enkel kijken, in 3D.
+
 ## Het huis in 3D
 
 Niets van nul getekend: het 3D-model komt uit de omzetting van de
@@ -293,7 +312,8 @@ grondplannen.
 - **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
   daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
   de buren, wat nu op ons perceel staat (standaard uit), de punten per
-  categorie, de meubels, de toestellen, de maten en de noordpijl. Het vinkje van een groep zet de hele
+  categorie, de meubels, de toestellen, de leidingen per soort, de maten, de
+  noordpijl en de leidingen door de muren. Het vinkje van een groep zet de hele
   groep. De browser onthoudt de keuze (`drie/lagen.ts`,
   `components/bouw/lagen.tsx`).
 - **Meten.** Met **Meten** linksboven op het beeld tik je een begin en een
@@ -346,6 +366,14 @@ grondplannen.
     zoals de punten. **Herbeginnen** gooit weg wat niet bewaard is;
   - wat hoger komt dan 30 cm houdt je tegen bij het rondwandelen; wat aan de
     muur hangt boven 1 m niet.
+- **Leidingen** (`3d/leidingen-scene.ts`): de buizen liggen 5 cm onder de
+  vloer, in de muur op hun hoogte, net onder het plafond, of buiten 60 cm in
+  de grond; een stijgleiding loopt recht omhoog tot de vloer van haar
+  verdieping, en vloerverwarming is een roze vlak op de vloer. Een buis in de
+  vloer of de muur zie je anders niet: een doorschijnende tweede tekening
+  toont ze door de muren en vloeren heen (de laag **Leidingen door de
+  muren**). Elke soort is een laag. De kaart **Leidingen** brengt je per
+  verdieping naar het tekenscherm.
 - **Het inplantingsplan.** Elk gebouw heeft zijn eigen assenstelsel, dat van
   zijn grondplannen. Waar het op het terrein staat, haalt de app van het
   inplantingsplan (`drie/inplanting.ts`):
@@ -811,6 +839,8 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `supabase/migrations/20261004100000_bouw_correcties.sql` | Wat op het plan verbeterd werd aan de muren, ramen en deuren |
 | `supabase/migrations/20261004120000_bouw_objecten.sql` | De meubels en toestellen, per verdieping |
 | `web/lib/bouw/inrichting.ts`, `web/lib/bouw/drie/inrichten.ts` | De catalogus van meubels en toestellen, stukken nakijken, tegen de muur zetten en wat je tegenhoudt; puur, met tests |
+| `supabase/migrations/20261004140000_bouw_leidingen.sql` | De leidingen, per verdieping |
+| `web/lib/bouw/leidingen.ts`, `web/app/vastgoed/[huis]/punten/leidingen/` | De soorten leidingen, nakijken, kleven, lengtes en hoogtes (puur, met tests), en het tekenscherm |
 | `web/app/vastgoed/[huis]/toegang/` | Links maken en intrekken |
 | `web/app/extern/[token]/` | Wat een partij via haar link ziet en instuurt |
 | `web/lib/bouw/links.ts`, `linkregels.ts` | Tokens, nakijken, rechten en inzendingen |
@@ -1000,7 +1030,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
       verwarming
 - [x] **5h** Meubels en toestellen
-- [ ] **5i** Leidingen tekenen op het plan, en ze in 3D zien
+- [x] **5i** Leidingen tekenen op het plan, en ze in 3D zien
 - [ ] **5j** Zonnepanelen op het dak
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en

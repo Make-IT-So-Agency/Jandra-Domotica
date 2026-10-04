@@ -10,6 +10,7 @@ import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
 import { schoneTrapstanden } from "./drie/trappen";
 import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
+import { isLigging, type Leiding, type Nieuweleiding } from "./leidingen";
 import { sleutelVan } from "./invoer";
 import type { Ruimterij } from "./omzetting/bevestigen";
 import type { Trapdeel, Trapvoorstel, Xy } from "./omzetting/types";
@@ -810,6 +811,72 @@ export async function bewaarStukken(huisId: number, verdiepingId: number, stukke
     check(await db().from("bouw_objecten").delete().in("id", weg).eq("verdieping_id", verdiepingId), "Meubels weghalen");
   }
   return lees();
+}
+
+// ---------------------------------------------------------------------------
+// Leidingen (zie leidingen.ts)
+// ---------------------------------------------------------------------------
+
+function alsLeiding(rij: Record<string, unknown>): Leiding {
+  const punten = Array.isArray(rij.punten) ? (rij.punten as unknown[]) : [];
+  return {
+    id: Number(rij.id),
+    verdiepingId: Number(rij.verdieping_id),
+    soort: String(rij.soort),
+    punten: punten.filter((p): p is [number, number] => Array.isArray(p) && p.length === 2).map(([x, y]) => [Number(x), Number(y)]),
+    ligging: isLigging(rij.ligging) ? rij.ligging : "vloer",
+    hoogte: rij.hoogte_m === null || rij.hoogte_m === undefined ? null : Number(rij.hoogte_m),
+    diameter: Number(rij.diameter_mm),
+    totVerdiepingId: rij.tot_verdieping_id === null || rij.tot_verdieping_id === undefined ? null : Number(rij.tot_verdieping_id),
+    label: (rij.label as string | null) ?? null,
+  };
+}
+
+const leidingrij = (leiding: Nieuweleiding) => ({
+  soort: leiding.soort,
+  punten: leiding.punten,
+  ligging: leiding.ligging,
+  hoogte_m: leiding.hoogte,
+  diameter_mm: leiding.diameter,
+  tot_verdieping_id: leiding.totVerdiepingId,
+  label: leiding.label,
+});
+
+/** De leidingen van het huis, of van één verdieping ervan. */
+export async function lijstLeidingen(huisId: number, verdiepingId?: number): Promise<Leiding[]> {
+  const verdiepingen = await verdiepingenVanHuis(huisId);
+  const gevraagd = verdiepingId === undefined ? verdiepingen : verdiepingen.filter((id) => id === verdiepingId);
+  if (gevraagd.length === 0) return [];
+  const rijen = check(
+    await db().from("bouw_leidingen").select("*").in("verdieping_id", gevraagd).order("id"),
+    "Leidingen lezen",
+  ) as Record<string, unknown>[];
+  return rijen.map(alsLeiding);
+}
+
+export async function voegLeidingToe(huisId: number, verdiepingId: number, leiding: Nieuweleiding): Promise<Leiding> {
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", verdiepingId], ["bouw_verdiepingen", leiding.totVerdiepingId]);
+  const rij = check(
+    await db().from("bouw_leidingen").insert({ ...leidingrij(leiding), verdieping_id: verdiepingId }).select("*").single(),
+    "Leiding toevoegen",
+    { inGebruik: "Deze verdieping bestaat niet meer." },
+  ) as Record<string, unknown>;
+  return alsLeiding(rij);
+}
+
+export async function wijzigLeiding(huisId: number, id: number, leiding: Nieuweleiding): Promise<Leiding | null> {
+  if ((await huisVanRij("bouw_leidingen", id)) !== huisId) return null;
+  await zelfdeHuis(huisId, ["bouw_verdiepingen", leiding.totVerdiepingId]);
+  const rijen = check(
+    await db().from("bouw_leidingen").update(leidingrij(leiding)).eq("id", id).select("*"),
+    "Leiding bewaren",
+  ) as Record<string, unknown>[];
+  return rijen[0] ? alsLeiding(rijen[0]) : null;
+}
+
+export async function verwijderLeiding(huisId: number, id: number): Promise<void> {
+  if ((await huisVanRij("bouw_leidingen", id)) !== huisId) return;
+  check(await db().from("bouw_leidingen").delete().eq("id", id), "Leiding verwijderen");
 }
 
 // ---------------------------------------------------------------------------

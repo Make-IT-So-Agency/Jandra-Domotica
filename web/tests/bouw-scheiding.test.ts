@@ -16,16 +16,20 @@ import {
   lijstPartijen,
   lijstPlannen,
   lijstPunten,
+  lijstLeidingen,
   lijstRuimtes,
   lijstStukken,
   lijstVerdiepingen,
+  verwijderLeiding,
   verwijderPartij,
   verwijderPunt,
   verwijderVerdieping,
+  voegLeidingToe,
   voegPlanToe,
   voegPuntToe,
   voegVerdiepingToe,
   wijzigGebouw,
+  wijzigLeiding,
   wijzigPartij,
   wijzigPunt,
   zetBladcode,
@@ -84,6 +88,9 @@ beforeEach(() => {
     bouw_punten: [
       { id: 1000, verdieping_id: 10, ...punt },
       { id: 2000, verdieping_id: 20, ...punt },
+    ],
+    bouw_leidingen: [
+      { id: 4000, verdieping_id: 20, soort: "afvoer", punten: [[0, 0], [2, 0]], ligging: "vloer", hoogte_m: null, diameter_mm: 110, tot_verdieping_id: null, label: null },
     ],
     bouw_objecten: [
       { id: 3000, verdieping_id: 20, soort: "kast", x_m: 1, y_m: 1, z_m: 0, hoek: 0, kanteling: 0, breedte_m: 1, diepte_m: 0.4, hoogte_m: 2, label: null },
@@ -259,6 +266,20 @@ describe("twee huizen naast elkaar", () => {
     expect(await bewaarStukken(1, 10, [{ ...eerste, hoek: 90 }])).toEqual([{ ...eerste, hoek: 90 }]);
     expect(db.tabellen.bouw_objecten.some((r) => r.id === tweede.id)).toBe(false);
     expect((await lijstStukken(2)).map((s) => s.id)).toEqual([3000]);
+  });
+
+  it("tekent leidingen enkel op een verdieping van het eigen huis", async () => {
+    const leiding = { soort: "water_koud", punten: [[0, 0], [3, 0]] as [number, number][], ligging: "vloer" as const, hoogte: null, diameter: 16, totVerdiepingId: null, label: null };
+    await expect(voegLeidingToe(1, 20, leiding)).rejects.toThrow(ANDER_HUIS);
+    // Een stijgleiding naar een verdieping van het andere huis kan ook niet.
+    await expect(voegLeidingToe(1, 10, { ...leiding, punten: [[1, 1]], ligging: "stijg", totVerdiepingId: 20 })).rejects.toThrow(ANDER_HUIS);
+    const eigen = await voegLeidingToe(1, 10, leiding);
+    expect(eigen).toMatchObject({ verdiepingId: 10, soort: "water_koud", punten: [[0, 0], [3, 0]] });
+    // De leiding van het andere huis wijzigen of weghalen raakt niets.
+    expect(await wijzigLeiding(1, 4000, { ...leiding, label: "niet van ons" })).toBeNull();
+    await verwijderLeiding(1, 4000);
+    expect((await lijstLeidingen(2)).map((l) => [l.id, l.label])).toEqual([[4000, null]]);
+    expect((await lijstLeidingen(1)).map((l) => l.id)).toEqual([eigen.id]);
   });
 
   it("kent de namen van gebouwen en de bladcodes per huis", async () => {

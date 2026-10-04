@@ -1,7 +1,8 @@
 -- Controle bij de migraties (scripts/test-migraties.sh draait elk test-*.sql
 -- bestand hier): de keuzes voor de trappen van een verdieping, de inplanting
 -- van de gebouwen op het terrein, waar het terrein op de kaart ligt, de
--- correcties op de muren, ramen en deuren, en de meubels en toestellen.
+-- correcties op de muren, ramen en deuren, de meubels en toestellen, en de
+-- leidingen.
 -- Verandert niets: alles gebeurt in een transactie die teruggedraaid wordt.
 -- De coördinaten hieronder zijn verzonnen.
 begin;
@@ -12,6 +13,7 @@ declare
   ander bigint;
   gebouw bigint;
   verdieping bigint;
+  boven bigint;
   plan bigint;
 begin
   insert into bouw_huizen (naam) values ('Proefhuis 3D') returning id into huis;
@@ -118,7 +120,47 @@ begin
     null;
   end;
 
-  -- 8. Meubels en toestellen: een soort in de juiste vorm, en maten die kloppen.
+  -- 8. Leidingen: een lijst punten, een gekende ligging, een doorsnede die klopt.
+  insert into bouw_verdiepingen (gebouw_id, naam, volgorde) values (gebouw, 'Verdieping', 1) returning id into boven;
+  insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm)
+  values (verdieping, 'water_koud', '[[1, 1], [4, 1], [4, 5]]'::jsonb, 'vloer', 16);
+  insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm, tot_verdieping_id)
+  values (verdieping, 'afvoer', '[[2, 2]]'::jsonb, 'stijg', 110, boven);
+  begin
+    insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm)
+    values (verdieping, 'water_koud', '{"x": 1}'::jsonb, 'vloer', 16);
+    raise exception 'punten die geen lijst zijn, werden aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm)
+    values (verdieping, 'water_koud', '[]'::jsonb, 'vloer', 16);
+    raise exception 'een leiding zonder punten werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm)
+    values (verdieping, 'water_koud', '[[1, 1], [2, 2]]'::jsonb, 'lucht', 16);
+    raise exception 'een onbekende ligging werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    insert into bouw_leidingen (verdieping_id, soort, punten, ligging, diameter_mm)
+    values (verdieping, 'water_koud', '[[1, 1], [2, 2]]'::jsonb, 'vloer', 0);
+    raise exception 'een doorsnede van 0 mm werd aanvaard';
+  exception when check_violation then
+    null;
+  end;
+  -- De verdieping waar een stijgleiding naartoe loopt, weg: de leiding blijft.
+  delete from bouw_verdiepingen where id = boven;
+  if (select tot_verdieping_id from bouw_leidingen where soort = 'afvoer' and verdieping_id = verdieping) is not null then
+    raise exception 'de stijgleiding wees nog naar een verdieping die weg is';
+  end if;
+
+  -- 9. Meubels en toestellen: een soort in de juiste vorm, en maten die kloppen.
   insert into bouw_objecten (verdieping_id, soort, x_m, y_m, z_m, hoek, breedte_m, diepte_m, hoogte_m, label)
   values (verdieping, 'bed_2p', 2, 1.005, 0, 0, 1.6, 2, 0.5, 'Proefbed');
   insert into bouw_objecten (verdieping_id, soort, x_m, y_m, z_m, breedte_m, diepte_m, hoogte_m)
@@ -158,10 +200,13 @@ begin
   exception when check_violation then
     null;
   end;
-  -- Weg met de verdieping.
+  -- Weg met de verdieping, en alles erop.
   delete from bouw_verdiepingen where id = verdieping;
   if exists (select 1 from bouw_objecten where verdieping_id = verdieping) then
     raise exception 'de meubels bleven staan nadat de verdieping verwijderd werd';
+  end if;
+  if exists (select 1 from bouw_leidingen where verdieping_id = verdieping) then
+    raise exception 'de leidingen bleven liggen nadat de verdieping verwijderd werd';
   end if;
 end;
 $$;

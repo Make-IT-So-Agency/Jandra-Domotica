@@ -2953,6 +2953,16 @@ details.palet:not([open]) {
   border-radius: 3px;
 }
 
+/* Een leiding in een lijst of het palet: een streepje in haar kleur. */
+.leidingstaal {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
 /* Het label van een punt dat je in 3D aantikt. */
 .drie-puntlabel {
   padding: 2px 8px;

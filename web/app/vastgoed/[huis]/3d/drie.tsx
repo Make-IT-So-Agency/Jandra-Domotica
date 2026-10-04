@@ -29,6 +29,7 @@ import {
 import { ooghoogte, wandel, type Wandelstand, type Wandelverdieping } from "@/lib/bouw/drie/wandelen";
 import { noordenVan } from "@/lib/bouw/drie/zon";
 import { INRICHTINGSLAAGNAMEN, INRICHTINGSLAGEN, laagVan } from "@/lib/bouw/inrichting";
+import { LEIDINGSOORTEN } from "@/lib/bouw/leidingen";
 import { zwaartepunt, oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import { METER_PER_PUNT } from "@/lib/bouw/omzetting/schaal";
 import type { Xy } from "@/lib/bouw/omzetting/types";
@@ -39,6 +40,7 @@ import type { Trapstand } from "@/lib/bouw/types";
 import { bewaarDakActie, bewaarInplantingActie, bewaarOmgevingActie, bewaarTrappenActie } from "./acties";
 import type { GeladenPlan } from "./inplantingsplan";
 import { Inrichtkaart, useInrichten } from "./inrichten";
+import { bouwLeidingen, type Leidingenscene } from "./leidingen-scene";
 import { richtStraal, useTik, zichtbareRaak } from "./kern";
 import { useMeten } from "./meten";
 import { bouwOmgeving, type Omgevingsscene } from "./omgeving-scene";
@@ -288,6 +290,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     opgebouwd: Opgebouwd | null;
     punten: THREE.Object3D[];
     puntenscene: Puntenscene | null;
+    leidingenscene: Leidingenscene | null;
     /** Het inplantingsplan op de grond, en zijn textuur (één per gelezen plan). */
     plan: THREE.Mesh | null;
     plantextuur: { van: GeladenPlan; textuur: THREE.Texture } | null;
@@ -397,6 +400,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       opgebouwd: null,
       punten: [],
       puntenscene: null,
+      leidingenscene: null,
       plan: null,
       plantextuur: null,
       omgeving: null,
@@ -452,6 +456,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       d?.plantextuur?.textuur.dispose();
       d?.omgeving?.opruimen();
       d?.puntenscene?.opruimen();
+      d?.leidingenscene?.opruimen();
       renderer.dispose();
       element.removeChild(renderer.domElement);
       element.removeChild(labels.domElement);
@@ -476,7 +481,10 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     d.puntenscene?.opruimen();
     d.puntenscene = bouwPunten(gegevens.punten, model, opgebouwd.verdiepingen, d.snede);
     d.punten = d.puntenscene.objecten;
-  }, [model, materiaal, gegevens.punten]);
+    // De leidingen ook, met de grond zoals hieronder.
+    d.leidingenscene?.opruimen();
+    d.leidingenscene = bouwLeidingen(gegevens.leidingen, model, opgebouwd.verdiepingen, d.snede, Math.min(0, ...model.verdiepingen.map((v) => v.z0)) - 0.24);
+  }, [model, materiaal, gegevens.punten, gegevens.leidingen]);
 
   // Een gebouw verzet: enkel zijn groep verplaatsen, niets opnieuw bouwen.
   useEffect(() => {
@@ -913,9 +921,13 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     // Tijdens het wandelen blijft het dak: anders zie je op de bovenste verdieping de lucht.
     for (const dak of d.opgebouwd.daken) dak.visible = isAan(lagen, "daken") || modus === "wandel";
     for (const punt of d.punten) punt.visible = isAan(lagen, `punten:${punt.userData.categorie}`);
+    for (const leiding of d.leidingenscene?.objecten ?? []) {
+      leiding.visible = isAan(lagen, `leidingen:${leiding.userData.soort}`);
+      for (const deel of leiding.children) if (deel.userData.doorzicht) deel.visible = isAan(lagen, "hulp:doorzicht");
+    }
     // Tijdens het inrichten is alles boven het plafond van de verdieping weg: zo kijk je in de ruimtes.
     d.snede.constant = Math.min(doorsnede ?? 1000, inrichting.snede ?? 1000);
-  }, [lagen, doorsnede, model, modus, gegevens.punten, inrichting.snede]);
+  }, [lagen, doorsnede, model, modus, gegevens.punten, gegevens.leidingen, inrichting.snede]);
 
   // Rondwandelen: de camera op ooghoogte in de grootste ruimte van een verdieping.
   useEffect(() => {
@@ -1420,8 +1432,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           laag,
           naam: INRICHTINGSLAAGNAMEN[laag],
         })),
+        leidingen: LEIDINGSOORTEN.filter((s) => gegevens.leidingen.some((l) => l.soort === s.soort)),
       }),
-    [model, geladen, omgeving, gegevens.punten, inrichting.stukken],
+    [model, geladen, omgeving, gegevens.punten, inrichting.stukken, gegevens.leidingen],
   );
 
   // Het gekozen punt: in welke ruimte, en de plafondhoogte voor "aan het plafond".
@@ -1635,6 +1648,29 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
         />
 
         <Zonkaart kern={drie} klaar={klaar} noorden={noorden} terrein={terrein} metOmgeving={omgeving !== null && omgevingsplaats !== null} />
+
+        {gegevens.verdiepingen.some((v) => v.omgezet) ? (
+          <section className="kaart">
+            <h3>Leidingen</h3>
+            <p className="hulp">
+              Water, afvoer, ventilatie, elektriciteit en vloerverwarming teken je op het plan. Door de muren heen zie je ze met de laag
+              Leidingen door de muren.
+            </p>
+            <ul className="inplanting-gebouwen">
+              {gegevens.verdiepingen
+                .filter((v) => v.omgezet)
+                .map((v) => {
+                  const aantal = gegevens.leidingen.filter((l) => l.verdiepingId === v.id).length;
+                  return (
+                    <li key={v.id}>
+                      <a href={huispad(huisId, `/punten/leidingen?verdieping=${v.id}`)}>{v.naam}</a>
+                      {aantal > 0 ? <span className="hulp"> · {aantal} {aantal === 1 ? "leiding" : "leidingen"}</span> : null}
+                    </li>
+                  );
+                })}
+            </ul>
+          </section>
+        ) : null}
 
         {gegevens.verdiepingen.some((v) => v.metMuren) ? (
           <section className="kaart">

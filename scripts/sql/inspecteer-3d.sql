@@ -1,6 +1,7 @@
 -- Staan de trappen klaar voor het 3D-model? Per huis het aantal verdiepingen,
--- hoeveel er trapkeuzes en correcties hebben, hoeveel meubels en toestellen er
--- staan, en hoeveel bevestigde omzettingen al trappen lazen (werkwijze 3).
+-- hoeveel er trapkeuzes en correcties hebben, hoeveel meubels, toestellen en
+-- leidingen er zijn, en hoeveel bevestigde omzettingen al trappen lazen
+-- (werkwijze 3).
 -- Enkel nummers en aantallen: de uitvoer van "SQL uitvoeren" is publiek, dus
 -- geen namen, adressen of vormen.
 select
@@ -19,6 +20,11 @@ select
      join bouw_verdiepingen v on v.id = o.verdieping_id
      join bouw_gebouwen g on g.id = v.gebouw_id
     where g.huis_id = h.id)                                                   as objecten,
+  (select count(*)
+     from bouw_leidingen l
+     join bouw_verdiepingen v on v.id = l.verdieping_id
+     join bouw_gebouwen g on g.id = v.gebouw_id
+    where g.huis_id = h.id)                                                   as leidingen,
   (select count(*)
      from bouw_omzettingen o
      join bouw_planversies pv on pv.id = o.planversie_id
