@@ -500,8 +500,20 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
             .join("")}
         />
       ) : null}
+      {voorstel.luifels.map((luifel, i) => (
+        <g key={`luifel-${i}`}>
+          <path d={pad([luifel.lijn])} className="laag-luifel" />
+          <path d={`M${luifel.lijn.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L")}`} className="laag-luifellijn" />
+        </g>
+      ))}
       {voorstel.openingen.map((o: Opening, i) => (
-        <circle key={i} cx={o.x} cy={o.y} r={4 / zoom} className={o.soort === "deur" ? "laag-deur" : "laag-raam"} />
+        <circle
+          key={i}
+          cx={o.x}
+          cy={o.y}
+          r={4 / zoom}
+          className={o.soort === "deur" ? "laag-deur" : o.soort === "borstwering" ? "laag-borstwering" : "laag-raam"}
+        />
       ))}
       {ruimtes.map((r) => {
         // De architect zet de naam en de oppervlakte al op het plan. Enkel wat
@@ -637,6 +649,28 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
                 </p>
               );
             })}
+          </section>
+        ) : null}
+
+        {voorstel.openingen.length > 0 || voorstel.luifels.length > 0 ? (
+          <section className="kaart">
+            <h3>Ramen, deuren en luifels</h3>
+            <p className="hulp">
+              {[
+                [voorstel.openingen.filter((o) => o.soort === "raam").length, "raammaat", "raammaten"],
+                [voorstel.openingen.filter((o) => o.soort === "borstwering").length, "borstwering", "borstweringen"],
+                [voorstel.openingen.filter((o) => o.soort === "deur").length, "deurboog", "deurbogen"],
+              ]
+                .filter(([aantal]) => Number(aantal) > 0)
+                .map(([aantal, een, meer]) => `${aantal} ${aantal === 1 ? een : meer}`)
+                .join(", ") || "Geen ramen of deuren gelezen"}
+              . Het 3D-model legt ze in de openingen van de muren.
+            </p>
+            {voorstel.luifels.map((luifel, i) => (
+              <p key={i} className="status-goed">
+                ✔ Luifel, {String(luifel.diepte).replace(".", ",")} m diep <span className="hulp">({luifel.tekst})</span>
+              </p>
+            ))}
           </section>
         ) : null}
 

@@ -41,9 +41,12 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
     [Van PDF naar plan](#van-pdf-naar-plan).
   - De viewer zoomt met het muiswiel, twee vingers of de knoppen, en blijft
     scherp tot in het detail.
-  - Op een grondplan: **Omzetten naar ruimtes**.
+  - Op een grondplan: **Omzetten naar ruimtes**, of **Opnieuw omzetten** als
+    het met oudere regels omgezet werd.
   - Zolang er grondplannen niet omgezet zijn: **Alle grondplannen omzetten**
     (`/vastgoed/1/plannen/omzetten`), ook vanaf Ruimtes.
+  - Zijn er omgezet met oudere regels: **Opnieuw omzetten**
+    (`/vastgoed/1/plannen/omzetten?opnieuw=1`), ook vanaf Ruimtes en in 3D.
 - **Ruimtes** (`/vastgoed/1/ruimtes`): per gebouw en verdieping een tekening en een
   lijst met de oppervlakte, de plafondhoogte en het aantal punten. Ook op de
   gsm.
@@ -110,8 +113,20 @@ wordt nooit overschreven.
   schaal uit de oppervlaktes. Zonder beide duid je twee punten aan.
 - **Kandidaten.** Witte vlakken zonder label die op een ruimte lijken, zoals
   een trapbordes, voeg je toe met een tik.
-- **Deuren en ramen.** Een deur is een kwartcirkel, een raam een label als
-  `205 x 275`. Ze worden bewaard voor het 3D-model.
+- **Deuren en ramen.** Een deur is een kwartcirkel: het middelpunt is het
+  scharnier, en de boog zegt naar welke kant ze opendraait. Een raam heeft
+  een maat in cm: `205 x 275` staat bij het raam (het schrijnwerk), `180/275`
+  op een maatlijn buiten de muur (de opening in de ruwbouw). Een borstwering
+  staat erbij als `BW = 40`. Alles wordt bewaard voor het 3D-model; welke
+  maat bij welk raam hoort, weet pas dat model, want het kent de openingen.
+- **Luifels.** Wat boven de snede ligt, tekent een architect in streepjes. Een
+  streepjeslijn buiten het huis die van de gevel vertrekt en er weer op
+  uitkomt, met een tekst als "oversteek 100 cm" erin, is een luifel of een
+  overdekt terras (`omzetting/luifels.ts`). Zonder zo'n tekst telt ze niet:
+  de rand van een verdieping die uitkraagt, staat er ook zo. Een luifel die
+  je van boven ziet (op het plan van de verdieping erboven), staat in volle
+  lijn en telt ook niet. De lijn wordt bewaard; het vlak sluit het 3D-model
+  langs de gevel.
 
 **Nakijken.** Op een laptop of tablet. Groen klopt, oranje is na te kijken.
 Je kan hernoemen (de soort volgt de naam), splitsen met een lijn, een
@@ -154,6 +169,24 @@ apart te openen.
 - **Bevestigen.** Plan per plan, met dezelfde actie als het nakijkscherm.
   Vink je een plan af, dan gaan de plannen die erop uitgelijnd werden mee
   uit. De regels staan in `omzetting/reeks.ts`, met tests.
+
+**Opnieuw omzetten.** Elke bevestigde omzetting onthoudt met welke regels ze
+gemaakt werd (de werkwijze, `WERKWIJZE` in `omzetting/pijplijn.ts`: 2 de
+muren, 3 de trappen, 4 het bordes, 5 de raammaten met een schuine streep, de
+borstwering en de luifels). Leest de app meer dan toen, dan zegt Plannen,
+Ruimtes, de pagina van het plan en 3D het, met de knop **Opnieuw omzetten**:
+
+- **Welke plannen.** Elk grondplan waarvan de nieuwste versie met oudere
+  regels bevestigd werd.
+- **Op dezelfde plaats.** Er wordt niets uitgelijnd: elke versie houdt haar
+  bewaarde kalibratie, ook een schaal die iemand zelf aanduidde. Zo blijven
+  de punten, meubels, leidingen, correcties en trapkeuzes op hun plaats, want
+  die staan in meter per verdieping. Het peil en de plafondhoogte van de
+  verdieping blijven ook.
+- **De ruimtes** houden hun naam, hun soort en hun id. Komt er een ruimte bij
+  of verdwijnt er een, dan is het nakijken: een ruimte die verdwijnt, neemt
+  haar keuzes en haar vinkjes in de checklist mee.
+- **Bevestigen** gaat zoals bij Alle grondplannen omzetten.
 
 ## Punten en de wensenlijst
 
@@ -236,11 +269,29 @@ grondplannen.
   zo'n kleine zone loopt de vloerplaat, behalve waar de trap van beneden
   doorkomt; een grotere zone is een patio.
 - **Ramen en deuren** zijn de open plekken in een muur, langs de rand van een
-  ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam (met
-  een borstwering van 90 cm, of tot de vloer als het breder is dan 2,40 m)
-  of een buitendeur als er een deurboog bij staat. Ligt er een andere ruimte
-  achter, dan is het een deur of een doorgang. Een raamlabel als `205 x 275`
-  geeft de hoogte.
+  ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam of een
+  buitendeur als er een deurboog bij staat. Ligt er een andere ruimte
+  achter, dan is het een deur of een doorgang.
+  - **De hoogte van een raam:**
+    - een maat op een maatlijn (`180/275`) telt als ze buiten de muur
+      tegenover de opening ligt en dezelfde breedte heeft;
+    - anders telt de dichtste maat bij het raam (`205 x 275`), en een met de
+      juiste breedte eerst;
+    - een borstwering (`BW = 40`) tot 35 cm van het raam zet de onderkant;
+      de hoogte komt erbovenop, tot het plafond;
+    - zonder borstwering begint een raam van 2 m of hoger op de vloer; een
+      lager raam hangt onder de latei op 2,15 m;
+    - zonder maat: een borstwering van 90 cm (tot de vloer als het breder is
+      dan 2,40 m) en een latei op 2,15 m.
+  - **Vakken:** tellen de maten bij één raam samen op tot de opening, dan
+    staat er tussen elk vak een stijl, zoals 2,05 + 3,00 + 2,05.
+  - **Een buitendeur** krijgt de hoogte van haar maat.
+  - **Deuren:** elke deurboog wordt een deurblad op een kier van 30°, naar
+    de kant waar de deur opendraait, met de boog op de vloer
+    (`drie/deuren.ts`). Is een buitendeur breder dan haar blad, zoals een
+    voordeur met een zijlicht, dan komt er vast glas naast. Een deur zonder
+    boog blijft een gat. De bogen zaten altijd al in de omzetting, dus dit
+    werkt ook zonder opnieuw omzetten.
 - **Verbeteren.** Het plan wordt niet altijd perfect omgezet. Bij **Muren,
   ramen en deuren verbeteren** (`/3d/verbeteren`, vanuit 3D of de pagina van
   het plan) verbeter je het op het plan zelf, per verdieping:
@@ -253,7 +304,9 @@ grondplannen.
   - **Raam of deur erbij:** kies de soort, de breedte, de hoogte en (bij een
     raam) de borstwering, en tik op de muur waar het midden komt;
   - tik een raam, deur of doorgang om de soort of de maten te veranderen, of
-    om ze dicht te maken.
+    om ze dicht te maken. Bij een deur: **Scharnier andere kant** en **Draait
+    naar de andere kant**. Een deur die je zo laat draaien of zelf maakt,
+    krijgt een blad, ook zonder boog op het plan.
 
   Het plan toont meteen wat 3D bouwt: beide rekenen met dezelfde code
   (`drie/correcties.ts`). **Bewaren** bewaart alles samen, per verdieping,
@@ -292,7 +345,8 @@ grondplannen.
   trap om, kies je een andere vorm, of zeg je dat het gat een vide is; dat
   wordt per verdieping bewaard (`bouw_verdiepingen.trappen`). Een grondplan
   dat omgezet werd voor de app trappen las, of voor ze het bordes goed las
-  (werkwijze 4), zet je opnieuw om; het 3D-scherm zegt het.
+  (werkwijze 4), zet je opnieuw om; zie
+  [Opnieuw omzetten](#van-pdf-naar-plan). Het 3D-scherm zegt het.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
@@ -836,6 +890,8 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/` | Het 3D-model als gewone gegevens: muren, ramen en deuren, vloeren, platen, daken, materialen; puur, met tests |
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
 | `web/lib/bouw/omzetting/trappen.ts` | De trappen uit een grondplan: treden, vluchten, bordes en de pijl |
+| `web/lib/bouw/omzetting/luifels.ts` | De luifels uit een grondplan: een streepjeslijn tegen de gevel met een tekst als "oversteek 100 cm"; puur, met tests |
+| `web/lib/bouw/drie/deuren.ts` | Een deurblad op een kier, de boog op de vloer, vast glas naast een voordeur, en een deur omdraaien; puur, met tests |
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, en de trap op en af wandelen |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
 | `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
@@ -966,10 +1022,12 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    Vastgoed niet.
 3. **Een tweede huis**, bv. het huidige huis: bij **Vastgoed → Huizen**, met
    het soort *Bestaand huis*. Zie [Huizen](#huizen).
-4. **De trap in 3D:** het gelijkvloers opnieuw omzetten (of **Alles
-   omzetten**), zodat de app de trap van het plan leest. Bij het nakijken
-   staat hij in het oranje; kijk na of hij naar boven wijst en of het bordes
-   aan de goede kant ligt.
+4. **Opnieuw omzetten** na een nieuwe versie van de regels: bij Plannen op
+   **Opnieuw omzetten** (Alle grondplannen omzetten neemt enkel plannen die
+   nog nooit omgezet werden). Zo leest de app de trap, de ramen met hun
+   borstwering, de deuren en de luifels. Bij het nakijken staat de trap in
+   het oranje; kijk na of hij naar boven wijst en of het bordes aan de goede
+   kant ligt.
 5. **De inplanting:** bij 3D nakijken of de gebouwen op hun plaats op het
    inplantingsplan staan (**Van boven** helpt), zo nodig bijsturen met
    **Gebouwen verplaatsen**, en **Inplanting bewaren**. Staat het
