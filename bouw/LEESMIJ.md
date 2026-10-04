@@ -284,7 +284,7 @@ grondplannen.
     - zonder maat: een borstwering van 90 cm (tot de vloer als het breder is
       dan 2,40 m) en een latei op 2,15 m.
   - **Vakken:** tellen de maten bij één raam samen op tot de opening, dan
-    staat er tussen elk vak een stijl, zoals 2,05 + 3,00 + 2,05.
+    staat er tussen elk vak een stijl, zoals 1,20 + 2,40 + 1,20.
   - **Een buitendeur** krijgt de hoogte van haar maat.
   - **Deuren:** elke deurboog wordt een deurblad op een kier van 30°, naar
     de kant waar de deur opendraait, met de boog op de vloer
