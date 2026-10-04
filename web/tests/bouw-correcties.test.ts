@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   eindeOpMuur,
+  muurLangs,
   opMuur,
   pasCorrectiesToe,
   rechtGezet,
@@ -338,6 +339,13 @@ describe("luifels", () => {
     // Met een onderkant die iemand koos.
     const gekozen = metLuifels([], [{ soort: "luifel", a: [9.8, 1], b: [9.8, 5], diepte: 1, onder: 2.4, dikte: 0.25 }]).luifels[0];
     expect(gekozen).toMatchObject({ onder: 2.4, dikte: 0.25, vanzelf: false });
+  });
+
+  it("neemt de muur tussen twee tikken, ook als de eerste in een hoek valt", () => {
+    // In de hoek linksboven lopen de achtermuur en de linkermuur samen.
+    const plek = muurLangs(MUREN, [0.2, 0.2], [9.8, 0.2])!;
+    expect(Math.abs(plek.richting[0])).toBeCloseTo(1);
+    expect(plek.dikte).toBeCloseTo(0.4);
   });
 
   it("zet geen luifel tegen een binnenmuur", () => {

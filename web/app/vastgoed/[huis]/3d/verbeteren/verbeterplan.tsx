@@ -9,6 +9,7 @@ import {
   GATNAMEN,
   GATSOORTEN,
   eindeOpMuur,
+  muurLangs,
   opAs,
   opMuur,
   pasCorrectiesToe,
@@ -265,15 +266,18 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
 
     if (gereedschap === "luifel") {
       if (!begin) {
-        const plek = opMuur(uitkomst.muren, p, bereik);
-        if (!plek) return setMelding({ soort: "fout", tekst: "Tik op de gevel, waar de luifel begint." });
-        setBegin({ punt: plek.punt, plek });
+        // Waar je tikte: in een hoek is nog niet zeker langs welke muur. Dat zegt de tweede tik.
+        if (!opMuur(uitkomst.muren, p, bereik)) return setMelding({ soort: "fout", tekst: "Tik op de gevel, waar de luifel begint." });
+        setBegin({ punt: p, plek: null });
         return;
       }
-      const einde = begin.plek ? opAs(begin.plek, p) : p;
       setBegin(null);
-      if (afstand(begin.punt, einde) < 0.3) return setMelding({ soort: "fout", tekst: "Die luifel is te kort. Tik het begin en het einde langs de gevel." });
-      const luifel: Correctie = { soort: "luifel", a: rond(begin.punt), b: rond(einde), diepte: nieuweLuifel.diepte, dikte: nieuweLuifel.dikte };
+      if (afstand(begin.punt, p) < 0.3) return setMelding({ soort: "fout", tekst: "Die luifel is te kort. Tik het begin en het einde langs de gevel." });
+      // De muur tussen de twee tikken, en beide op haar as.
+      const plek = muurLangs(uitkomst.muren, begin.punt, p);
+      if (!plek) return setMelding({ soort: "fout", tekst: "Tik het begin en het einde langs dezelfde gevel." });
+      const [a, b] = [opAs(plek, begin.punt), opAs(plek, p)];
+      const luifel: Correctie = { soort: "luifel", a: rond(a), b: rond(b), diepte: nieuweLuifel.diepte, dikte: nieuweLuifel.dikte };
       // Enkel tegen een gevel: tegen een binnenmuur komt geen luifel.
       const proef = pasCorrectiesToe(omgezet, ruimtes, openingen, verdieping.plafond, [...correcties, luifel], luifels);
       if (!proef.verslag[correcties.length]) return setMelding({ soort: "fout", tekst: "Hier komt geen luifel: tik langs een buitenmuur." });
