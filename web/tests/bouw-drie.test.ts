@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { maakDak } from "@/lib/bouw/drie/dak";
-import { vindGaten } from "@/lib/bouw/drie/gaten";
+import { deurbladOpKier, draaiboog, vastGlasNaast } from "@/lib/bouw/drie/deuren";
+import { vindGaten, type Gekendeopening } from "@/lib/bouw/drie/gaten";
 import { maakModel, stapel, type Invoerverdieping } from "@/lib/bouw/drie/model";
 import { binnenVeelhoeken, doorsnede, omhullende, vergrootConvex, vereniging, verschil } from "@/lib/bouw/drie/vlak";
 import { nettoOppervlakte } from "@/lib/bouw/omzetting/geometrie";
@@ -96,6 +97,102 @@ describe("ramen en deuren in de open plekken", () => {
 
   it("zonder muren geen openingen", () => {
     expect(vindGaten([LINKS], [], [], 2.8)).toEqual([]);
+  });
+
+  const muren = vereniging(MUREN.map((ring) => [ring]));
+  const raamMet = (openingen: Gekendeopening[]) => vindGaten([LINKS, RECHTS], muren, openingen, 2.8).find((g) => g.soort === "raam")!;
+
+  it("neemt een maat op een maatlijn buiten de muur, met dezelfde breedte", () => {
+    // De linkermuur heeft een raam van 2 m tussen y = 2 en 4, met de buitenkant op x = 0.
+    expect(raamMet([{ soort: "raam", x: -1, y: 3, breedte: 2, hoogte: 2.75, vorm: "/" }])).toMatchObject({ onder: 0, boven: 2.75 });
+    // Een andere breedte, of binnen (een tegel): niet van dit raam.
+    expect(raamMet([{ soort: "raam", x: -1, y: 3, breedte: 1.5, hoogte: 2.75, vorm: "/" }])).toMatchObject({ onder: 0.9, boven: 2.15 });
+    expect(raamMet([{ soort: "raam", x: 1.5, y: 3, breedte: 2, hoogte: 2.75, vorm: "/" }])).toMatchObject({ onder: 0.9, boven: 2.15 });
+  });
+
+  it("begint een raam op zijn borstwering, en telt de hoogte erbovenop", () => {
+    const bw: Gekendeopening = { soort: "borstwering", x: 0.5, y: 3, breedte: 0, hoogte: 0.4 };
+    expect(raamMet([{ soort: "raam", x: -1, y: 3, breedte: 2, hoogte: 2.35, vorm: "/" }, bw])).toMatchObject({ onder: 0.4, boven: 2.75 });
+    // Tot het plafond, niet hoger.
+    expect(raamMet([{ soort: "raam", x: -1, y: 3, breedte: 2, hoogte: 2.75, vorm: "/" }, bw])).toMatchObject({ onder: 0.4, boven: 2.78 });
+    // Een borstwering verder van het raam is de hoogte van een leuning.
+    expect(raamMet([{ ...bw, x: 1 }])).toMatchObject({ onder: 0.9 });
+  });
+
+  it("ziet de vakken als de maten bij het raam samen de opening vullen", () => {
+    const vakken: Gekendeopening[] = [
+      { soort: "raam", x: -0.3, y: 2.6, breedte: 1.2, hoogte: 2.75, vorm: "x" },
+      { soort: "raam", x: -0.3, y: 3.6, breedte: 0.8, hoogte: 2.75, vorm: "x" },
+    ];
+    // Van a (onderaan, y = 4) naar b: eerst het vak van 80 cm.
+    const raam = raamMet(vakken);
+    expect(raam.a[1]).toBeCloseTo(4);
+    expect(raam.verdeling).toEqual([0.8]);
+    // Tellen ze niet op tot de opening, dan geen vakken.
+    expect(raamMet([vakken[0]]).verdeling).toBeUndefined();
+    expect(raamMet([vakken[0], { ...vakken[1], breedte: 1.2 }]).verdeling).toBeUndefined();
+  });
+
+  it("geeft een deur haar blad, naar de kant waar ze opendraait", () => {
+    // De binnendeur tussen y = 3 en 3,9, met het scharnier onderaan aan de kant van de keuken.
+    const deur: Gekendeopening = { soort: "deur", x: 5.14, y: 3.9, breedte: 0.9, hoogte: null, boog: [[6.04, 3.9], [5.14, 3]] };
+    const gat = vindGaten([LINKS, RECHTS], muren, [deur], 2.8).find((g) => g.soort === "deur")!;
+    expect(gat.bladen).toEqual([{ scharnier: [5.14, 3.9], dicht: [5.14, 3], open: [6.04, 3.9] }]);
+    // Een dubbele deur: twee bladen.
+    const dubbel = vindGaten(
+      [LINKS, RECHTS],
+      muren,
+      [
+        { soort: "deur", x: 5.14, y: 3.9, breedte: 0.45, hoogte: null, boog: [[5.14, 3.45], [5.59, 3.9]] },
+        { soort: "deur", x: 5.14, y: 3, breedte: 0.45, hoogte: null, boog: [[5.14, 3.45], [5.59, 3]] },
+      ],
+      2.8,
+    ).find((g) => g.soort === "deur")!;
+    expect(dubbel.bladen).toHaveLength(2);
+    // De boog van een buurdeur, met het scharnier op dezelfde hoek maar dicht buiten de opening: niet van deze deur.
+    const buur: Gekendeopening = { soort: "deur", x: 5.14, y: 3.9, breedte: 0.9, hoogte: null, boog: [[6.04, 3.9], [5.14, 4.8]] };
+    const zonder = vindGaten([LINKS, RECHTS], muren, [buur], 2.8);
+    expect(zonder.find((g) => g.soort === "deur")).toBeUndefined();
+    expect(zonder.find((g) => g.soort === "doorgang")?.bladen).toBeUndefined();
+  });
+
+  it("geeft een buitendeur de hoogte van haar maat", () => {
+    const deur: Gekendeopening = { soort: "deur", x: 8, y: 7.6, breedte: 1, hoogte: null, boog: [[7, 7.6], [8, 6.6]] };
+    const maat: Gekendeopening = { soort: "raam", x: 7.5, y: 8.8, breedte: 1, hoogte: 2.4, vorm: "/" };
+    const gat = vindGaten([LINKS, RECHTS], muren, [deur, maat], 2.8).find((g) => g.soort === "buitendeur")!;
+    expect(gat).toMatchObject({ onder: 0, boven: 2.4 });
+    expect(gat.bladen).toHaveLength(1);
+  });
+});
+
+describe("een deurblad in 3D", () => {
+  const blad = { scharnier: [0, 0] as Xy, dicht: [0.9, 0] as Xy, open: [0, 0.9] as Xy };
+
+  it("staat op een kier naar de kant waar het opendraait", () => {
+    const hoeken = deurbladOpKier(blad, 30, 0.04)!;
+    // Het uiteinde van het blad: 0,9 m van het scharnier, 30° naar de open kant.
+    const eind: Xy = [(hoeken[1][0] + hoeken[2][0]) / 2, (hoeken[1][1] + hoeken[2][1]) / 2];
+    expect(eind[0]).toBeCloseTo(0.9 * Math.cos(Math.PI / 6));
+    expect(eind[1]).toBeCloseTo(0.9 * Math.sin(Math.PI / 6));
+    expect(Math.hypot(hoeken[0][0] - hoeken[3][0], hoeken[0][1] - hoeken[3][1])).toBeCloseTo(0.04);
+    expect(deurbladOpKier({ ...blad, dicht: [0, 0] })).toBeNull();
+  });
+
+  it("tekent de boog op de vloer, van dicht tot open", () => {
+    const boog = draaiboog(blad, 0.02, 4)!;
+    expect(boog).toHaveLength(10);
+    expect(boog[0][0]).toBeCloseTo(0.91);
+    expect(boog[4][1]).toBeCloseTo(0.91);
+  });
+
+  it("zet vast glas waar geen blad is", () => {
+    // Een voordeur van 2 m: een blad van 1,2 m aan de kant van a, en 0,8 m glas.
+    const voordeur = { scharnier: [0, 0] as Xy, dicht: [1.2, 0] as Xy, open: [0, 1.2] as Xy };
+    expect(vastGlasNaast([0, 0], [2, 0], [voordeur])).toEqual([[1.2, 2]]);
+    expect(vastGlasNaast([0, 0], [1.25, 0], [voordeur])).toEqual([]);
+    // Een dubbele deur vult de opening.
+    const tweede = { scharnier: [2, 0] as Xy, dicht: [1.2, 0] as Xy, open: [2, 0.8] as Xy };
+    expect(vastGlasNaast([0, 0], [2, 0], [voordeur, tweede])).toEqual([]);
   });
 });
 

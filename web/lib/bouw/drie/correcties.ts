@@ -1,5 +1,6 @@
 import { nettoOppervlakte } from "../omzetting/geometrie";
 import type { Xy } from "../omzetting/types";
+import { gedraaid, standaardBlad, type Draai } from "./deuren";
 import { hartVan, vindGaten, type Gat, type Gatsoort, type Gekendeopening } from "./gaten";
 import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from "./vlak";
 
@@ -17,6 +18,10 @@ import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from
  *   andere hoogtes, of (met een breedte) een andere breedte;
  * - dicht: een opening die de app vond (bij x, y) wordt weer muur.
  *
+ * Een deur (een opening of een gat) kan ook anders draaien: het scharnier
+ * aan de andere kant, of naar de andere kant open (draai). Een nieuwe deur
+ * krijgt een blad, ook zonder boog op het plan.
+ *
  * Het 2D-scherm en het 3D-model rekenen met dezelfde pasCorrectiesToe: wat je
  * op het plan ziet, is wat 3D bouwt. Puur, met tests.
  */
@@ -24,8 +29,8 @@ import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from
 export type Correctie =
   | { soort: "muur"; a: Xy; b: Xy; dikte: number }
   | { soort: "weg"; a: Xy; b: Xy }
-  | { soort: "opening"; a: Xy; b: Xy; gat: Gatsoort; onder: number; boven: number }
-  | { soort: "gat"; x: number; y: number; gat: Gatsoort; onder: number; boven: number; breedte?: number }
+  | { soort: "opening"; a: Xy; b: Xy; gat: Gatsoort; onder: number; boven: number; draai?: Draai }
+  | { soort: "gat"; x: number; y: number; gat: Gatsoort; onder: number; boven: number; breedte?: number; draai?: Draai }
   | { soort: "dicht"; x: number; y: number };
 
 export const GATSOORTEN: readonly Gatsoort[] = ["raam", "buitendeur", "deur", "doorgang"];
@@ -233,6 +238,21 @@ interface Snede {
   gat: Gatsoort;
   onder: number;
   boven: number;
+  draai?: Draai;
+}
+
+const isDeur = (soort: Gatsoort) => soort === "deur" || soort === "buitendeur";
+
+/**
+ * De bladen van een deur na een correctie: die van het plan, of een blad als
+ * er geen boog was en iemand de deur maakte of liet draaien; gespiegeld
+ * zoals gevraagd.
+ */
+function bladenNa(gat: Gat, soort: Gatsoort, draai: Draai | undefined, nieuw: boolean): Pick<Gat, "bladen"> {
+  if (!isDeur(soort)) return {};
+  const basis = gat.bladen ?? (nieuw || draai ? [standaardBlad(gat)] : undefined);
+  if (!basis) return {};
+  return { bladen: draai ? gedraaid(basis, gat, draai) : basis };
 }
 
 /**
@@ -292,7 +312,15 @@ export function pasCorrectiesToe(
       if (c.soort === "gat" && c.breedte !== undefined) {
         const u = eenheid(gat.a, gat.b);
         const hart = hartVan(gat);
-        sneden.push({ index: i, a: plus(hart, u, -c.breedte / 2), b: plus(hart, u, c.breedte / 2), gat: c.gat, onder: c.onder, boven: c.boven });
+        sneden.push({
+          index: i,
+          a: plus(hart, u, -c.breedte / 2),
+          b: plus(hart, u, c.breedte / 2),
+          gat: c.gat,
+          onder: c.onder,
+          boven: c.boven,
+          draai: c.draai,
+        });
       }
     });
     if (dicht.length > 0) muren = vereniging([...muren, ...dicht]);
@@ -300,7 +328,7 @@ export function pasCorrectiesToe(
 
   // 4. De nieuwe openingen uit de muur.
   correcties.forEach((c, i) => {
-    if (c.soort === "opening") sneden.push({ index: i, a: c.a, b: c.b, gat: c.gat, onder: c.onder, boven: c.boven });
+    if (c.soort === "opening") sneden.push({ index: i, a: c.a, b: c.b, gat: c.gat, onder: c.onder, boven: c.boven, draai: c.draai });
   });
   const gesneden: { snede: Snede; plek: Muurplek; a: Xy; b: Xy }[] = [];
   for (const snede of sneden) {
@@ -328,12 +356,13 @@ export function pasCorrectiesToe(
     const i = gaten.findIndex((gat) => afstand(hartVan(gat), midden) <= Math.max(BIJ_OPENING, plek.dikte));
     const hoogtes = { soort: snede.gat, onder: snede.onder, boven: Math.min(snede.boven, plafond) };
     if (i >= 0) {
-      gaten[i] = { ...gaten[i], ...hoogtes };
+      gaten[i] = { ...gaten[i], ...hoogtes, ...bladenNa(gaten[i], snede.gat, snede.draai, true) };
       continue;
     }
     // In een muur die niet langs een ruimte loopt, ziet vindGaten ze niet: dan rechtstreeks.
     const n = links(plek.richting);
-    gaten.push({ a: plus(a, n, -plek.dikte / 2), b: plus(b, n, -plek.dikte / 2), n, dikte: plek.dikte, ...hoogtes });
+    const nieuw: Gat = { a: plus(a, n, -plek.dikte / 2), b: plus(b, n, -plek.dikte / 2), n, dikte: plek.dikte, ...hoogtes };
+    gaten.push({ ...nieuw, ...bladenNa(nieuw, snede.gat, snede.draai, true) });
   }
   // Een opening die de app vond, met een andere soort of andere hoogtes.
   correcties.forEach((c, i) => {
@@ -344,7 +373,7 @@ export function pasCorrectiesToe(
       return;
     }
     const j = gaten.indexOf(gat);
-    gaten[j] = { ...gat, soort: c.gat, onder: c.onder, boven: Math.min(c.boven, plafond) };
+    gaten[j] = { ...gat, soort: c.gat, onder: c.onder, boven: Math.min(c.boven, plafond), ...bladenNa(gat, c.gat, c.draai, false) };
   });
 
   return { muren, gaten, open, verslag };
@@ -393,6 +422,14 @@ function hoogtesVan(item: Record<string, unknown>): { gat: Gatsoort; onder: numb
   return { gat: item.gat, onder, boven };
 }
 
+/** Hoe een deur anders draait; enkel wat aan staat. */
+function draaiVan(ruw: unknown): { draai?: Draai } {
+  if (!ruw || typeof ruw !== "object") return {};
+  const r = ruw as Record<string, unknown>;
+  const draai: Draai = { ...(r.scharnier === true ? { scharnier: true } : {}), ...(r.kant === true ? { kant: true } : {}) };
+  return draai.scharnier || draai.kant ? { draai } : {};
+}
+
 /** Wat bewaard of ingestuurd werd, als correcties. Wat niet klopt, valt weg. */
 export function schoneCorrecties(ruw: unknown): Correctie[] {
   if (!Array.isArray(ruw)) return [];
@@ -411,7 +448,7 @@ export function schoneCorrecties(ruw: unknown): Correctie[] {
         if (lengte >= 0.02 && lengte <= 100) uit.push({ soort: "weg", a, b });
       } else {
         const hoogtes = hoogtesVan(item);
-        if (hoogtes && lengte >= 0.3 && lengte <= 12) uit.push({ soort: "opening", a, b, ...hoogtes });
+        if (hoogtes && lengte >= 0.3 && lengte <= 12) uit.push({ soort: "opening", a, b, ...hoogtes, ...draaiVan(item.draai) });
       }
       continue;
     }
@@ -427,7 +464,7 @@ export function schoneCorrecties(ruw: unknown): Correctie[] {
       if (!hoogtes) continue;
       const breedte = item.breedte === undefined || item.breedte === null ? undefined : getal(item.breedte, 0.3, 12);
       if (breedte === null) continue;
-      uit.push(breedte === undefined ? { soort: "gat", x, y, ...hoogtes } : { soort: "gat", x, y, ...hoogtes, breedte });
+      uit.push({ soort: "gat", x, y, ...hoogtes, ...(breedte === undefined ? {} : { breedte }), ...draaiVan(item.draai) });
     }
   }
   return uit;

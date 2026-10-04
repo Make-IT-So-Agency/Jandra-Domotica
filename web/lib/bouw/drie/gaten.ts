@@ -7,7 +7,9 @@ import { binnenVeelhoeken, type Veelhoek } from "./vlak";
  * zijn het de open plekken in een muur: langs de rand van een ruimte ligt
  * muur, dan even niet, dan weer wel. Wat erachter ligt, zegt wat het is:
  * buiten is een raam of een buitendeur, een andere ruimte een deur of een
- * doorgang. Een deurboog of een raamlabel van de omzetting vult aan.
+ * doorgang. Wat de omzetting op het plan las, vult aan: een deurboog geeft
+ * het deurblad en naar waar het draait, een raammaat de hoogte en de vakken,
+ * een borstwering waar het raam begint.
  *
  * Puur. Alles in meter, in het assenstelsel van het gebouw.
  */
@@ -26,6 +28,22 @@ export interface Gat {
   /** Boven de vloer: de onderkant (borstwering) en de bovenkant (latei). */
   onder: number;
   boven: number;
+  /** De bladen van een deur, uit de bogen op het plan: één, of twee bij een dubbele deur. */
+  bladen?: Deurblad[];
+  /** Waar de stijlen tussen de vakken van een raam staan, in meter van a naar b. */
+  verdeling?: number[];
+}
+
+/**
+ * Een deurblad, in meter: het scharnier, en waar het uiteinde ligt als de
+ * deur dicht is (langs de muur) en helemaal open (haaks erop, zoals de boog
+ * op het plan). Punten, en geen "links" of "rechts": de volgorde van a en b
+ * hangt af van de ruimte die de opening vond.
+ */
+export interface Deurblad {
+  scharnier: Xy;
+  dicht: Xy;
+  open: Xy;
 }
 
 /** Een deurboog, raammaat of borstwering zoals de omzetting ze bewaarde, in meter. */
@@ -68,6 +86,110 @@ function afstandTotSegment(p: Xy, a: Xy, b: Xy): number {
   return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
+/** Van een boog op het plan naar een deurblad: het uiteinde dat langs de muur (u) ligt, is de dichte stand. */
+export function deurbladVan(scharnier: Xy, boog: readonly [Xy, Xy], u: Xy): Deurblad {
+  const langs = (p: Xy) => Math.abs((p[0] - scharnier[0]) * u[0] + (p[1] - scharnier[1]) * u[1]);
+  const [dicht, open] = langs(boog[0]) >= langs(boog[1]) ? [boog[0], boog[1]] : [boog[1], boog[0]];
+  return { scharnier, dicht, open };
+}
+
+/** Een opening langs de rand van een ruimte: het begin van de rand, de richting langs en naar buiten. */
+interface Plek {
+  a: Xy;
+  u: Xy;
+  n: Xy;
+  /** Waar de opening begint en eindigt, langs de rand. */
+  s0: number;
+  s1: number;
+  dikte: number;
+}
+
+/** Hoe ver een punt langs de rand ligt, en hoe ver naar buiten. */
+function langsEnDwars(p: Xy, plek: Plek): [number, number] {
+  const v: Xy = [p[0] - plek.a[0], p[1] - plek.a[1]];
+  return [v[0] * plek.u[0] + v[1] * plek.u[1], v[0] * plek.n[0] + v[1] * plek.n[1]];
+}
+
+/**
+ * De raammaat van een opening. Een maat op een maatlijn ("180/275") enkel
+ * als ze er buiten de muur tegenover ligt en dezelfde breedte heeft: zo raakt
+ * een tegel als "60/60" binnen niets. Anders de dichtste maat bij het raam
+ * ("205 x 275"), en een met de juiste breedte eerst.
+ */
+function raammaatVoor(ramen: readonly Gekendeopening[], plek: Plek): Gekendeopening | null {
+  const breedte = plek.s1 - plek.s0;
+  const midden = (plek.s0 + plek.s1) / 2;
+  const opMaatlijn = ramen
+    .filter((o) => o.vorm === "/" && Math.abs(o.breedte - breedte) <= 0.15)
+    .map((o) => ({ o, ld: langsEnDwars([o.x, o.y], plek) }))
+    .filter(({ ld: [langs, dwars] }) => langs >= plek.s0 - 0.3 && langs <= plek.s1 + 0.3 && dwars >= plek.dikte - 0.05 && dwars <= plek.dikte + 3)
+    .sort((x, y) => Math.abs(x.ld[0] - midden) - Math.abs(y.ld[0] - midden));
+  if (opMaatlijn[0]) return opMaatlijn[0].o;
+  const m = plus(plek.a, plek.u, midden);
+  const bij = ramen
+    .filter((o) => o.vorm !== "/" && afstand([o.x, o.y], m) <= 1.5)
+    .sort((x, y) => afstand([x.x, x.y], m) - afstand([y.x, y.y], m));
+  return bij.find((o) => Math.abs(o.breedte - breedte) <= 0.15) ?? bij[0] ?? null;
+}
+
+/**
+ * De vakken van een raam: liggen er meer maten bij het raam ("205 x 275")
+ * die samen de opening vullen (tot 10 cm verschil), dan staat er tussen
+ * elk vak een stijl. Terug: waar, in meter vanaf het begin van de opening.
+ */
+function verdelingVoor(ramen: readonly Gekendeopening[], plek: Plek): number[] | undefined {
+  const breedte = plek.s1 - plek.s0;
+  const vakken = ramen
+    .filter((o) => o.vorm !== "/")
+    .map((o) => ({ o, ld: langsEnDwars([o.x, o.y], plek) }))
+    .filter(({ ld: [langs, dwars] }) => langs >= plek.s0 - 0.2 && langs <= plek.s1 + 0.2 && Math.abs(dwars - plek.dikte / 2) <= plek.dikte / 2 + 1.5)
+    .sort((x, y) => x.ld[0] - y.ld[0]);
+  if (vakken.length < 2) return undefined;
+  const som = vakken.reduce((totaal, vak) => totaal + vak.o.breedte, 0);
+  if (Math.abs(som - breedte) > 0.1) return undefined;
+  const schaal = breedte / som;
+  const stijlen: number[] = [];
+  let langs = 0;
+  for (const vak of vakken.slice(0, -1)) {
+    langs += vak.o.breedte * schaal;
+    stijlen.push(cm(langs));
+  }
+  return stijlen;
+}
+
+/**
+ * De borstwering van een opening: de dichtste "BW = …", tot 35 cm van de
+ * opening. Een architect zet ze vlak naast het raam; verder weg is het de
+ * hoogte van een leuning.
+ */
+function borstweringVoor(borstweringen: readonly Gekendeopening[], p0: Xy, p1: Xy, n: Xy, dikte: number): number | null {
+  let beste: { hoogte: number; afstand: number } | null = null;
+  for (const o of borstweringen) {
+    if (o.hoogte === null) continue;
+    const d = Math.min(afstandTotSegment([o.x, o.y], p0, p1), afstandTotSegment([o.x, o.y], plus(p0, n, dikte), plus(p1, n, dikte)));
+    if (d <= 0.35 && (!beste || d < beste.afstand)) beste = { hoogte: o.hoogte, afstand: d };
+  }
+  return beste?.hoogte ?? null;
+}
+
+/**
+ * Hoort deze boog bij deze opening? Het scharnier ligt tegen een kant van de
+ * opening, en het blad valt dicht in de opening zelf. Zo krijgt een deur het
+ * blad van haar buurdeur niet, ook als hun scharnieren dicht bij elkaar
+ * liggen.
+ */
+function boogVan(o: Gekendeopening, plek: Plek): boolean {
+  const p0 = plus(plek.a, plek.u, plek.s0);
+  const p1 = plus(plek.a, plek.u, plek.s1);
+  const scharnier: Xy = [o.x, o.y];
+  const tegen = Math.min(afstandTotSegment(scharnier, p0, p1), afstandTotSegment(scharnier, plus(p0, plek.n, plek.dikte), plus(p1, plek.n, plek.dikte)));
+  if (tegen > 0.35) return false;
+  if (!o.boog) return true;
+  const { dicht } = deurbladVan(scharnier, o.boog, plek.u);
+  const [langs] = langsEnDwars(dicht, plek);
+  return langs >= plek.s0 - 0.15 && langs <= plek.s1 + 0.15 && afstand(dicht, scharnier) <= plek.s1 - plek.s0 + 0.15;
+}
+
 /** Het midden van een opening, halverwege in de muur. */
 export function hartVan(gat: Pick<Gat, "a" | "b" | "n" | "dikte">): Xy {
   return [(gat.a[0] + gat.b[0]) / 2 + (gat.n[0] * gat.dikte) / 2, (gat.a[1] + gat.b[1]) / 2 + (gat.n[1] * gat.dikte) / 2];
@@ -90,6 +212,8 @@ export function vindGaten(
 ): Gat[] {
   if (muren.length === 0) return [];
   const gaten: Gat[] = [];
+  const ramen = gekend.filter((o) => o.soort === "raam" && o.hoogte !== null);
+  const borstweringen = gekend.filter((o) => o.soort === "borstwering");
 
   for (const ruimte of ruimtes) {
     const ring = ruimte.ringen[0];
@@ -147,35 +271,49 @@ export function vindGaten(
         const achter = plus(m, n, dikte + 0.12);
         const binnenin = ruimtes.some((andere) => andere !== ruimte && andere.ringen[0] && binnen(achter, andere.ringen[0]));
 
-        // Een deurboog met zijn scharnier bij een kant van de opening.
-        const deur = gekend.some(
-          (o) =>
-            o.soort === "deur" &&
-            Math.min(afstandTotSegment([o.x, o.y], p0, p1), afstandTotSegment([o.x, o.y], plus(p0, n, dikte), plus(p1, n, dikte))) <= 0.35,
-        );
+        // De deurbogen van deze opening; twee bij een dubbele deur.
+        const plek: Plek = { a, u, n, s0, s1, dikte };
+        const bogen = gekend.filter((o) => o.soort === "deur" && boogVan(o, plek));
+        const bladen = bogen.flatMap((o) => (o.boog ? [deurbladVan([o.x, o.y], o.boog, u)] : []));
+        const metBladen = bladen.length > 0 ? { bladen } : {};
 
         if (binnenin) {
           // Van de andere kant ziet de andere ruimte dezelfde opening: één keer is genoeg.
           const hart = plus(m, n, dikte / 2);
           const dubbel = gaten.some((g) => (g.soort === "deur" || g.soort === "doorgang") && afstand(hartVan(g), hart) < dikte + 0.3);
           if (dubbel) continue;
-          gaten.push({ soort: deur ? "deur" : "doorgang", a: p0, b: p1, n, dikte, onder: 0, boven: Math.min(LATEI, plafond - 0.05) });
+          gaten.push({
+            soort: bogen.length > 0 ? "deur" : "doorgang",
+            a: p0,
+            b: p1,
+            n,
+            dikte,
+            onder: 0,
+            boven: Math.min(LATEI, plafond - 0.05),
+            ...metBladen,
+          });
           continue;
         }
 
-        if (deur) {
-          gaten.push({ soort: "buitendeur", a: p0, b: p1, n, dikte, onder: 0, boven: Math.min(LATEI, plafond - 0.05) });
+        // Naar buiten: de maat van het raam of de buitendeur, en haar vakken.
+        const hoogte = raammaatVoor(ramen, plek)?.hoogte ?? null;
+        const verdeling = verdelingVoor(ramen, plek);
+        const metVerdeling = verdeling ? { verdeling } : {};
+
+        if (bogen.length > 0) {
+          const boven = hoogte !== null && hoogte >= 1.8 ? Math.min(hoogte, plafond - 0.02) : Math.min(LATEI, plafond - 0.05);
+          gaten.push({ soort: "buitendeur", a: p0, b: p1, n, dikte, onder: 0, boven: cm(boven), ...metBladen, ...metVerdeling });
           continue;
         }
 
-        // Een raam: met een label in de buurt weten we de hoogte.
-        const label = gekend
-          .filter((o) => o.soort === "raam" && o.hoogte !== null && afstand([o.x, o.y], m) <= 1.5)
-          .sort((x, y) => afstand([x.x, x.y], m) - afstand([y.x, y.y], m))[0];
-        const hoogte = label?.hoogte ?? null;
+        // Een raam: met een maat weten we de hoogte, met een borstwering ook waar het begint.
+        const bw = borstweringVoor(borstweringen, p0, p1, n, dikte);
         let boven = Math.min(LATEI, plafond - 0.1);
         let onder = breedte >= 2.4 ? 0 : BORSTWERING;
-        if (hoogte !== null) {
+        if (bw !== null) {
+          onder = bw;
+          boven = hoogte !== null ? Math.min(bw + hoogte, plafond - 0.02) : Math.max(boven, Math.min(bw + 1, plafond - 0.02));
+        } else if (hoogte !== null) {
           if (hoogte >= 2) {
             onder = 0;
             boven = Math.min(hoogte, plafond - 0.02);
@@ -183,7 +321,7 @@ export function vindGaten(
             onder = Math.max(0, boven - hoogte);
           }
         }
-        gaten.push({ soort: "raam", a: p0, b: p1, n, dikte, onder: cm(onder), boven: cm(boven) });
+        gaten.push({ soort: "raam", a: p0, b: p1, n, dikte, onder: cm(onder), boven: cm(boven), ...metVerdeling });
       }
     }
   }

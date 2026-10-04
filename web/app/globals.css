@@ -1532,6 +1532,15 @@ button.palet-knop.gekozen {
   stroke-width: 3px;
 }
 
+/* De bogen van de deuren: het blad open, en waar het draait. */
+.laag-deurboog {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
 .laag-correctie {
   fill: none;
   stroke: #16a34a;
