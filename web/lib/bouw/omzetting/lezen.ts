@@ -331,12 +331,29 @@ export function leesTeksten(items: readonly unknown[], begin: readonly number[])
 }
 
 /** Leest één blad. */
+/**
+ * De tekstitems van een blad, stuk per stuk uit de stroom van pdf.js.
+ * getTextContent overloopt die stroom met for await, en dat kan Safari niet
+ * (ook niet met de legacy-build): "undefined is not a function".
+ */
+export async function tekstitems(pagina: Pick<PDFPageProxy, "streamTextContent">): Promise<unknown[]> {
+  const lezer = pagina.streamTextContent().getReader();
+  const items: unknown[] = [];
+  try {
+    for (;;) {
+      const { done, value } = await lezer.read();
+      if (done) return items;
+      const stuk = (value as { items?: unknown } | undefined)?.items;
+      if (Array.isArray(stuk)) items.push(...stuk);
+    }
+  } finally {
+    lezer.releaseLock();
+  }
+}
+
 export async function leesBlad(pagina: PDFPageProxy): Promise<Blad> {
   const viewport = pagina.getViewport({ scale: 1 });
-  const [lijst, inhoud] = await Promise.all([
-    pagina.getOperatorList({ annotationMode: AnnotationMode.DISABLE }),
-    pagina.getTextContent(),
-  ]);
+  const [lijst, items] = await Promise.all([pagina.getOperatorList({ annotationMode: AnnotationMode.DISABLE }), tekstitems(pagina)]);
   const { paden, beeldvlak } = leesPaden(
     lijst.fnArray,
     lijst.argsArray,
@@ -347,7 +364,7 @@ export async function leesBlad(pagina: PDFPageProxy): Promise<Blad> {
     breedte: viewport.width,
     hoogte: viewport.height,
     paden,
-    teksten: leesTeksten(inhoud.items, viewport.transform),
+    teksten: leesTeksten(items, viewport.transform),
     beeldvlak,
   };
 }
@@ -355,6 +372,6 @@ export async function leesBlad(pagina: PDFPageProxy): Promise<Blad> {
 /** Enkel de teksten van een blad: genoeg om een dossier in te lezen, en veel sneller. */
 export async function leesBladteksten(pagina: PDFPageProxy): Promise<{ breedte: number; hoogte: number; teksten: Tekst[] }> {
   const viewport = pagina.getViewport({ scale: 1 });
-  const inhoud = await pagina.getTextContent();
-  return { breedte: viewport.width, hoogte: viewport.height, teksten: leesTeksten(inhoud.items, viewport.transform) };
+  const items = await tekstitems(pagina);
+  return { breedte: viewport.width, hoogte: viewport.height, teksten: leesTeksten(items, viewport.transform) };
 }
