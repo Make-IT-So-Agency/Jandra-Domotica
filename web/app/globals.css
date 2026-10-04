@@ -1925,6 +1925,137 @@ a.tl-naam:hover {
   margin: 6px 0 0;
 }
 
+.drie-vak.meten {
+  cursor: crosshair;
+}
+
+/* Linksboven op het beeld: het gereedschap, zoals Meten. Op een gsm onder de knoppen rechtsboven. */
+.drie-links {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .drie-links {
+    top: 62px;
+  }
+}
+
+/* De labels van de maten, boven het beeld; een tik gaat erdoor naar het beeld. */
+.drie-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.drie-maat {
+  padding: 1px 6px;
+  border: 1px solid #dc2626;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.94);
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.drie-maat small {
+  display: block;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.drie-maatpunt {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+.drie-maatpunt.zweef {
+  border-color: #dc2626;
+  background: rgb(255 255 255 / 0.6);
+}
+
+/* De noordpijl, linksonder op het beeld. */
+.drie-noorden {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 56px;
+  height: 56px;
+}
+
+.drie-noorden .pijl {
+  width: 56px;
+  height: 56px;
+}
+
+.drie-noorden svg {
+  display: block;
+  overflow: visible;
+}
+
+.drie-noorden circle {
+  fill: rgb(255 255 255 / 0.9);
+  stroke: rgb(17 24 39 / 0.25);
+}
+
+.drie-noorden .noord {
+  fill: #dc2626;
+}
+
+.drie-noorden .zuid {
+  fill: #9ca3af;
+}
+
+.drie-noorden text {
+  fill: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* Een noorden dat de app aanneemt (boven op het plan): vager. */
+.drie-noorden.aangenomen {
+  opacity: 0.55;
+}
+
+/* De lagen: per groep een vinkje, en eronder een per laag. */
+.lagengroep {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.lagengroep legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.lagengroep .laag {
+  padding-left: 22px;
+}
+
+.laagkleur {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
 /* Een trap in het paneel: wat hij is, en de knoppen om hem aan te passen. */
 .trapkeuze + .trapkeuze {
   margin-top: 12px;
