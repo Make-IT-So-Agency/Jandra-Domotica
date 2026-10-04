@@ -1,5 +1,6 @@
 import "server-only";
 
+import { WERKWIJZE } from "../omzetting/pijplijn";
 import { bevestigdGrondplan } from "../omzetting/referentie";
 import {
   leesBestanden,
@@ -44,6 +45,8 @@ export interface Drieverdieping extends Invoerverdieping {
   grondplanId: number | null;
   /** Met welke regels de omzetting gemaakt werd: vóór 3 zocht ze nog geen trappen. */
   werkwijze: number | null;
+  /** Omgezet met oudere regels dan nu: opnieuw omzetten geeft wat de app nu meer leest. */
+  oudeRegels: boolean;
 }
 
 /** Een plan dat als inplantingsplan kan dienen, met zijn nieuwste versie. */
@@ -163,12 +166,14 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
         muren: opgeslagen?.muren ?? [],
         openingen: opgeslagen?.openingen ?? [],
         trappen: opgeslagen?.trappen ?? [],
+        luifels: opgeslagen?.luifels ?? [],
         trapstanden: verdieping.trapstanden ?? [],
         correcties: verdieping.correcties ?? [],
         omgezet: grondplan !== null,
         metMuren: (opgeslagen?.muren.length ?? 0) > 0,
         grondplanId: grondplan?.plan.id ?? null,
         werkwijze: opgeslagen?.werkwijze ?? null,
+        oudeRegels: grondplan !== null && (opgeslagen?.werkwijze ?? 1) < WERKWIJZE,
       };
     }),
     materialen: materiaalkeuzes(keuzes, opties, voorkeuren, fotos, ik),

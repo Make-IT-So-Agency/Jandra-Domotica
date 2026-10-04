@@ -8,7 +8,7 @@ vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 import { controleerBevestiging, naarRuimterijen, omzettingsvoorstel } from "@/lib/bouw/omzetting/bevestigen";
 import { vergelijkRuimtes } from "@/lib/bouw/omzetting/ruimtediff";
 import type { Xy } from "@/lib/bouw/omzetting/types";
-import { bewaarOmzetting, lijstOmzettingen, lijstRuimtes, schrijfRuimtes } from "@/lib/bouw/opslag";
+import { bewaarOmzetting, leesMurenEnOpeningen, lijstOmzettingen, lijstRuimtes, schrijfRuimtes } from "@/lib/bouw/opslag";
 
 const vierkant = (x: number, y: number, b: number, h = b): Xy[][] => [
   [
@@ -44,9 +44,12 @@ describe("een nieuwe versie tegenover de ruimtes die er al zijn", () => {
       { sleutel: "r2", naam: "bureau", ringen: vierkant(10, 10, 3) },
     ]);
     expect(verschil.koppelingen).toEqual([
-      { sleutel: "r1", ruimteId: 1, oudeNaam: "leefruimte", oudeOppervlakte: 36 },
-      { sleutel: "r2", ruimteId: null, oudeNaam: null, oudeOppervlakte: null },
+      { sleutel: "r1", ruimteId: 1, oudeNaam: "leefruimte", oudeSoort: null, oudeOppervlakte: 36 },
+      { sleutel: "r2", ruimteId: null, oudeNaam: null, oudeSoort: null, oudeOppervlakte: null },
     ]);
+    // Met haar soort erbij: die gaat mee, zodat een zelf gekozen soort blijft.
+    const metSoort = vergelijkRuimtes([{ ...oud[0], soort: "bureau" }], [{ sleutel: "r1", naam: "living", ringen: vierkant(0, 0, 6) }]);
+    expect(metSoort.koppelingen[0].oudeSoort).toBe("bureau");
   });
 
   it("vindt een verschoven ruimte terug op haar naam, maar koppelt elke oude ruimte maar één keer", () => {
@@ -148,6 +151,52 @@ describe("een bevestiging nakijken", () => {
     expect(zonder.ok && zonder.data.muren).toEqual([]);
   });
 
+  it("bewaart een raammaat met haar vorm, een borstwering en een luifel, in meter", () => {
+    const uitkomst = controleerBevestiging(
+      bevestiging({
+        openingen: [
+          { soort: "raam", x: 4, y: 0, punten: [], breedte: 1.8, hoogte: 2.75, vorm: "/", ruimte: "r1" },
+          { soort: "borstwering", x: 4, y: 2, punten: [], breedte: 0, hoogte: 0.4, ruimte: "r1" },
+          { soort: "raam", x: 4, y: 0, punten: [], breedte: 1, hoogte: 1, vorm: "?", ruimte: null },
+          { soort: "lamp", x: 1, y: 1, punten: [], breedte: 1, hoogte: null, ruimte: null },
+        ],
+        luifels: [
+          { lijn: [[0, 0], [0, -2], [10, -2], [10, 0]], diepte: 1, tekst: "oversteek 100 cm" },
+          { lijn: [[0, 0]], diepte: 1 },
+          { lijn: [[0, 0], [0, Number.NaN]], diepte: 1 },
+          { lijn: [[0, 0], [0, -2], [10, -2], [10, 0]], diepte: 9 },
+        ],
+      }),
+    );
+    if (!uitkomst.ok) throw new Error(uitkomst.melding);
+    expect(uitkomst.data.openingen.map((o) => [o.soort, o.vorm])).toEqual([
+      ["raam", "/"],
+      ["borstwering", undefined],
+      ["raam", undefined],
+    ]);
+    expect(uitkomst.data.luifels).toHaveLength(1);
+    const rijen = naarRuimterijen(uitkomst.data);
+    if (!rijen.ok) throw new Error(rijen.melding);
+    const voorstel = omzettingsvoorstel(uitkomst.data, rijen.data);
+    expect(voorstel.openingen).toEqual([
+      { soort: "raam", x: 3, y: 2, punten: [], breedte: 1.8, hoogte: 2.75, vorm: "/" },
+      { soort: "borstwering", x: 3, y: 3, punten: [], breedte: 0, hoogte: 0.4 },
+      { soort: "raam", x: 3, y: 2, punten: [], breedte: 1, hoogte: 1 },
+    ]);
+    // De tekst van het blad gaat niet mee: enkel de rand en de diepte.
+    expect(voorstel.luifels).toEqual([
+      {
+        lijn: [
+          [1, 2],
+          [1, 1],
+          [6, 1],
+          [6, 2],
+        ],
+        diepte: 1,
+      },
+    ]);
+  });
+
   it("weigert een ruimte die te klein is om een ruimte te zijn", () => {
     const uitkomst = controleerBevestiging(
       bevestiging({ ruimtes: [{ ...bevestiging().ruimtes[0], ringen: vierkant(0, 0, 0.5) }] }),
@@ -227,5 +276,34 @@ describe("een omzetting bewaren", () => {
     expect(db.tabellen.bouw_omzettingen).toHaveLength(1);
     expect(db.tabellen.bouw_omzettingen[0].voorstel).toEqual({ a: 2 });
     expect((await lijstOmzettingen([21, 22])).map((o) => o.planversie_id)).toEqual([21]);
+  });
+
+  it("leest de bogen van de deuren, de raammaten, de borstweringen en de luifels terug, en laat weg wat niet klopt", async () => {
+    const voorstel = {
+      muren: [],
+      trappen: [],
+      openingen: [
+        { soort: "deur", x: 1, y: 1, punten: [[1.9, 1], [1, 1.9]], breedte: 0.9, hoogte: null },
+        { soort: "deur", x: 5, y: 1, punten: [], breedte: 0.9, hoogte: null },
+        { soort: "raam", x: 3, y: -1, punten: [], breedte: 1.8, hoogte: 2.75, vorm: "/" },
+        { soort: "borstwering", x: 3, y: 0.6, punten: [], breedte: 0, hoogte: 0.4 },
+        { soort: "luik", x: 3, y: 0.6, punten: [], breedte: 1, hoogte: 1 },
+      ],
+      luifels: [
+        { lijn: [[0, 0], [0, -1], [8, -1], [8, 0]], diepte: 1 },
+        { lijn: [[0, 0]], diepte: 1 },
+        { lijn: [[0, 0], [8, 0]], diepte: "veel" },
+      ],
+    };
+    await bewaarOmzetting(1, { planversie_id: 21, werkwijze: 5, voorstel, bevestigd_door: "jan@example.be" });
+    const gelezen = (await leesMurenEnOpeningen([21])).get(21)!;
+    expect(gelezen.werkwijze).toBe(5);
+    expect(gelezen.openingen).toEqual([
+      { soort: "deur", x: 1, y: 1, breedte: 0.9, hoogte: null, boog: [[1.9, 1], [1, 1.9]] },
+      { soort: "deur", x: 5, y: 1, breedte: 0.9, hoogte: null },
+      { soort: "raam", x: 3, y: -1, breedte: 1.8, hoogte: 2.75, vorm: "/" },
+      { soort: "borstwering", x: 3, y: 0.6, breedte: 0, hoogte: 0.4 },
+    ]);
+    expect(gelezen.luifels).toEqual([{ lijn: [[0, 0], [0, -1], [8, -1], [8, 0]], diepte: 1 }]);
   });
 });

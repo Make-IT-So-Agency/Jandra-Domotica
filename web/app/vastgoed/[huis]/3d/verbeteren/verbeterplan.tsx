@@ -19,6 +19,7 @@ import {
   type Correctie,
   type Muurplek,
 } from "@/lib/bouw/drie/correcties";
+import { boogpunten, type Draai } from "@/lib/bouw/drie/deuren";
 import { hartVan, type Gat, type Gatsoort, type Gekendeopening } from "@/lib/bouw/drie/gaten";
 import { binnenVeelhoeken, vereniging, type Veelhoek } from "@/lib/bouw/drie/vlak";
 import { getal } from "@/lib/bouw/invoer";
@@ -74,6 +75,21 @@ function pad(veelhoeken: readonly Veelhoek[], k: Kalibratie): string {
 }
 
 const hoogtetekst = (c: { onder: number; boven: number }) => (c.onder > 0.005 ? `van ${meter(c.onder)} tot ${meter(c.boven)}` : `${meter(c.boven)} hoog`);
+const draaitekst = (draai: Draai | undefined) =>
+  [draai?.scharnier ? ", scharnier aan de andere kant" : "", draai?.kant ? ", draait naar de andere kant" : ""].join("");
+
+/** Het pad van de bogen van een deur op het plan: het blad open, en de boog tot waar het dicht is. */
+function deurpad(gat: Gat, k: Kalibratie): string {
+  return (gat.bladen ?? [])
+    .flatMap((blad) => {
+      const boog = boogpunten(blad);
+      if (!boog) return [];
+      const [h, o] = [naarPagina(blad.scharnier, k), naarPagina(blad.open, k)];
+      const punten = boog.map((p) => naarPagina(p, k).map((w) => w.toFixed(2)).join(","));
+      return [`M${h[0].toFixed(2)},${h[1].toFixed(2)}L${o[0].toFixed(2)},${o[1].toFixed(2)}`, `M${punten.join("L")}`];
+    })
+    .join("");
+}
 
 /** Een correctie in woorden, voor de lijst. */
 function beschrijving(c: Correctie): string {
@@ -83,9 +99,9 @@ function beschrijving(c: Correctie): string {
     case "weg":
       return `Muur weg over ${meter(afstand(c.a, c.b))}`;
     case "opening":
-      return `${GATNAMEN[c.gat]} erbij, ${meter(afstand(c.a, c.b))} breed, ${hoogtetekst(c)}`;
+      return `${GATNAMEN[c.gat]} erbij, ${meter(afstand(c.a, c.b))} breed, ${hoogtetekst(c)}${draaitekst(c.draai)}`;
     case "gat":
-      return `Opening wordt ${GATNAMEN[c.gat].toLowerCase()}${c.breedte !== undefined ? ` van ${meter(c.breedte)} breed` : ""}, ${hoogtetekst(c)}`;
+      return `Opening wordt ${GATNAMEN[c.gat].toLowerCase()}${c.breedte !== undefined ? ` van ${meter(c.breedte)} breed` : ""}, ${hoogtetekst(c)}${draaitekst(c.draai)}`;
     case "dicht":
       return "Opening dicht";
   }
@@ -248,12 +264,44 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
         a: rond(plus(midden, u, -maat.breedte / 2)),
         b: rond(plus(midden, u, maat.breedte / 2)),
         ...hoogtes,
+        ...(oud.draai ? { draai: oud.draai } : {}),
       };
       setCorrecties(correcties.map((c, i) => (i === eigen ? vervanging : c)));
       return;
     }
     const breder = Math.abs(maat.breedte - breedteVan(gat)) > 0.01 ? { breedte: mm(maat.breedte) } : {};
-    setCorrecties([...zonder, { soort: "gat", x: mm(hart[0]), y: mm(hart[1]), ...hoogtes, ...breder }]);
+    // Hoe de deur draaide, blijft.
+    const vorig = correcties.find((c) => c.soort === "gat" && afstand([c.x, c.y], hart) <= BIJ_OPENING);
+    const draai = vorig?.soort === "gat" && vorig.draai ? { draai: vorig.draai } : {};
+    setCorrecties([...zonder, { soort: "gat", x: mm(hart[0]), y: mm(hart[1]), ...hoogtes, ...breder, ...draai }]);
+  }
+
+  /** Een deur anders laten draaien: het scharnier aan de andere kant, of naar de andere kant open. */
+  function draaiDeur(gat: Gat, welk: keyof Draai) {
+    const hart = hartVan(gat);
+    const wissel = (draai: Draai | undefined): { draai?: Draai } => {
+      const nieuw: Draai = { ...draai, [welk]: !draai?.[welk] };
+      const schoon: Draai = { ...(nieuw.scharnier ? { scharnier: true } : {}), ...(nieuw.kant ? { kant: true } : {}) };
+      return schoon.scharnier || schoon.kant ? { draai: schoon } : {};
+    };
+    const eigen = correcties.findIndex(
+      (c) => c.soort === "opening" && afstand(tussen(c.a, c.b), hart) <= Math.max(BIJ_OPENING, gat.dikte),
+    );
+    const bestaand = eigen >= 0 ? eigen : correcties.findIndex((c) => c.soort === "gat" && afstand([c.x, c.y], hart) <= BIJ_OPENING);
+    if (bestaand >= 0) {
+      setCorrecties(
+        correcties.map((c, i) => {
+          if (i !== bestaand || (c.soort !== "opening" && c.soort !== "gat")) return c;
+          const { draai, ...rest } = c;
+          return { ...rest, ...wissel(draai) } as Correctie;
+        }),
+      );
+      return;
+    }
+    setCorrecties([
+      ...correcties,
+      { soort: "gat", x: mm(hart[0]), y: mm(hart[1]), gat: gat.soort, onder: mm(gat.onder), boven: mm(gat.boven), ...wissel(undefined) },
+    ]);
   }
 
   async function bewaar() {
@@ -287,6 +335,9 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
       {uitkomst.gaten.map((gat, i) => (
         <path key={i} d={pad([vlakVanGat(gat)], k)} className={`laag-gat ${gat.soort}${gat === gekozenGat ? " gekozen" : ""}`} />
       ))}
+      {uitkomst.gaten.map((gat, i) =>
+        gat.bladen && (gat.soort === "deur" || gat.soort === "buitendeur") ? <path key={`d${i}`} d={deurpad(gat, k)} className="laag-deurboog" /> : null,
+      )}
       {correcties.map((c, i) => {
         const klasse = `laag-correctie ${c.soort}${uitkomst.verslag[i] ? "" : " uit"}`;
         if (c.soort === "muur") return <path key={i} d={pad([strook(c.a, c.b, c.dikte)], k)} className={klasse} />;
@@ -404,6 +455,7 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
             gat={gekozenGat}
             plafond={verdieping.plafond}
             opToepassen={(maat) => pasGatAan(gekozenGat, maat)}
+            opDraai={(welk) => draaiDeur(gekozenGat, welk)}
             opDicht={() => pasGatAan(gekozenGat, null)}
             opSluiten={() => setGekozen(null)}
             fout={(tekst) => setMelding({ soort: "fout", tekst })}
@@ -529,11 +581,12 @@ function Openingvelden({
   );
 }
 
-/** Een gekozen raam, deur of doorgang: een andere soort, andere maten, of dicht. */
+/** Een gekozen raam, deur of doorgang: een andere soort, andere maten, anders draaien, of dicht. */
 function Gatkaart({
   gat,
   plafond,
   opToepassen,
+  opDraai,
   opDicht,
   opSluiten,
   fout,
@@ -541,10 +594,12 @@ function Gatkaart({
   gat: Gat;
   plafond: number;
   opToepassen: (maat: Openingmaat) => void;
+  opDraai: (welk: keyof Draai) => void;
   opDicht: () => void;
   opSluiten: () => void;
   fout: (tekst: string) => void;
 }) {
+  const deur = gat.soort === "deur" || gat.soort === "buitendeur";
   const [maat, setMaat] = useState<Openingmaat>({
     gat: gat.soort,
     breedte: Math.round(breedteVan(gat) * 100) / 100,
@@ -556,7 +611,20 @@ function Gatkaart({
       <h3>
         {GATNAMEN[gat.soort]}, {meter(breedteVan(gat))} breed
       </h3>
-      <p className="hulp">{hoogtetekst(gat)}.</p>
+      <p className="hulp">
+        {hoogtetekst(gat)}.
+        {deur ? (gat.bladen ? " Op het plan staat hoe ze draait." : " Op het plan staat geen boog: kies hoe ze draait.") : null}
+      </p>
+      {deur ? (
+        <div className="knoppenrij">
+          <button type="button" className="stil" onClick={() => opDraai("scharnier")}>
+            Scharnier andere kant
+          </button>
+          <button type="button" className="stil" onClick={() => opDraai("kant")}>
+            Draait naar de andere kant
+          </button>
+        </div>
+      ) : null}
       <Openingvelden maat={maat} plafond={plafond} opWijzig={setMaat} fout={fout} />
       <div className="knoppenrij">
         <button type="button" onClick={() => opToepassen(maat)}>

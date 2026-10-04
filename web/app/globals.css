@@ -1150,6 +1150,25 @@ td.smal {
   fill: #7c3aed;
 }
 
+.laag-borstwering {
+  fill: #c026d3;
+}
+
+/* Een luifel: de lijn in streepjes van het plan, en het vlak tot tegen de gevel. */
+.laag-luifel {
+  fill: #0d9488;
+  fill-opacity: 0.14;
+  stroke: none;
+}
+
+.laag-luifellijn {
+  fill: none;
+  stroke: #0d9488;
+  stroke-width: 2px;
+  stroke-dasharray: 6 3;
+  vector-effect: non-scaling-stroke;
+}
+
 .laag-punt {
   fill: #dc2626;
 }
@@ -1176,6 +1195,11 @@ td.smal {
   align-items: center;
   justify-content: space-between;
   gap: 8px 14px;
+}
+
+/* Een lange tekst loopt over meer regels; de knop blijft ernaast zolang er plaats is. */
+.omzetoproep > span {
+  flex: 1 1 20rem;
 }
 
 .reeks-knoppen {
@@ -1530,6 +1554,15 @@ button.palet-knop.gekozen {
 .laag-gat.gekozen {
   stroke: #1d4ed8;
   stroke-width: 3px;
+}
+
+/* De bogen van de deuren: het blad open, en waar het draait. */
+.laag-deurboog {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 .laag-correctie {

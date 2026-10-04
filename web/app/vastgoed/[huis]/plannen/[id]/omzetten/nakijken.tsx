@@ -39,7 +39,15 @@ import { bevestigOmzettingActie } from "./acties";
 export interface Omzetgegevens {
   huisId: number;
   planId: number;
-  versie: { id: number; label: string; bestandId: number; pagina: number; kalibratie: Kalibratie | null };
+  versie: {
+    id: number;
+    label: string;
+    bestandId: number;
+    pagina: number;
+    kalibratie: Kalibratie | null;
+    /** Een schaal die iemand bij het bevestigen zelf aanduidde: zo ligt het plan weer waar het lag. */
+    handschaal?: number | null;
+  };
   verdieping: { id: number; naam: string; vloerpeil_m: number | null; plafondhoogte_m: number | null };
   /** De ruimtes die de verdieping nu heeft, in meter. */
   bestaand: Oudruimte[];
@@ -103,7 +111,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
 
   const [klein, setKlein] = useState(false);
   const [gelezen, setGelezen] = useState<Blad | null>(null);
-  const [handschaal, setHandschaal] = useState<number | null>(null);
+  const [handschaal, setHandschaal] = useState<number | null>(versie.handschaal ?? null);
   const [voorstel, setVoorstel] = useState<Voorstel | null>(null);
   const [ruimtes, setRuimtes] = useState<Bewerkruimte[]>([]);
   const [kandidaten, setKandidaten] = useState<Kandidaat[]>([]);
@@ -224,7 +232,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
   );
   const wachtOpUitlijning = referentie !== null && verschuiving === null;
 
-  // 5. Een ruimte die op dezelfde plaats lag, houdt de naam die ze al had.
+  // 5. Een ruimte die op dezelfde plaats lag, houdt de naam en de soort die ze al had.
   const [namenOvergenomen, setNamenOvergenomen] = useState(false);
   useEffect(() => {
     if (namenOvergenomen || !kalibratie || wachtOpUitlijning || bestaand.length === 0 || ruimtes.length === 0) return;
@@ -235,7 +243,9 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
     setRuimtes((huidig) =>
       huidig.map((r) => {
         const koppeling = verschil.koppelingen.find((k) => k.sleutel === r.sleutel);
-        return koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? beoordeelRuimte({ ...r, naam: koppeling.oudeNaam }) : r;
+        const soort = koppeling?.oudeSoort && koppeling.oudeSoort !== r.soort ? { soort: koppeling.oudeSoort, soortGekozen: true } : {};
+        const naam = koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? { naam: koppeling.oudeNaam } : {};
+        return "soort" in soort || "naam" in naam ? beoordeelRuimte({ ...r, ...naam, ...soort }) : r;
       }),
     );
     setNamenOvergenomen(true);
@@ -403,6 +413,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
       openingen: voorstel.openingen,
       muren: voorstel.muren,
       trappen: voorstel.trappen,
+      luifels: voorstel.luifels.map(({ lijn, diepte }) => ({ lijn, diepte })),
       verdieping: {
         bijwerken: verdiepingBijwerken,
         vloerpeil: voorstel.verdieping.vloerpeil,
@@ -489,8 +500,20 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
             .join("")}
         />
       ) : null}
+      {voorstel.luifels.map((luifel, i) => (
+        <g key={`luifel-${i}`}>
+          <path d={pad([luifel.lijn])} className="laag-luifel" />
+          <path d={`M${luifel.lijn.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L")}`} className="laag-luifellijn" />
+        </g>
+      ))}
       {voorstel.openingen.map((o: Opening, i) => (
-        <circle key={i} cx={o.x} cy={o.y} r={4 / zoom} className={o.soort === "deur" ? "laag-deur" : "laag-raam"} />
+        <circle
+          key={i}
+          cx={o.x}
+          cy={o.y}
+          r={4 / zoom}
+          className={o.soort === "deur" ? "laag-deur" : o.soort === "borstwering" ? "laag-borstwering" : "laag-raam"}
+        />
       ))}
       {ruimtes.map((r) => {
         // De architect zet de naam en de oppervlakte al op het plan. Enkel wat
@@ -626,6 +649,28 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
                 </p>
               );
             })}
+          </section>
+        ) : null}
+
+        {voorstel.openingen.length > 0 || voorstel.luifels.length > 0 ? (
+          <section className="kaart">
+            <h3>Ramen, deuren en luifels</h3>
+            <p className="hulp">
+              {[
+                [voorstel.openingen.filter((o) => o.soort === "raam").length, "raammaat", "raammaten"],
+                [voorstel.openingen.filter((o) => o.soort === "borstwering").length, "borstwering", "borstweringen"],
+                [voorstel.openingen.filter((o) => o.soort === "deur").length, "deurboog", "deurbogen"],
+              ]
+                .filter(([aantal]) => Number(aantal) > 0)
+                .map(([aantal, een, meer]) => `${aantal} ${aantal === 1 ? een : meer}`)
+                .join(", ") || "Geen ramen of deuren gelezen"}
+              . Het 3D-model legt ze in de openingen van de muren.
+            </p>
+            {voorstel.luifels.map((luifel, i) => (
+              <p key={i} className="status-goed">
+                ✔ Luifel, {String(luifel.diepte).replace(".", ",")} m diep <span className="hulp">({luifel.tekst})</span>
+              </p>
+            ))}
           </section>
         ) : null}
 

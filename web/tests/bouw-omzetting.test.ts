@@ -1,14 +1,14 @@
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { OPS, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 
 import { oppervlakte } from "@/lib/bouw/omzetting/geometrie";
-import { leesBlad } from "@/lib/bouw/omzetting/lezen";
+import { leesBlad, leesPaden } from "@/lib/bouw/omzetting/lezen";
 import { isMuurkleur, vindMuren } from "@/lib/bouw/omzetting/muren";
 import { isScan, zetOm } from "@/lib/bouw/omzetting/pijplijn";
 import { METER_PER_PUNT, bewijs } from "@/lib/bouw/omzetting/schaal";
 import type { Blad, Voorstel } from "@/lib/bouw/omzetting/types";
 
-import { maakPdf } from "./fixtures/bouw/pdf-schrijver";
+import { maakPdf, pdf } from "./fixtures/bouw/pdf-schrijver";
 import { gelijkvloers, grondplanblad, testplanPdf, verdieping, type Testgrondplan } from "./fixtures/bouw/testplan";
 
 /** Leest één blad uit een PDF zoals de browser het doet, maar in Node. */
@@ -42,6 +42,46 @@ describe("een blad lezen", () => {
     const grijs = blad.paden.filter((p) => p.vul === "#c8c8c8");
     const breedste = Math.max(...grijs.map((p) => Math.max(...p.delen[0].punten.map((q) => q[0])) - Math.min(...p.delen[0].punten.map((q) => q[0]))));
     expect(breedste).toBeCloseTo(10 / (50 * METER_PER_PUNT), 0);
+  });
+
+  it("weet welke lijnen in streepjes getrokken zijn", async () => {
+    const bytes = maakPdf([
+      {
+        breedte: 200,
+        hoogte: 200,
+        inhoud: [
+          pdf.lijnkleur("#000000"),
+          pdf.dikte(0.5),
+          `${pdf.lijn([10, 10], [190, 10])} S`,
+          pdf.streep([3, 2]),
+          `${pdf.lijn([10, 50], [190, 50])} S`,
+          pdf.bewaar(),
+          pdf.streep([]),
+          `${pdf.lijn([10, 90], [190, 90])} S`,
+          pdf.herstel(),
+          `${pdf.lijn([10, 130], [190, 130])} S`,
+        ],
+      },
+    ]);
+    const blad = await lees(bytes);
+    // Van boven naar onder op het scherm: y = 200 − y in de PDF.
+    const op = (y: number) => blad.paden.find((p) => Math.abs(p.delen[0].punten[0][1] - (200 - y)) < 0.5);
+    expect(op(10)?.streep).toBeFalsy();
+    expect(op(50)?.streep).toBe(true);
+    expect(op(90)?.streep).toBeFalsy();
+    // Na restore geldt het streeppatroon weer.
+    expect(op(130)?.streep).toBe(true);
+  });
+
+  it("leest een streeppatroon ook uit een grafische toestand", () => {
+    const lijn = (y: number) => [OPS.stroke, [new Float32Array([0, 0, y, 1, 100, y])]];
+    const { paden } = leesPaden(
+      [OPS.setGState, OPS.constructPath, OPS.setGState, OPS.constructPath],
+      [[[["D", [[4, 2], 0]]]], lijn(10), [[["D", [[], 0]]]], lijn(20)],
+      [1, 0, 0, 1, 0, 0],
+      10000,
+    );
+    expect(paden.map((p) => p.streep ?? false)).toEqual([true, false]);
   });
 
   it("geeft elke tekst zijn middelpunt, met y naar beneden", async () => {
@@ -254,3 +294,24 @@ describe("lastige bladen", () => {
     expect(zetOm(await lees(bytes, 2)).ruimtes.map((r) => r.naam)).toEqual(["slaapkamer 1", "badk 1", "nachthal"]);
   });
 });
+
+describe("raammaten, borstweringen en luifels", () => {
+  it("leest een maat op een maatlijn, een borstwering en een luifel in streepjes", async () => {
+    const voorstel = await omgezet(gelijkvloers({ luifel: true }));
+    expect(voorstel.openingen.find((o) => o.soort === "raam" && o.vorm === "/")).toMatchObject({ breedte: 1.8, hoogte: 2.75 });
+    expect(voorstel.openingen.filter((o) => o.soort === "raam" && o.vorm === "x").map((o) => o.breedte)).toEqual([2.05, 1.2]);
+    expect(voorstel.openingen.filter((o) => o.soort === "borstwering").map((o) => o.hoogte)).toEqual([0.4]);
+    expect(voorstel.luifels).toHaveLength(1);
+    const [luifel] = voorstel.luifels;
+    expect(luifel).toMatchObject({ diepte: 1, tekst: "oversteek 100 cm" });
+    // Van de gevel 1 m naar buiten, 7 m langs de gevel, en terug.
+    const m = voorstel.schaal!.meterPerPunt;
+    const lengtes = luifel.lijn.slice(1).map((p, i) => Math.round(Math.hypot(p[0] - luifel.lijn[i][0], p[1] - luifel.lijn[i][1]) * m * 100) / 100);
+    expect(lengtes).toEqual([1, 7, 1]);
+  });
+
+  it("vindt geen luifel als er geen is", async () => {
+    expect((await omgezet(gelijkvloers())).luifels).toEqual([]);
+  });
+});
+

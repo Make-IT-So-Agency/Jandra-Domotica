@@ -1,4 +1,5 @@
 import { sleutelVan } from "../invoer";
+import type { SoortRuimte } from "../types";
 import { binnenRuimte, middenVan } from "./geometrie";
 import type { Xy } from "./types";
 
@@ -14,6 +15,8 @@ import type { Xy } from "./types";
 export interface Oudruimte {
   id: number;
   naam: string;
+  /** De soort die ze nu heeft: misschien zelf gekozen. */
+  soort?: SoortRuimte;
   ringen: Xy[][];
   oppervlakte: number;
 }
@@ -28,6 +31,7 @@ export interface Koppeling {
   sleutel: string;
   ruimteId: number | null;
   oudeNaam: string | null;
+  oudeSoort: SoortRuimte | null;
   oudeOppervlakte: number | null;
 }
 
@@ -64,7 +68,13 @@ export function vergelijkRuimtes(oud: Oudruimte[], nieuw: Nieuweruimte[]): Ruimt
   return {
     koppelingen: nieuw.map((n) => {
       const o = gekoppeld.get(n.sleutel);
-      return { sleutel: n.sleutel, ruimteId: o?.id ?? null, oudeNaam: o?.naam ?? null, oudeOppervlakte: o?.oppervlakte ?? null };
+      return {
+        sleutel: n.sleutel,
+        ruimteId: o?.id ?? null,
+        oudeNaam: o?.naam ?? null,
+        oudeSoort: o?.soort ?? null,
+        oudeOppervlakte: o?.oppervlakte ?? null,
+      };
     }),
     verdwenen: oud.filter((o) => !bezet.has(o.id)),
   };

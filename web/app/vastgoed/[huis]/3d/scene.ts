@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { deurbladOpKier, draaiboog, vastGlasNaast } from "@/lib/bouw/drie/deuren";
 import type { Gat } from "@/lib/bouw/drie/gaten";
 import type { Model3d, Plaat } from "@/lib/bouw/drie/model";
 import { middenVan, type Plaatsing } from "@/lib/bouw/drie/plaatsing";
@@ -104,7 +105,7 @@ export class Bouwer {
 
 const plus = (a: Xy, b: Xy, f: number): Xy => [a[0] + b[0] * f, a[1] + b[1] * f];
 
-/** Een raam of deur: borstwering, latei, en glas met een kader of een deurblad. */
+/** Een raam of deur: borstwering, latei, en glas met een kader, of een deurblad op een kier. */
 function gat(bouwer: Bouwer, g: Gat, z0: number, z1: number) {
   const buiten = g.soort === "raam" || g.soort === "buitendeur";
   const voor = "binnenmuur";
@@ -125,28 +126,49 @@ function gat(bouwer: Bouwer, g: Gat, z0: number, z1: number) {
     bouwer.vlak("muurtop", [[a, b, c, d]], latei);
   }
 
-  // Glas of deurblad in het midden van de muur, met een kader van 6 cm.
-  if (g.soort !== "raam" && g.soort !== "buitendeur") return;
+  if (g.soort === "doorgang") return;
   const lengte = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const u: Xy = [(b[0] - a[0]) / lengte, (b[1] - a[1]) / lengte];
   const midden = g.dikte / 2;
-  const profiel = 0.06;
   const strook = (s0: number, s1: number, dikte: number): [Xy, Xy, Xy, Xy] => {
     const p0 = plus(plus(a, u, s0), g.n, midden - dikte / 2);
     const p1 = plus(plus(a, u, s1), g.n, midden - dikte / 2);
     return [p0, p1, plus(p1, g.n, dikte), plus(p0, g.n, dikte)];
   };
   const onder = z0 + g.onder;
+  /** Een vak van s0 tot s1 langs de opening: glas in het midden van de muur, met een kader van 6 cm. */
+  const vak = (s0: number, s1: number) => {
+    const profiel = Math.min(0.06, (s1 - s0) / 4);
+    bouwer.balk("schrijnwerk", strook(s0, s0 + profiel, 0.07), onder, latei, { boven: false });
+    bouwer.balk("schrijnwerk", strook(s1 - profiel, s1, 0.07), onder, latei, { boven: false });
+    bouwer.balk("schrijnwerk", strook(s0 + profiel, s1 - profiel, 0.07), onder, onder + profiel);
+    bouwer.balk("schrijnwerk", strook(s0 + profiel, s1 - profiel, 0.07), latei - profiel, latei, { boven: false, onder: true });
+    const glas = strook(s0 + profiel, s1 - profiel, 0.01);
+    bouwer.wand("glas", glas[0], glas[1], onder + profiel, latei - profiel);
+  };
+
+  // Een deur met de bogen van het plan: de bladen op een kier, en de boog op de vloer.
+  if (g.bladen && g.bladen.length > 0 && (g.soort === "deur" || g.soort === "buitendeur")) {
+    const sleutel = g.soort === "deur" ? "binnendeur" : "schrijnwerk";
+    for (const blad of g.bladen) {
+      const hoeken = deurbladOpKier(blad);
+      if (hoeken) bouwer.balk(sleutel, hoeken, z0 + 0.01, latei - 0.01);
+      const boog = draaiboog(blad);
+      if (boog) bouwer.vlak("deurboog", [boog], z0 + 0.016);
+    }
+    // Naast het blad van een buitendeur, zoals bij een voordeur: vast glas.
+    if (g.soort === "buitendeur") for (const [s0, s1] of vastGlasNaast(a, b, g.bladen)) vak(s0, s1);
+    return;
+  }
+  // Zonder boog: een binnendeur is een gat, een buitendeur een dicht paneel.
+  if (g.soort === "deur") return;
   if (g.soort === "buitendeur") {
     bouwer.balk("schrijnwerk", strook(0, lengte, 0.06), onder, latei, { boven: false });
     return;
   }
-  bouwer.balk("schrijnwerk", strook(0, profiel, 0.07), onder, latei, { boven: false });
-  bouwer.balk("schrijnwerk", strook(lengte - profiel, lengte, 0.07), onder, latei, { boven: false });
-  bouwer.balk("schrijnwerk", strook(profiel, lengte - profiel, 0.07), onder, onder + profiel);
-  bouwer.balk("schrijnwerk", strook(profiel, lengte - profiel, 0.07), latei - profiel, latei, { boven: false, onder: true });
-  const glas = strook(profiel, lengte - profiel, 0.01);
-  bouwer.wand("glas", glas[0], glas[1], onder + profiel, latei - profiel);
+  // Een raam, per vak: tussen twee vakken staat een stijl.
+  const grenzen = [0, ...(g.verdeling ?? []).filter((s) => s > 0.1 && s < lengte - 0.1), lengte];
+  for (let i = 1; i < grenzen.length; i++) vak(grenzen[i - 1], grenzen[i]);
 }
 
 function plaat(bouwer: Bouwer, p: Plaat, boven: Sleutel, onder: Sleutel, zijkant: Sleutel) {
@@ -242,7 +264,7 @@ export function bouwScene(
   const voegToe = (groep: THREE.Group, bouwer: Bouwer) => {
     for (const [sleutel, geometrie] of bouwer.geometrieen()) {
       const mesh = new THREE.Mesh(geometrie, materiaal(sleutel));
-      mesh.castShadow = sleutel !== "glas";
+      mesh.castShadow = sleutel !== "glas" && sleutel !== "deurboog";
       mesh.receiveShadow = true;
       mesh.userData.sleutel = sleutel;
       groep.add(mesh);

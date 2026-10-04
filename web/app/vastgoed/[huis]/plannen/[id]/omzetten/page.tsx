@@ -102,6 +102,7 @@ export default async function Omzettenpagina({
             bestandId: versie.bestand_id,
             pagina: versie.pagina,
             kalibratie: eigen ? leesKalibratie(versie.kalibratie) : null,
+            handschaal: eigen && versie.kalibratie?.bron === "hand" ? (leesKalibratie(versie.kalibratie)?.meterPerPunt ?? null) : null,
           },
           verdieping: {
             id: verdieping.id,
@@ -112,6 +113,7 @@ export default async function Omzettenpagina({
           bestaand: ruimtes.map((ruimte) => ({
             id: ruimte.id,
             naam: ruimte.naam,
+            soort: ruimte.soort,
             ringen: ruimte.veelhoek,
             oppervlakte: ruimte.oppervlakte_m2,
           })),

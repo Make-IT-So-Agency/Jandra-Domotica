@@ -6,7 +6,7 @@ import { alsBestaand } from "@/lib/bouw/dossier-inlezen";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { id as leesId } from "@/lib/bouw/invoer";
 import { lijstInzendingen, type Inzending } from "@/lib/bouw/links";
-import { teDoen } from "@/lib/bouw/omzetting/reeks";
+import { omzetstand, teDoen } from "@/lib/bouw/omzetting/reeks";
 import {
   leesBestanden,
   lijstGebouwen,
@@ -49,7 +49,7 @@ export default async function Plannenpagina({
   let inzendingen: Inzending[];
   let partijen: Partij[];
   let bestanden: Bestand[];
-  let omgezet: Set<number>;
+  let omgezet: ReturnType<typeof omzetstand>;
   try {
     [plannen, verdiepingen, gebouwen, inzendingen, partijen] = await Promise.all([
       lijstPlannen(huis.id),
@@ -63,7 +63,7 @@ export default async function Plannenpagina({
       lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id))),
     ]);
     bestanden = b;
-    omgezet = new Set(omzettingen.map((omzetting) => omzetting.planversie_id));
+    omgezet = omzetstand(omzettingen);
   } catch (fout) {
     return (
       <>
@@ -78,6 +78,7 @@ export default async function Plannenpagina({
   const partijnaam = (partijId: number | null) => partijen.find((partij) => partij.id === partijId)?.naam ?? "Een partij";
   const bestandVan = new Map(bestanden.map((bestand) => [bestand.id, bestand]));
   const gekozen = inzendingen.find((inzending) => inzending.id === leesId(gevraagd ?? ""));
+  const { open: nogOmTeZetten, verouderd } = teDoen(plannen, verdiepingen, gebouwen, omgezet.bevestigd, omgezet.oud);
 
   return (
     <>
@@ -89,7 +90,7 @@ export default async function Plannenpagina({
       </p>
 
       <Melding soort={soort} melding={melding} />
-      <Omzetoproep huisId={huis.id} aantal={teDoen(plannen, verdiepingen, gebouwen, omgezet).open} />
+      <Omzetoproep huisId={huis.id} aantal={nogOmTeZetten} verouderd={verouderd} />
 
       {inzendingen.length > 0 ? (
         <section id="inzendingen" className="melding info">

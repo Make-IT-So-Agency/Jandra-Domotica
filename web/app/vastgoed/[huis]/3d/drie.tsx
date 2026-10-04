@@ -172,6 +172,8 @@ const VASTE_KLEUREN: Record<string, string> = {
   dakrand: STANDAARDKLEUREN.dakrand,
   glas: STANDAARDKLEUREN.glas,
   trap: STANDAARDKLEUREN.trap,
+  binnendeur: STANDAARDKLEUREN.binnendeur,
+  deurboog: STANDAARDKLEUREN.deurboog,
 };
 
 export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: Driegegevens }) {
@@ -1347,14 +1349,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     trap.vorm === "recht" ? "rechte trap" : trap.vorm === "keer" ? "draait halfweg 180°, met een bordes" : "draait een kwartslag, met een bordes";
   const trapbron = (trap: Trap3d) =>
     trap.bron === "plan" ? "van het plan" : trap.bron === "gat" ? "onder het gat in de verdieping erboven" : "in de ruimte Trap";
-  // Verdiepingen met een verdieping erboven, waarvan de omzetting nog geen trappen zocht, of het bordes nog niet goed las.
-  const ouderdanTrappen = gegevens.verdiepingen.filter(
-    (v) =>
-      v.omgezet &&
-      v.werkwijze !== null &&
-      v.werkwijze < 4 &&
-      model.verdiepingen.some((b) => b.gebouwId === v.gebouwId && b.z0 > (model.verdiepingen.find((x) => x.id === v.id)?.z0 ?? Infinity)),
-  );
+  // Verdiepingen omgezet met oudere regels: opnieuw omzetten geeft de trappen, de ramen, de deuren en de luifels.
+  const ouderdanNu = gegevens.verdiepingen.filter((v) => v.oudeRegels);
   const metTrappen = model.verdiepingen.filter((v) => v.trappen.length > 0 || (standen.get(v.id) ?? []).some((s) => s.geen));
   const veranderd = (id: number) => JSON.stringify(standen.get(id) ?? []) !== JSON.stringify(bewaardeStanden.get(id) ?? []);
 
@@ -1556,6 +1552,13 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
 
       <div className="omzetten-zijbalk drie-paneel" hidden={!paneel}>
         {melding ? <div className={`melding ${melding.soort}`}>{melding.tekst}</div> : null}
+        {ouderdanNu.length > 0 ? (
+          <div className="melding info">
+            {ouderdanNu.length === 1 ? `${ouderdanNu[0].naam} werd` : `${ouderdanNu.length} verdiepingen werden`} omgezet met oudere
+            regels. <a href={huispad(huisId, "/plannen/omzetten?opnieuw=1")}>Opnieuw omzetten</a> geeft de ramen met hun borstwering, de
+            deuren en de luifels; alles blijft op zijn plaats.
+          </div>
+        ) : null}
 
         {puntInfo ? (
           <section className="kaart">
@@ -1925,16 +1928,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           )}
         </section>
 
-        {metTrappen.length > 0 || ouderdanTrappen.length > 0 ? (
+        {metTrappen.length > 0 ? (
           <section className="kaart">
             <h3>Trappen</h3>
-            {ouderdanTrappen.map((v) => (
-              <p key={v.id} className="hulp">
-                {v.naam} werd omgezet vóór de app {v.werkwijze !== null && v.werkwijze >= 3 ? "het bordes van een trap goed las" : "trappen las"}.{" "}
-                {v.grondplanId ? <a href={huispad(huisId, `/plannen/${v.grondplanId}/omzetten`)}>Zet het opnieuw om</a> : "Zet het opnieuw om"} om
-                de trap van het plan te krijgen.
-              </p>
-            ))}
             {metTrappen.map((v) => (
               <div key={v.id} className="trapkeuze">
                 {v.trappen.map((trap) => (

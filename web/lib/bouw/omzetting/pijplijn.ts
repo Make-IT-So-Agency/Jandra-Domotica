@@ -1,3 +1,4 @@
+import { vindLuifels } from "./luifels";
 import { vindMuren } from "./muren";
 import { vindOpeningen } from "./openingen";
 import { vindRuimtes } from "./ruimtes";
@@ -8,16 +9,16 @@ import { witteVlakken } from "./vlakken";
 
 /**
  * Van een blad naar een voorstel: de schaal, de ruimtes, de kandidaten, de
- * openingen, de muren en de trappen. Puur en snel (milliseconden), dus het draait gewoon in de
+ * openingen, de muren, de trappen en de luifels. Puur en snel (milliseconden), dus het draait gewoon in de
  * browser; pdf.js leest de PDF al in zijn eigen worker.
  */
 
 /**
  * Verhoog dit als de regels veranderen, zodat een bewaarde omzetting zegt met welke regels ze gemaakt is.
  * 2: de muren; 3: de trappen; 4: het bordes van een trap die 180° draait, de treden die de snedelijn knipt, en
- * geen pijlpunt als muur.
+ * geen pijlpunt als muur; 5: raammaten als "180/275", de borstwering ("BW = 40") en de luifels in streepjes.
  */
-export const WERKWIJZE = 4;
+export const WERKWIJZE = 5;
 
 export interface Opties {
   /** Een schaal die iemand zelf aanduidde, in meter per punt. */
@@ -39,6 +40,7 @@ export function zetOm(blad: Blad, opties: Opties = {}): Voorstel {
     openingen: [],
     muren: [],
     trappen: [],
+    luifels: [],
     verdieping: { vloerpeil: null, plafondhoogte: null },
     gebied: null,
     meldingen: [],
@@ -80,6 +82,7 @@ export function zetOm(blad: Blad, opties: Opties = {}): Voorstel {
     openingen: vindOpeningen(blad, schaal, gevonden.ruimtes),
     muren,
     trappen: vindTrappen(blad, schaal.meterPerPunt, gevonden.gebied, muren),
+    luifels: vindLuifels(blad, gevonden.ruimtes, muren, schaal.meterPerPunt),
     verdieping: gevonden.verdieping,
     gebied: gevonden.gebied,
     meldingen,

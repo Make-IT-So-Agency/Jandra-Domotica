@@ -69,6 +69,15 @@ describe("correcties inlezen", () => {
     expect(schoon[4]).toEqual({ soort: "gat", x: 7.5, y: 7.8, gat: "buitendeur", onder: 0, boven: 2.15, breedte: 1.6 });
   });
 
+  it("houdt hoe een deur draait, enkel wat aan staat", () => {
+    const schoon = schoneCorrecties([
+      { soort: "gat", x: 5.07, y: 3.45, gat: "deur", onder: 0, boven: 2.15, draai: { scharnier: true, kant: false } },
+      { soort: "opening", a: [9.8, 2], b: [9.8, 3], gat: "buitendeur", onder: 0, boven: 2.15, draai: { kant: true, extra: 1 } },
+      { soort: "gat", x: 1, y: 1, gat: "deur", onder: 0, boven: 2.15, draai: { scharnier: "ja" } },
+    ]);
+    expect(schoon.map((c) => ("draai" in c ? c.draai : undefined))).toEqual([{ scharnier: true }, { kant: true }, undefined]);
+  });
+
   it("laat weg wat niet klopt", () => {
     expect(
       schoneCorrecties([
@@ -239,3 +248,38 @@ describe("correcties in het model", () => {
     expect(binnenVeelhoeken([14, 3], met.verdiepingen[0].muren.map((muur) => muur.veelhoek))).toBe(true);
   });
 });
+
+describe("hoe een deur draait", () => {
+  // De binnendeur tussen y = 3 en 3,9, met het scharnier onderaan aan de kant van de keuken.
+  const MET_BOOG = [{ soort: "deur" as const, x: 5.14, y: 3.9, breedte: 0.9, hoogte: null, boog: [[6.04, 3.9], [5.14, 3]] as [Xy, Xy] }];
+  const deur = (correcties: Correctie[]) =>
+    pasCorrectiesToe(MUREN, RUIMTES, MET_BOOG, PLAFOND, correcties).gaten.find((g) => g.soort === "deur")!;
+
+  it("legt het scharnier aan de andere kant, of laat de deur naar de andere kant opendraaien", () => {
+    const gewoon = deur([]);
+    expect(gewoon.bladen).toEqual([{ scharnier: [5.14, 3.9], dicht: [5.14, 3], open: [6.04, 3.9] }]);
+    const hart = hartVan(gewoon);
+    const gat = (draai: { scharnier?: boolean; kant?: boolean }): Correctie => ({ soort: "gat", x: hart[0], y: hart[1], gat: "deur", onder: 0, boven: 2.15, draai });
+    const [om] = deur([gat({ scharnier: true })]).bladen!;
+    expect(om.scharnier[1]).toBeCloseTo(3);
+    expect(om.dicht[1]).toBeCloseTo(3.9);
+    expect(om.open[0]).toBeCloseTo(6.04);
+    const [kant] = deur([gat({ kant: true })]).bladen!;
+    // De muur loopt van x = 5 tot 5,14: het scharnier komt aan de kant van de leefruimte, en de deur draait daarheen.
+    expect(kant.scharnier[0]).toBeCloseTo(5);
+    expect(kant.open[0]).toBeCloseTo(4.1);
+  });
+
+  it("geeft een deur zonder boog een blad als iemand ze laat draaien, en een nieuwe deur altijd", () => {
+    const zonder = pasCorrectiesToe(MUREN, RUIMTES, OPENINGEN, PLAFOND, []).gaten.find((g) => g.soort === "deur")!;
+    expect(zonder.bladen).toBeUndefined();
+    const hart = hartVan(zonder);
+    const gedraaid = pasCorrectiesToe(MUREN, RUIMTES, OPENINGEN, PLAFOND, [
+      { soort: "gat", x: hart[0], y: hart[1], gat: "deur", onder: 0, boven: 2.15, draai: { kant: true } },
+    ]).gaten.find((g) => g.soort === "deur")!;
+    expect(gedraaid.bladen).toHaveLength(1);
+    const nieuw = toepassen([{ soort: "opening", a: [5.07, 5], b: [5.07, 5.9], gat: "deur", onder: 0, boven: 2.15 }]);
+    expect(bij(nieuw.gaten, [5.07, 5.45])?.bladen).toHaveLength(1);
+  });
+});
+

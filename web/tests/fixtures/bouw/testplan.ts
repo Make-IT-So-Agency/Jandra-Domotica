@@ -15,7 +15,7 @@
  * komt nooit een echt plan in de repository.
  */
 
-import { maakPdf, pdf, type Bladzijde } from "./pdf-schrijver";
+import { g, maakPdf, pdf, type Bladzijde } from "./pdf-schrijver";
 
 type Xy = [number, number];
 
@@ -62,6 +62,8 @@ export interface Testgrondplan {
   deuren: Testdeur[];
   ramen: { label: string; op: Xy }[];
   trappen?: Testtrap[];
+  /** Luifels: een lijn in streepjes van de gevel tot weer op de gevel, met een tekst erin. */
+  luifels?: { lijn: Xy[]; tekst: string; tekstOp: Xy }[];
   /** Waar het huis op het blad ligt, in meter vanaf de linkerbovenhoek van het tekenvak. */
   verschuiving: Xy;
   draai?: 0 | 90 | 180 | 270;
@@ -92,7 +94,7 @@ export function keertrap(): Testtrap {
 }
 
 /** Het gelijkvloers: leefruimte in L-vorm, keuken, inkom met trapbordes, berging/technieken. */
-export function gelijkvloers(opties: { keukenwand?: number; trap?: boolean } = {}): Testgrondplan {
+export function gelijkvloers(opties: { keukenwand?: number; trap?: boolean; luifel?: boolean } = {}): Testgrondplan {
   const wand = opties.keukenwand ?? 6.0;
   const leef = (wand - 0.4) * 3.6 + 3.6 * 3.6;
   const keuken = (9.6 - wand - 0.14) * 3.6;
@@ -153,8 +155,29 @@ export function gelijkvloers(opties: { keukenwand?: number; trap?: boolean } = {
     ramen: [
       { label: "205 x 275", op: [2.0, -0.7] },
       { label: "120 x 275", op: [8.0, -0.7] },
+      // Een maat op een maatlijn buiten de muur, en een borstwering binnen.
+      ...(opties.luifel
+        ? [
+            { label: "180/275", op: [4.5, -1.6] as Xy },
+            { label: "BW = 40", op: [8.0, 0.7] as Xy },
+          ]
+        : []),
     ],
     trappen: opties.trap ? [keertrap()] : [],
+    luifels: opties.luifel
+      ? [
+          {
+            lijn: [
+              [1, 0],
+              [1, -1],
+              [8, -1],
+              [8, 0],
+            ],
+            tekst: "oversteek 100 cm",
+            tekstOp: [4.5, -0.5],
+          },
+        ]
+      : [],
     verschuiving: [2.0, 2.0],
     datum: "01/10/2026",
   };
@@ -313,6 +336,17 @@ export function grondplanblad(plan: Testgrondplan): Bladzijde {
     inhoud.push(pdf.boog(p0, p1, p2, p3), pdf.trek(), pdf.lijn(deur.scharnier, p3), pdf.trek());
   }
 
+  // De luifels: boven de snede, dus in streepjes.
+  for (const luifel of plan.luifels ?? []) {
+    inhoud.push(
+      pdf.lijnkleur("#000000"),
+      lijndikte(0.36),
+      pdf.streep([0.2, 0.1]),
+      `${luifel.lijn.map(([x, y], i) => `${g(x)} ${g(y)} ${i === 0 ? "m" : "l"}`).join(" ")} S`,
+      pdf.streep([]),
+    );
+  }
+
   // De trappen: elke trede een lijn, het deel boven de snede in streepjes, en een gevuld pijltje.
   for (const trap of plan.trappen ?? []) {
     for (const vlucht of trap.vluchten) {
@@ -359,6 +393,7 @@ export function grondplanblad(plan: Testgrondplan): Bladzijde {
   }
   inhoud.push(pdf.vulkleur("#000000"));
   for (const raam of plan.ramen) inhoud.push(...tekstMidden(raam.label, 7, raam.op, 0));
+  for (const luifel of plan.luifels ?? []) inhoud.push(...tekstMidden(luifel.tekst, 6, luifel.tekstOp, 0));
 
   inhoud.push(...titelblok(A3.breedte, plan.titel, plan.bladcode, plan.schaaltekst, plan.datum));
   return { ...A3, inhoud, draai: plan.draai };

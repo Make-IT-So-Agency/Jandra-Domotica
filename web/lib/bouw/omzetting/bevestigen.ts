@@ -3,6 +3,12 @@ import { naarHuis, nettoOppervlakte, rond, type Kalibratie } from "./geometrie";
 import { WERKWIJZE } from "./pijplijn";
 import type { Opening, Schaal, Trapdeel, Trapvoorstel, Xy } from "./types";
 
+/** Een luifel zoals ze bevestigd wordt: de lijn in paginapunten, en de diepte in meter. */
+export interface Bevestigluifel {
+  lijn: Xy[];
+  diepte: number;
+}
+
 /**
  * Wat de browser stuurt als een omzetting bevestigd wordt, en hoe de server
  * dat nakijkt en omrekent naar meter. Puur, met tests.
@@ -41,6 +47,8 @@ export interface Bevestiging {
   muren: Xy[][];
   /** De trappen, in paginapunten. Voor het 3D-model. */
   trappen: Trapvoorstel[];
+  /** De luifels, in paginapunten. Voor het 3D-model. */
+  luifels: Bevestigluifel[];
   verdieping: { bijwerken: boolean; vloerpeil: number | null; plafondhoogte: number | null };
   schaal: Pick<Schaal, "noemer" | "bron" | "titelblok" | "kloppend" | "getoetst"> | null;
 }
@@ -149,19 +157,29 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
 
   const openingen: Opening[] = [];
   for (const o of (Array.isArray(b.openingen) ? b.openingen : []).slice(0, 500) as Record<string, unknown>[]) {
-    if ((o?.soort !== "deur" && o?.soort !== "raam") || !isGetal(o.x) || !isGetal(o.y) || !isGetal(o.breedte)) continue;
+    const soort = o?.soort;
+    if ((soort !== "deur" && soort !== "raam" && soort !== "borstwering") || !isGetal(o.x) || !isGetal(o.y) || !isGetal(o.breedte)) continue;
     const punten = (Array.isArray(o.punten) ? o.punten : [])
       .slice(0, 2)
       .filter((p): p is Xy => Array.isArray(p) && isGetal(p[0]) && isGetal(p[1]));
     openingen.push({
-      soort: o.soort,
+      soort,
       x: o.x,
       y: o.y,
       punten,
       breedte: o.breedte,
       hoogte: isGetal(o.hoogte) ? o.hoogte : null,
+      ...(soort === "raam" && (o.vorm === "x" || o.vorm === "/") ? { vorm: o.vorm } : {}),
       ruimte: typeof o.ruimte === "string" ? o.ruimte.slice(0, 20) : null,
     });
+  }
+
+  // Een luifel die niet klopt, valt weg, zoals een muur.
+  const luifels: Bevestigluifel[] = [];
+  for (const l of (Array.isArray(b.luifels) ? b.luifels : []).slice(0, 20) as Record<string, unknown>[]) {
+    const lijn = Array.isArray(l?.lijn) && l.lijn.length >= 2 ? ringen([[...l.lijn, l.lijn[0]]]) : null;
+    if (!lijn || lijn[0].length > 201 || !isGetal(l.diepte) || l.diepte <= 0 || l.diepte > 5) continue;
+    luifels.push({ lijn: lijn[0].slice(0, -1), diepte: l.diepte });
   }
 
   // Muren die niet kloppen, vallen gewoon weg: zonder muren is er nog altijd een plan.
@@ -200,6 +218,7 @@ export function controleerBevestiging(ruw: unknown): Uitkomst<Bevestiging> {
     openingen,
     muren,
     trappen,
+    luifels,
     verdieping: { bijwerken: v.bijwerken === true, vloerpeil, plafondhoogte },
     schaal,
   });
@@ -236,8 +255,8 @@ export function naarRuimterijen(bevestiging: Bevestiging): Uitkomst<Ruimterij[]>
 
 /**
  * Wat bewaard wordt als bewijs van de omzetting: de schaal, de kalibratie,
- * de ruimtes in het kort, en de openingen, de muren en de trappen in meter
- * (voor het 3D-model). Geen andere teksten van het blad.
+ * de ruimtes in het kort, en de openingen, de muren, de trappen en de luifels
+ * in meter (voor het 3D-model). Geen andere teksten van het blad.
  */
 export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[]): Record<string, unknown> {
   const k = bevestiging.kalibratie;
@@ -261,6 +280,7 @@ export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[])
         punten: o.punten.map((p) => naarHuis(p, k).map((w) => rond(w, 3))),
         breedte: o.breedte,
         hoogte: o.hoogte,
+        ...(o.vorm ? { vorm: o.vorm } : {}),
       };
     }),
     muren: bevestiging.muren.map((ring) => inMeter(ring, k)),
@@ -269,5 +289,6 @@ export function omzettingsvoorstel(bevestiging: Bevestiging, rijen: Ruimterij[])
       richting: trap.richting,
       delen: trap.delen.map((deel) => ({ soort: deel.soort, treden: deel.treden, hoeken: inMeter(deel.hoeken, k) })),
     })),
+    luifels: bevestiging.luifels.map((luifel) => ({ lijn: inMeter(luifel.lijn, k), diepte: luifel.diepte })),
   };
 }
