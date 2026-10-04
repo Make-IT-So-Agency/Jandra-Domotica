@@ -11,7 +11,8 @@ import type { Blad, Kader, Ruimtevoorstel, Xy } from "./types";
  * - grijs of zwart gevuld is (geen kleur, geen wit of bijna-wit, geen arcering);
  * - buiten de ruimtes ligt: een meubel ligt erin, een muur ertussen;
  * - tegen een ruimte aan ligt, binnen 60 cm;
- * - niet te klein en niet te groot is.
+ * - niet te klein en niet te groot is;
+ * - geen pijlpunt is, zoals die van de looplijn van een trap.
  *
  * Puur, met tests. Alles in paginapunten.
  */
@@ -39,6 +40,18 @@ function deelBuitenRuimtes(ring: Xy[], ruimtes: Xy[][][], kader: Kader): number 
   // Een smalle muur kan tussen de rasterpunten vallen: dan beslist het zwaartepunt.
   if (erin === 0) return ruimtes.some((ruimte) => binnenRuimte(zwaartepunt(ring), ruimte)) ? 0 : 1;
   return buiten / erin;
+}
+
+/**
+ * Een pijlpunt: een klein driehoekje met twee lange zijden van gelijke lengte
+ * en een korte. Een hoekstukje tussen twee muren is eerder rechthoekig.
+ */
+function isPijlpunt(ring: Xy[], meterPerPunt: number): boolean {
+  if (ring.length !== 3) return false;
+  const [kort, midden, lang] = ring
+    .map((a, i) => Math.hypot(ring[(i + 1) % 3][0] - a[0], ring[(i + 1) % 3][1] - a[1]) * meterPerPunt)
+    .sort((x, y) => x - y);
+  return lang <= 0.6 && midden >= 0.85 * lang && kort <= 0.75 * midden;
 }
 
 function afstandTotRuimtes(ring: Xy[], randen: { a: Xy; b: Xy }[], max: number): number {
@@ -71,7 +84,7 @@ export function vindMuren(blad: Blad, ruimtes: Pick<Ruimtevoorstel, "ringen">[],
       const ring = vereenvoudig(deel.punten, 0.01);
       if (ring.length < 3) continue;
       const opp = Math.abs(oppervlakte(ring)) * m2;
-      if (opp < 0.005 || opp > 40) continue;
+      if (opp < 0.005 || opp > 40 || isPijlpunt(ring, meterPerPunt)) continue;
       const kader = kaderVan(ring);
       // Een vlak van minder dan 3 cm breed is een lijn, geen muur.
       if (Math.min(kader.x1 - kader.x0, kader.y1 - kader.y0) * meterPerPunt < 0.03 && opp < 0.05) continue;

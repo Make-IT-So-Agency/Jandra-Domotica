@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import { leesBlad } from "@/lib/bouw/omzetting/lezen";
-import { isMuurkleur } from "@/lib/bouw/omzetting/muren";
+import { isMuurkleur, vindMuren } from "@/lib/bouw/omzetting/muren";
 import { isScan, zetOm } from "@/lib/bouw/omzetting/pijplijn";
 import { METER_PER_PUNT, bewijs } from "@/lib/bouw/omzetting/schaal";
 import type { Blad, Voorstel } from "@/lib/bouw/omzetting/types";
@@ -133,6 +133,28 @@ describe("het gelijkvloers omzetten", () => {
     expect(oppervlaktes).toHaveLength(8);
     expect(oppervlaktes[0]).toBeCloseTo(4, 2);
     expect(oppervlaktes.reduce((som, o) => som + o, 0)).toBeCloseTo(13.76 + 2.2568, 2);
+  });
+
+  it("houdt de pijlpunt van een looplijn niet voor een muur, een hoekstukje wel", () => {
+    const vlak = (punten: [number, number][], vul: string) => ({ vul, lijn: null, dikte: 0, delen: [{ punten, gesloten: true }], bogen: [] });
+    const blad: Blad = {
+      breedte: 600,
+      hoogte: 500,
+      teksten: [],
+      beeldvlak: 0,
+      paden: [
+        // Een muur van 14 cm links van de ruimte.
+        vlak([[92, 92], [100, 92], [100, 308], [92, 308]], "#7f7f7f"),
+        // Een pijlpunt van 16 bij 9 cm, net naast de ruimte.
+        vlak([[410, 200], [401, 197.5], [401, 202.5]], "#000000"),
+        // Een hoekstukje van 14 cm tussen twee muren.
+        vlak([[400, 300], [408, 300], [400, 308]], "#7f7f7f"),
+      ],
+    };
+    const ruimte = { ringen: [[[100, 100], [400, 100], [400, 300], [100, 300]] as [number, number][]] };
+    const muren = vindMuren(blad, [ruimte], 50 * METER_PER_PUNT, { x0: 0, y0: 0, x1: 600, y1: 500 });
+    expect(muren.map((ring) => ring.length).sort()).toEqual([3, 4]);
+    expect(muren.some((ring) => ring.some(([x]) => x === 410))).toBe(false);
   });
 
   it("houdt een grijs meubel in een ruimte niet voor een muur", () => {

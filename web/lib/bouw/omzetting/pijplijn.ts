@@ -12,8 +12,12 @@ import { witteVlakken } from "./vlakken";
  * browser; pdf.js leest de PDF al in zijn eigen worker.
  */
 
-/** Verhoog dit als de regels veranderen, zodat een bewaarde omzetting zegt met welke regels ze gemaakt is. */
-export const WERKWIJZE = 3;
+/**
+ * Verhoog dit als de regels veranderen, zodat een bewaarde omzetting zegt met welke regels ze gemaakt is.
+ * 2: de muren; 3: de trappen; 4: het bordes van een trap die 180° draait, de treden die de snedelijn knipt, en
+ * geen pijlpunt als muur.
+ */
+export const WERKWIJZE = 4;
 
 export interface Opties {
   /** Een schaal die iemand zelf aanduidde, in meter per punt. */

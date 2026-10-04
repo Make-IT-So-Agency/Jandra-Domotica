@@ -108,6 +108,66 @@ describe("een trap die halfweg 180° draait", () => {
   });
 });
 
+describe("een trap die 180° draait, zoals architecten hem tekenen", () => {
+  // De onderste vlucht begint bij x = 0 en loopt naar het bordes rechts; de
+  // snedelijn knipt twee treden in stukken. De bovenste vlucht (streepjes)
+  // komt een trede verder links aan, bij x = -0,22. Het bordes begint bij
+  // x = 1,54: één streepjeslijn over beide vluchten, want het muurtje ertussen
+  // houdt daar op. Links een open inkom met een muur op 1,7 m, een maatlijn
+  // twee treden voor de trap, en een lange lijn die over beide vluchten en
+  // verder loopt.
+  const xs = Array.from({ length: 7 }, (_, k) => Math.round(k * 0.22 * 100) / 100);
+  const onder = xs.flatMap((x) =>
+    x === 0.88 ? [lijn([x, 2.2], [x, 2.86]), lijn([x, 3.01], [x, 3.3])] : x === 1.1 ? [lijn([x, 2.2], [x, 2.49]), lijn([x, 2.64], [x, 3.3])] : [lijn([x, 2.2], [x, 3.3])],
+  );
+  const snede = [lijn([0.7, 3.3], [1.3, 2.2]), lijn([0.85, 3.3], [1.45, 2.2])];
+  const boven = [-0.22, ...xs].flatMap((x) => streepjes([x, 0.96], [x, 2.06]));
+  const rand = streepjes([1.54, 0.96], [1.54, 3.3]);
+  const maatlijn = lijn([-0.44, 2.0], [-0.44, 3.4]);
+  const aslijn = lijn([-0.6, 0.5], [-0.6, 3.6]);
+  const muren = [rechthoek(-0.22, 2.06, 1.54, 2.2), rechthoek(2.54, 0.8, 2.68, 3.5), rechthoek(-2.04, 0.8, -1.9, 3.5)];
+  const paden = [...onder, ...snede, ...boven, ...rand, maatlijn, aslijn, pijl([0.5, 2.75], [1, 0])];
+
+  it("legt het bordes waar de lijn over beide vluchten loopt, en telt alle treden", () => {
+    const trappen = vindTrappen(blad(paden), M, null, muren);
+    expect(trappen).toHaveLength(1);
+    expect(trappen[0].richting).toBe("pijl");
+    const [eerste, bordes, tweede] = inMeter(trappen[0]);
+    // De eerste vlucht: van x = 0 tot het bordes, 7 treden en de stap op het bordes.
+    expect(eerste).toMatchObject({ soort: "vlucht", treden: 8 });
+    expect([eerste.hoeken[0][0], eerste.hoeken[2][0]]).toEqual([0, 1.54]);
+    expect([Math.min(...eerste.hoeken.map(([, y]) => y)), Math.max(...eerste.hoeken.map(([, y]) => y))]).toEqual([2.2, 3.3]);
+    // Het bordes: van de rand tot de muur, over beide vluchten.
+    expect(bordes.soort).toBe("bordes");
+    const bx = bordes.hoeken.map(([x]) => x);
+    const by = bordes.hoeken.map(([, y]) => y);
+    expect([Math.min(...bx), Math.max(...bx)]).toEqual([1.54, 2.54]);
+    expect([Math.min(...by), Math.max(...by)]).toEqual([0.96, 3.3]);
+    // De tweede vlucht: van het bordes terug naar x = -0,22, 9 treden. Samen 17.
+    expect(tweede).toMatchObject({ soort: "vlucht", treden: 9 });
+    expect([tweede.hoeken[0][0], tweede.hoeken[2][0]]).toEqual([1.54, -0.22]);
+  });
+
+  it("zonder pijl ligt het bordes ook bij de lijn over beide vluchten", () => {
+    const [trap] = vindTrappen(blad(paden.slice(0, -1)), M, null, muren);
+    expect(trap.richting).toBe("geraden");
+    const bx = inMeter(trap)[1].hoeken.map(([x]) => x);
+    expect([Math.min(...bx), Math.max(...bx)]).toEqual([1.54, 2.54]);
+  });
+
+  it("met de rand per vlucht getekend tellen de geknipte treden mee, en ligt het bordes waar beide vluchten ophouden", () => {
+    const perVlucht = [...streepjes([1.54, 0.96], [1.54, 2.06]), lijn([1.54, 2.2], [1.54, 3.3])];
+    const zonderRand = [...onder, ...snede, ...boven, ...perVlucht, maatlijn, aslijn, pijl([0.5, 2.75], [1, 0])];
+    const [trap] = vindTrappen(blad(zonderRand), M, null, muren);
+    const [eerste, bordes, tweede] = inMeter(trap);
+    expect(eerste).toMatchObject({ soort: "vlucht", treden: 8 });
+    expect([eerste.hoeken[0][0], eerste.hoeken[2][0]]).toEqual([0, 1.54]);
+    const bx = bordes.hoeken.map(([x]) => x);
+    expect([Math.min(...bx), Math.max(...bx)]).toEqual([1.54, 2.54]);
+    expect(tweede).toMatchObject({ soort: "vlucht", treden: 9 });
+  });
+});
+
 describe("een kwartdraai", () => {
   it("wordt vlucht, hoekbordes, vlucht", () => {
     const a = Array.from({ length: 6 }, (_, k) => lijn([0, k * 0.22], [1, k * 0.22]));

@@ -11,7 +11,9 @@ export type { Trapdeel, Trapvoorstel };
  * - Eén vlucht is een rechte trap.
  * - Twee vluchten naast elkaar, met een muurtje of een spleet ertussen, zijn
  *   een trap die halfweg 180° draait: aan het einde waar ze samenkomen ligt
- *   een bordes over de hele breedte.
+ *   een bordes over de hele breedte. Waar het muurtje ophoudt, tekent de
+ *   architect de rand van het bordes als één lijn over beide vluchten; aan
+ *   het andere einde niet. Die lijn beslist, en beide vluchten lopen tot daar.
  * - Twee vluchten haaks op elkaar zijn een kwartdraai met een hoekbordes.
  *
  * Een pijltje in een vlucht (een gevulde driehoek of een open V) wijst naar
@@ -19,7 +21,9 @@ export type { Trapdeel, Trapvoorstel };
  * de trap omdraaien.
  *
  * Een streepjeslijn (het deel van de trap boven de snede) wordt eerst weer één
- * lijn, en een trede die achter een muur verdwijnt, telt toch mee.
+ * lijn, net als een trede die de snedelijn in stukken knipt. Een trede die
+ * achter een muur verdwijnt, telt toch mee; een lijn twee treden voorbij het
+ * einde (een maatlijn) niet.
  *
  * Puur, met tests. In en uit in paginapunten; de regels rekenen in meter.
  */
@@ -37,6 +41,8 @@ const HOEK_SPELING = 0.01;
 const LIJN_SPELING = 0.012;
 /** Het gat tussen twee streepjes van een streepjeslijn. */
 const STREEPGAT = 0.12;
+/** Het gat in een trede waar een teken (de snedelijn) ze onderbreekt. */
+const ONDERBREKING = 0.25;
 /** Tussen twee vluchten naast elkaar: een muurtje of een spleet. */
 const NAAST_MAX = 0.4;
 /** Ongeveer anderhalve graad: daar knipt de hoek, zodat een horizontale lijn bij 0 blijft. */
@@ -91,7 +97,7 @@ function mediaan(waarden: number[]): number {
 }
 
 /** De korte getrokken lijnstukken van het blad, in meter, binnen het gebouw. */
-function stukkenVan(blad: Blad, m: number, gebied: Kader2 | null): { hoek: number; a: Xy; b: Xy }[] {
+function stukkenVan(blad: Blad, m: number, gebied: Kader2 | null, langst = TREDE_MAX * 1.2): { hoek: number; a: Xy; b: Xy }[] {
   const kader = gebied ? { x0: gebied.x0 * m, y0: gebied.y0 * m, x1: gebied.x1 * m, y1: gebied.y1 * m } : null;
   const uit: { hoek: number; a: Xy; b: Xy }[] = [];
   for (const pad of blad.paden) {
@@ -104,7 +110,7 @@ function stukkenVan(blad: Blad, m: number, gebied: Kader2 | null): { hoek: numbe
         const b: Xy = [p[(i + 1) % p.length][0] * m, p[(i + 1) % p.length][1] * m];
         const lengte = Math.hypot(b[0] - a[0], b[1] - a[1]);
         // Een streepje is kort; een lijn die langer is dan een trede, hoort er niet bij.
-        if (lengte < 0.01 || lengte > TREDE_MAX * 1.2) continue;
+        if (lengte < 0.01 || lengte > langst) continue;
         if (kader && !inKader([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], kader)) continue;
         uit.push({ hoek: hoekVan(a, b), a, b });
       }
@@ -160,6 +166,48 @@ export function rechtenVan(stukken: { hoek: number; a: Xy; b: Xy }[]): Rechte[] 
 
 const lengte = (r: { t0: number; t1: number }) => r.t1 - r.t0;
 
+/**
+ * Een trede die een teken onderbreekt, zoals de snedelijn van de trap, ligt in
+ * stukken op dezelfde lijn. Samen worden ze ook één lijn, als de stukken het
+ * grootste deel bedekken en het samen niet langer wordt dan een trede; de
+ * stukken zelf blijven. Zo blijven twee treden naast elkaar, met een muurtje
+ * ertussen, twee treden.
+ */
+function hersteld(rechten: readonly Rechte[]): Rechte[] {
+  const opLijn = new Map<string, Rechte[]>();
+  for (const r of rechten) {
+    const sleutel = `${r.hoek}:${r.rho}`;
+    const lijst = opLijn.get(sleutel);
+    if (lijst) lijst.push(r);
+    else opLijn.set(sleutel, [r]);
+  }
+  const uit: Rechte[] = [];
+  for (const stukken of opLijn.values()) {
+    if (stukken.length < 2) continue;
+    const gesorteerd = [...stukken].sort((a, b) => a.t0 - b.t0);
+    let huidig = { ...gesorteerd[0] };
+    let bedekt = lengte(huidig);
+    let aantal = 1;
+    const sluit = () => {
+      if (aantal > 1 && bedekt >= 0.75 * lengte(huidig)) uit.push(huidig);
+    };
+    for (const stuk of gesorteerd.slice(1)) {
+      if (stuk.t0 - huidig.t1 <= ONDERBREKING && Math.max(huidig.t1, stuk.t1) - huidig.t0 <= TREDE_MAX) {
+        bedekt += lengte(stuk);
+        huidig.t1 = Math.max(huidig.t1, stuk.t1);
+        aantal++;
+      } else {
+        sluit();
+        huidig = { ...stuk };
+        bedekt = lengte(stuk);
+        aantal = 1;
+      }
+    }
+    sluit();
+  }
+  return uit;
+}
+
 /** Liggen twee treden naast elkaar in dezelfde trap: ongeveer even lang, en grotendeels tegenover elkaar. */
 function tegenover(a: Rechte, b: Rechte): boolean {
   const kort = Math.min(lengte(a), lengte(b));
@@ -178,6 +226,7 @@ function reeksVanaf(lijnen: Rechte[], begin: number): { lijnen: number[]; treden
     const reeks = [begin, eerste];
     let treden = 2;
     let laatste = eerste;
+    let laatsteKeer = 1;
     for (let j = eerste + 1; j < lijnen.length; j++) {
       const afstand = lijnen[j].rho - lijnen[laatste].rho;
       if (afstand > 2 * stap + STAP_SPELING * 2) break;
@@ -186,7 +235,13 @@ function reeksVanaf(lijnen: Rechte[], begin: number): { lijnen: number[]; treden
         reeks.push(j);
         treden += keer;
         laatste = j;
+        laatsteKeer = keer;
       }
+    }
+    // Een trede die ontbreekt vlak voor de laatste lijn: die lijn is eerder iets anders, zoals een maatlijn.
+    if (laatsteKeer === 2 && reeks.length > 2) {
+      reeks.pop();
+      treden -= 2;
     }
     if (reeks.length > beste.lijnen.length) beste = { lijnen: reeks, treden };
   }
@@ -313,8 +368,33 @@ function muurOp(p: Xy, r: Xy, muren: Xy[][], van: number, tot: number): number |
   return null;
 }
 
+/** De afstand tussen twee treden van een vlucht, in de looprichting. */
+const stapVan = (vlucht: Vlucht) => (vlucht.rho1 - vlucht.rho0) / Math.max(1, vlucht.treden - 1);
+
+/**
+ * De rand van een bordes: een lijn over beide vluchten, van t0 tot t1, op het
+ * einde van de vluchten of een trede of twee verder. Voor een trede is ze te
+ * lang, dus zit ze in geen van beide vluchten. Ze houdt op bij de zijkanten
+ * van de trap; een maatlijn loopt verder. Haar rho, of null.
+ */
+function randVan(lang: readonly Rechte[], hoek: number, t0: number, t1: number, einde: number, kant: 1 | -1, stap: number): number | null {
+  let beste: number | null = null;
+  for (const r of lang) {
+    if (Math.abs(r.hoek - hoek) > 3 * HOEK_SPELING) continue;
+    const a = inVlak(hoek, punt(r.hoek, r.t0, r.rho));
+    const b = inVlak(hoek, punt(r.hoek, r.t1, r.rho));
+    const rho = (a.rho + b.rho) / 2;
+    const voorbij = (rho - einde) * kant;
+    if (voorbij < -0.3 * stap || voorbij > 2 * stap + 2 * STAP_SPELING) continue;
+    const [van, tot] = [Math.min(a.t, b.t), Math.max(a.t, b.t)];
+    if (Math.min(t1, tot) - Math.max(t0, van) < 0.85 * (t1 - t0) || van < t0 - 0.3 || tot > t1 + 0.3) continue;
+    if (beste === null || Math.abs(rho - einde) < Math.abs(beste - einde)) beste = rho;
+  }
+  return beste;
+}
+
 /** Twee vluchten naast elkaar: een trap die 180° draait, met een bordes aan het einde. */
-function alsKeertrap(a: Vlucht, b: Vlucht, pijlen: Pijl[], muren: Xy[][]): Trapvoorstel | null {
+function alsKeertrap(a: Vlucht, b: Vlucht, pijlen: Pijl[], muren: Xy[][], lang: readonly Rechte[]): Trapvoorstel | null {
   if (Math.abs(a.hoek - b.hoek) > 3 * HOEK_SPELING) return null;
   const [links, rechts] = a.t0 <= b.t0 ? [a, b] : [b, a];
   const spleet = rechts.t0 - links.t1;
@@ -327,24 +407,44 @@ function alsKeertrap(a: Vlucht, b: Vlucht, pijlen: Pijl[], muren: Xy[][]): Trapv
   const t0 = Math.min(a.t0, b.t0);
   const t1 = Math.max(a.t1, b.t1);
   const breedte = ((a.t1 - a.t0) + (b.t1 - b.t0)) / 2;
-  const bovenGelijk = Math.abs(a.rho1 - b.rho1) <= 0.4;
-  const onderGelijk = Math.abs(a.rho0 - b.rho0) <= 0.4;
-  if (!bovenGelijk && !onderGelijk) return null;
-
-  // Het bordes ligt aan het einde waar beide vluchten samen ophouden. Liggen ze
-  // aan beide kanten gelijk, dan aan de kant met de meeste tekens van een
-  // bordes: een muur op een vluchtbreedte verder, het muurtje tussen de
-  // vluchten dat daar ophoudt, en de uiteinden die het best gelijk liggen.
   const einde = (kant: 1 | -1) => (kant === 1 ? Math.max(a.rho1, b.rho1) : Math.min(a.rho0, b.rho0));
-  const diepte = (kant: 1 | -1) => muurOp(punt(hoek, (t0 + t1) / 2, einde(kant)), [v[0] * kant, v[1] * kant], muren, 0.5, 2.2);
-  const spleetVrij = (kant: 1 | -1) =>
-    spleet < 0.05 ? false : !muren.some((ring) => binnen(punt(hoek, (links.t1 + rechts.t0) / 2, einde(kant) + kant * 0.2), ring));
-  const verschil = (kant: 1 | -1) => (kant === 1 ? Math.abs(a.rho1 - b.rho1) : Math.abs(a.rho0 - b.rho0));
-  const score = (kant: 1 | -1) => (diepte(kant) !== null ? 1 : 0) + (spleetVrij(kant) ? 1 : 0) - verschil(kant);
-  const kant: 1 | -1 = bovenGelijk && onderGelijk ? (score(1) >= score(-1) ? 1 : -1) : bovenGelijk ? 1 : -1;
-  const tot = diepte(kant) ?? breedte;
-  const r0 = einde(kant);
-  const r1 = r0 + kant * tot;
+  const stap = (stapVan(a) + stapVan(b)) / 2;
+  const randen = { 1: randVan(lang, hoek, t0, t1, einde(1), 1, stap), [-1]: randVan(lang, hoek, t0, t1, einde(-1), -1, stap) };
+  const vanaf = (r: number, kant: 1 | -1) => muurOp(punt(hoek, (t0 + t1) / 2, r), [v[0] * kant, v[1] * kant], muren, 0.5, 2.2);
+
+  let kant: 1 | -1;
+  if ((randen[1] === null) !== (randen[-1] === null)) {
+    // Eén lijn over beide vluchten, aan één einde: daar houdt het muurtje
+    // ertussen op, en daar ligt het bordes.
+    kant = randen[1] !== null ? 1 : -1;
+  } else {
+    // Anders aan het einde waar beide vluchten samen ophouden. Liggen ze aan
+    // beide kanten gelijk, dan aan de kant met de meeste tekens van een
+    // bordes: een muur op een vluchtbreedte verder, het muurtje tussen de
+    // vluchten dat daar ophoudt, en de uiteinden die het best gelijk liggen.
+    const bovenGelijk = Math.abs(a.rho1 - b.rho1) <= 0.4;
+    const onderGelijk = Math.abs(a.rho0 - b.rho0) <= 0.4;
+    if (!bovenGelijk && !onderGelijk) return null;
+    const spleetVrij = (kant: 1 | -1) =>
+      spleet < 0.05 ? false : !muren.some((ring) => binnen(punt(hoek, (links.t1 + rechts.t0) / 2, einde(kant) + kant * 0.2), ring));
+    const verschil = (kant: 1 | -1) => (kant === 1 ? Math.abs(a.rho1 - b.rho1) : Math.abs(a.rho0 - b.rho0));
+    const score = (kant: 1 | -1) => (vanaf(einde(kant), kant) !== null ? 1 : 0) + (spleetVrij(kant) ? 1 : 0) - verschil(kant);
+    kant = bovenGelijk && onderGelijk ? (score(1) >= score(-1) ? 1 : -1) : bovenGelijk ? 1 : -1;
+  }
+
+  // Met een rand lopen beide vluchten tot daar, met de treden die erbij komen
+  // (de rand zelf, en wat de snedelijn verborg).
+  const rand = randen[kant];
+  const r0 = rand !== null && (rand - einde(kant)) * kant > 0 ? rand : einde(kant);
+  const totRand = (vlucht: Vlucht): Vlucht => {
+    const eind = kant === 1 ? vlucht.rho1 : vlucht.rho0;
+    const extra = rand === null ? 0 : Math.round(((r0 - eind) * kant) / stapVan(vlucht));
+    if (extra <= 0) return vlucht;
+    return kant === 1 ? { ...vlucht, rho1: r0, treden: vlucht.treden + extra } : { ...vlucht, rho0: r0, treden: vlucht.treden + extra };
+  };
+  const [va, vb] = [totRand(a), totRand(b)];
+
+  const r1 = r0 + kant * (vanaf(r0, kant) ?? breedte);
   const bordes: Trapdeel = {
     soort: "bordes",
     hoeken: [punt(hoek, t0, Math.min(r0, r1)), punt(hoek, t1, Math.min(r0, r1)), punt(hoek, t1, Math.max(r0, r1)), punt(hoek, t0, Math.max(r0, r1))],
@@ -352,12 +452,12 @@ function alsKeertrap(a: Vlucht, b: Vlucht, pijlen: Pijl[], muren: Xy[][]): Trapv
   };
 
   // De eerste vlucht loopt naar het bordes toe, de tweede ervan weg.
-  const pijlA = pijlIn(a, pijlen);
-  const pijlB = pijlIn(b, pijlen);
-  let eerste = a;
-  if (pijlA !== 0) eerste = pijlA === kant ? a : b;
-  else if (pijlB !== 0) eerste = pijlB === kant ? b : a;
-  const tweede = eerste === a ? b : a;
+  const pijlA = pijlIn(va, pijlen);
+  const pijlB = pijlIn(vb, pijlen);
+  let eerste = va;
+  if (pijlA !== 0) eerste = pijlA === kant ? va : vb;
+  else if (pijlB !== 0) eerste = pijlB === kant ? vb : va;
+  const tweede = eerste === va ? vb : va;
   return {
     delen: [vluchtdeel(eerste, kant), bordes, vluchtdeel(tweede, kant === 1 ? -1 : 1)],
     richting: pijlA !== 0 || pijlB !== 0 ? "pijl" : "geraden",
@@ -405,7 +505,10 @@ export function vindTrappen(blad: Blad, meterPerPunt: number, gebied: Kader | nu
   if (!(meterPerPunt > 0)) return [];
   const m = meterPerPunt;
   const muren = murenInPunten.map((ring) => ring.map(([x, y]) => [x * m, y * m] as Xy));
-  const rechten = rechtenVan(stukkenVan(blad, m, gebied));
+  const losse = rechtenVan(stukkenVan(blad, m, gebied));
+  const rechten = [...losse, ...hersteld(losse)];
+  // Ook de lange lijnen: de rand van een bordes loopt over twee vluchten.
+  const lang = rechtenVan(stukkenVan(blad, m, gebied, (2 * TREDE_MAX + NAAST_MAX) * 1.2));
   // Een trede ligt niet in een muur: de arcering van een muur is geen trap.
   const vrij = rechten.filter((r) => {
     if (lengte(r) < TREDE_MIN || lengte(r) > TREDE_MAX) return true;
@@ -420,7 +523,7 @@ export function vindTrappen(blad: Blad, meterPerPunt: number, gebied: Kader | nu
   for (let i = 0; i < vluchten.length; i++) {
     for (let j = i + 1; j < vluchten.length && !gebruikt.has(i); j++) {
       if (gebruikt.has(j)) continue;
-      const trap = alsKeertrap(vluchten[i], vluchten[j], pijlen, muren) ?? alsKwartdraai(vluchten[i], vluchten[j], pijlen);
+      const trap = alsKeertrap(vluchten[i], vluchten[j], pijlen, muren, lang) ?? alsKwartdraai(vluchten[i], vluchten[j], pijlen);
       if (trap) {
         trappen.push(trap);
         gebruikt.add(i);

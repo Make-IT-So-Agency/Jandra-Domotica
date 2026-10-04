@@ -1253,12 +1253,12 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     trap.vorm === "recht" ? "rechte trap" : trap.vorm === "keer" ? "draait halfweg 180°, met een bordes" : "draait een kwartslag, met een bordes";
   const trapbron = (trap: Trap3d) =>
     trap.bron === "plan" ? "van het plan" : trap.bron === "gat" ? "onder het gat in de verdieping erboven" : "in de ruimte Trap";
-  // Verdiepingen met een verdieping erboven, waarvan de omzetting nog geen trappen zocht.
+  // Verdiepingen met een verdieping erboven, waarvan de omzetting nog geen trappen zocht, of het bordes nog niet goed las.
   const ouderdanTrappen = gegevens.verdiepingen.filter(
     (v) =>
       v.omgezet &&
       v.werkwijze !== null &&
-      v.werkwijze < 3 &&
+      v.werkwijze < 4 &&
       model.verdiepingen.some((b) => b.gebouwId === v.gebouwId && b.z0 > (model.verdiepingen.find((x) => x.id === v.id)?.z0 ?? Infinity)),
   );
   const metTrappen = model.verdiepingen.filter((v) => v.trappen.length > 0 || (standen.get(v.id) ?? []).some((s) => s.geen));
@@ -1715,7 +1715,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             <h3>Trappen</h3>
             {ouderdanTrappen.map((v) => (
               <p key={v.id} className="hulp">
-                {v.naam} werd omgezet vóór de app trappen las.{" "}
+                {v.naam} werd omgezet vóór de app {v.werkwijze !== null && v.werkwijze >= 3 ? "het bordes van een trap goed las" : "trappen las"}.{" "}
                 {v.grondplanId ? <a href={huispad(huisId, `/plannen/${v.grondplanId}/omzetten`)}>Zet het opnieuw om</a> : "Zet het opnieuw om"} om
                 de trap van het plan te krijgen.
               </p>

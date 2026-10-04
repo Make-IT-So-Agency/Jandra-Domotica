@@ -129,6 +129,63 @@ describe("het model", () => {
     expect(model.gebouwen[0].kader).toMatchObject({ x0: 0, y0: 0, x1: 10, y1: 8 });
   });
 
+  it("rekent een kleine zone zonder naam (een trapzone) tot binnen; een patio niet", () => {
+    // Rechts onderaan een zone van 4,46 × 2,6 m zonder ruimte op het plan, met een trap erin; erboven het trapgat.
+    const muren: Xy[][] = [
+      rechthoek(0, 0, 10, 0.4),
+      rechthoek(9.6, 0.4, 10, 7.6),
+      rechthoek(0, 7.6, 10, 8),
+      rechthoek(0, 0.4, 0.4, 7.6),
+      rechthoek(5, 0.4, 5.14, 7.6),
+      rechthoek(5.14, 4.86, 9.6, 5),
+    ];
+    const keuken = { ...RECHTS, ringen: [rechthoek(5.14, 0.4, 9.6, 4.86)] };
+    const trap = {
+      richting: "pijl" as const,
+      delen: [{ soort: "vlucht" as const, hoeken: [[5.3, 5], [5.3, 6.1], [9.4, 6.1], [9.4, 5]] as [Xy, Xy, Xy, Xy], treden: 16 }],
+    };
+    const onder = verdieping({ ruimtes: [LINKS, keuken], muren, openingen: [], trappen: [trap] });
+    const boven = verdieping({ id: 11, naam: "Verdieping", volgorde: 1, vloerpeil: 3.2, verdiepingshoogte: null, ruimtes: [LINKS, keuken], muren, openingen: [] });
+    const [gv, v1] = maakModel([{ id: 1, dak: { type: "plat", helling: 35, nok: "x", overstek: 0.3 } }], [onder, boven]).verdiepingen;
+    const zijdeOp = (verd: typeof gv, y: number, x: number, n: Xy) =>
+      verd.muren
+        .flatMap((m) => m.veelhoek.flatMap((ring, r) => ring.map((a, i) => ({ a, b: ring[(i + 1) % ring.length], ...m.zijden[r][i] }))))
+        .find((k) => k.a[1] === y && k.b[1] === y && Math.min(k.a[0], k.b[0]) <= x && Math.max(k.a[0], k.b[0]) >= x && k.n[1] === n[1])?.zijde;
+    // Beneden: de vloerplaat loopt door de zone, en de muren rond de zone zijn binnenmuren.
+    expect(binnenVeelhoeken([7, 6.8], gv.plaat.veelhoeken)).toBe(true);
+    expect(zijdeOp(gv, 5, 7, [0, 1])).toBe("binnen");
+    expect(zijdeOp(gv, 7.6, 7, [0, -1])).toBe("binnen");
+    expect(zijdeOp(gv, 8, 7, [0, 1])).toBe("buiten");
+    // Boven: het trapgat blijft open, en ook daar zijn de muren eromheen binnenmuren.
+    expect(binnenVeelhoeken([7, 6.8], v1.plaat.veelhoeken)).toBe(false);
+    expect(zijdeOp(v1, 5, 7, [0, 1])).toBe("binnen");
+    // Ook als het trapgat aan een raam ligt dat de omzetting niet als opening las: wat boven de trap ligt, is binnen.
+    const zonderRaam = { ...boven, muren: [...muren.filter((m) => m[0][1] !== 7.6), rechthoek(0, 7.6, 5.14, 8)] };
+    const [, open] = maakModel([{ id: 1, dak: { type: "plat", helling: 35, nok: "x", overstek: 0.3 } }], [onder, zonderRaam]).verdiepingen;
+    expect(zijdeOp(open, 5, 7, [0, 1])).toBe("binnen");
+    expect(zijdeOp(open, 0, 7, [0, -1])).toBe("buiten");
+
+    // Een patio van 4 × 4 m tussen vier ruimtes blijft buiten.
+    const ruimte = (id: number, ring: Xy[]) => ({ id, naam: `r${id}`, soort: "leefruimte" as const, ringen: [ring], plafondhoogte: null });
+    const rond = verdieping({
+      ruimtes: [ruimte(1, rechthoek(0.4, 0.4, 9.6, 2.86)), ruimte(2, rechthoek(0.4, 7.14, 9.6, 9.6)), ruimte(3, rechthoek(0.4, 3, 2.86, 7)), ruimte(4, rechthoek(7.14, 3, 9.6, 7))],
+      muren: [
+        rechthoek(0, 0, 10, 0.4),
+        rechthoek(0, 9.6, 10, 10),
+        rechthoek(0, 0.4, 0.4, 9.6),
+        rechthoek(9.6, 0.4, 10, 9.6),
+        rechthoek(2.86, 2.86, 7.14, 3),
+        rechthoek(2.86, 7, 7.14, 7.14),
+        rechthoek(2.86, 3, 3, 7),
+        rechthoek(7, 3, 7.14, 7),
+      ],
+      openingen: [],
+    });
+    const [metPatio] = maakModel([{ id: 1, dak: { type: "plat", helling: 35, nok: "x", overstek: 0.3 } }], [rond]).verdiepingen;
+    expect(binnenVeelhoeken([5, 5], metPatio.plaat.veelhoeken)).toBe(false);
+    expect(zijdeOp(metPatio, 3, 5, [0, 1])).toBe("buiten");
+  });
+
   it("legt een plat dak op wat de verdieping erboven niet bedekt", () => {
     const boven = verdieping({
       id: 11,

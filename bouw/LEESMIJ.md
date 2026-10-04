@@ -191,9 +191,13 @@ grondplannen.
 - **Muren.** Vectorworks vult een doorgesneden muur met grijs: de buitenmuren
   lichter, de binnenmuren donkerder. Een grijs vlak buiten de ruimtes en
   ertegenaan is een muur (`omzetting/muren.ts`); een grijs meubel ligt in een
-  ruimte en valt weg. De muren gaan mee bij het bevestigen en staan in meter
+  ruimte en valt weg, net als de pijlpunt van de looplijn van een trap. De muren gaan mee bij het bevestigen en staan in meter
   in `bouw_omzettingen`. Een grondplan dat vóór deze versie omgezet werd, zet
-  je opnieuw om.
+  je opnieuw om. Een muurkant die naar een ruimte kijkt, is binnen (pleister),
+  net als een kant naar een kleine ingesloten zone zonder naam (tot 12 m²: een
+  trapzone, een kast, een schacht) of naar een trap. Al de rest is gevel. Door
+  zo'n kleine zone loopt de vloerplaat, behalve waar de trap van beneden
+  doorkomt; een grotere zone is een patio.
 - **Ramen en deuren** zijn de open plekken in een muur, langs de rand van een
   ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam (met
   een borstwering van 90 cm, of tot de vloer als het breder is dan 2,40 m)
@@ -207,10 +211,15 @@ grondplannen.
 - **De trap.** De omzetting leest hem van het plan (`omzetting/trappen.ts`):
   - de treden zijn evenwijdige lijnen op gelijke afstand (60 cm tot 1,60 m
     lang, 17 tot 36 cm uit elkaar, minstens vier); een streepjeslijn telt als
-    één lijn, en een trede achter een muur telt mee;
+    één lijn, net als een trede die de snedelijn in stukken knipt, en een
+    trede achter een muur telt mee. Een lijn twee treden voorbij het einde is
+    eerder een maatlijn;
   - één reeks is een rechte trap; twee reeksen naast elkaar zijn een trap die
     halfweg 180° draait, met een bordes aan het einde waar ze samenkomen; twee
     reeksen haaks op elkaar zijn een kwartdraai;
+  - het bordes van een trap die 180° draait, ligt waar de architect één lijn
+    over beide vluchten tekent: daar houdt het muurtje ertussen op. Beide
+    vluchten lopen tot die lijn;
   - het pijltje in een vlucht wijst naar boven.
 
   Bij het nakijken staat de trap in het oranje op het plan, met een pijl naar
@@ -223,7 +232,8 @@ grondplannen.
   ruimte van het soort Trap. Bij **Trappen** in het 3D-scherm draai je een
   trap om, kies je een andere vorm, of zeg je dat het gat een vide is; dat
   wordt per verdieping bewaard (`bouw_verdiepingen.trappen`). Een grondplan
-  dat omgezet werd voor de app trappen las, zet je opnieuw om.
+  dat omgezet werd voor de app trappen las, of voor ze het bordes goed las
+  (werkwijze 4), zet je opnieuw om; het 3D-scherm zegt het.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
@@ -247,8 +257,9 @@ grondplannen.
     schaal op de grond; de schaal staat op het blad (`1/200`), en anders
     berekent de app ze uit de gebouwen;
   - op het blad zoekt de app gesloten vormen met ongeveer de oppervlakte van
-    het gelijkvloers: één vlak, of muren en ruimtes die samen de omtrek
-    vormen, ook met een deur of poort ertussen;
+    het gelijkvloers: één vlak, losse zijden in dezelfde stijl die rondgaan
+    (zo is een perceelgrens vaak getekend), of muren en ruimtes die samen de
+    omtrek vormen, ook met een deur of poort ertussen;
   - per vorm de hoek uit de richting van de randen (met elke kwartslag erbij),
     het zwaartepunt op het zwaartepunt, en fijn bijsturen. De score is de
     overlap, en vanaf 60% wordt een gebouw geplaatst. Het paneel toont hoeveel,
@@ -256,7 +267,12 @@ grondplannen.
   - bij een rechthoek, die ook omgekeerd past, beslissen de muren die op het
     plan staan, en anders de kleinste draaiing;
   - een bijgebouw dat tegen de woning staat, vindt de app in wat er van de
-    vorm overblijft.
+    vorm overblijft;
+  - een gearceerde vorm is meestal een bestaand gebouw, zoals dat van de
+    buren: daar komt een gebouw enkel op als het overtuigend past (85%). En
+    ligt het eerste gebouw in een grotere gesloten vorm, het perceel, dan
+    zoekt de app de andere enkel daarbinnen, niet in het titelblok of bij de
+    buren. Een gebouw dat niet op het plan staat, zet je zelf.
 
   Met **Gebouwen verplaatsen** sleep je een gebouw, draai je het per 1° of
   90° of met een getal, en schuiven de pijltjes het 10 cm (met Shift 1 m).
@@ -811,7 +827,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    het soort *Bestaand huis*. Zie [Huizen](#huizen).
 4. **De trap in 3D:** het gelijkvloers opnieuw omzetten (of **Alles
    omzetten**), zodat de app de trap van het plan leest. Bij het nakijken
-   staat hij in het oranje; kijk na of hij naar boven wijst.
+   staat hij in het oranje; kijk na of hij naar boven wijst en of het bordes
+   aan de goede kant ligt.
 5. **De inplanting:** bij 3D nakijken of de gebouwen op hun plaats op het
    inplantingsplan staan (**Van boven** helpt), zo nodig bijsturen met
    **Gebouwen verplaatsen**, en **Inplanting bewaren**. Staat het

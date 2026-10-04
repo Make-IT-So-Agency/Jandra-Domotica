@@ -1,11 +1,11 @@
-import { nettoOppervlakte } from "../omzetting/geometrie";
+import { nettoOppervlakte, oppervlakte } from "../omzetting/geometrie";
 import type { Trapvoorstel, Xy } from "../omzetting/types";
 import type { SoortRuimte } from "../types";
 import { maakDak, type Dak } from "./dak";
 import type { Dakinstelling } from "./dakregels";
 import { vindGaten, type Gat, type Gekendeopening } from "./gaten";
 import { maakTrappen, type Trap3d, type Trapstand } from "./trappen";
-import { binnenVeelhoeken, verschil, vereniging, type Veelhoek } from "./vlak";
+import { binnenVeelhoeken, doorsnede, vergrootConvex, verschil, vereniging, type Veelhoek } from "./vlak";
 
 /**
  * Het huis in 3D, als gewone gegevens: per verdieping de muren met welke kant
@@ -23,6 +23,11 @@ import { binnenVeelhoeken, verschil, vereniging, type Veelhoek } from "./vlak";
 
 /** De dikte van een vloerplaat en van een plat dak. */
 export const PLAAT = 0.25;
+/**
+ * Een ingesloten zone zonder ruimte op het plan, tot zo groot (m²), hoort bij
+ * binnen: een trapzone, een kast, een schacht. Een grotere is een patio.
+ */
+const KLEINE_ZONE = 12;
 export const DAKPLAAT = 0.3;
 export const STANDAARD_PLAFOND = 2.6;
 
@@ -172,6 +177,7 @@ export function maakModel(
     if (gestapeld.length === 0) continue;
     const voetafdrukken: Veelhoek[][] = [];
     const murenPer: Veelhoek[][] = [];
+    const binnenPer: Veelhoek[][] = [];
     const eigen: Verdieping3d[] = [];
     let x0 = Infinity;
     let y0 = Infinity;
@@ -188,6 +194,13 @@ export function maakModel(
       const gaten = vindGaten(verdieping.ruimtes, muren, verdieping.openingen, plafond);
       const voetafdruk = vereniging([...ruimtes, ...muren, ...gaten.map(rechthoekVan)]);
       voetafdrukken.push(voetafdruk);
+      const zones = voetafdruk.flatMap((veelhoek) => veelhoek.slice(1)).filter((ring) => Math.abs(oppervlakte(ring)) <= KLEINE_ZONE);
+      const binnen: Veelhoek[] = [
+        ...ruimtes,
+        ...zones.map((ring): Veelhoek => [ring]),
+        ...gaten.filter((gat) => gat.soort === "deur" || gat.soort === "doorgang").map(rechthoekVan),
+      ];
+      binnenPer.push(binnen);
       murenPer.push(muren);
 
       for (const veelhoek of voetafdruk) {
@@ -209,10 +222,7 @@ export function maakModel(
         plafond,
         muren: muren.map((veelhoek) => ({
           veelhoek,
-          zijden: zijdenVan(veelhoek, muren, [
-            ...ruimtes,
-            ...gaten.filter((gat) => gat.soort === "deur" || gat.soort === "doorgang").map(rechthoekVan),
-          ]),
+          zijden: zijdenVan(veelhoek, muren, binnen),
         })),
         gaten,
         vloeren: verdieping.ruimtes.map((r) => ({ ruimteId: r.id, soort: r.soort, ringen: r.ringen })),
@@ -238,6 +248,21 @@ export function maakModel(
         boven.vloeren = boven.vloeren.flatMap((vloer) => verschil([vloer.ringen], uitsparingen).map((ringen) => ({ ...vloer, ringen })));
       }
     }
+
+    // De vloerplaat loopt door een kleine zone, tenzij de trap van beneden erdoor komt: dan is het een trapgat.
+    // En wat rond en boven een trap ligt, is binnen, ook als het trapgat aan een raam ligt dat niet herkend werd.
+    eigen.forEach((verdieping, i) => {
+      const vanBeneden = i > 0 ? eigen[i - 1].trappen.flatMap((trap) => trap.delen.map((deel): Veelhoek => [deel.hoeken])) : [];
+      const rondTrap = [...verdieping.trappen.flatMap((trap) => trap.delen.map((deel): Veelhoek => [deel.hoeken])), ...vanBeneden].map(
+        ([ring]): Veelhoek => [vergrootConvex(oppervlakte(ring) < 0 ? [...ring].reverse() : ring, 0.2)],
+      );
+      if (rondTrap.length > 0) {
+        verdieping.muren = verdieping.muren.map((muur) => ({ ...muur, zijden: zijdenVan(muur.veelhoek, murenPer[i], [...binnenPer[i], ...rondTrap]) }));
+      }
+      const open = (gat: Xy[]) =>
+        Math.abs(oppervlakte(gat)) > KLEINE_ZONE || doorsnede([[gat]], vanBeneden).some((stuk) => Math.abs(nettoOppervlakte(stuk)) > 0.05);
+      verdieping.plaat = { ...verdieping.plaat, veelhoeken: verdieping.plaat.veelhoeken.map(([rand, ...gaten]) => [rand, ...gaten.filter(open)]) };
+    });
 
     // Wat de verdieping erboven niet bedekt, krijgt een plat dak; de bovenste het dak van het gebouw.
     for (const [i, verdieping] of eigen.entries()) {
