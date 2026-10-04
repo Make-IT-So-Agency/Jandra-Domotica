@@ -1,6 +1,7 @@
 import type { Bevestiging } from "./bevestigen";
 import { naarHuis, type Kalibratie } from "./geometrie";
-import type { Planinfo } from "./referentie";
+import { WERKWIJZE, zetOm } from "./pijplijn";
+import { leesKalibratie, type Planinfo } from "./referentie";
 import { vergelijkRuimtes, type Oudruimte, type Ruimteverschil } from "./ruimtediff";
 import { MARGE, bewijs } from "./schaal";
 import type { Blad, Ruimtevoorstel, Voorstel, Xy } from "./types";
@@ -41,6 +42,31 @@ export interface Reeksplan {
   gebouw: Gebouwinfo | null;
   /** Aan deze verdieping hangt nog een grondplan: welk de ruimtes geeft, kiest iemand zelf. */
   dubbel: boolean;
+  /**
+   * Bij opnieuw omzetten: waar de versie al lag. Ze blijft daar, zodat alles
+   * wat in meter op de verdieping staat (punten, meubels, leidingen,
+   * correcties) op zijn plaats blijft.
+   */
+  bewaard: { kalibratie: Kalibratie; referentieVersieId: number | null } | null;
+}
+
+/** Wat al bevestigd is, en wat daarvan met oudere regels (een lagere werkwijze dan nu). */
+export function omzetstand(omzettingen: readonly { planversie_id: number; werkwijze: number }[]): {
+  bevestigd: Set<number>;
+  oud: Set<number>;
+} {
+  return {
+    bevestigd: new Set(omzettingen.map((o) => o.planversie_id)),
+    oud: new Set(omzettingen.filter((o) => o.werkwijze < WERKWIJZE).map((o) => o.planversie_id)),
+  };
+}
+
+/** De bewaarde plaats van een bevestigde versie, of null als ze onvolledig is. */
+function bewaardePlaats(versie: Planinfo["versies"][number]): Reeksplan["bewaard"] {
+  const kalibratie = leesKalibratie(versie.kalibratie);
+  if (!kalibratie) return null;
+  const referentie = Number(versie.kalibratie?.referentieVersieId);
+  return { kalibratie, referentieVersieId: Number.isSafeInteger(referentie) && referentie > 0 ? referentie : null };
 }
 
 export interface Overgeslagen {
@@ -60,15 +86,21 @@ const peil = (verdieping: Verdiepinginfo) => verdieping.vloerpeil_m ?? verdiepin
  * meestal het volledigste blad; zo ligt elke verdieping op een buur die al
  * uitgelijnd is.
  *
+ * Opnieuw omzetten neemt de andere: die waarvan de nieuwste versie bevestigd
+ * is met oudere regels (oud). Elk blijft op zijn bewaarde plaats.
+ *
  * open telt alle grondplannen waarvan de nieuwste versie nog niet omgezet is,
- * ook die zonder verdieping: zoals de taak op het overzicht.
+ * ook die zonder verdieping: zoals de taak op het overzicht. verouderd telt
+ * die waarvan de nieuwste versie met oudere regels omgezet is.
  */
 export function teDoen(
   plannen: Planinfo[],
   verdiepingen: Verdiepinginfo[],
   gebouwen: Gebouwinfo[],
   bevestigd: Set<number>,
-): { reeks: Reeksplan[]; overgeslagen: Overgeslagen[]; omgezet: number; open: number } {
+  oud: Set<number> = new Set(),
+  opnieuw = false,
+): { reeks: Reeksplan[]; overgeslagen: Overgeslagen[]; omgezet: number; open: number; verouderd: number } {
   const verdiepingVan = new Map(verdiepingen.map((v) => [v.id, v]));
   const gebouwVan = new Map(gebouwen.map((g) => [g.id, g]));
   const plaats = new Map(gebouwen.map((g, index) => [g.id, index]));
@@ -85,17 +117,22 @@ export function teDoen(
   const overgeslagen: Overgeslagen[] = [];
   let omgezet = 0;
   let open = 0;
+  let verouderd = 0;
   for (const plan of grondplannen) {
     const versie = nieuwsteVersie(plan);
     if (!versie) {
-      overgeslagen.push({ plan, reden: "Dit plan heeft nog geen versie." });
+      if (!opnieuw) overgeslagen.push({ plan, reden: "Dit plan heeft nog geen versie." });
       continue;
     }
     if (bevestigd.has(versie.id)) {
       omgezet++;
-      continue;
+      if (oud.has(versie.id)) verouderd++;
+      if (!opnieuw || !oud.has(versie.id)) continue;
+    } else {
+      open++;
+      // Wat nog nooit omgezet werd, zet gewoon omzetten om.
+      if (opnieuw) continue;
     }
-    open++;
     if (plan.verdieping_id === null) {
       overgeslagen.push({ plan, reden: "Dit grondplan hangt nog niet aan een verdieping." });
       continue;
@@ -105,12 +142,18 @@ export function teDoen(
       overgeslagen.push({ plan, reden: "De verdieping van dit grondplan bestaat niet meer." });
       continue;
     }
+    const bewaard = opnieuw ? bewaardePlaats(versie) : null;
+    if (opnieuw && !bewaard) {
+      overgeslagen.push({ plan, reden: "Waar dit plan ligt, is niet volledig bewaard. Zet het apart om." });
+      continue;
+    }
     reeks.push({
       plan,
       versie,
       verdieping,
       gebouw: gebouwVan.get(verdieping.gebouw_id) ?? null,
       dubbel: (perVerdieping.get(verdieping.id) ?? 0) > 1,
+      bewaard,
     });
   }
 
@@ -126,7 +169,7 @@ export function teDoen(
       natuurlijk.compare(a.plan.titel, b.plan.titel)
     );
   });
-  return { reeks, overgeslagen, omgezet, open };
+  return { reeks, overgeslagen, omgezet, open, verouderd };
 }
 
 /** De nieuwste versie van een plan, zoals de lijst van plannen ze toont. */
@@ -224,10 +267,49 @@ export function neemNamenOver(ruimtes: Ruimtevoorstel[], bestaand: Oudruimte[], 
   );
   return ruimtes.map((r) => {
     const koppeling = verschil.koppelingen.find((k) => k.sleutel === r.sleutel);
-    if (!koppeling?.oudeNaam || koppeling.oudeNaam === r.naam) return r;
-    const nieuw = beoordeelRuimte({ ...r, naam: koppeling.oudeNaam });
+    // Een soort die iemand zelf koos, blijft.
+    const metSoort = koppeling?.oudeSoort && koppeling.oudeSoort !== r.soort ? { ...r, soort: koppeling.oudeSoort } : r;
+    if (!koppeling?.oudeNaam || koppeling.oudeNaam === r.naam) return metSoort;
+    const nieuw = beoordeelRuimte({ ...metSoort, naam: koppeling.oudeNaam });
     return nieuw.status === "goed" ? { ...nieuw, mee: true } : nieuw;
   });
+}
+
+/**
+ * Een blad opnieuw omgezet, met de schaal waarmee het bevestigd werd. Was
+ * die zelf aangeduid (of las de app ze anders), dan die: anders zou het plan
+ * verschuiven.
+ */
+export function opnieuwOmgezet(blad: Blad, kalibratie: Kalibratie): Voorstel {
+  const voorstel = zetOm(blad);
+  if (voorstel.schaal && Math.abs(voorstel.schaal.meterPerPunt / kalibratie.meterPerPunt - 1) <= 1e-6) return voorstel;
+  return zetOm(blad, { meterPerPunt: kalibratie.meterPerPunt });
+}
+
+/**
+ * Het oordeel over een plan dat opnieuw omgezet wordt, op zijn bewaarde
+ * plaats: de ruimtes houden hun naam, soort en id. Klaar als elke bestaande
+ * ruimte doorloopt, er niets verdwijnt en er niets bijkomt.
+ */
+export function opnieuwBeoordeeld(
+  voorstel: Pick<Voorstel, "schaal" | "meldingen" | "ruimtes">,
+  bestaand: Oudruimte[],
+  kalibratie: Kalibratie,
+): { ruimtes: Ruimtevoorstel[]; verschil: Ruimteverschil; status: Planstatus } {
+  const ruimtes = neemNamenOver(voorstel.ruimtes, bestaand, kalibratie);
+  const verschil = verschilVoor(ruimtes, bestaand, kalibratie);
+  const nieuw = meegaand(ruimtes)
+    .filter((r) => verschil.koppelingen.find((k) => k.sleutel === r.sleutel)?.ruimteId == null)
+    .map((r) => r.naam.trim());
+  const status = planstatus({
+    dubbel: false,
+    voorstel,
+    ruimtes,
+    uitlijning: null,
+    verdwenen: verschil.verdwenen.map((r) => r.naam),
+    nieuw,
+  });
+  return { ruimtes, verschil, status };
 }
 
 /** De ruimtes die bij het bevestigen meegaan: aangevinkt en met een naam. */
@@ -267,8 +349,13 @@ export function planstatus(invoer: {
   uitlijning: (Pick<Uitgelijnd, "zekerheid" | "gedraaid"> & { op: string }) | null;
   /** De namen van de bestaande ruimtes die zouden verdwijnen. */
   verdwenen: string[];
+  /**
+   * Bij opnieuw omzetten: de namen van de ruimtes die er nieuw bij komen.
+   * Misschien vinkte iemand ze de eerste keer bewust uit.
+   */
+  nieuw?: string[];
 }): Planstatus {
-  const { dubbel, voorstel, ruimtes, uitlijning, verdwenen } = invoer;
+  const { dubbel, voorstel, ruimtes, uitlijning, verdwenen, nieuw = [] } = invoer;
   if (dubbel) {
     return { oordeel: "kan-niet", redenen: ["Aan deze verdieping hangt nog een grondplan. Zet het juiste apart om."] };
   }
@@ -299,6 +386,7 @@ export function planstatus(invoer: {
     );
   }
   if (verdwenen.length > 0) redenen.push(`Verdwijnt van de verdieping: ${opsomming(verdwenen)}.`);
+  if (nieuw.length > 0) redenen.push(`Komt er nieuw bij: ${opsomming(nieuw)}.`);
 
   return redenen.length === 0 ? { oordeel: "klaar", redenen } : { oordeel: "nakijken", redenen };
 }
@@ -338,8 +426,10 @@ export function bevestigingVoor(invoer: {
   referentieVersieId: number | null;
   ruimtes: Ruimtevoorstel[];
   verschil: Ruimteverschil;
+  /** Het peil en de plafondhoogte van de verdieping uit het plan overnemen. Niet bij opnieuw omzetten. */
+  verdiepingBijwerken?: boolean;
 }): Bevestiging | null {
-  const { versieId, voorstel, kalibratie, referentieVersieId, ruimtes, verschil } = invoer;
+  const { versieId, voorstel, kalibratie, referentieVersieId, ruimtes, verschil, verdiepingBijwerken = true } = invoer;
   if (!voorstel.schaal) return null;
   return {
     versieId,
@@ -357,7 +447,11 @@ export function bevestigingVoor(invoer: {
     muren: voorstel.muren,
     trappen: voorstel.trappen,
     luifels: voorstel.luifels.map(({ lijn, diepte }) => ({ lijn, diepte })),
-    verdieping: { bijwerken: true, vloerpeil: voorstel.verdieping.vloerpeil, plafondhoogte: voorstel.verdieping.plafondhoogte },
+    verdieping: {
+      bijwerken: verdiepingBijwerken,
+      vloerpeil: voorstel.verdieping.vloerpeil,
+      plafondhoogte: voorstel.verdieping.plafondhoogte,
+    },
     schaal: voorstel.schaal,
   };
 }

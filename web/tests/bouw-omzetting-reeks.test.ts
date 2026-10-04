@@ -11,6 +11,9 @@ import {
   lijnBladUit,
   meegaand,
   neemNamenOver,
+  omzetstand,
+  opnieuwBeoordeeld,
+  opnieuwOmgezet,
   planstatus,
   teDoen,
   verschilVoor,
@@ -114,6 +117,33 @@ describe("welke grondplannen meedoen, en in welke volgorde", () => {
       [10, "Dit grondplan hangt nog niet aan een verdieping."],
       [11, "Dit plan heeft nog geen versie."],
     ]);
+  });
+
+  it("neemt bij opnieuw omzetten enkel wat met oudere regels omgezet werd, met de bewaarde plaats", () => {
+    const k = { meterPerPunt: 0.0176, kwartslagen: 1, dx: 2.5, dy: -1, bron: "hand", referentieVersieId: 7 };
+    const plannen = [
+      plan(10, 2, [{ ...versie(1), kalibratie: k }]),
+      plan(11, 3, [{ ...versie(2), kalibratie: k }]),
+      plan(12, 6, [versie(3)]),
+      // Bevestigd maar zonder volledige kalibratie: dat kan opnieuw omzetten niet.
+      plan(13, 4, [{ ...versie(4), kalibratie: { meterPerPunt: 0.0176 } }]),
+    ];
+    const { bevestigd, oud } = omzetstand([
+      { planversie_id: 1, werkwijze: 4 },
+      { planversie_id: 2, werkwijze: 5 },
+      { planversie_id: 4, werkwijze: 2 },
+    ]);
+    expect([...oud]).toEqual([1, 4]);
+    const gewoon = teDoen(plannen, verdiepingen, gebouwen, bevestigd, oud);
+    expect(gewoon.reeks.map((r) => r.versie.id)).toEqual([3]);
+    expect(gewoon.verouderd).toBe(2);
+    expect(gewoon.reeks[0].bewaard).toBeNull();
+
+    const opnieuw = teDoen(plannen, verdiepingen, gebouwen, bevestigd, oud, true);
+    expect(opnieuw.reeks.map((r) => r.versie.id)).toEqual([1]);
+    expect(opnieuw.reeks[0].bewaard).toEqual({ kalibratie: { meterPerPunt: 0.0176, kwartslagen: 1, dx: 2.5, dy: -1 }, referentieVersieId: 7 });
+    expect(opnieuw.overgeslagen.map((o) => [o.plan.id, o.reden])).toEqual([[13, "Waar dit plan ligt, is niet volledig bewaard. Zet het apart om."]]);
+    expect([opnieuw.open, opnieuw.verouderd]).toEqual([1, 2]);
   });
 
   it("merkt twee grondplannen op dezelfde verdieping, ook als het ene al omgezet is", () => {
@@ -315,3 +345,68 @@ describe("een reeks van twee verdiepingen", () => {
     ).toEqual({ oordeel: "nakijken", redenen: ["De tekening staat gedraaid tegenover Gelijkvloers."] });
   });
 });
+
+describe("opnieuw omzetten", () => {
+  it("houdt het plan op zijn bewaarde plaats, met de namen, de soorten en de ids", async () => {
+    const blad = await lees(gelijkvloers());
+    // Ergens anders in het gebouw gelegd dan nul, en een kwartslag gedraaid.
+    const k: Kalibratie = { meterPerPunt: zetOm(blad).schaal!.meterPerPunt, kwartslagen: 1, dx: 12.5, dy: -3.2 };
+    const eerst = zetOm(blad);
+    const bestaand = eerst.ruimtes
+      .filter((r) => r.naam)
+      .map((r, i) => ({
+        id: 100 + i,
+        naam: r.naam === "leefruimte" ? "living" : r.naam,
+        soort: r.naam === "keuken" ? ("berging" as const) : r.soort,
+        ringen: r.ringen.map((ring) => ring.map((p) => naarHuis(p, k))),
+        oppervlakte: r.oppervlakte,
+      }));
+
+    const voorstel = opnieuwOmgezet(blad, k);
+    const { ruimtes, verschil, status } = opnieuwBeoordeeld(voorstel, bestaand, k);
+    expect(status).toEqual({ oordeel: "klaar", redenen: [] });
+    // Een naam en een soort die iemand zelf koos, blijven.
+    expect(ruimtes.find((r) => r.naam === "living")).toBeTruthy();
+    expect(ruimtes.find((r) => r.naam === "keuken")?.soort).toBe("berging");
+    expect(verschil.verdwenen).toEqual([]);
+    expect(meegaand(ruimtes).map((r) => verschil.koppelingen.find((koppeling) => koppeling.sleutel === r.sleutel)?.ruimteId).sort()).toEqual(
+      bestaand.map((r) => r.id).sort(),
+    );
+
+    const bevestiging = bevestigingVoor({
+      versieId: 1,
+      voorstel,
+      kalibratie: k,
+      referentieVersieId: null,
+      ruimtes,
+      verschil,
+      verdiepingBijwerken: false,
+    })!;
+    expect(bevestiging.kalibratie).toMatchObject(k);
+    expect(bevestiging.verdieping.bijwerken).toBe(false);
+  });
+
+  it("kijkt na als er een ruimte bij komt of verdwijnt", async () => {
+    const blad = await lees(gelijkvloers());
+    const k: Kalibratie = { meterPerPunt: zetOm(blad).schaal!.meterPerPunt, kwartslagen: 0, dx: 0, dy: 0 };
+    const alle = zetOm(blad).ruimtes.filter((r) => r.naam);
+    const alsOud = (r: Ruimtevoorstel, i: number) => ({ id: 100 + i, naam: r.naam, ringen: r.ringen.map((ring) => ring.map((p) => naarHuis(p, k))), oppervlakte: r.oppervlakte });
+    const zonderKeuken = alle.filter((r) => r.naam !== "keuken").map(alsOud);
+    const erbij = opnieuwBeoordeeld(opnieuwOmgezet(blad, k), zonderKeuken, k).status;
+    expect(erbij.oordeel).toBe("nakijken");
+    expect(erbij.redenen).toContain("Komt er nieuw bij: keuken.");
+    const metExtra = [...alle.map(alsOud), { id: 999, naam: "kelder", ringen: [[[50, 50], [52, 50], [52, 52], [50, 52]] as Xy[]], oppervlakte: 4 }];
+    const weg = opnieuwBeoordeeld(opnieuwOmgezet(blad, k), metExtra, k).status;
+    expect(weg.redenen).toContain("Verdwijnt van de verdieping: kelder.");
+  });
+
+  it("gebruikt de bewaarde schaal als ze anders is dan wat het blad zegt", async () => {
+    const blad = await lees(gelijkvloers());
+    const gelezen = zetOm(blad).schaal!.meterPerPunt;
+    expect(opnieuwOmgezet(blad, { meterPerPunt: gelezen, kwartslagen: 0, dx: 0, dy: 0 }).schaal!.bron).not.toBe("hand");
+    const zelf = opnieuwOmgezet(blad, { meterPerPunt: gelezen * 1.02, kwartslagen: 0, dx: 0, dy: 0 });
+    expect(zelf.schaal).toMatchObject({ bron: "hand" });
+    expect(zelf.schaal!.meterPerPunt).toBeCloseTo(gelezen * 1.02, 9);
+  });
+});
+

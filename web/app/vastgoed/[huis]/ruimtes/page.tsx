@@ -3,7 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { kaderVan } from "@/lib/bouw/omzetting/geometrie";
-import { teDoen } from "@/lib/bouw/omzetting/reeks";
+import { omzetstand, teDoen } from "@/lib/bouw/omzetting/reeks";
 import { lijstGebouwen, lijstOmzettingen, lijstPlannen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { CATEGORIEKLEUREN, ruimteVan, soortVan, type Punt } from "@/lib/bouw/punten";
@@ -39,6 +39,7 @@ export default async function Ruimtespagina({
   let grondplannen: { id: number; verdieping_id: number | null }[];
   let punten: Punt[];
   let nogOmTeZetten: number;
+  let verouderd: number;
   try {
     const [g, v, r, p, pt] = await Promise.all([
       lijstGebouwen(huis.id),
@@ -53,7 +54,8 @@ export default async function Ruimtespagina({
     grondplannen = p.filter((plan) => plan.soort === "grondplan" && plan.versies.length > 0);
     punten = pt;
     const omzettingen = await lijstOmzettingen(p.flatMap((plan) => plan.versies.map((versie) => versie.id)));
-    nogOmTeZetten = teDoen(p, v, g, new Set(omzettingen.map((omzetting) => omzetting.planversie_id))).open;
+    const { bevestigd, oud } = omzetstand(omzettingen);
+    ({ open: nogOmTeZetten, verouderd } = teDoen(p, v, g, bevestigd, oud));
   } catch (fout) {
     return (
       <>
@@ -72,7 +74,7 @@ export default async function Ruimtespagina({
       </p>
 
       <Melding soort={soort} melding={melding} />
-      <Omzetoproep huisId={huis.id} aantal={nogOmTeZetten} />
+      <Omzetoproep huisId={huis.id} aantal={nogOmTeZetten} verouderd={verouderd} />
 
       {verdiepingen.length === 0 ? (
         <div className="kaart">

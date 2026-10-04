@@ -13,6 +13,7 @@ import {
   lijstPlanbestanden,
   lijstVerdiepingen,
 } from "@/lib/bouw/opslag";
+import { WERKWIJZE } from "@/lib/bouw/omzetting/pijplijn";
 import { huispad } from "@/lib/bouw/paden";
 import { PLANNAMEN, SOORTEN_PLAN, hoortBijVerdieping } from "@/lib/bouw/types";
 import { sorteerVerdiepingen, verdiepingNaam, volgendLabel } from "@/lib/bouw/weergave";
@@ -53,6 +54,8 @@ export default async function Plandetail({
     lijstOmzettingen(plan.versies.map((v) => v.id)),
   ]);
   const omzettingVan = new Map(omzettingen.map((o) => [o.planversie_id, o]));
+  /** Omgezet met oudere regels: opnieuw omzetten geeft wat de app nu meer leest. */
+  const oud = (versieId: number) => (omzettingVan.get(versieId)?.werkwijze ?? WERKWIJZE) < WERKWIJZE;
   const bestandVan = new Map(bestanden.map((b) => [b.id, b]));
   const verdieping = verdiepingen.find((v) => v.id === plan.verdieping_id);
   const gebouw = gebouwen.find((g) => g.id === plan.gebouw_id);
@@ -88,11 +91,13 @@ export default async function Plandetail({
             <strong>{getoond.label}</strong>
             <span className="hulp">
               {getoond.datum ? `${datum(getoond.datum)} · ` : ""}blad {getoond.pagina}
-              {omzettingVan.has(getoond.id) ? ` · ruimtes bevestigd op ${datumTijd(omzettingVan.get(getoond.id)!.bevestigd_op)}` : ""}
+              {omzettingVan.has(getoond.id)
+                ? ` · ruimtes bevestigd op ${datumTijd(omzettingVan.get(getoond.id)!.bevestigd_op)}${oud(getoond.id) ? ", met oudere regels" : ""}`
+                : ""}
             </span>
             {plan.soort === "grondplan" ? (
               <Link className="knop omzetknop" href={huispad(huis.id, `/plannen/${plan.id}/omzetten?versie=${getoond.id}`)}>
-                {omzettingVan.has(getoond.id) ? "Ruimtes nakijken" : "Omzetten naar ruimtes"}
+                {omzettingVan.has(getoond.id) ? (oud(getoond.id) ? "Opnieuw omzetten" : "Ruimtes nakijken") : "Omzetten naar ruimtes"}
               </Link>
             ) : null}
             {plan.soort === "grondplan" && plan.verdieping_id && omzettingVan.has(getoond.id) ? (
@@ -156,7 +161,7 @@ export default async function Plandetail({
                       {plan.soort === "grondplan" ? (
                         <td data-label="Ruimtes">
                           <Link href={huispad(huis.id, `/plannen/${plan.id}/omzetten?versie=${versie.id}`)}>
-                            {omzettingVan.has(versie.id) ? "bevestigd" : "omzetten"}
+                            {omzettingVan.has(versie.id) ? (oud(versie.id) ? "opnieuw omzetten" : "bevestigd") : "omzetten"}
                           </Link>
                         </td>
                       ) : null}

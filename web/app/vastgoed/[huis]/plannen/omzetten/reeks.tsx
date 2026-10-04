@@ -12,6 +12,8 @@ import {
   lijnBladUit,
   meegaand,
   neemNamenOver,
+  opnieuwBeoordeeld,
+  opnieuwOmgezet,
   planstatus,
   verschilVoor,
   type Planstatus,
@@ -39,7 +41,11 @@ export interface Reeksgegevens {
     /** Enkel als er meer dan één gebouw is. */
     gebouw: string | null;
     dubbel: boolean;
+    /** Bij opnieuw omzetten: waar de versie al lag, en waarop ze toen uitgelijnd werd. */
+    bewaard: { kalibratie: Kalibratie; referentieVersieId: number | null } | null;
   }[];
+  /** Opnieuw omzetten: elk plan blijft op zijn bewaarde plaats, en het peil van de verdieping blijft. */
+  opnieuw: boolean;
   /** Alle plannen en verdiepingen, om de referentie te kiezen zoals het nakijkscherm. */
   plannen: Planinfo[];
   verdiepingen: Verdiepinginfo[];
@@ -56,6 +62,10 @@ interface Gelezen {
   voorstel: Voorstel;
   /** Null zonder schaal. */
   kalibratie: Kalibratie | null;
+  /** Ligt het plan op zijn bewaarde plaats (opnieuw omzetten), zonder uitlijnen? */
+  bewaard: boolean;
+  /** Waarop het plan uitgelijnd is: nu, of bij opnieuw omzetten toen. */
+  referentieVersieId: number | null;
   referentie: { versieId: number; op: string; inReeks: boolean } | null;
   referentielijnen: Lijnstuk[];
   uitlijning: Uitgelijnd | null;
@@ -120,12 +130,41 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
         pagina: item.versie.pagina,
       });
       await adem();
-      const voorstel = zetOm(blad);
       const bestaand = begin.bestaand[item.verdieping.id] ?? [];
       const geen = { referentie: null, referentielijnen: [], uitlijning: null };
+
+      // Opnieuw omzetten: het plan blijft waar het lag, ook met een schaal die iemand zelf aanduidde.
+      if (item.bewaard) {
+        const k = item.bewaard.kalibratie;
+        const voorstel = opnieuwOmgezet(blad, k);
+        const { ruimtes, verschil, status } = opnieuwBeoordeeld(voorstel, bestaand, k);
+        return {
+          stap: "gelezen",
+          voorstel,
+          kalibratie: voorstel.schaal ? k : null,
+          bewaard: true,
+          referentieVersieId: item.bewaard.referentieVersieId,
+          ...geen,
+          ruimtes,
+          verschil,
+          status,
+        };
+      }
+
+      const voorstel = zetOm(blad);
       if (!voorstel.schaal) {
         const status = planstatus({ dubbel: false, voorstel, ruimtes: voorstel.ruimtes, uitlijning: null, verdwenen: [] });
-        return { stap: "gelezen", voorstel, kalibratie: null, ...geen, ruimtes: voorstel.ruimtes, verschil: null, status };
+        return {
+          stap: "gelezen",
+          voorstel,
+          kalibratie: null,
+          bewaard: false,
+          referentieVersieId: null,
+          ...geen,
+          ruimtes: voorstel.ruimtes,
+          verschil: null,
+          status,
+        };
       }
 
       const meterPerPunt = voorstel.schaal.meterPerPunt;
@@ -180,6 +219,8 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
         stap: "gelezen",
         voorstel,
         kalibratie,
+        bewaard: false,
+        referentieVersieId: referentie?.versieId ?? null,
         referentie: referentie ? { versieId: referentie.versieId, op, inReeks: eerder !== undefined } : null,
         referentielijnen,
         uitlijning,
@@ -254,9 +295,10 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
               versieId: item.versie.id,
               voorstel: g.voorstel,
               kalibratie: g.kalibratie,
-              referentieVersieId: g.referentie?.versieId ?? null,
+              referentieVersieId: g.referentieVersieId,
               ruimtes: g.ruimtes,
               verschil: g.verschil,
+              verdiepingBijwerken: !begin.opnieuw,
             })
           : null;
       setBewaren((huidig) => ({ ...huidig, [item.versie.id]: { soort: "bezig" } }));
@@ -274,7 +316,7 @@ export default function Reeks({ gegevens }: { gegevens: Reeksgegevens }) {
       ruimtes += uitkomst.data.bijgewerkt + uitkomst.data.nieuw;
       setBewaren((huidig) => ({ ...huidig, [item.versie.id]: { soort: "bewaard" } }));
     }
-    const tekst = `${meervoud(plannen, "plan", "plannen")} bevestigd, samen ${meervoud(ruimtes, "ruimte", "ruimtes")}.`;
+    const tekst = `${meervoud(plannen, "plan", "plannen")} ${begin.opnieuw ? "opnieuw omgezet" : "bevestigd"}, samen ${meervoud(ruimtes, "ruimte", "ruimtes")}.`;
     router.push(huispad(begin.huisId, `/ruimtes?soort=goed&melding=${encodeURIComponent(tekst)}`));
     router.refresh();
   }
@@ -386,7 +428,13 @@ function Kaart({
       </div>
       <p className="hulp">
         {waar}
-        {g?.referentie ? ` · uitgelijnd op ${g.referentie.op}` : g?.kalibratie ? " · eerste blad van dit gebouw" : ""}
+        {g?.bewaard
+          ? " · op de bevestigde plaats"
+          : g?.referentie
+            ? ` · uitgelijnd op ${g.referentie.op}`
+            : g?.kalibratie
+              ? " · eerste blad van dit gebouw"
+              : ""}
       </p>
 
       {g?.kalibratie && g.ruimtes.length > 0 ? <Schets ruimtes={g.ruimtes} kalibratie={g.kalibratie} lijnen={g.referentielijnen} /> : null}

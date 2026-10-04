@@ -39,7 +39,15 @@ import { bevestigOmzettingActie } from "./acties";
 export interface Omzetgegevens {
   huisId: number;
   planId: number;
-  versie: { id: number; label: string; bestandId: number; pagina: number; kalibratie: Kalibratie | null };
+  versie: {
+    id: number;
+    label: string;
+    bestandId: number;
+    pagina: number;
+    kalibratie: Kalibratie | null;
+    /** Een schaal die iemand bij het bevestigen zelf aanduidde: zo ligt het plan weer waar het lag. */
+    handschaal?: number | null;
+  };
   verdieping: { id: number; naam: string; vloerpeil_m: number | null; plafondhoogte_m: number | null };
   /** De ruimtes die de verdieping nu heeft, in meter. */
   bestaand: Oudruimte[];
@@ -103,7 +111,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
 
   const [klein, setKlein] = useState(false);
   const [gelezen, setGelezen] = useState<Blad | null>(null);
-  const [handschaal, setHandschaal] = useState<number | null>(null);
+  const [handschaal, setHandschaal] = useState<number | null>(versie.handschaal ?? null);
   const [voorstel, setVoorstel] = useState<Voorstel | null>(null);
   const [ruimtes, setRuimtes] = useState<Bewerkruimte[]>([]);
   const [kandidaten, setKandidaten] = useState<Kandidaat[]>([]);
@@ -224,7 +232,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
   );
   const wachtOpUitlijning = referentie !== null && verschuiving === null;
 
-  // 5. Een ruimte die op dezelfde plaats lag, houdt de naam die ze al had.
+  // 5. Een ruimte die op dezelfde plaats lag, houdt de naam en de soort die ze al had.
   const [namenOvergenomen, setNamenOvergenomen] = useState(false);
   useEffect(() => {
     if (namenOvergenomen || !kalibratie || wachtOpUitlijning || bestaand.length === 0 || ruimtes.length === 0) return;
@@ -235,7 +243,9 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
     setRuimtes((huidig) =>
       huidig.map((r) => {
         const koppeling = verschil.koppelingen.find((k) => k.sleutel === r.sleutel);
-        return koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? beoordeelRuimte({ ...r, naam: koppeling.oudeNaam }) : r;
+        const soort = koppeling?.oudeSoort && koppeling.oudeSoort !== r.soort ? { soort: koppeling.oudeSoort, soortGekozen: true } : {};
+        const naam = koppeling?.oudeNaam && koppeling.oudeNaam !== r.naam ? { naam: koppeling.oudeNaam } : {};
+        return "soort" in soort || "naam" in naam ? beoordeelRuimte({ ...r, ...naam, ...soort }) : r;
       }),
     );
     setNamenOvergenomen(true);

@@ -44,9 +44,12 @@ describe("een nieuwe versie tegenover de ruimtes die er al zijn", () => {
       { sleutel: "r2", naam: "bureau", ringen: vierkant(10, 10, 3) },
     ]);
     expect(verschil.koppelingen).toEqual([
-      { sleutel: "r1", ruimteId: 1, oudeNaam: "leefruimte", oudeOppervlakte: 36 },
-      { sleutel: "r2", ruimteId: null, oudeNaam: null, oudeOppervlakte: null },
+      { sleutel: "r1", ruimteId: 1, oudeNaam: "leefruimte", oudeSoort: null, oudeOppervlakte: 36 },
+      { sleutel: "r2", ruimteId: null, oudeNaam: null, oudeSoort: null, oudeOppervlakte: null },
     ]);
+    // Met haar soort erbij: die gaat mee, zodat een zelf gekozen soort blijft.
+    const metSoort = vergelijkRuimtes([{ ...oud[0], soort: "bureau" }], [{ sleutel: "r1", naam: "living", ringen: vierkant(0, 0, 6) }]);
+    expect(metSoort.koppelingen[0].oudeSoort).toBe("bureau");
   });
 
   it("vindt een verschoven ruimte terug op haar naam, maar koppelt elke oude ruimte maar één keer", () => {
