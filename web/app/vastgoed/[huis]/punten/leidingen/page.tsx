@@ -6,6 +6,7 @@ import { id as leesId } from "@/lib/bouw/invoer";
 import { bevestigdGrondplan } from "@/lib/bouw/omzetting/referentie";
 import {
   lijstGebouwen,
+  lijstLeidingen,
   lijstOmzettingen,
   lijstPlannen,
   lijstPunten,
@@ -13,25 +14,22 @@ import {
   lijstVerdiepingen,
 } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
-import { maakWensenlijst } from "@/lib/bouw/punten";
 import { sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
 import { magBouwZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
-import { Melding } from "@/components/bouw/melding";
-import { PuntenLader } from "./punten-lader";
-import { Wenstabel } from "@/components/bouw/wenstabel";
+import { LeidingenLader } from "./leidingen-lader";
 
 export const dynamic = "force-dynamic";
 
-export default async function Puntenpagina({
+export default async function Leidingenpagina({
   params,
   searchParams,
 }: {
   params: Promise<{ huis: string }>;
-  searchParams: Promise<{ verdieping?: string; melding?: string; soort?: string }>;
+  searchParams: Promise<{ verdieping?: string }>;
 }) {
-  const { verdieping: gevraagd, melding, soort } = await searchParams;
+  const { verdieping: gevraagd } = await searchParams;
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
@@ -47,13 +45,12 @@ export default async function Puntenpagina({
   const metPlan = verdiepingen.filter((v) => bevestigdGrondplan(plannen, v.id, bevestigd));
 
   const gekozenId = leesId(gevraagd ?? "");
-  const verdieping =
-    verdiepingen.find((v) => v.id === gekozenId) ?? metPlan[0] ?? verdiepingen[0] ?? null;
+  const verdieping = verdiepingen.find((v) => v.id === gekozenId) ?? metPlan[0] ?? verdiepingen[0] ?? null;
 
   if (!verdieping) {
     return (
       <>
-        <h1>Punten</h1>
+        <h1>Leidingen</h1>
         <div className="kaart">
           <p className="leeg">
             Nog geen verdiepingen. Lees eerst het dossier in bij <Link href={huispad(huis.id, "/plannen")}>Plannen</Link>.
@@ -64,30 +61,27 @@ export default async function Puntenpagina({
   }
 
   const grondplan = bevestigdGrondplan(plannen, verdieping.id, bevestigd);
-  const [ruimtes, punten] = await Promise.all([lijstRuimtes(huis.id, verdieping.id), lijstPunten(huis.id, verdieping.id)]);
+  const [ruimtes, punten, leidingen] = await Promise.all([
+    lijstRuimtes(huis.id, verdieping.id),
+    lijstPunten(huis.id, verdieping.id),
+    lijstLeidingen(huis.id, verdieping.id),
+  ]);
   const naam = verdiepingNaam(verdieping, gebouwen);
-  const lijst = maakWensenlijst(
-    [{ id: verdieping.id, naam, plafondhoogte_m: verdieping.plafondhoogte_m }],
-    ruimtes.map((r) => ({ id: r.id, naam: r.naam, veelhoek: r.veelhoek, verdieping_id: r.verdieping_id, plafondhoogte_m: r.plafondhoogte_m })),
-    punten,
-  );
 
   return (
     <>
-      <h1>Punten</h1>
+      <h1>Leidingen</h1>
       <p className="inleiding">
-        Lichtpunten, schakelaars, stopcontacten, netwerk, sensoren en zo verder, op het plan. Daaruit volgt de{" "}
-        <Link href={huispad(huis.id, "/punten/wensenlijst")}>wensenlijst</Link> voor de elektricien en de domotica-installateur.
-        De leidingen teken je bij <Link href={huispad(huis.id, `/punten/leidingen?verdieping=${verdieping.id}`)}>Leidingen</Link>.
+        Water, afvoer, regenwater, ventilatie, elektriciteit, data en vloerverwarming, op het plan. In{" "}
+        <Link href={huispad(huis.id, "/3d")}>3D</Link> zie je ze in de vloer, de muren en aan het plafond. De{" "}
+        <Link href={huispad(huis.id, `/punten?verdieping=${verdieping.id}`)}>punten</Link> staan erbij, om aan te kleven.
       </p>
-
-      <Melding soort={soort} melding={melding} />
 
       <nav className="tabs" aria-label="Verdiepingen">
         {verdiepingen.map((v) => (
           <Link
             key={v.id}
-            href={huispad(huis.id, `/punten?verdieping=${v.id}`)}
+            href={huispad(huis.id, `/punten/leidingen?verdieping=${v.id}`)}
             className={v.id === verdieping.id ? "actief" : undefined}
             aria-current={v.id === verdieping.id ? "page" : undefined}
           >
@@ -97,10 +91,10 @@ export default async function Puntenpagina({
       </nav>
 
       {grondplan ? (
-        <PuntenLader
+        <LeidingenLader
           huisId={huis.id}
           gegevens={{
-            verdieping: { id: verdieping.id, naam, plafondhoogte_m: verdieping.plafondhoogte_m },
+            verdieping: { id: verdieping.id, naam },
             versie: {
               id: grondplan.versie.id,
               bestandId: grondplan.versie.bestand_id,
@@ -108,23 +102,20 @@ export default async function Puntenpagina({
               kalibratie: grondplan.kalibratie,
             },
             ruimtes: ruimtes.map((r) => ({ id: r.id, naam: r.naam, veelhoek: r.veelhoek })),
-            punten,
+            punten: punten.map((p) => ({ id: p.id, soort: p.soort, x: p.x_m, y: p.y_m })),
+            leidingen,
+            // Waar een stijgleiding naartoe kan: de andere verdiepingen van hetzelfde gebouw.
+            andere: verdiepingen
+              .filter((v) => v.id !== verdieping.id && v.gebouw_id === verdieping.gebouw_id)
+              .map((v) => ({ id: v.id, naam: verdiepingNaam(v, gebouwen), volgorde: v.volgorde })),
+            volgorde: verdieping.volgorde,
           }}
         />
       ) : (
         <div className="melding let-op">
           {naam} heeft nog geen omgezet grondplan. Zet het eerst om bij <Link href={huispad(huis.id, "/plannen")}>Plannen</Link>:
-          de punten komen op dat plan, en de ruimtes zeggen waar ze liggen.
+          de leidingen komen op dat plan.
         </div>
-      )}
-
-      <h2>Op {naam.toLowerCase()}</h2>
-      {lijst.verdiepingen.length === 0 ? (
-        <div className="kaart">
-          <p className="leeg">Nog geen punten.</p>
-        </div>
-      ) : (
-        <Wenstabel lijst={lijst} />
       )}
     </>
   );

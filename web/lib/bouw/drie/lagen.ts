@@ -1,9 +1,9 @@
 /**
  * De lagen van het 3D-model: wat je aan en uit zet. Elke laag heeft een
  * sleutel ("verdieping:12", "punten:verlichting", "inrichting:meubels",
- * "hulp:maten"); de browser onthoudt per sleutel of ze aan staat. Wat niet
- * onthouden is, staat zoals standaard: aan, behalve wat in STANDAARD_UIT
- * staat.
+ * "leidingen:afvoer", "hulp:maten"); de browser onthoudt per sleutel of ze
+ * aan staat. Wat niet onthouden is, staat zoals standaard: aan, behalve wat
+ * in STANDAARD_UIT staat.
  *
  * Puur, met tests. Het onthouden zelf staat in components/bouw/lagen.tsx.
  */
@@ -44,11 +44,18 @@ export interface Lageninvoer {
   punten: readonly { categorie: string; naam: string; kleur: string }[];
   /** De meubels en de toestellen, als die er zijn (zie inrichting.ts). */
   inrichting: readonly { laag: string; naam: string }[];
+  /** De soorten leidingen die er zijn, in de volgorde van de catalogus (zie leidingen.ts). */
+  leidingen: readonly { soort: string; naam: string; kleur: string }[];
 }
 
 /** De punten per categorie: in 3D, en ook in het puntenscherm. */
 export function puntlagen(punten: Lageninvoer["punten"]): Lagengroep {
   return { naam: "Punten", lagen: punten.map((p) => ({ sleutel: `punten:${p.categorie}`, naam: p.naam, kleur: p.kleur })) };
+}
+
+/** De leidingen per soort: in 3D, en ook op het plan met de leidingen. */
+export function leidinglagen(soorten: Lageninvoer["leidingen"]): Lagengroep {
+  return { naam: "Leidingen", lagen: soorten.map((s) => ({ sleutel: `leidingen:${s.soort}`, naam: s.naam, kleur: s.kleur })) };
 }
 
 /** De lagen, in groepen. Een groep zonder lagen valt weg. */
@@ -77,11 +84,14 @@ export function lagenVan(invoer: Lageninvoer): Lagengroep[] {
     },
     puntlagen(invoer.punten),
     { naam: "Inrichting", lagen: invoer.inrichting.map((i) => ({ sleutel: `inrichting:${i.laag}`, naam: i.naam })) },
+    leidinglagen(invoer.leidingen),
     {
       naam: "Hulp",
       lagen: [
         { sleutel: "hulp:maten", naam: "Maten" },
         { sleutel: "hulp:noorden", naam: "Noordpijl" },
+        // Leidingen in de vloer of de muur zie je anders niet.
+        ...(invoer.leidingen.length > 0 ? [{ sleutel: "hulp:doorzicht", naam: "Leidingen door de muren" }] : []),
       ],
     },
   ];

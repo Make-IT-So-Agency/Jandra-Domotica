@@ -91,7 +91,7 @@ for tabel in companies loadpoints sessions tariffs meter_readings \
              reports app_settings app_users ingest_log \
              bouw_instellingen bouw_partijen bouw_bestanden bouw_verdiepingen \
              bouw_referentiepunten bouw_plannen bouw_planversies \
-             bouw_gebouwen bouw_omzettingen bouw_ruimtes bouw_punten bouw_objecten \
+             bouw_gebouwen bouw_omzettingen bouw_ruimtes bouw_punten bouw_objecten bouw_leidingen \
              bouw_planning bouw_keuzes bouw_opties bouw_keuze_ruimtes \
              bouw_voorkeuren bouw_beslissingen bouw_meldingen \
              bouw_links bouw_inzendingen \
