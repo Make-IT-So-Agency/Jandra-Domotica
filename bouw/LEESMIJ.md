@@ -204,6 +204,28 @@ grondplannen.
   of een buitendeur als er een deurboog bij staat. Ligt er een andere ruimte
   achter, dan is het een deur of een doorgang. Een raamlabel als `205 x 275`
   geeft de hoogte.
+- **Verbeteren.** Het plan wordt niet altijd perfect omgezet. Bij **Muren,
+  ramen en deuren verbeteren** (`/3d/verbeteren`, vanuit 3D of de pagina van
+  het plan) verbeter je het op het plan zelf, per verdieping:
+  - **Muur erbij:** tik het begin en het einde van de as, en kies de dikte
+    (9 tot 40 cm). Ze loopt recht als ze tot 5° afwijkt van de andere muren,
+    en loopt door tot de as van een muur waar ze tegenaan komt;
+  - **Muur weg:** tik op een muur en dan waar het stuk eindigt, of kies
+    **Heel dit stuk**, tot de volgende muur. Wat weg is, is open tot het
+    plafond, met vloer;
+  - **Raam of deur erbij:** kies de soort, de breedte, de hoogte en (bij een
+    raam) de borstwering, en tik op de muur waar het midden komt;
+  - tik een raam, deur of doorgang om de soort of de maten te veranderen, of
+    om ze dicht te maken.
+
+  Het plan toont meteen wat 3D bouwt: beide rekenen met dezelfde code
+  (`drie/correcties.ts`). **Bewaren** bewaart alles samen, per verdieping,
+  in meter (`bouw_verdiepingen.correcties`). Een nieuwe versie van het plan
+  vervangt de muren, maar de verbeteringen blijven en worden opnieuw
+  toegepast; wat dan niets meer raakt, staat grijs in de lijst. Waar een
+  gebouw op het terrein staat, rekent de app uit de omzetting zonder
+  verbeteringen, zodat een muur erbij het gebouw niet verschuift. Op een gsm
+  kan je enkel kijken.
 - **Hoogtes.** Elke verdieping staat op haar peil, met haar plafondhoogte en
   verdiepingshoogte (bij Verdiepingen). Tussen twee verdiepingen ligt een
   vloerplaat van 25 cm. Wat de verdieping erboven niet bedekt, krijgt een plat
@@ -928,7 +950,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       de huizen van de buren, vanzelf op het plan gelegd
 - [x] **5e** Meten in 3D, de zon op datum en uur met het echte noorden, en
       lagen die je aan en uit zet
-- [ ] **5f** Muren, ramen en deuren verbeteren op het plan, na het omzetten
+- [x] **5f** Muren, ramen en deuren verbeteren op het plan, na het omzetten
 - [ ] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
       verwarming
 - [ ] **5h** Meubels en toestellen

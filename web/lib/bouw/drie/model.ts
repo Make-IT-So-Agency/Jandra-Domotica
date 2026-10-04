@@ -1,6 +1,7 @@
 import { nettoOppervlakte, oppervlakte } from "../omzetting/geometrie";
 import type { Trapvoorstel, Xy } from "../omzetting/types";
 import type { SoortRuimte } from "../types";
+import { pasCorrectiesToe, vlakVanGat, type Correctie } from "./correcties";
 import { maakDak, type Dak } from "./dak";
 import type { Dakinstelling } from "./dakregels";
 import { vindGaten, type Gat, type Gekendeopening } from "./gaten";
@@ -57,6 +58,8 @@ export interface Invoerverdieping {
   trappen?: Trapvoorstel[];
   /** Hoe de trappen van deze verdieping gekozen werden. */
   trapstanden?: Trapstand[];
+  /** Wat iemand op het plan verbeterde aan de muren, ramen en deuren (zie correcties.ts). */
+  correcties?: Correctie[];
 }
 
 export type Zijde = "binnen" | "buiten";
@@ -135,11 +138,6 @@ function zijdenVan(veelhoek: Veelhoek, muren: readonly Veelhoek[], binnen: reado
   );
 }
 
-function rechthoekVan(gat: Gat): Veelhoek {
-  const { a, b, n, dikte } = gat;
-  return [[a, b, [b[0] + n[0] * dikte, b[1] + n[1] * dikte], [a[0] + n[0] * dikte, a[1] + n[1] * dikte]]];
-}
-
 /** Zet de verdiepingen van een gebouw op hun hoogte, van onder naar boven. */
 export function stapel(verdiepingen: readonly Invoerverdieping[]): { verdieping: Invoerverdieping; z0: number; hoogte: number }[] {
   // Op peil als elke verdieping er een heeft, anders op de volgorde.
@@ -190,20 +188,28 @@ export function maakModel(
       const bovenste = i === gestapeld.length - 1;
       const z1 = mm(bovenste ? z0 + Math.min(hoogte, plafond + 0.15) : z0 + hoogte - PLAAT);
       const ruimtes: Veelhoek[] = verdieping.ruimtes.map((r) => r.ringen);
-      const muren = vereniging(verdieping.muren.map((ring) => [ring]));
-      const gaten = vindGaten(verdieping.ruimtes, muren, verdieping.openingen, plafond);
-      const voetafdruk = vereniging([...ruimtes, ...muren, ...gaten.map(rechthoekVan)]);
+      const omgezet = vereniging(verdieping.muren.map((ring) => [ring]));
+      const correcties = verdieping.correcties ?? [];
+      // De muren en openingen met wat iemand op het plan verbeterde; waar een muur weg is, komt vloer.
+      const { muren, gaten, open } = pasCorrectiesToe(omgezet, verdieping.ruimtes, verdieping.openingen, plafond, correcties);
+      const voetafdruk = vereniging([...ruimtes, ...muren, ...gaten.map(vlakVanGat), ...open]);
       voetafdrukken.push(voetafdruk);
       const zones = voetafdruk.flatMap((veelhoek) => veelhoek.slice(1)).filter((ring) => Math.abs(oppervlakte(ring)) <= KLEINE_ZONE);
       const binnen: Veelhoek[] = [
         ...ruimtes,
         ...zones.map((ring): Veelhoek => [ring]),
-        ...gaten.filter((gat) => gat.soort === "deur" || gat.soort === "doorgang").map(rechthoekVan),
+        ...gaten.filter((gat) => gat.soort === "deur" || gat.soort === "doorgang").map(vlakVanGat),
+        ...open,
       ];
       binnenPer.push(binnen);
       murenPer.push(muren);
 
-      for (const veelhoek of voetafdruk) {
+      // Het kader van het gebouw komt uit de omzetting zonder correcties: zo verschuift een correctie het gebouw niet op het terrein.
+      const kaderbron =
+        correcties.length === 0
+          ? voetafdruk
+          : vereniging([...ruimtes, ...omgezet, ...vindGaten(verdieping.ruimtes, omgezet, verdieping.openingen, plafond).map(vlakVanGat)]);
+      for (const veelhoek of kaderbron) {
         for (const [x, y] of veelhoek[0]) {
           x0 = Math.min(x0, x);
           y0 = Math.min(y0, y);
