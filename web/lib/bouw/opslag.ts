@@ -5,6 +5,7 @@ import { db } from "@/lib/supabase";
 import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
+import type { Gekendeluifel } from "./drie/model";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
@@ -528,7 +529,9 @@ const isGetal = (waarde: unknown): waarde is number => typeof waarde === "number
  */
 export async function leesMurenEnOpeningen(
   versieIds: number[],
-): Promise<Map<number, { muren: Xy[][]; openingen: Gekendeopening[]; trappen: Trapvoorstel[]; werkwijze: number }>> {
+): Promise<
+  Map<number, { muren: Xy[][]; openingen: Gekendeopening[]; trappen: Trapvoorstel[]; luifels: Gekendeluifel[]; werkwijze: number }>
+> {
   if (versieIds.length === 0) return new Map();
   const rijen = check(
     await db().from("bouw_omzettingen").select("planversie_id, voorstel, werkwijze").in("planversie_id", versieIds),
@@ -541,9 +544,27 @@ export async function leesMurenEnOpeningen(
       const muren = (Array.isArray(voorstel.muren) ? voorstel.muren : []).filter(
         (ring): ring is Xy[] => Array.isArray(ring) && ring.length >= 3 && ring.every(punt),
       );
-      const openingen = (Array.isArray(voorstel.openingen) ? voorstel.openingen : []).flatMap((o: Record<string, unknown>) =>
-        (o?.soort === "deur" || o?.soort === "raam") && isGetal(o.x) && isGetal(o.y) && isGetal(o.breedte)
-          ? [{ soort: o.soort, x: o.x, y: o.y, breedte: o.breedte, hoogte: isGetal(o.hoogte) ? o.hoogte : null } as Gekendeopening]
+      const openingen = (Array.isArray(voorstel.openingen) ? voorstel.openingen : []).flatMap((o: Record<string, unknown>) => {
+        const soort = o?.soort;
+        if ((soort !== "deur" && soort !== "raam" && soort !== "borstwering") || !isGetal(o.x) || !isGetal(o.y) || !isGetal(o.breedte)) return [];
+        // De uiteinden van de boog van een deur: daaruit volgt naar welke kant ze opendraait.
+        const boog = Array.isArray(o.punten) ? o.punten.filter(punt) : [];
+        return [
+          {
+            soort,
+            x: o.x,
+            y: o.y,
+            breedte: o.breedte,
+            hoogte: isGetal(o.hoogte) ? o.hoogte : null,
+            ...(soort === "raam" && (o.vorm === "x" || o.vorm === "/") ? { vorm: o.vorm } : {}),
+            ...(soort === "deur" && boog.length === 2 ? { boog: [boog[0], boog[1]] } : {}),
+          } as Gekendeopening,
+        ];
+      });
+      // Een omzetting van vóór de luifels (werkwijze 1 tot 4) heeft er geen.
+      const luifels = (Array.isArray(voorstel.luifels) ? voorstel.luifels : []).flatMap((l: Record<string, unknown>) =>
+        Array.isArray(l?.lijn) && l.lijn.length >= 2 && l.lijn.every(punt) && isGetal(l.diepte)
+          ? [{ lijn: l.lijn as Xy[], diepte: l.diepte } as Gekendeluifel]
           : [],
       );
       // Een omzetting van vóór de trappen (werkwijze 1 en 2) heeft er geen.
@@ -559,7 +580,7 @@ export async function leesMurenEnOpeningen(
         );
         return delen.length > 0 ? [{ delen, richting: t.richting === "pijl" ? "pijl" : "geraden" } as Trapvoorstel] : [];
       });
-      return [Number(rij.planversie_id), { muren, openingen, trappen, werkwijze: Number(rij.werkwijze ?? 1) }];
+      return [Number(rij.planversie_id), { muren, openingen, trappen, luifels, werkwijze: Number(rij.werkwijze ?? 1) }];
     }),
   );
 }

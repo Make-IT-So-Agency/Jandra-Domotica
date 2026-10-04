@@ -80,6 +80,13 @@ interface Toestand {
   vul: string | null;
   lijn: string | null;
   dikte: number;
+  /** Een streeppatroon: een lijn in streepjes, zoals iets boven de snede. */
+  streep: boolean;
+}
+
+/** Een streeppatroon zoals PDF het geeft: [patroon, fase]. Een leeg patroon is weer een volle lijn. */
+function isStreep(patroon: unknown): boolean {
+  return (Array.isArray(patroon) || ArrayBuffer.isView(patroon)) && Array.from(patroon as ArrayLike<number>).some((v) => Number(v) > 0);
 }
 
 /** Hoeveel van het blad een afbeelding in de eenheidsvierkant onder deze CTM bedekt. */
@@ -148,6 +155,7 @@ function leesPad(args: unknown[], t: Toestand): Pad | null {
     dikte: t.dikte * schaal,
     delen: delen.filter((deel) => deel.punten.length > 1),
     bogen,
+    ...(lijnt && t.streep ? { streep: true } : {}),
   };
 }
 
@@ -161,7 +169,7 @@ export function leesPaden(
   begin: readonly number[],
   bladvlak: number,
 ): { paden: Pad[]; beeldvlak: number } {
-  let t: Toestand = { ctm: [...begin] as Matrix, vul: "#000000", lijn: "#000000", dikte: 1 };
+  let t: Toestand = { ctm: [...begin] as Matrix, vul: "#000000", lijn: "#000000", dikte: 1, streep: false };
   const stapel: Toestand[] = [];
   const paden: Pad[] = [];
   let beeld = 0;
@@ -194,7 +202,11 @@ export function leesPaden(
       case OPS.setGState:
         for (const paar of (args[0] as unknown[][] | undefined) ?? []) {
           if (Array.isArray(paar) && paar[0] === "LW") t = { ...t, dikte: Number(paar[1]) || 0 };
+          if (Array.isArray(paar) && paar[0] === "D") t = { ...t, streep: Array.isArray(paar[1]) && isStreep(paar[1][0]) };
         }
+        break;
+      case OPS.setDash:
+        t = { ...t, streep: isStreep(args[0]) };
         break;
       case OPS.setFillRGBColor:
         t = { ...t, vul: kleur(args[0]) };

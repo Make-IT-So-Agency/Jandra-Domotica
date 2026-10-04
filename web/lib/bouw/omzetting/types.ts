@@ -42,6 +42,8 @@ export interface Pad {
   dikte: number;
   delen: Deelpad[];
   bogen: Boog[];
+  /** Getrokken in streepjes: op een grondplan iets boven de snede, zoals een luifel. */
+  streep?: boolean;
 }
 
 export interface Tekst {
@@ -116,18 +118,42 @@ export interface Kandidaat {
   vloerpeil: number | null;
 }
 
+/**
+ * Hoe een raammaat geschreven staat. "205 x 275" staat bij het raam zelf: de
+ * maat van het schrijnwerk. "180/275" staat op een maatlijn buiten de muur:
+ * de opening in de ruwbouw.
+ */
+export type Raamvorm = "x" | "/";
+
 export interface Opening {
-  soort: "deur" | "raam";
-  /** Bij een deur het scharnier, bij een raam het label. */
+  /** Een deurboog, een raammaat, of een borstwering ("BW = 40") bij een raam. */
+  soort: "deur" | "raam" | "borstwering";
+  /** Bij een deur het scharnier, anders de tekst. */
   x: number;
   y: number;
   /** Bij een deur de twee uiteinden van de boog. */
   punten: Xy[];
-  /** In meter. */
+  /** In meter; 0 bij een borstwering. */
   breedte: number;
+  /** In meter: de hoogte van een raam, of de borstwering zelf. */
   hoogte: number | null;
+  /** Bij een raam: hoe de maat geschreven stond. */
+  vorm?: Raamvorm;
   /** De sleutel van de dichtstbijzijnde ruimte. */
   ruimte: string | null;
+}
+
+/** Een luifel zoals de omzetting ze op het plan vindt; zie omzetting/luifels.ts. */
+export interface Luifelvoorstel {
+  /**
+   * De rand in streepjes, van de gevel tot weer op de gevel. Het vlak sluit
+   * het 3D-model langs de gevel, want enkel dat kent de openingen in de muren.
+   */
+  lijn: Xy[];
+  /** Hoe ver de luifel uit de gevel steekt, in meter. */
+  diepte: number;
+  /** De tekst die haar aanwijst, zoals "oversteek 100 cm". */
+  tekst: string;
 }
 
 /** Een deel van een trap: een vlucht met treden, of een bordes. */
@@ -162,6 +188,8 @@ export interface Voorstel {
   muren: Xy[][];
   /** De trappen: reeksen treden, met hun bordes. Voor het 3D-model. */
   trappen: Trapvoorstel[];
+  /** De luifels tegen de gevel, in streepjes getekend. Voor het 3D-model. */
+  luifels: Luifelvoorstel[];
   /** Het peil en de plafondhoogte die het meest op het blad staan, in meter. */
   verdieping: { vloerpeil: number | null; plafondhoogte: number | null };
   /** Waar het gebouw op het blad ligt: de ruimtes, met wat marge. */

@@ -1,10 +1,12 @@
+import type { Raamvorm } from "./types";
+
 /**
  * Wat de teksten op een plan betekenen: een oppervlakte, een plafondhoogte,
  * een peil, een raammaat, een schaal, of een naam. Puur, met tests.
  *
  * Afgestemd op hoe Belgische architecten hun plannen beschriften, met wat
  * speling in de schrijfwijze: "12,35 m²", "12.35m2", "PH = 280", "NIVO +320",
- * "205 x 275", "1:50", "schaal 1/50".
+ * "205 x 275", "180/275", "BW = 40", "1:50", "schaal 1/50".
  */
 
 function getal(ruw: string): number {
@@ -43,13 +45,28 @@ export function leesPeil(tekst: string): number | null {
   return Math.abs(waarde) < 100 ? waarde : null;
 }
 
-/** Een raam als "205 x 275": breedte en hoogte in centimeter, terug in meter. */
-export function leesRaammaat(tekst: string): { breedte: number; hoogte: number } | null {
-  const m = tekst.trim().match(/^(\d{2,3})\s*[x×]\s*(\d{2,3})$/i);
+/**
+ * Een raam als "205 x 275" of "180/275": breedte en hoogte in centimeter,
+ * terug in meter. Met een schuine streep moeten beide minstens 40 cm zijn,
+ * zodat een tegel als "30/30" geen raam wordt.
+ */
+export function leesRaammaat(tekst: string): { breedte: number; hoogte: number; vorm: Raamvorm } | null {
+  const m = tekst.trim().match(/^(\d{2,3})\s*([x×/])\s*(\d{2,3})$/i);
   if (!m) return null;
+  const vorm: Raamvorm = m[2] === "/" ? "/" : "x";
   const breedte = Number(m[1]) / 100;
-  const hoogte = Number(m[2]) / 100;
-  return breedte >= 0.2 && hoogte >= 0.2 ? { breedte, hoogte } : null;
+  const hoogte = Number(m[3]) / 100;
+  const minimum = vorm === "/" ? 0.4 : 0.2;
+  return breedte >= minimum && hoogte >= minimum ? { breedte, hoogte, vorm } : null;
+}
+
+/** De borstwering uit "BW = 40", "BW 40", "BW=0,40" of "borstwering 90 cm", in meter. */
+export function leesBorstwering(tekst: string): number | null {
+  const m = tekst.trim().match(/^(?:B\.?W\.?|borstwering)\s*[=:]?\s*(\d{1,3}(?:[,.]\d{1,2})?)\s*(cm|m)?$/i);
+  if (!m) return null;
+  const eenheid = m[2]?.toLowerCase();
+  const waarde = eenheid === "cm" ? getal(m[1]) / 100 : eenheid === "m" ? getal(m[1]) : hoogteInMeter(m[1]);
+  return waarde >= 0 && waarde <= 3 ? Math.round(waarde * 100) / 100 : null;
 }
 
 /**
@@ -84,7 +101,7 @@ export function isNaamachtig(tekst: string): boolean {
   if (schoon.length < 2 || schoon.length > 60) return false;
   if (!/\p{L}{2}/u.test(schoon)) return false;
   if (leesOppervlakte(schoon) !== null || leesPlafondhoogte(schoon) !== null || leesPeil(schoon) !== null) return false;
-  if (/^(P\.?H|BW|VPH|HPH|NIVO|peil)\b/i.test(schoon)) return false;
+  if (/^(P\.?H|BW|VPH|HPH|NIVO|peil|borstwering)\b/i.test(schoon)) return false;
   if (/deurspleet/i.test(schoon)) return false;
   // Maten met een eenheid of een letter erbij: "90 cm", "2 x 60", "Ø 110".
   if (/^[\d\s.,/x×=+\-–()Øø%°]+(cm|mm|m|m2|m²|m3|m³)?$/i.test(schoon)) return false;

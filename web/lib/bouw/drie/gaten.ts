@@ -1,5 +1,5 @@
 import { binnen } from "../omzetting/geometrie";
-import type { Xy } from "../omzetting/types";
+import type { Raamvorm, Xy } from "../omzetting/types";
 import { binnenVeelhoeken, type Veelhoek } from "./vlak";
 
 /**
@@ -28,13 +28,19 @@ export interface Gat {
   boven: number;
 }
 
-/** Een deur of raam zoals de omzetting het bewaarde, in meter. */
+/** Een deurboog, raammaat of borstwering zoals de omzetting ze bewaarde, in meter. */
 export interface Gekendeopening {
-  soort: "deur" | "raam";
+  soort: "deur" | "raam" | "borstwering";
+  /** Bij een deur het scharnier, anders de tekst. */
   x: number;
   y: number;
   breedte: number;
+  /** De hoogte van een raam, of de borstwering zelf. */
   hoogte: number | null;
+  /** Bij een raam: "x" staat bij het raam, "/" op een maatlijn buiten de muur. */
+  vorm?: Raamvorm;
+  /** Bij een deur: de twee uiteinden van de boog. */
+  boog?: [Xy, Xy];
 }
 
 const STAP = 0.05;

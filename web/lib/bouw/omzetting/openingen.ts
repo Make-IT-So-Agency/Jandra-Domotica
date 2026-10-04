@@ -1,5 +1,5 @@
 import { afstandTotRing, binnenRuimte, opBoog, rond } from "./geometrie";
-import { leesRaammaat } from "./teksten";
+import { leesBorstwering, leesRaammaat } from "./teksten";
 import type { Blad, Boog, Opening, Ruimtevoorstel, Schaal, Xy } from "./types";
 
 /**
@@ -9,7 +9,13 @@ import type { Blad, Boog, Opening, Ruimtevoorstel, Schaal, Xy } from "./types";
  *   deurblad. Een kwartcirkel als Bézier-boog heeft zijn controlepunten op
  *   0,552 × de straal van de uiteinden, en de raaklijnen staan loodrecht op
  *   elkaar.
- * - Een raam krijgt een label als "205 x 275": breedte en hoogte in cm.
+ * - Een raam krijgt een label als "205 x 275" (het schrijnwerk, bij het raam)
+ *   of "180/275" (de opening, op een maatlijn buiten de muur): breedte en
+ *   hoogte in cm.
+ * - Een borstwering staat erbij als "BW = 40": in cm boven de vloer.
+ *
+ * Welk label bij welk raam hoort, weet pas het 3D-model: dat kent de
+ * openingen in de muren (drie/gaten.ts).
  */
 
 const DEUR_MIN_M = 0.5;
@@ -92,14 +98,28 @@ export function vindOpeningen(blad: Blad, schaal: Schaal, ruimtes: Ruimtevoorste
 
   for (const tekst of blad.teksten) {
     const maat = leesRaammaat(tekst.tekst);
-    if (!maat) continue;
+    if (maat) {
+      openingen.push({
+        soort: "raam",
+        x: rond(tekst.x, 2),
+        y: rond(tekst.y, 2),
+        punten: [],
+        breedte: maat.breedte,
+        hoogte: maat.hoogte,
+        vorm: maat.vorm,
+        ruimte: dichtsteRuimte([tekst.x, tekst.y], ruimtes, RAAM_NABIJ_M / m),
+      });
+      continue;
+    }
+    const borstwering = leesBorstwering(tekst.tekst);
+    if (borstwering === null) continue;
     openingen.push({
-      soort: "raam",
+      soort: "borstwering",
       x: rond(tekst.x, 2),
       y: rond(tekst.y, 2),
       punten: [],
-      breedte: maat.breedte,
-      hoogte: maat.hoogte,
+      breedte: 0,
+      hoogte: borstwering,
       ruimte: dichtsteRuimte([tekst.x, tekst.y], ruimtes, RAAM_NABIJ_M / m),
     });
   }

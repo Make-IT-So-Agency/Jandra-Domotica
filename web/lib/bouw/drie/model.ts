@@ -60,6 +60,14 @@ export interface Invoerverdieping {
   trapstanden?: Trapstand[];
   /** Wat iemand op het plan verbeterde aan de muren, ramen en deuren (zie correcties.ts). */
   correcties?: Correctie[];
+  /** De luifels die de omzetting op het plan vond, in meter. */
+  luifels?: Gekendeluifel[];
+}
+
+/** Een luifel zoals de omzetting ze bewaarde: de lijn in streepjes, van de gevel tot weer op de gevel, en de diepte. */
+export interface Gekendeluifel {
+  lijn: Xy[];
+  diepte: number;
 }
 
 export type Zijde = "binnen" | "buiten";

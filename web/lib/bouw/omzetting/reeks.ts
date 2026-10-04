@@ -333,7 +333,7 @@ export function afhankelijk(
  */
 export function bevestigingVoor(invoer: {
   versieId: number;
-  voorstel: Pick<Voorstel, "schaal" | "openingen" | "muren" | "trappen" | "verdieping">;
+  voorstel: Pick<Voorstel, "schaal" | "openingen" | "muren" | "trappen" | "luifels" | "verdieping">;
   kalibratie: Kalibratie;
   referentieVersieId: number | null;
   ruimtes: Ruimtevoorstel[];
@@ -356,6 +356,7 @@ export function bevestigingVoor(invoer: {
     openingen: voorstel.openingen,
     muren: voorstel.muren,
     trappen: voorstel.trappen,
+    luifels: voorstel.luifels.map(({ lijn, diepte }) => ({ lijn, diepte })),
     verdieping: { bijwerken: true, vloerpeil: voorstel.verdieping.vloerpeil, plafondhoogte: voorstel.verdieping.plafondhoogte },
     schaal: voorstel.schaal,
   };

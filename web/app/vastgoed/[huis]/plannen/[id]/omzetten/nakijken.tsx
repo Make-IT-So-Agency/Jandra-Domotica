@@ -403,6 +403,7 @@ export default function Nakijken({ gegevens }: { gegevens: Omzetgegevens }) {
       openingen: voorstel.openingen,
       muren: voorstel.muren,
       trappen: voorstel.trappen,
+      luifels: voorstel.luifels.map(({ lijn, diepte }) => ({ lijn, diepte })),
       verdieping: {
         bijwerken: verdiepingBijwerken,
         vloerpeil: voorstel.verdieping.vloerpeil,

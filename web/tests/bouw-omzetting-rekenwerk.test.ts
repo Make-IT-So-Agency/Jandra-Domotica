@@ -17,6 +17,7 @@ import { meestVoorkomend } from "@/lib/bouw/omzetting/schaal";
 import { raadSoort } from "@/lib/bouw/omzetting/soorten";
 import {
   isNaamachtig,
+  leesBorstwering,
   leesDatum,
   leesOppervlakte,
   leesPeil,
@@ -55,12 +56,31 @@ describe("teksten op een plan", () => {
   });
 
   it("leest raammaten en schalen", () => {
-    expect(leesRaammaat("205 x 275")).toEqual({ breedte: 2.05, hoogte: 2.75 });
-    expect(leesRaammaat("80×210")).toEqual({ breedte: 0.8, hoogte: 2.1 });
-    expect(leesRaammaat("710/275")).toBeNull();
+    expect(leesRaammaat("205 x 275")).toEqual({ breedte: 2.05, hoogte: 2.75, vorm: "x" });
+    expect(leesRaammaat("80×210")).toEqual({ breedte: 0.8, hoogte: 2.1, vorm: "x" });
+    // Op een maatlijn: de opening in de ruwbouw.
+    expect(leesRaammaat("710/275")).toEqual({ breedte: 7.1, hoogte: 2.75, vorm: "/" });
+    expect(leesRaammaat("160 / 215")).toEqual({ breedte: 1.6, hoogte: 2.15, vorm: "/" });
+    // Een tegel is geen raam, een schaal of datum ook niet.
+    expect(leesRaammaat("30/30")).toBeNull();
+    expect(leesRaammaat("1/50")).toBeNull();
+    expect(leesRaammaat("01/10/2026")).toBeNull();
     expect(leesSchaal("1:50")).toBe(50);
     expect(leesSchaal("schaal 1/200")).toBe(200);
     expect(leesSchaal("SCHAAL 1 : 100")).toBe(100);
+  });
+
+  it("leest de borstwering van een raam", () => {
+    expect(leesBorstwering("BW = 40")).toBe(0.4);
+    expect(leesBorstwering("BW 155")).toBe(1.55);
+    expect(leesBorstwering("BW=0,40")).toBe(0.4);
+    expect(leesBorstwering("B.W. = 100")).toBe(1);
+    expect(leesBorstwering("borstwering 90 cm")).toBe(0.9);
+    expect(leesBorstwering("borstwering 0,9 m")).toBe(0.9);
+    expect(leesBorstwering("BW = 0")).toBe(0);
+    expect(leesBorstwering("BW = 400")).toBeNull();
+    expect(leesBorstwering("PH = 280")).toBeNull();
+    expect(leesBorstwering("BWB")).toBeNull();
   });
 
   it("houdt een datum niet voor een schaal", () => {
@@ -76,7 +96,7 @@ describe("teksten op een plan", () => {
     for (const naam of ["leefruimte", "wc 1", "berging/technieken", "badk 2", "slaapkamer 3"]) {
       expect(isNaamachtig(naam), naam).toBe(true);
     }
-    for (const geen of ["12,35m2", "PH = 280", "NIVO 000", "BW = 40", "deurspleet 1 cm", "205 x 275", "559", "90 cm", "x"]) {
+    for (const geen of ["12,35m2", "PH = 280", "NIVO 000", "BW = 40", "borstwering 90", "deurspleet 1 cm", "205 x 275", "180/275", "559", "90 cm", "x"]) {
       expect(isNaamachtig(geen), geen).toBe(false);
     }
   });

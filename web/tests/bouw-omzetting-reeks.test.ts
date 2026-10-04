@@ -213,6 +213,7 @@ describe("namen en bevestigen", () => {
       openingen: [],
       muren: [],
       trappen: [],
+      luifels: [],
       verdieping: { vloerpeil: 0, plafondhoogte: 2.8 },
     };
     const bevestiging = bevestigingVoor({ versieId: 9, voorstel, kalibratie, referentieVersieId: 4, ruimtes, verschil });

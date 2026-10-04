@@ -163,6 +163,7 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
         muren: opgeslagen?.muren ?? [],
         openingen: opgeslagen?.openingen ?? [],
         trappen: opgeslagen?.trappen ?? [],
+        luifels: opgeslagen?.luifels ?? [],
         trapstanden: verdieping.trapstanden ?? [],
         correcties: verdieping.correcties ?? [],
         omgezet: grondplan !== null,
