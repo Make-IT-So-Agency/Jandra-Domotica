@@ -18,9 +18,11 @@ import {
   vlakVanGat,
   type Correctie,
   type Muurplek,
+  type Toegepasteluifel,
 } from "@/lib/bouw/drie/correcties";
 import { boogpunten, type Draai } from "@/lib/bouw/drie/deuren";
 import { hartVan, type Gat, type Gatsoort, type Gekendeopening } from "@/lib/bouw/drie/gaten";
+import { LUIFELDIKTE, type Gekendeluifel } from "@/lib/bouw/drie/luifels";
 import { binnenVeelhoeken, vereniging, type Veelhoek } from "@/lib/bouw/drie/vlak";
 import { getal } from "@/lib/bouw/invoer";
 import { kaderVan, naarHuis, naarPagina, type Kalibratie } from "@/lib/bouw/omzetting/geometrie";
@@ -38,10 +40,22 @@ export interface Verbetergegevens {
   /** De muren uit de omzetting, in meter. */
   muren: Xy[][];
   openingen: Gekendeopening[];
+  /** De luifels die de omzetting op het plan vond, in meter. */
+  luifels: Gekendeluifel[];
   correcties: Correctie[];
 }
 
-type Gereedschap = "kijken" | "muur" | "weg" | "opening";
+type Gereedschap = "kijken" | "muur" | "weg" | "opening" | "luifel";
+
+/** Een gekozen luifel: een eigen (haar correctie), of een van het plan (waar je tikte). */
+type Luifelkeuze = { bron: "zelf"; correctie: number } | { bron: "plan"; punt: Xy };
+
+interface Luifelmaat {
+  diepte: number;
+  /** Null: de app kiest de onderkant. */
+  onder: number | null;
+  dikte: number;
+}
 
 interface Openingmaat {
   gat: Gatsoort;
@@ -74,6 +88,9 @@ function pad(veelhoeken: readonly Veelhoek[], k: Kalibratie): string {
     .join("");
 }
 
+const cm = (waarde: number) => `${Math.round(waarde * 100)} cm`;
+const luifelhoogte = (c: { onder?: number; dikte: number }) =>
+  `${c.onder === undefined ? "onderkant tegen de ramen eronder" : `onderkant op ${meter(c.onder)}`}, ${cm(c.dikte)} dik`;
 const hoogtetekst = (c: { onder: number; boven: number }) => (c.onder > 0.005 ? `van ${meter(c.onder)} tot ${meter(c.boven)}` : `${meter(c.boven)} hoog`);
 const draaitekst = (draai: Draai | undefined) =>
   [draai?.scharnier ? ", scharnier aan de andere kant" : "", draai?.kant ? ", draait naar de andere kant" : ""].join("");
@@ -104,7 +121,20 @@ function beschrijving(c: Correctie): string {
       return `Opening wordt ${GATNAMEN[c.gat].toLowerCase()}${c.breedte !== undefined ? ` van ${meter(c.breedte)} breed` : ""}, ${hoogtetekst(c)}${draaitekst(c.draai)}`;
     case "dicht":
       return "Opening dicht";
+    case "luifel":
+      return `Luifel erbij, ${meter(afstand(c.a, c.b))} lang en ${meter(c.diepte)} diep, ${luifelhoogte(c)}`;
+    case "luifelmaat":
+      return `Luifel van het plan: ${luifelhoogte(c)}`;
+    case "luifelweg":
+      return "Luifel van het plan weg";
   }
+}
+
+/** Waarom een correctie niets meer raakt. */
+function nietsMeer(c: Correctie): string {
+  if (c.soort === "luifel") return "hier ligt geen gevel meer";
+  if (c.soort === "luifelmaat" || c.soort === "luifelweg") return "hier ligt geen luifel meer";
+  return "hier ligt geen muur of opening meer";
 }
 
 /**
@@ -113,7 +143,7 @@ function beschrijving(c: Correctie): string {
  * gsm enkel bekijken.
  */
 export default function Verbeterplan({ huisId, gegevens }: { huisId: number; gegevens: Verbetergegevens }) {
-  const { verdieping, versie, ruimtes, muren, openingen } = gegevens;
+  const { verdieping, versie, ruimtes, muren, openingen, luifels } = gegevens;
   const k = versie.kalibratie;
   const { blad, fout } = usePlanblad(huisId, versie.id, versie.bestandId, versie.pagina);
 
@@ -124,7 +154,9 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
   const [begin, setBegin] = useState<{ punt: Xy; plek: Muurplek | null } | null>(null);
   const [dikte, setDikte] = useState<number>(0.14);
   const [nieuw, setNieuw] = useState<Openingmaat>(STANDAARD.raam);
+  const [nieuweLuifel, setNieuweLuifel] = useState<{ diepte: number; dikte: number }>({ diepte: 1, dikte: LUIFELDIKTE });
   const [gekozen, setGekozen] = useState<Xy | null>(null);
+  const [gekozenLuifel, setGekozenLuifel] = useState<Luifelkeuze | null>(null);
   const [melding, setMelding] = useState<{ soort: "fout" | "goed"; tekst: string } | null>(null);
   const [bezig, setBezig] = useState(false);
 
@@ -139,8 +171,8 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
   const omgezet = useMemo(() => vereniging(muren.map((ring) => [ring])), [muren]);
   // Hetzelfde rekenwerk als het 3D-model: wat je hier ziet, bouwt 3D.
   const uitkomst = useMemo(
-    () => pasCorrectiesToe(omgezet, ruimtes, openingen, verdieping.plafond, correcties),
-    [omgezet, ruimtes, openingen, verdieping.plafond, correcties],
+    () => pasCorrectiesToe(omgezet, ruimtes, openingen, verdieping.plafond, correcties, luifels),
+    [omgezet, ruimtes, openingen, verdieping.plafond, correcties, luifels],
   );
   const veranderd = JSON.stringify(correcties) !== JSON.stringify(bewaard);
 
@@ -153,6 +185,13 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
   }, [veranderd]);
 
   const gekozenGat = gekozen ? (uitkomst.gaten.find((gat) => afstand(hartVan(gat), gekozen) <= 0.3) ?? null) : null;
+  const gekozenLuifelVlak = gekozenLuifel
+    ? (uitkomst.luifels.find((luifel) =>
+        gekozenLuifel.bron === "zelf"
+          ? luifel.bron === "zelf" && luifel.correctie === gekozenLuifel.correctie
+          : luifel.bron === "plan" && binnenVeelhoeken(gekozenLuifel.punt, luifel.veelhoeken),
+      ) ?? null)
+    : null;
 
   // Bij het begin het gebouw in beeld, met wat marge.
   const start = useMemo(() => {
@@ -171,6 +210,7 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
     setGereedschap((huidig) => (huidig === nieuwGereedschap ? "kijken" : nieuwGereedschap));
     setBegin(null);
     setGekozen(null);
+    setGekozenLuifel(null);
     setMelding(null);
   }
 
@@ -223,10 +263,41 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
       return;
     }
 
-    // Kijken: een raam, deur of doorgang kiezen om aan te passen.
+    if (gereedschap === "luifel") {
+      if (!begin) {
+        const plek = opMuur(uitkomst.muren, p, bereik);
+        if (!plek) return setMelding({ soort: "fout", tekst: "Tik op de gevel, waar de luifel begint." });
+        setBegin({ punt: plek.punt, plek });
+        return;
+      }
+      const einde = begin.plek ? opAs(begin.plek, p) : p;
+      setBegin(null);
+      if (afstand(begin.punt, einde) < 0.3) return setMelding({ soort: "fout", tekst: "Die luifel is te kort. Tik het begin en het einde langs de gevel." });
+      const luifel: Correctie = { soort: "luifel", a: rond(begin.punt), b: rond(einde), diepte: nieuweLuifel.diepte, dikte: nieuweLuifel.dikte };
+      // Enkel tegen een gevel: tegen een binnenmuur komt geen luifel.
+      const proef = pasCorrectiesToe(omgezet, ruimtes, openingen, verdieping.plafond, [...correcties, luifel], luifels);
+      if (!proef.verslag[correcties.length]) return setMelding({ soort: "fout", tekst: "Hier komt geen luifel: tik langs een buitenmuur." });
+      voegToe(luifel);
+      // Meteen gekozen: zo zie je welke onderkant de app koos, en pas je die aan.
+      setGereedschap("kijken");
+      setGekozenLuifel({ bron: "zelf", correctie: correcties.length });
+      return;
+    }
+
+    // Kijken: een raam, deur of doorgang kiezen om aan te passen, of een luifel.
+    const inGat = uitkomst.gaten.find((gat) => binnenVeelhoeken(p, [vlakVanGat(gat)]));
+    const luifel = inGat ? undefined : uitkomst.luifels.find((l) => binnenVeelhoeken(p, l.veelhoeken));
+    if (luifel) {
+      setGekozen(null);
+      setGekozenLuifel(
+        luifel.bron === "zelf" && luifel.correctie !== undefined ? { bron: "zelf", correctie: luifel.correctie } : { bron: "plan", punt: rond(p) },
+      );
+      return;
+    }
     const geraakt =
-      uitkomst.gaten.find((gat) => binnenVeelhoeken(p, [vlakVanGat(gat)])) ??
+      inGat ??
       [...uitkomst.gaten].sort((a, b) => afstand(hartVan(a), p) - afstand(hartVan(b), p)).find((gat) => afstand(hartVan(gat), p) <= bereik + gat.dikte);
+    setGekozenLuifel(null);
     setGekozen(geraakt ? hartVan(geraakt) : null);
   };
 
@@ -304,6 +375,46 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
     ]);
   }
 
+  /**
+   * Een luifel andere maten geven, of (zonder maat) weg. Een eigen luifel past
+   * haar eigen correctie aan; een van het plan krijgt er een.
+   */
+  function pasLuifelAan(keuze: Luifelkeuze, luifel: Toegepasteluifel, maat: Luifelmaat | null) {
+    if (keuze.bron === "zelf") {
+      const oud = correcties[keuze.correctie];
+      if (oud?.soort !== "luifel") return;
+      if (!maat) {
+        setCorrecties(correcties.filter((_, i) => i !== keuze.correctie));
+        setGekozenLuifel(null);
+        return;
+      }
+      const vervanging: Correctie = {
+        soort: "luifel",
+        a: oud.a,
+        b: oud.b,
+        diepte: mm(maat.diepte),
+        ...(maat.onder === null ? {} : { onder: mm(maat.onder) }),
+        dikte: mm(maat.dikte),
+      };
+      setCorrecties(correcties.map((c, i) => (i === keuze.correctie ? vervanging : c)));
+      return;
+    }
+    // Van het plan: wat er al voor deze luifel stond, maakt plaats.
+    const zonder = correcties.filter(
+      (c) => !((c.soort === "luifelmaat" || c.soort === "luifelweg") && binnenVeelhoeken([c.x, c.y], luifel.veelhoeken)),
+    );
+    const [x, y] = rond(keuze.punt);
+    if (!maat) {
+      setCorrecties([...zonder, { soort: "luifelweg", x, y }]);
+      setGekozenLuifel(null);
+      return;
+    }
+    const anders = maat.onder !== null || Math.abs(maat.dikte - LUIFELDIKTE) > 0.0005;
+    setCorrecties(
+      anders ? [...zonder, { soort: "luifelmaat", x, y, ...(maat.onder === null ? {} : { onder: mm(maat.onder) }), dikte: mm(maat.dikte) }] : zonder,
+    );
+  }
+
   async function bewaar() {
     setBezig(true);
     const uitkomstActie = await bewaarCorrectiesActie(huisId, { verdiepingId: verdieping.id, correcties }).catch(() => null);
@@ -330,6 +441,14 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
       {ruimtes.map((ruimte) => (
         <path key={ruimte.id} d={pad([ruimte.ringen], k)} fillRule="evenodd" className="laag-ruimte licht" />
       ))}
+      {uitkomst.luifels.map((luifel, i) => (
+        <path
+          key={`l${i}`}
+          d={pad(luifel.veelhoeken, k)}
+          fillRule="evenodd"
+          className={`laag-luifelvlak${luifel === gekozenLuifelVlak ? " gekozen" : ""}`}
+        />
+      ))}
       <path d={pad(uitkomst.muren, k)} fillRule="evenodd" className="laag-muur" />
       {uitkomst.open.length > 0 ? <path d={pad(uitkomst.open, k)} fillRule="evenodd" className="laag-muurweg" /> : null}
       {uitkomst.gaten.map((gat, i) => (
@@ -341,7 +460,7 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
       {correcties.map((c, i) => {
         const klasse = `laag-correctie ${c.soort}${uitkomst.verslag[i] ? "" : " uit"}`;
         if (c.soort === "muur") return <path key={i} d={pad([strook(c.a, c.b, c.dikte)], k)} className={klasse} />;
-        if (c.soort === "weg" || c.soort === "opening") {
+        if (c.soort === "weg" || c.soort === "opening" || c.soort === "luifel") {
           const [a, b] = [naarPagina(c.a, k), naarPagina(c.b, k)];
           return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} className={klasse} />;
         }
@@ -369,7 +488,11 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
           : "Tik op de muur waar het stuk begint."
         : gereedschap === "opening"
           ? `Tik op de muur waar het midden van de ${GATNAMEN[nieuw.gat].toLowerCase()} komt.`
-          : "Tik op een raam, deur of doorgang om ze aan te passen.";
+          : gereedschap === "luifel"
+            ? begin
+              ? "Tik waar de luifel eindigt, langs dezelfde gevel."
+              : "Tik op de gevel waar de luifel begint."
+            : "Tik op een raam, deur, doorgang of luifel om ze aan te passen.";
 
   return (
     <div className="omzetten">
@@ -393,6 +516,9 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
             </li>
           ))}
           <li>
+            <span className="legende-kleur luifel" /> Luifel
+          </li>
+          <li>
             <span className="legende-kleur correctie" /> Verbeterd
           </li>
         </ul>
@@ -410,6 +536,7 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
                   ["muur", "Muur erbij"],
                   ["weg", "Muur weg"],
                   ["opening", "Raam of deur erbij"],
+                  ["luifel", "Luifel erbij"],
                 ] as const
               ).map(([welk, tekst]) => (
                 <button key={welk} type="button" className={gereedschap === welk ? "" : "stil"} aria-pressed={gereedschap === welk} onClick={() => kies(welk)}>
@@ -439,6 +566,9 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
             {gereedschap === "opening" ? (
               <Openingvelden maat={nieuw} plafond={verdieping.plafond} opWijzig={setNieuw} fout={(tekst) => setMelding({ soort: "fout", tekst })} />
             ) : null}
+            {gereedschap === "luifel" ? (
+              <Luifelvelden maat={nieuweLuifel} opWijzig={setNieuweLuifel} fout={(tekst) => setMelding({ soort: "fout", tekst })} />
+            ) : null}
             {gereedschap !== "kijken" ? (
               <div className="knoppenrij" style={{ marginTop: 10 }}>
                 <button type="button" className="stil" onClick={() => kies("kijken")}>
@@ -447,6 +577,17 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
               </div>
             ) : null}
           </section>
+        ) : null}
+
+        {gekozenLuifel && gekozenLuifelVlak && !klein ? (
+          <Luifelkaart
+            key={`${JSON.stringify(gekozenLuifel)}-${gekozenLuifelVlak.onder}-${gekozenLuifelVlak.dikte}-${gekozenLuifelVlak.diepte}`}
+            luifel={gekozenLuifelVlak}
+            opToepassen={(maat) => pasLuifelAan(gekozenLuifel, gekozenLuifelVlak, maat)}
+            opWeg={() => pasLuifelAan(gekozenLuifel, gekozenLuifelVlak, null)}
+            opSluiten={() => setGekozenLuifel(null)}
+            fout={(tekst) => setMelding({ soort: "fout", tekst })}
+          />
         ) : null}
 
         {gekozenGat && !klein ? (
@@ -472,9 +613,16 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
                 <li key={i} className={uitkomst.verslag[i] ? undefined : "uit"}>
                   <span>
                     {beschrijving(c)}
-                    {uitkomst.verslag[i] ? null : <span className="hulp"> · raakt niets meer: hier ligt geen muur of opening meer</span>}
+                    {uitkomst.verslag[i] ? null : <span className="hulp"> · raakt niets meer: {nietsMeer(c)}</span>}
                   </span>
-                  <button type="button" className="link" onClick={() => setCorrecties(correcties.filter((_, j) => j !== i))}>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      setCorrecties(correcties.filter((_, j) => j !== i));
+                      setGekozenLuifel(null);
+                    }}
+                  >
                     {uitkomst.verslag[i] ? "Ongedaan maken" : "Weghalen"}
                   </button>
                 </li>
@@ -493,6 +641,7 @@ export default function Verbeterplan({ huisId, gegevens }: { huisId: number; geg
                   setCorrecties(bewaard);
                   setBegin(null);
                   setGekozen(null);
+                  setGekozenLuifel(null);
                 }}
               >
                 Herbeginnen
@@ -632,6 +781,132 @@ function Gatkaart({
         </button>
         <button type="button" className="stil" onClick={opDicht}>
           Dichtmaken
+        </button>
+        <button type="button" className="stil" onClick={opSluiten}>
+          Sluiten
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type Gelezen = { ok: true; waarde: number | null } | { ok: false; melding: string };
+
+/** Een maat van een luifel uit een veld, of een fout; leeg mag enkel als `leegMag`. */
+function luifelgetal(tekst: string, wat: string, min: number, max: number, leegMag = false): Gelezen {
+  const uit = getal(tekst, wat);
+  if (!uit.ok) return uit;
+  if (uit.waarde === null) return leegMag ? uit : { ok: false, melding: `${wat}: vul een getal in.` };
+  if (uit.waarde < min || uit.waarde > max) return { ok: false, melding: `${wat} ligt tussen ${komma(min)} en ${komma(max)} m.` };
+  return uit;
+}
+
+/** De diepte en de dikte van een nieuwe luifel. De onderkant kiest de app; die pas je daarna aan. */
+function Luifelvelden({
+  maat,
+  opWijzig,
+  fout,
+}: {
+  maat: { diepte: number; dikte: number };
+  opWijzig: (maat: { diepte: number; dikte: number }) => void;
+  fout: (tekst: string) => void;
+}) {
+  const [teksten, setTeksten] = useState({ diepte: komma(maat.diepte), dikte: komma(maat.dikte) });
+  const lees = (veld: "diepte" | "dikte", tekst: string) => {
+    const uit = veld === "diepte" ? luifelgetal(tekst, "De diepte", 0.2, 5) : luifelgetal(tekst, "De dikte", 0.05, 1);
+    if (!uit.ok) return fout(uit.melding);
+    opWijzig({ ...maat, [veld]: uit.waarde });
+  };
+  const veld = (naam: "diepte" | "dikte", label: string) => (
+    <div>
+      <label htmlFor={`luifel-${naam}`}>{label}</label>
+      <input
+        id={`luifel-${naam}`}
+        inputMode="decimal"
+        value={teksten[naam]}
+        onChange={(g) => setTeksten({ ...teksten, [naam]: g.currentTarget.value })}
+        onBlur={(g) => lees(naam, g.currentTarget.value)}
+        onKeyDown={(g) => {
+          if (g.key === "Enter") g.currentTarget.blur();
+        }}
+      />
+    </div>
+  );
+  return (
+    <>
+      <div className="veldenrij" style={{ marginTop: 10 }}>
+        {veld("diepte", "Diepte (m)")}
+        {veld("dikte", "Dikte (m)")}
+      </div>
+      <p className="hulp">De onderkant kiest de app: tegen de bovenkant van de ramen eronder. Daarna pas je ze aan.</p>
+    </>
+  );
+}
+
+/** Een gekozen luifel: haar maten, of weg. Bij een luifel van het plan ligt de vorm vast; de diepte enkel bij een eigen. */
+function Luifelkaart({
+  luifel,
+  opToepassen,
+  opWeg,
+  opSluiten,
+  fout,
+}: {
+  luifel: Toegepasteluifel;
+  opToepassen: (maat: Luifelmaat) => void;
+  opWeg: () => void;
+  opSluiten: () => void;
+  fout: (tekst: string) => void;
+}) {
+  const eigen = luifel.bron === "zelf";
+  const [teksten, setTeksten] = useState({
+    diepte: komma(luifel.diepte),
+    onder: luifel.vanzelf ? "" : komma(luifel.onder),
+    dikte: komma(luifel.dikte),
+  });
+  function toepassen() {
+    const diepte = luifelgetal(teksten.diepte, "De diepte", 0.2, 5);
+    const onder = luifelgetal(teksten.onder, "De onderkant", 0, 6, true);
+    const dikte = luifelgetal(teksten.dikte, "De dikte", 0.05, 1);
+    for (const uit of [diepte, onder, dikte]) if (!uit.ok) return fout(uit.melding);
+    if (!diepte.ok || !onder.ok || !dikte.ok) return;
+    opToepassen({ diepte: eigen ? diepte.waarde! : luifel.diepte, onder: onder.waarde, dikte: dikte.waarde! });
+  }
+  const veld = (naam: "diepte" | "onder" | "dikte", label: string, placeholder?: string) => (
+    <div>
+      <label htmlFor={`luifelkaart-${naam}`}>{label}</label>
+      <input
+        id={`luifelkaart-${naam}`}
+        inputMode="decimal"
+        value={teksten[naam]}
+        placeholder={placeholder}
+        onChange={(g) => setTeksten({ ...teksten, [naam]: g.currentTarget.value })}
+        onKeyDown={(g) => {
+          if (g.key === "Enter") toepassen();
+        }}
+      />
+    </div>
+  );
+  return (
+    <section className="kaart">
+      <h3>
+        {eigen ? "Luifel die je zette" : "Luifel van het plan"}, {meter(luifel.diepte)} diep
+      </h3>
+      <p className="hulp">
+        Van {meter(luifel.onder)} tot {meter(luifel.onder + luifel.dikte)} boven de vloer.
+        {luifel.vanzelf ? " De onderkant koos de app: tegen de bovenkant van de ramen eronder." : null}
+      </p>
+      <div className="veldenrij">
+        {eigen ? veld("diepte", "Diepte (m)") : null}
+        {veld("onder", "Onderkant (m)", `${komma(luifel.onder)}, vanzelf`)}
+        {veld("dikte", "Dikte (m)")}
+      </div>
+      <p className="hulp">Laat de onderkant leeg, dan kiest de app ze.</p>
+      <div className="knoppenrij">
+        <button type="button" onClick={toepassen}>
+          Toepassen
+        </button>
+        <button type="button" className="stil" onClick={opWeg}>
+          Weg
         </button>
         <button type="button" className="stil" onClick={opSluiten}>
           Sluiten

@@ -174,6 +174,7 @@ const VASTE_KLEUREN: Record<string, string> = {
   trap: STANDAARDKLEUREN.trap,
   binnendeur: STANDAARDKLEUREN.binnendeur,
   deurboog: STANDAARDKLEUREN.deurboog,
+  luifel: STANDAARDKLEUREN.luifel,
 };
 
 export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: Driegegevens }) {

@@ -292,6 +292,18 @@ grondplannen.
     voordeur met een zijlicht, dan komt er vast glas naast. Een deur zonder
     boog blijft een gat. De bogen zaten altijd al in de omzetting, dus dit
     werkt ook zonder opnieuw omzetten.
+- **Luifels** (`drie/luifels.ts`) zijn platen van zichtbeton tegen de gevel:
+  - **van het plan:** de lijn in streepjes die de omzetting vond, gesloten
+    langs de gevel (rond een hoek ook);
+  - **de onderkant** komt tegen de bovenkant van de ramen en buitendeuren
+    eronder, zoals op de gevels. Zonder ramen of deuren: het plafond. Ze is
+    30 cm dik;
+  - **niet** onder de verdieping erboven (daar kraagt haar vloer uit), en
+    niet over een ruimte: een terras dat als ruimte getekend is, ligt al
+    onder het dak;
+  - ze horen bij de laag van hun verdieping, maar niet bij het kader van het
+    gebouw: het gebouw verschuift er niet door op het terrein. Bij
+    **Inrichten** zet je er gewoon iets onder.
 - **Verbeteren.** Het plan wordt niet altijd perfect omgezet. Bij **Muren,
   ramen en deuren verbeteren** (`/3d/verbeteren`, vanuit 3D of de pagina van
   het plan) verbeter je het op het plan zelf, per verdieping:
@@ -306,7 +318,15 @@ grondplannen.
   - tik een raam, deur of doorgang om de soort of de maten te veranderen, of
     om ze dicht te maken. Bij een deur: **Scharnier andere kant** en **Draait
     naar de andere kant**. Een deur die je zo laat draaien of zelf maakt,
-    krijgt een blad, ook zonder boog op het plan.
+    krijgt een blad, ook zonder boog op het plan;
+  - **Luifel erbij:** kies de diepte (standaard 1 m) en de dikte (30 cm), en
+    tik het begin en het einde langs de gevel. De onderkant kiest de app;
+    daarna is de luifel gekozen en pas je ze aan. Zo zet je een luifel die
+    op geen enkel grondplan staat, zoals een luifel boven de verdieping die
+    enkel op de gevels en de doorsnede getekend is;
+  - tik een luifel om haar onderkant en dikte te veranderen (bij een eigen
+    luifel ook de diepte), of om ze weg te doen. Laat je de onderkant leeg,
+    dan kiest de app ze.
 
   Het plan toont meteen wat 3D bouwt: beide rekenen met dezelfde code
   (`drie/correcties.ts`). **Bewaren** bewaart alles samen, per verdieping,
@@ -891,6 +911,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/omzetting/muren.ts` | De muren uit een grondplan |
 | `web/lib/bouw/omzetting/trappen.ts` | De trappen uit een grondplan: treden, vluchten, bordes en de pijl |
 | `web/lib/bouw/omzetting/luifels.ts` | De luifels uit een grondplan: een streepjeslijn tegen de gevel met een tekst als "oversteek 100 cm"; puur, met tests |
+| `web/lib/bouw/drie/luifels.ts` | Een luifel in 3D: de lijn van het plan gesloten langs de gevel, en de onderkant tegen de ramen eronder; puur, met tests |
 | `web/lib/bouw/drie/deuren.ts` | Een deurblad op een kier, de boog op de vloer, vast glas naast een voordeur, en een deur omdraaien; puur, met tests |
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, en de trap op en af wandelen |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
@@ -1101,6 +1122,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5h** Meubels en toestellen
 - [x] **5i** Leidingen tekenen op het plan, en ze in 3D zien
 - [x] **5j** Zonnepanelen op het dak
+- [x] **5k** Opnieuw omzetten met de nieuwste regels; de ramen met hun maat
+      en borstwering, de deuren met hun blad, en de luifels, ook zelf gezet
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

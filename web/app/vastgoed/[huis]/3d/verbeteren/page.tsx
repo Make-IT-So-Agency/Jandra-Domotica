@@ -106,6 +106,7 @@ export default async function Verbeterpagina({
             ruimtes: ruimtes.map((r) => ({ id: r.id, naam: r.naam, ringen: r.veelhoek })),
             muren: omzetting.muren,
             openingen: omzetting.openingen,
+            luifels: omzetting.luifels,
             correcties: verdieping.correcties ?? [],
           }}
         />

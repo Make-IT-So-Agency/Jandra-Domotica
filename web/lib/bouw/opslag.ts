@@ -5,7 +5,7 @@ import { db } from "@/lib/supabase";
 import { Bouwfout, check, geraakt, huisVanRij, idsVanHuis, verdiepingenVanHuis, zelfdeHuis, type Meldingen } from "./databank";
 import { STANDAARDDAK, isDaktype, type Dakinstelling } from "./drie/dakregels";
 import type { Gekendeopening } from "./drie/gaten";
-import type { Gekendeluifel } from "./drie/model";
+import type { Gekendeluifel } from "./drie/luifels";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";

@@ -176,8 +176,8 @@ export function useInrichten(
     const hoogte = buiten ? grondpeil : op.z0 + 0.012;
     const punt = straal.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -hoogte), new THREE.Vector3());
     if (!punt) return meld({ soort: "fout", tekst: buiten ? "Tik op de grond." : "Tik op de vloer." });
-    // Staat er iets tussen, zoals een muur, dan bedoel je die plek niet.
-    const ervoor = zichtbareRaak(straal, [d.opgebouwd.wortel], d.snede)[0];
+    // Staat er iets tussen, zoals een muur, dan bedoel je die plek niet. Een luifel telt niet: daaronder zet je ook iets.
+    const ervoor = zichtbareRaak(straal, [d.opgebouwd.wortel], d.snede).find((r) => r.object.userData.sleutel !== "luifel");
     if (ervoor && ervoor.distance < straal.ray.origin.distanceTo(punt) - 0.05) {
       return meld({ soort: "fout", tekst: buiten ? "Tik op de grond naast het huis." : "Tik op de vloer, niet op een muur." });
     }
@@ -262,10 +262,11 @@ export function useInrichten(
     const druk = (e: PointerEvent) => {
       if (e.button !== 0 || !scene.current || !d.opgebouwd) return;
       richtStraal(straal, e, doel, d.camera);
-      // Wat de straal eerst raakt: een stuk achter een muur of onder het dak kies je niet. Punten en buizen tellen niet mee.
+      // Wat de straal eerst raakt: een stuk achter een muur of onder het dak kies je niet. Punten, buizen en luifels tellen niet mee.
       let object: THREE.Object3D | null =
-        zichtbareRaak(straal, [d.opgebouwd.wortel], d.snede).find((r) => r.object.userData.puntId === undefined && r.object.userData.leidingId === undefined)
-          ?.object ?? null;
+        zichtbareRaak(straal, [d.opgebouwd.wortel], d.snede).find(
+          (r) => r.object.userData.puntId === undefined && r.object.userData.leidingId === undefined && r.object.userData.sleutel !== "luifel",
+        )?.object ?? null;
       while (object && object.userData.stukId === undefined) object = object.parent;
       const id = object?.userData.stukId as number | undefined;
       if (!object || id === undefined) return;
