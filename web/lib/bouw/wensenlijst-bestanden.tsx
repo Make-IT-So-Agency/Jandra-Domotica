@@ -5,13 +5,17 @@ import ExcelJS from "exceljs";
 import type { ReactElement } from "react";
 
 import { datumTijd } from "../format";
-import { CATEGORIENAMEN, type Wensenlijst } from "./punten";
+import { CATEGORIENAMEN, VAKNAMEN, type Vak, type Wensenlijst } from "./punten";
 
 /**
- * De wensenlijst als PDF en als Excel, voor de elektricien en de
- * domotica-installateur. Een export is een momentopname: de datum staat
+ * De wensenlijst als PDF en als Excel, per vakgebied: voor de elektricien en
+ * de domotica-installateur, of voor de loodgieter en de
+ * verwarmingsinstallateur. Een export is een momentopname: de datum staat
  * erop.
  */
+
+/** "Wensenlijst sanitair en verwarming". */
+export const wensenlijstTitel = (vak: Vak) => `Wensenlijst ${VAKNAMEN[vak].toLowerCase()}`;
 
 const kleur = { tekst: "#111827", zacht: "#6b7280", lijn: "#e5e7eb", vlak: "#f9fafb" };
 
@@ -56,11 +60,11 @@ function Kop() {
   );
 }
 
-function Document_({ lijst, project, opgemaakt }: { lijst: Wensenlijst; project: string | null; opgemaakt: Date }): ReactElement {
+function Document_({ lijst, project, opgemaakt, vak }: { lijst: Wensenlijst; project: string | null; opgemaakt: Date; vak: Vak }): ReactElement {
   return (
-    <Document title="Wensenlijst elektriciteit en domotica" author={project ?? undefined}>
+    <Document title={wensenlijstTitel(vak)} author={project ?? undefined}>
       <Page size="A4" style={stijl.pagina}>
-        <Text style={stijl.titel}>Wensenlijst elektriciteit en domotica</Text>
+        <Text style={stijl.titel}>{wensenlijstTitel(vak)}</Text>
         <Text style={stijl.ondertitel}>
           {project ? `${project} · ` : ""}
           {lijst.aantal} punten · momentopname van {datumTijd(opgemaakt.toISOString())}
@@ -114,15 +118,16 @@ function Document_({ lijst, project, opgemaakt }: { lijst: Wensenlijst; project:
   );
 }
 
-export async function maakWensenlijstPdf(lijst: Wensenlijst, project: string | null, opgemaakt = new Date()): Promise<Buffer> {
-  return renderToBuffer(<Document_ lijst={lijst} project={project} opgemaakt={opgemaakt} />);
+export async function maakWensenlijstPdf(lijst: Wensenlijst, project: string | null, opgemaakt = new Date(), vak: Vak = "elektriciteit"): Promise<Buffer> {
+  return renderToBuffer(<Document_ lijst={lijst} project={project} opgemaakt={opgemaakt} vak={vak} />);
 }
 
 /** Twee bladen: alle punten per ruimte, en het totaal per soort. Aantallen als echte getallen. */
-export async function maakWensenlijstExcel(lijst: Wensenlijst, project: string | null, opgemaakt = new Date()): Promise<Buffer> {
+export async function maakWensenlijstExcel(lijst: Wensenlijst, project: string | null, opgemaakt = new Date(), vak: Vak = "elektriciteit"): Promise<Buffer> {
   const werkmap = new ExcelJS.Workbook();
   werkmap.creator = project ?? "Jandra";
   werkmap.created = opgemaakt;
+  werkmap.title = wensenlijstTitel(vak);
 
   const kop = (werkblad: ExcelJS.Worksheet) => {
     const rij = werkblad.getRow(1);

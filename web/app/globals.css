@@ -2934,3 +2934,14 @@ tr.deze-maand td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Het label van een punt dat je in 3D aantikt. */
+.drie-puntlabel {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(17 24 39 / 0.86);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -14,7 +14,7 @@ import {
   lijstVerdiepingen,
 } from "../opslag";
 import { tijdelijkeUrl } from "../opslagruimte";
-import { CATEGORIEKLEUREN, soortVan, type Categorie } from "../punten";
+import { CATEGORIEKLEUREN, soortVan, type Categorie, type StatusPunt } from "../punten";
 import { lijstKeuzes, lijstOpties, lijstVoorkeuren } from "../regie-opslag";
 import type { SoortPlan } from "../types";
 import { verdiepingNaam } from "../weergave";
@@ -50,12 +50,30 @@ export interface Inplantingsplan {
   versie: { versieId: number; bestandId: number; pagina: number };
 }
 
+/** Een punt voor de elektricien of de loodgieter, zoals 3D het tekent en het paneel het toont. */
+export interface Driepunt {
+  id: number;
+  verdiepingId: number;
+  x: number;
+  y: number;
+  /** Boven de vloer, of null: aan het plafond. */
+  hoogte: number | null;
+  soort: string;
+  code: string;
+  naam: string;
+  categorie: Categorie;
+  kleur: string;
+  aantal: number;
+  label: string | null;
+  status: StatusPunt;
+}
+
 export interface Driegegevens {
   /** Met de bewaarde plaats op het terrein, of null: dan zoekt het scherm het gebouw zelf. */
   gebouwen: { id: number; naam: string; dak: Dakinstelling; plaats: Plaatsing | null }[];
   verdiepingen: Drieverdieping[];
   materialen: Materiaalkeuze[];
-  punten: { id: number; verdiepingId: number; x: number; y: number; hoogte: number | null; categorie: Categorie; kleur: string; naam: string }[];
+  punten: Driepunt[];
   inplanting: {
     /** Het bewaarde plan en zijn schaal (N van 1/N). */
     planId: number | null;
@@ -152,9 +170,14 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
         x: punt.x_m,
         y: punt.y_m,
         hoogte: punt.hoogte_m,
+        soort: punt.soort,
+        code: soort?.code ?? "?",
+        naam: soort?.naam ?? punt.soort,
         categorie: soort?.categorie ?? "andere",
         kleur: CATEGORIEKLEUREN[soort?.categorie ?? "andere"],
-        naam: soort?.naam ?? punt.soort,
+        aantal: punt.aantal,
+        label: punt.label,
+        status: punt.status,
       };
     }),
     inplanting: {

@@ -43,6 +43,11 @@ export interface Lageninvoer {
   punten: readonly { categorie: string; naam: string; kleur: string }[];
 }
 
+/** De punten per categorie: in 3D, en ook in het puntenscherm. */
+export function puntlagen(punten: Lageninvoer["punten"]): Lagengroep {
+  return { naam: "Punten", lagen: punten.map((p) => ({ sleutel: `punten:${p.categorie}`, naam: p.naam, kleur: p.kleur })) };
+}
+
 /** De lagen, in groepen. Een groep zonder lagen valt weg. */
 export function lagenVan(invoer: Lageninvoer): Lagengroep[] {
   const groepen: Lagengroep[] = [
@@ -67,10 +72,7 @@ export function lagenVan(invoer: Lageninvoer): Lagengroep[] {
           : []),
       ],
     },
-    {
-      naam: "Punten",
-      lagen: invoer.punten.map((p) => ({ sleutel: `punten:${p.categorie}`, naam: p.naam, kleur: p.kleur })),
-    },
+    puntlagen(invoer.punten),
     {
       naam: "Hulp",
       lagen: [

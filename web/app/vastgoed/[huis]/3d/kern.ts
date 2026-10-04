@@ -55,8 +55,8 @@ export function gesneden(object: THREE.Object3D, snede: THREE.Plane): boolean {
 }
 
 /**
- * Wat de straal raakt, van dichtbij naar ver: enkel vlakken die te zien zijn,
- * en niets wat de doorsnede wegsnijdt. Een gewone straal van three.js raakt
+ * Wat de straal raakt, van dichtbij naar ver: enkel vlakken (en symbolen) die
+ * te zien zijn, en niets wat de doorsnede wegsnijdt. Een gewone straal van three.js raakt
  * ook een verborgen verdieping, of een muur boven de snede.
  */
 export function zichtbareRaak(straal: THREE.Raycaster, objecten: readonly THREE.Object3D[], snede: THREE.Plane): THREE.Intersection[] {
@@ -64,7 +64,7 @@ export function zichtbareRaak(straal: THREE.Raycaster, objecten: readonly THREE.
     .intersectObjects([...objecten], true)
     .filter(
       (raak) =>
-        (raak.object as THREE.Mesh).isMesh === true &&
+        ((raak.object as THREE.Mesh).isMesh === true || (raak.object as THREE.Sprite).isSprite === true) &&
         zichtbaar(raak.object) &&
         !(gesneden(raak.object, snede) && snede.distanceToPoint(raak.point) < -1e-6),
     );

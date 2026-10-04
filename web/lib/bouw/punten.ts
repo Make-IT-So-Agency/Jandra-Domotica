@@ -21,6 +21,8 @@ export const CATEGORIEEN = [
   "sensoren",
   "klimaat",
   "zonwering",
+  "sanitair",
+  "verwarming",
   "andere",
 ] as const;
 
@@ -34,6 +36,8 @@ export const CATEGORIENAMEN: Record<Categorie, string> = {
   sensoren: "Sensoren en veiligheid",
   klimaat: "Klimaat",
   zonwering: "Zonwering",
+  sanitair: "Sanitair",
+  verwarming: "Verwarming",
   andere: "Andere",
 };
 
@@ -46,6 +50,8 @@ export const CATEGORIEKLEUREN: Record<Categorie, string> = {
   sensoren: "#16a34a",
   klimaat: "#0891b2",
   zonwering: "#7c3aed",
+  sanitair: "#0f766e",
+  verwarming: "#db2777",
   andere: "#6b7280",
 };
 
@@ -90,8 +96,53 @@ export const CATALOGUS: readonly Puntsoort[] = [
   { soort: "ventilatie_toevoer", naam: "Ventilatie: toevoer", categorie: "klimaat", code: "VT", hoogte: "plafond" },
   { soort: "rolluik", naam: "Rolluik of screen met motor", categorie: "zonwering", code: "RL", hoogte: 2.3 },
   { soort: "zonwering_bediening", naam: "Bediening van de zonwering", categorie: "zonwering", code: "RB", hoogte: 1.1 },
+  { soort: "water_koud", naam: "Koud water", categorie: "sanitair", code: "KW", hoogte: 0.5 },
+  { soort: "water_warm", naam: "Warm water", categorie: "sanitair", code: "WW", hoogte: 0.5 },
+  { soort: "afvoer", naam: "Afvoer", categorie: "sanitair", code: "AF", hoogte: 0.5 },
+  // Niet "WC": dat is op een plan een stopcontact (wandcontactdoos).
+  { soort: "wc_aansluiting", naam: "Wc-aansluiting", categorie: "sanitair", code: "TOI", hoogte: 0.2 },
+  { soort: "vloerput", naam: "Vloerputje", categorie: "sanitair", code: "VP", hoogte: 0 },
+  { soort: "buitenkraan", naam: "Buitenkraan", categorie: "sanitair", code: "BK", hoogte: 0.6 },
+  { soort: "regenwater", naam: "Regenwater (kraan, wc, wasmachine)", categorie: "sanitair", code: "RW", hoogte: 0.5 },
+  { soort: "rioolput", naam: "Rioolput of toezichtsput", categorie: "sanitair", code: "RP", hoogte: 0 },
+  { soort: "radiator", naam: "Radiator", categorie: "verwarming", code: "RAD", hoogte: 0.15 },
+  { soort: "handdoekradiator", naam: "Handdoekradiator", categorie: "verwarming", code: "HDR", hoogte: 0.3 },
+  { soort: "collector", naam: "Collector vloerverwarming", categorie: "verwarming", code: "COL", hoogte: 0.5 },
   { soort: "andere", naam: "Andere", categorie: "andere", code: "?", hoogte: 1.0 },
 ];
+
+/**
+ * Wie wat plaatst: de elektricien en de domotica-installateur, of de
+ * loodgieter en de verwarmingsinstallateur. Elk vakgebied heeft zijn eigen
+ * wensenlijst. De thermostaat en de ventilatie blijven bij de elektriciteit:
+ * daar hangt ook de bediening.
+ */
+export const VAKKEN = ["elektriciteit", "sanitair"] as const;
+
+export type Vak = (typeof VAKKEN)[number];
+
+export const VAKNAMEN: Record<Vak, string> = {
+  elektriciteit: "Elektriciteit en domotica",
+  sanitair: "Sanitair en verwarming",
+};
+
+export const VAK_VAN_CATEGORIE: Record<Categorie, Vak> = {
+  verlichting: "elektriciteit",
+  bediening: "elektriciteit",
+  stopcontacten: "elektriciteit",
+  data: "elektriciteit",
+  sensoren: "elektriciteit",
+  klimaat: "elektriciteit",
+  zonwering: "elektriciteit",
+  sanitair: "sanitair",
+  verwarming: "sanitair",
+  andere: "elektriciteit",
+};
+
+export const isVak = (waarde: unknown): waarde is Vak => VAKKEN.includes(waarde as Vak);
+
+/** Het vakgebied van een punt, volgens zijn soort. */
+export const vakVan = (soort: string): Vak => VAK_VAN_CATEGORIE[soortVan(soort)?.categorie ?? "andere"];
 
 const PER_SOORT = new Map(CATALOGUS.map((soort) => [soort.soort, soort]));
 
@@ -283,8 +334,11 @@ function regelsVan(punten: Punt[], plafondhoogte: number | null): Wensregel[] {
 export function maakWensenlijst(
   verdiepingen: { id: number; naam: string; plafondhoogte_m: number | null }[],
   ruimtes: (Ruimtevorm & { verdieping_id: number; plafondhoogte_m: number | null })[],
-  punten: Punt[],
+  allePunten: Punt[],
+  /** Enkel de punten van dit vakgebied; zonder: alle punten. */
+  vak?: Vak,
 ): Wensenlijst {
+  const punten = vak ? allePunten.filter((punt) => vakVan(punt.soort) === vak) : allePunten;
   const lijst: Wensverdieping[] = [];
   for (const verdieping of verdiepingen) {
     const eigenRuimtes = ruimtes.filter((r) => r.verdieping_id === verdieping.id);

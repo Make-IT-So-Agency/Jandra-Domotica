@@ -139,7 +139,8 @@ export function useMeten(
       for (const wortel of wortels.current()) {
         wortel.traverse((object) => {
           const mesh = object as THREE.Mesh;
-          if (!mesh.isMesh || !zichtbaar(mesh)) return;
+          // Niet aan de hoeken van een symbool van een punt: enkel aan muren, vloeren en trappen.
+          if (!mesh.isMesh || mesh.userData.puntId !== undefined || !zichtbaar(mesh)) return;
           let punten = hoeken.current.get(mesh.geometry);
           if (!punten) {
             punten = uniekePunten(mesh.geometry.getAttribute("position").array);

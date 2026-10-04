@@ -161,14 +161,30 @@ apart te openen.
 grondplan met de ruimtes er licht over. Kies rechts een soort en tik op het
 plan: elke tik zet er een bij. Tik op een punt om het te wijzigen: soort,
 hoogte, aantal, label, opmerking en status (gewenst, in de offerte, geplaatst,
-getest), verplaatsen of verwijderen. Op de gsm staat enkel de lijst.
+getest), verplaatsen of verwijderen. Op de gsm staat enkel de lijst. Bij
+**Lagen** zet je een categorie aan of uit, net als in 3D.
 
-**De catalogus** staat in `web/lib/bouw/punten.ts`: 31 soorten in acht
+**De catalogus** staat in `web/lib/bouw/punten.ts`: 42 soorten in tien
 groepen (verlichting, bediening, stopcontacten, data en media, sensoren en
-veiligheid, klimaat, zonwering, andere). Elke soort heeft een korte code zoals
-een elektricien ze leest (`L`, `S`, `2WC`, `UTP`, `PIR`, `RM`) en een gewone
-hoogte: een schakelaar op 1,10 m, een stopcontact op 0,30 m, een lichtpunt
-aan het plafond. Een soort erbij is één regel code, zonder migratie.
+veiligheid, klimaat, zonwering, sanitair, verwarming, andere). Elke soort
+heeft een korte code zoals een elektricien of loodgieter ze leest (`L`, `S`,
+`2WC`, `UTP`, `PIR`, `KW`, `AF`, `RAD`) en een gewone hoogte: een schakelaar
+op 1,10 m, een stopcontact op 0,30 m, een lichtpunt aan het plafond, een
+vloerputje in de vloer. Een wc-aansluiting heet `TOI`, want `WC` is op een
+plan een stopcontact. Een soort erbij is één regel code, zonder migratie.
+
+**Vakgebieden.** Elektriciteit en domotica (alles tot zonwering, en andere)
+en sanitair en verwarming hebben elk hun eigen wensenlijst. De thermostaat
+en de ventilatie blijven bij de elektriciteit: daar hangt ook de bediening.
+
+**In 3D** is elk punt herkenbaar: een rond symbool met de code, in de kleur
+van de categorie (`drie/bevestiging.ts`, `3d/punten-scene.ts`). Met een
+hoogte en een muur tot 40 cm ver hangt het als plaatje tegen de dichtste
+muurkant en kijkt het de ruimte in; zonder hoogte is het een rozet aan het
+plafond, op nul een schijf in de vloer, en zonder muur in de buurt kijkt het
+naar de camera. Tik een punt: een label op het beeld, en in het paneel de
+naam, het label, het aantal, de hoogte, de ruimte en de stand. Een tik tot 16
+pixels ernaast telt ook, als er niets tussen ligt.
 
 **Waar een punt ligt.** In meter, in het assenstelsel van het gebouw. Een
 nieuwe versie van het plan wordt op dezelfde plaats uitgelijnd, dus de punten
@@ -176,12 +192,14 @@ blijven liggen. De ruimte volgt uit de veelhoeken: in de ruimte, of tot 35 cm
 ernaast, want een schakelaar zit in de muur. Wat daarbuiten ligt, zoals een
 buitenstopcontact, staat onder "Buiten of zonder ruimte".
 
-**De wensenlijst** (`/vastgoed/1/punten/wensenlijst`): per verdieping en ruimte wat
-er moet komen, met de aantallen, de hoogtes en de opmerkingen, en het totaal
-per soort. Als PDF en als Excel (een blad per ruimte en een blad met het
-totaal), voor de elektricien en de domotica-installateur. Een download is een
-momentopname, met de datum erop. Later dient dezelfde lijst om hun offertes
-te vergelijken.
+**De wensenlijst** (`/vastgoed/1/punten/wensenlijst`, `?vak=sanitair` voor
+sanitair en verwarming): per verdieping en ruimte wat er moet komen, met de
+aantallen, de hoogtes en de opmerkingen, en het totaal per soort. Als PDF en
+als Excel (een blad per ruimte en een blad met het totaal), per vakgebied:
+voor de elektricien en de domotica-installateur, of voor de loodgieter en de
+verwarmingsinstallateur. Via een link met het recht "wensenlijst" ziet een
+partij beide. Een download is een momentopname, met de datum erop. Later
+dient dezelfde lijst om hun offertes te vergelijken.
 
 ## Het huis in 3D
 
@@ -951,7 +969,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5e** Meten in 3D, de zon op datum en uur met het echte noorden, en
       lagen die je aan en uit zet
 - [x] **5f** Muren, ramen en deuren verbeteren op het plan, na het omzetten
-- [ ] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
+- [x] **5g** De punten herkenbaar in 3D, en punten voor sanitair en
       verwarming
 - [ ] **5h** Meubels en toestellen
 - [ ] **5i** Leidingen tekenen op het plan, en ze in 3D zien
