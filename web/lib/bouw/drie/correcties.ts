@@ -4,6 +4,7 @@ import { gedraaid, standaardBlad, type Draai } from "./deuren";
 import { hartVan, vindGaten, type Gat, type Gatsoort, type Gekendeopening } from "./gaten";
 import { LUIFELDIKTE, MIN_LUIFEL, onderkantVanLuifel, sluitLuifel, type Gekendeluifel } from "./luifels";
 import { binnenVeelhoeken, doorsnede, verschil, vereniging, type Veelhoek } from "./vlak";
+import { kleineZones, naarZones } from "./zones";
 
 /**
  * Wat iemand op het plan verbeterde aan de muren, ramen en deuren van een
@@ -303,7 +304,7 @@ export function pasCorrectiesToe(
 ): Toegepast {
   const verslag = correcties.map(() => true);
   if (correcties.length === 0) {
-    const gaten = vindGaten(ruimtes, begin, openingen, plafond);
+    const gaten = naarBinnen(vindGaten(ruimtes, begin, openingen, plafond), ruimtes, begin, [], plafond);
     return { muren: [...begin], gaten, open: [], luifels: luifelsVan(begin, ruimtes, gaten, [], plafond, luifels, correcties, verslag), verslag };
   }
   let muren = [...begin];
@@ -374,7 +375,7 @@ export function pasCorrectiesToe(
   }
 
   // 5. De openingen zoals altijd.
-  const gaten = vindGaten(ruimtes, muren, openingen, plafond);
+  const gaten = naarBinnen(vindGaten(ruimtes, muren, openingen, plafond), ruimtes, muren, open, plafond);
 
   // 6. Wat weg is, is open tot het plafond.
   for (const [i, gat] of gaten.entries()) {
@@ -407,6 +408,19 @@ export function pasCorrectiesToe(
   });
 
   return { muren, gaten, open, luifels: luifelsVan(muren, ruimtes, gaten, open, plafond, luifels, correcties, verslag), verslag };
+}
+
+/** Een opening naar een kleine zone zonder ruimte, zoals een traphal, gaat naar binnen (zie zones.ts). */
+function naarBinnen(
+  gaten: Gat[],
+  ruimtes: readonly { ringen: Xy[][] }[],
+  muren: readonly Veelhoek[],
+  open: readonly Veelhoek[],
+  plafond: number,
+): Gat[] {
+  if (!gaten.some((gat) => gat.soort === "raam" || gat.soort === "buitendeur")) return gaten;
+  const voetafdruk = vereniging([...ruimtes.map((ruimte) => ruimte.ringen), ...muren, ...gaten.map(vlakVanGat), ...open]);
+  return naarZones(gaten, kleineZones(voetafdruk), plafond);
 }
 
 /**

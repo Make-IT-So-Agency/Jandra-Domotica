@@ -49,7 +49,8 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
     (`/vastgoed/1/plannen/omzetten?opnieuw=1`), ook vanaf Ruimtes en in 3D.
 - **Ruimtes** (`/vastgoed/1/ruimtes`): per gebouw en verdieping een tekening en een
   lijst met de oppervlakte, de plafondhoogte en het aantal punten. Ook op de
-  gsm.
+  gsm. Op de tekening staat de trap van het plan met haar treden, en op de
+  verdieping erboven het trapgat in streepjes.
 - **Punten** (`/vastgoed/1/punten`): lichtpunten, schakelaars, stopcontacten,
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
@@ -267,11 +268,13 @@ grondplannen.
   net als een kant naar een kleine ingesloten zone zonder naam (tot 12 m²: een
   trapzone, een kast, een schacht) of naar een trap. Al de rest is gevel. Door
   zo'n kleine zone loopt de vloerplaat, behalve waar de trap van beneden
-  doorkomt; een grotere zone is een patio.
+  doorkomt, en het dak gaat erover; een grotere zone is een patio, open naar
+  de lucht (`drie/zones.ts`).
 - **Ramen en deuren** zijn de open plekken in een muur, langs de rand van een
   ruimte (`drie/gaten.ts`). Ligt er buiten achter, dan is het een raam of een
   buitendeur als er een deurboog bij staat. Ligt er een andere ruimte
-  achter, dan is het een deur of een doorgang.
+  achter, of een kleine zone zonder naam (zoals van de inkom naar de
+  traphal), dan is het een deur of een doorgang.
   - **De hoogte van een raam:**
     - een maat op een maatlijn (`180/275`) telt als ze buiten de muur
       tegenover de opening ligt en dezelfde breedte heeft;
@@ -359,6 +362,7 @@ grondplannen.
   tot dat van de verdieping erboven, met treden van gelijke hoogte en het
   bordes halfweg. Boven komt een gat in de vloer met een leuning, behalve waar
   de trap aankomt.
+
   Zonder trap op het plan komt er een onder een gat in de verdieping erboven
   met de vorm van een trapgat (smal: recht, breed: met een bordes), of in een
   ruimte van het soort Trap. Bij **Trappen** in het 3D-scherm draai je een
@@ -367,6 +371,19 @@ grondplannen.
   dat omgezet werd voor de app trappen las, of voor ze het bordes goed las
   (werkwijze 4), zet je opnieuw om; zie
   [Opnieuw omzetten](#van-pdf-naar-plan). Het 3D-scherm zegt het.
+
+  **Een traphal die boven open is.** Een traphal heeft op het plan meestal
+  geen ruimte, en de ramen zoekt de app langs de ruimtes. Het raam in de gevel
+  van de traphal op de verdieping vond ze dan niet: daar zat een gat in de
+  gevel, zonder dak erboven, met het platte dak van het gelijkvloers rond de
+  trap. Nu vult de verdieping eronder de traphal aan (`drie/traphal.ts`):
+  - de app zoekt de ramen ook langs de traphal, met de raammaten van het
+    plan;
+  - waar de gevel dan nog open is, komt de gevelmuur van beneden;
+  - zo is de traphal een kleine zone, met een dak en met een leuning rond het
+    trapgat;
+  - dat geldt enkel waar de trap van beneden uitkomt, in een zone tot 12 m²:
+    een terras blijft een terras.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
@@ -913,7 +930,8 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/omzetting/luifels.ts` | De luifels uit een grondplan: een streepjeslijn tegen de gevel met een tekst als "oversteek 100 cm"; puur, met tests |
 | `web/lib/bouw/drie/luifels.ts` | Een luifel in 3D: de lijn van het plan gesloten langs de gevel, en de onderkant tegen de ramen eronder; puur, met tests |
 | `web/lib/bouw/drie/deuren.ts` | Een deurblad op een kier, de boog op de vloer, vast glas naast een voordeur, en een deur omdraaien; puur, met tests |
-| `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, en de trap op en af wandelen |
+| `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, de trap op het plan van Ruimtes, en de trap op en af wandelen |
+| `web/lib/bouw/drie/zones.ts`, `traphal.ts` | Kleine zones zonder ruimte (een traphal, een kast) en de openingen ernaartoe, en een traphal die boven open is aanvullen van de verdieping eronder; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
 | `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
 | `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |

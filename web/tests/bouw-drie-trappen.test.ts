@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { maakModel, type Invoerverdieping } from "@/lib/bouw/drie/model";
 import { kaderOpTerrein, naarGebouw, naarTerrein, standaardPlaatsingen } from "@/lib/bouw/drie/plaatsing";
-import { maakTrappen, opTrap, rechthoekRond, schoneTrapstanden, type Trapinvoer } from "@/lib/bouw/drie/trappen";
+import { maakTrappen, opTrap, rechthoekRond, schoneTrapstanden, tredelijnen, trappenOpPlan, type Trapinvoer } from "@/lib/bouw/drie/trappen";
 import type { Veelhoek } from "@/lib/bouw/drie/vlak";
 import { ooghoogte, wandel, type Wandelstand, type Wandelverdieping } from "@/lib/bouw/drie/wandelen";
 import { nettoOppervlakte } from "@/lib/bouw/omzetting/geometrie";
@@ -84,6 +84,27 @@ describe("de trap van het plan", () => {
     expect(omgekeerd.trappen[0].stand.omgekeerd).toBe(true);
     const geen = maakTrappen(invoer({ onder: { trappen: [keertrap], standen: [{ x: 3.3, y: 3.1, geen: true }] } }));
     expect(geen.trappen).toEqual([]);
+  });
+});
+
+describe("de trap op het plan van Ruimtes", () => {
+  it("tekent een trap op zijn verdieping met treden, en erboven als trapgat", () => {
+    const trappen = trappenOpPlan([{ id: 1 }, { id: 2 }, { id: 3 }], new Map([[1, [keertrap]]]));
+    expect(trappen.get(1)).toEqual([{ delen: keertrap.delen, vanOnder: false }]);
+    expect(trappen.get(2)).toEqual([{ delen: keertrap.delen, vanOnder: true }]);
+    expect(trappen.get(3)).toEqual([]);
+    // Wie koos dat er geen trap is, ziet ze nergens.
+    const geen = trappenOpPlan([{ id: 1, trapstanden: [{ x: 3.3, y: 3.1, geen: true }] }, { id: 2 }], new Map([[1, [keertrap]]]));
+    expect([geen.get(1), geen.get(2)]).toEqual([[], []]);
+  });
+
+  it("legt de treden dwars over een vlucht, en geen op een bordes", () => {
+    const [eerste, bordes] = keertrap.delen;
+    const lijnen = tredelijnen(eerste);
+    // Acht treden: zeven lijnen ertussen, van x = 2 naar 3,6.
+    expect(lijnen).toHaveLength(7);
+    expect(lijnen[0]).toEqual([[2.2, 3.2], [2.2, 4.2]]);
+    expect(tredelijnen(bordes)).toEqual([]);
   });
 });
 

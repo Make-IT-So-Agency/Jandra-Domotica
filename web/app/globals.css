@@ -1403,6 +1403,25 @@ button.link {
   fill: #bbf7d0;
 }
 
+/* De trap van het plan, met haar treden; boven het trapgat in streepjes. */
+.ruimteplan-trap path {
+  fill: #e7dccb;
+  stroke: #4b5563;
+  stroke-width: 0.03;
+}
+
+.ruimteplan-trap line {
+  stroke: #4b5563;
+  stroke-width: 0.015;
+}
+
+.ruimteplan-trapgat path {
+  fill: none;
+  stroke: var(--zacht);
+  stroke-width: 0.03;
+  stroke-dasharray: 0.12 0.08;
+}
+
 .ruimteplan-naam {
   fill: #111827;
   font-weight: 700;

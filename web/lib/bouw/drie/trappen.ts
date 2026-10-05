@@ -155,6 +155,34 @@ export function trapInRechthoek(
   ];
 }
 
+/**
+ * De trappen van het plan zoals Ruimtes ze tekent: per verdieping die er
+ * beginnen, en die van de verdieping eronder als trapgat. De verdiepingen van
+ * één gebouw, van onder naar boven. Een trap waarvan gekozen werd dat er geen
+ * is, valt weg.
+ */
+export function trappenOpPlan(
+  verdiepingen: readonly { id: number; trapstanden?: Trapstand[] }[],
+  trappen: ReadonlyMap<number, readonly Trapvoorstel[]>,
+): Map<number, { delen: Trapdeel[]; vanOnder: boolean }[]> {
+  const uit = new Map<number, { delen: Trapdeel[]; vanOnder: boolean }[]>(verdiepingen.map((v) => [v.id, []]));
+  verdiepingen.forEach((verdieping, i) => {
+    const eigen = (trappen.get(verdieping.id) ?? []).filter((trap) => !standVan(verdieping.trapstanden ?? [], middenVan(trap.delen))?.geen);
+    uit.get(verdieping.id)!.push(...eigen.map((trap) => ({ delen: trap.delen, vanOnder: false })));
+    const boven = verdiepingen[i + 1];
+    if (boven) uit.get(boven.id)!.push(...eigen.map((trap) => ({ delen: trap.delen, vanOnder: true })));
+  });
+  return uit;
+}
+
+/** De treden van een vlucht, als lijnen dwars over de vlucht: om te tekenen. */
+export function tredelijnen(deel: Trapdeel): [Xy, Xy][] {
+  if (deel.soort !== "vlucht" || deel.treden < 2) return [];
+  const [a, b, c, d] = deel.hoeken;
+  const langs = (p: Xy, q: Xy, t: number): Xy => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  return Array.from({ length: deel.treden - 1 }, (_, k): [Xy, Xy] => [langs(a, d, (k + 1) / deel.treden), langs(b, c, (k + 1) / deel.treden)]);
+}
+
 /** Het midden van een trap: dat van al zijn hoeken. */
 export function middenVan(delen: readonly Trapdeel[]): Xy {
   const punten = delen.flatMap((deel) => deel.hoeken);

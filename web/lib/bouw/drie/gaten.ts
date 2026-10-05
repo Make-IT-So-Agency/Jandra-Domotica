@@ -210,13 +210,38 @@ export function vindGaten(
   gekend: readonly Gekendeopening[],
   plafond: number,
 ): Gat[] {
+  return zoekGaten(ruimtes.map((ruimte) => ({ ring: ruimte.ringen[0], ruimte })), ruimtes, muren, gekend, plafond);
+}
+
+/**
+ * De ramen en buitendeuren langs een zone zonder ruimte, zoals een traphal:
+ * vindGaten loopt enkel langs de ruimtes, dus daar zoekt niemand anders.
+ * Enkel wat naar buiten gaat; een opening naar een ruimte vindt die ruimte
+ * zelf.
+ */
+export function ramenLangs(
+  ringen: readonly Xy[][],
+  ruimtes: readonly { ringen: Xy[][] }[],
+  muren: readonly Veelhoek[],
+  gekend: readonly Gekendeopening[],
+  plafond: number,
+): Gat[] {
+  return zoekGaten(ringen.map((ring) => ({ ring, ruimte: null })), ruimtes, muren, gekend, plafond);
+}
+
+function zoekGaten(
+  randen: readonly { ring: Xy[] | undefined; ruimte: { ringen: Xy[][] } | null }[],
+  ruimtes: readonly { ringen: Xy[][] }[],
+  muren: readonly Veelhoek[],
+  gekend: readonly Gekendeopening[],
+  plafond: number,
+): Gat[] {
   if (muren.length === 0) return [];
   const gaten: Gat[] = [];
   const ramen = gekend.filter((o) => o.soort === "raam" && o.hoogte !== null);
   const borstweringen = gekend.filter((o) => o.soort === "borstwering");
 
-  for (const ruimte of ruimtes) {
-    const ring = ruimte.ringen[0];
+  for (const { ring, ruimte } of randen) {
     if (!ring || ring.length < 3) continue;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i];
@@ -278,6 +303,8 @@ export function vindGaten(
         const metBladen = bladen.length > 0 ? { bladen } : {};
 
         if (binnenin) {
+          // Langs een zone zonder ruimte: een opening naar een ruimte vindt die ruimte zelf.
+          if (!ruimte) continue;
           // Van de andere kant ziet de andere ruimte dezelfde opening: één keer is genoeg.
           const hart = plus(m, n, dikte / 2);
           const dubbel = gaten.some((g) => (g.soort === "deur" || g.soort === "doorgang") && afstand(hartVan(g), hart) < dikte + 0.3);
