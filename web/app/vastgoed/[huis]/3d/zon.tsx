@@ -248,7 +248,7 @@ export function Noordpijl({ kern, klaar, noorden, tonen }: { kern: RefObject<Ker
   if (!tonen) return null;
   const uitleg = NOORDUITLEG[noorden.bron];
   return (
-    <div className={`drie-noorden${noorden.bron === "bewaard" || noorden.bron === "omgeving" ? "" : " aangenomen"}`} title={uitleg} role="img" aria-label={`Noordpijl. ${uitleg}`}>
+    <div className={`drie-noorden${noorden.bron === "bewaard" || noorden.bron === "omgeving" || noorden.bron === "noordpijl" ? "" : " aangenomen"}`} title={uitleg} role="img" aria-label={`Noordpijl. ${uitleg}`}>
       <div ref={pijl} className="pijl">
         <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
           <circle cx="28" cy="28" r="17" />

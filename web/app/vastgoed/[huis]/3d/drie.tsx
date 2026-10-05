@@ -13,6 +13,7 @@ import type { Driegegevens } from "@/lib/bouw/drie/laden";
 import { isAan, lagenVan } from "@/lib/bouw/drie/lagen";
 import { STANDAARDKLEUREN, type Proef } from "@/lib/bouw/drie/materialen";
 import { maakModel, type Model3d } from "@/lib/bouw/drie/model";
+import { noordpijlOpBlad } from "@/lib/bouw/drie/noordpijl";
 import { georefVanPlaatsing, plaatsingVanGeoref, type Georef, type Lambert, type Omgeving } from "@/lib/bouw/drie/omgeving";
 import { STAND_AFSTAND, type Trap3d } from "@/lib/bouw/drie/trappen";
 import {
@@ -205,7 +206,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   const [bewaardeGeoref, setBewaardeGeoref] = useState<Georef | null>(gegevens.omgeving.georef);
   // Waar het adrespunt op het terrein ligt en hoe de kaart gedraaid is (zie drie/omgeving.ts).
   const [omgevingsplaats, setOmgevingsplaats] = useState<Plaatsing | null>(null);
-  const [omgevingsbron, setOmgevingsbron] = useState<{ soort: "bewaard" | "plan" | "huis" | "hand"; overeenkomst?: number } | null>(null);
+  const [omgevingsbron, setOmgevingsbron] = useState<{ soort: "bewaard" | "plan" | "huis" | "pijl" | "hand"; overeenkomst?: number } | null>(null);
   const omgevingVerplaatsen = gereedschap === "omgeving";
   const planOpFoto = isAan(lagen, "terrein:luchtfoto") && omgeving !== null && omgevingsplaats !== null;
 
@@ -517,6 +518,11 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     d.plan = plan;
   }, [geladen, planTonen, meterPerPunt, planOpFoto]);
 
+  // Waar het noorden ligt volgens de noordpijl op het inplantingsplan: niet altijd boven (zie drie/noordpijl.ts).
+  const noordpijl = useMemo(() => (geladen ? noordpijlOpBlad(geladen.blad) : null), [geladen]);
+  const noordpijlRef = useRef(noordpijl);
+  noordpijlRef.current = noordpijl;
+
   const huidigPlan = plannen.find((plan) => plan.id === planId) ?? null;
   const huidigPlanRef = useRef(huidigPlan);
   huidigPlanRef.current = huidigPlan;
@@ -664,14 +670,15 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
 
   /**
    * De omgeving op het terrein leggen: ons perceel op het inplantingsplan
-   * zoeken, en lukt dat niet (of is er geen plan), het adrespunt op de woning
-   * met het noorden naar boven.
+   * zoeken, en lukt dat niet (of is er geen plan), het adrespunt op de woning,
+   * met het noorden zoals de noordpijl op het plan, of anders naar boven.
    */
   async function legOmgeving(o: Omgeving) {
     const opHuis = () => {
       const huis = plaatsingenRef.current.get(modelRef.current.gebouwen[0]?.id ?? -1);
-      setOmgevingsplaats({ x: huis?.x ?? 0, y: huis?.y ?? 0, hoek: 0 });
-      setOmgevingsbron({ soort: "huis" });
+      const pijl = noordpijlRef.current;
+      setOmgevingsplaats({ x: huis?.x ?? 0, y: huis?.y ?? 0, hoek: pijl?.hoek ?? 0 });
+      setOmgevingsbron({ soort: pijl ? "pijl" : "huis" });
     };
     const plan = geladenRef.current;
     if (!plan) return opHuis();
@@ -1371,6 +1378,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
         ? `Op het plan gelegd: ons perceel valt voor ${Math.round((omgevingsbron.overeenkomst ?? 0) * 100)}% op het perceel van het inplantingsplan.`
         : omgevingsbron?.soort === "huis"
           ? "Het adrespunt ligt op de woning, met het noorden naar boven. Verschuif en draai de omgeving tot de luchtfoto op het plan valt."
+          : omgevingsbron?.soort === "pijl"
+          ? "Het adrespunt ligt op de woning, met het noorden zoals de noordpijl op het plan. Verschuif de omgeving tot de luchtfoto op het plan valt."
           : omgevingsbron?.soort === "hand"
             ? "Zelf verschoven."
             : "De omgeving op het plan leggen…";
@@ -1392,8 +1401,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       const punt: Lambert = [bewaardeGeoref.x, bewaardeGeoref.y];
       return noordenVan({ georef: bewaardeGeoref, punt, soort: "bewaard" }, punt);
     }
-    return noordenVan(null, omgeving?.punt ?? null);
-  }, [omgeving, omgevingsplaats, omgevingsbron, bewaardeGeoref]);
+    return noordenVan(null, omgeving?.punt ?? null, noordpijl?.hoek ?? null);
+  }, [omgeving, omgevingsplaats, omgevingsbron, bewaardeGeoref, noordpijl]);
 
   const lagengroepen = useMemo(
     () =>

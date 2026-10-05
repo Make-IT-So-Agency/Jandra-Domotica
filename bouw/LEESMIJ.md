@@ -456,10 +456,23 @@ grondplannen.
   - de stand van de zon, en wanneer ze op- en ondergaat: de formules van de
     NOAA, op een tiende graad en een minuut.
 
-  Het noorden komt uit de omgeving zoals ze nu ligt. Zonder omgeving is het
-  boven op het plan, en zonder adres staat de zon zoals in het midden van
-  Vlaanderen; de kaart zegt welke. Een noordpijl linksonder op het beeld
-  draait mee met de camera.
+  Het noorden komt uit de omgeving zoals ze nu ligt. Zonder omgeving komt
+  het van de noordpijl op het inplantingsplan; zonder noordpijl is het boven
+  op het plan. Zonder adres staat de zon zoals in het midden van Vlaanderen.
+  De kaart zegt welke. Een noordpijl linksonder op het beeld draait mee met
+  de camera.
+
+  **De noordpijl op het plan** (`drie/noordpijl.ts`). Een plan ligt meestal
+  met de straat onderaan, en het noorden staat dan niet altijd boven. Staat
+  het onder, dan stond de zon zonder omgeving vroeger 180° verkeerd.
+  - De app zoekt de letters van de windroos rond de pijlen: N, Z, O en W, of
+    N, S, E en W, of N, S, E en O.
+  - Het noorden ligt waar de N staat, tegenover de Z. Zijn er enkel de N en
+    de zijkanten, dan haaks op de lijn van oost naar west.
+  - Staat het westen waar het oosten hoort, dan is het geen windroos.
+  - Een pijl met enkel een N leest de app niet: daar zit de richting in de
+    tekening, niet in de letters. Dan geldt de omgeving, of boven op het
+    plan.
 - **Inrichten.** Met **Inrichten** zet je meubels en toestellen in het huis
   (`inrichting.ts`, `drie/inrichten.ts`, `3d/inrichten.tsx`,
   `3d/stukken-scene.ts`):
@@ -558,8 +571,9 @@ grondplannen.
   Waar de omgeving ligt, zoekt de app zelf (`drie/omgeving.ts`): ons perceel
   uit het GRB op het perceel van het inplantingsplan, met dezelfde overlap
   als de gebouwen en op de schaal van het plan, met y omgekeerd (Lambert telt
-  naar het noorden). Lukt dat niet, dan komt het adrespunt op de woning met
-  het noorden naar boven. Met **Omgeving verschuiven en draaien** stuur je
+  naar het noorden). Lukt dat niet, dan komt het adrespunt op de woning, met
+  het noorden zoals de noordpijl op het plan, of anders naar boven. Met
+  **Omgeving verschuiven en draaien** stuur je
   bij: slepen, draaien rond de woning per 0,1°, 1° of 90°, en de pijltjes.
   **Omgeving bewaren** bewaart waar de linkerbovenhoek van het plan in Lambert
   ligt en de hoek (`bouw_huizen.lambert_*`).
@@ -975,6 +989,7 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, en het patroon als textuur |
 | `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
 | `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
+| `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
 | `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
 | `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |

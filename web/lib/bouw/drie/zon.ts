@@ -95,10 +95,12 @@ export function noordenOpTerrein(georef: Georef, punt: Lambert): number {
  * - bewaard: uit de bewaarde omgeving;
  * - omgeving: uit de omgeving zoals ze nu ligt, nog niet bewaard;
  * - aangenomen: de omgeving ligt nog met het noorden naar boven op de woning;
+ * - noordpijl: van de noordpijl op het inplantingsplan (zie noordpijl.ts),
+ *   zonder omgeving of met de omgeving zo op de woning gelegd;
  * - adres: de plaats is gekend, het noorden nog niet: boven op het plan;
  * - geen: geen adres: het noorden boven op het plan, in het midden van Vlaanderen.
  */
-export type Noordbron = "bewaard" | "omgeving" | "aangenomen" | "adres" | "geen";
+export type Noordbron = "bewaard" | "omgeving" | "aangenomen" | "noordpijl" | "adres" | "geen";
 
 export interface Noorden {
   /** De hoek van het ware noorden op het terrein (zie noordenOpTerrein). */
@@ -109,19 +111,24 @@ export interface Noorden {
 
 /**
  * Het noorden en de plaats voor de zon. `ligging`: hoe de omgeving op het
- * terrein ligt, en hoe dat zo kwam (zie omgevingsbron in het 3D-scherm);
- * `adrespunt`: het adres in Lambert, als de omgeving er is.
+ * terrein ligt, en hoe dat zo kwam (zie omgevingsbron in het 3D-scherm; "pijl"
+ * is op de woning, gedraaid volgens de noordpijl); `adrespunt`: het adres in
+ * Lambert, als de omgeving er is; `noordpijl`: de hoek van de noordpijl op het
+ * inplantingsplan, als die er is. Het plan ligt rechtop op de grond, dus die
+ * hoek geldt ook op het terrein.
  */
 export function noordenVan(
-  ligging: { georef: Georef; punt: Lambert; soort: "bewaard" | "plan" | "hand" | "huis" } | null,
+  ligging: { georef: Georef; punt: Lambert; soort: "bewaard" | "plan" | "hand" | "huis" | "pijl" } | null,
   adrespunt: Lambert | null,
+  noordpijl: number | null = null,
 ): Noorden {
-  if (!ligging) return { hoek: 0, geo: adrespunt ? lambertNaarGeo(adrespunt) : MIDDEN_VLAANDEREN, bron: adrespunt ? "adres" : "geen" };
-  return {
-    hoek: noordenOpTerrein(ligging.georef, ligging.punt),
-    geo: lambertNaarGeo(ligging.punt),
-    bron: ligging.soort === "bewaard" ? "bewaard" : ligging.soort === "huis" ? "aangenomen" : "omgeving",
-  };
+  if (!ligging) {
+    const geo = adrespunt ? lambertNaarGeo(adrespunt) : MIDDEN_VLAANDEREN;
+    if (noordpijl !== null) return { hoek: noordpijl, geo, bron: "noordpijl" };
+    return { hoek: 0, geo, bron: adrespunt ? "adres" : "geen" };
+  }
+  const bronnen = { bewaard: "bewaard", plan: "omgeving", hand: "omgeving", huis: "aangenomen", pijl: "noordpijl" } as const;
+  return { hoek: noordenOpTerrein(ligging.georef, ligging.punt), geo: lambertNaarGeo(ligging.punt), bron: bronnen[ligging.soort] };
 }
 
 /** Wat bij de zon en de noordpijl staat: waar het noorden vandaan komt. */
@@ -129,6 +136,7 @@ export const NOORDUITLEG: Record<Noordbron, string> = {
   bewaard: "Het noorden en de plaats komen uit de bewaarde omgeving.",
   omgeving: "Het noorden komt uit de omgeving zoals ze nu ligt. Bewaar de omgeving, dan blijft het zo.",
   aangenomen: "De omgeving ligt nog met het noorden naar boven. Leg ze op het plan en bewaar ze, voor het echte noorden.",
+  noordpijl: "Het noorden komt van de noordpijl op het inplantingsplan.",
   adres: "Het noorden is boven op het plan, tot de omgeving op het terrein ligt.",
   geen: "Zonder adres is het noorden boven op het plan, en staat de zon zoals in het midden van Vlaanderen. Vul het adres in en bewaar de omgeving, voor de echte zon.",
 };
