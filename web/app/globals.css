@@ -2169,6 +2169,166 @@ a.tl-naam:hover {
   }
 }
 
+/* Materialen: een staal is een knop met het materiaal en zijn naam, in het paneel en op het beeld. */
+.staal {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  width: 68px;
+  min-height: 44px;
+  padding: 4px 2px;
+  background: transparent;
+  color: inherit;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.staal:hover {
+  filter: none;
+  border-color: var(--lijn);
+}
+
+.staal[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.staal-beeld {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgb(17 24 39 / 0.2);
+  background-repeat: repeat;
+}
+
+.staal-naam {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.stalen {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  justify-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.staalkop {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zacht);
+}
+
+.plekken {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.materiaal-bewaren {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--lijn);
+}
+
+/* Onderaan het beeld tijdens het aantikken: altijd licht, zoals de knoppen erop. Rechts blijft plaats voor het zoomen. */
+.drie-stalen {
+  position: absolute;
+  left: 10px;
+  right: 124px;
+  bottom: 10px;
+  max-width: 720px;
+  padding: 8px 10px 4px;
+  background: rgb(255 255 255 / 0.95);
+  color: #111827;
+  border: 1px solid rgb(17 24 39 / 0.18);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+}
+
+/* Tijdens het wandelen staan de wandelknoppen onderaan. */
+.drie-stalen.boven-knoppen {
+  right: 10px;
+  bottom: 122px;
+}
+
+.drie-stalen .hulp {
+  color: #4b5563;
+}
+
+.drie-stalen-kop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  font-size: 14px;
+}
+
+.drie-stalen-fout {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.drie-stalen-goed {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #047857;
+}
+
+/* Tussen de opties van de keuze en de stalen. */
+.drie-stalen-scheiding {
+  flex: 0 0 1px;
+  margin: 4px 6px;
+  background: rgb(17 24 39 / 0.18);
+}
+
+.drie-stalen-rij {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.drie-stalen .staal {
+  flex: 0 0 auto;
+  color: #111827;
+}
+
+.drie-stalen .staal:hover {
+  border-color: rgb(17 24 39 / 0.18);
+}
+
+.drie-stalen .staal[aria-pressed="true"] {
+  border-color: #1d4ed8;
+}
+
+.drie-knop.klein {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+/* Op een gsm de volle breedte voor de stalen: zoomen gaat er met twee vingers. */
+@media (max-width: 640px) {
+  .drie-stalen {
+    right: 10px;
+  }
+
+  .drie-raam.met-stalen .drie-zoom {
+    display: none;
+  }
+}
+
 /* De labels van de maten, boven het beeld; een tik gaat erdoor naar het beeld. */
 .drie-labels {
   position: absolute;

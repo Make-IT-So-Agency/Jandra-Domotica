@@ -69,6 +69,30 @@ export function isEenheid(waarde: string): waarde is Eenheid {
   return (EENHEDEN as readonly string[]).includes(waarde);
 }
 
+/** Hoe een optie er in 3D uitziet, naast haar kleur: zonder patroon is ze egaal. */
+export const PATRONEN = ["baksteen", "pannen", "leien", "zink", "planken", "parket", "tegels", "beton", "crepi"] as const;
+
+export type Patroon = (typeof PATRONEN)[number];
+
+export const PATROONNAMEN: Record<Patroon, string> = {
+  baksteen: "Baksteen",
+  pannen: "Dakpannen",
+  leien: "Leien",
+  zink: "Zink met staande naad",
+  planken: "Houten planken",
+  parket: "Parket",
+  tegels: "Tegels",
+  beton: "Beton",
+  crepi: "Crepi of pleister",
+};
+
+export function isPatroon(waarde: unknown): waarde is Patroon {
+  return (PATRONEN as readonly unknown[]).includes(waarde);
+}
+
+/** Heeft dit patroon voegen, met een eigen kleur? */
+export const MET_VOEG: readonly Patroon[] = ["baksteen", "tegels"];
+
 export interface Keuze {
   id: number;
   titel: string;
@@ -98,6 +122,9 @@ export interface Optie {
   prijs: number | null;
   basis: boolean;
   kleur: string | null;
+  /** Het patroon in 3D, en bij baksteen of tegels de kleur van de voeg. */
+  patroon: Patroon | null;
+  voegkleur: string | null;
   url: string | null;
   foto_bestand_id: number | null;
   opmerking: string | null;

@@ -4,14 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { schoneCorrecties } from "@/lib/bouw/drie/correcties";
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
+import { KEUZE_VAN_SLOT, SLOT_VAN, isTeTonen, keuzeVoorPlek, schoneMateriaalvraag, vloertitel } from "@/lib/bouw/drie/materialen";
 import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
 import { huisgebruiker } from "@/lib/bouw/huistoegang";
 import { MAX_STUKKEN, schoneStukken, type GeplaatstStuk } from "@/lib/bouw/inrichting";
 import { id } from "@/lib/bouw/invoer";
-import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarStukken, bewaarTrapstanden } from "@/lib/bouw/opslag";
+import { STANDAARDKEUZES, type Keuze } from "@/lib/bouw/keuzes";
+import { nietVoorSoort } from "@/lib/bouw/onderdelen";
+import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarStukken, bewaarTrapstanden, lijstRuimtes } from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
+import { lijstKeuzes, lijstOpties, voegKeuzeToe, voegOptieToe } from "@/lib/bouw/regie-opslag";
 import { foutmelding } from "@/lib/bouw/terug";
 import { gelukt, mislukt, type Uitkomst } from "@/lib/bouw/types";
 
@@ -122,4 +126,104 @@ export async function bewaarStukkenActie(huisId: unknown, vraag: { verdiepingId:
   }
   revalidatePath(huispad(toegang.huis.id, "/3d"));
   return gelukt(bewaard);
+}
+
+export interface BewaardMateriaal {
+  keuzeId: number;
+  optieId: number;
+  /** De titel van de keuze, voor de melding. */
+  titel: string;
+  /** Is de keuze nieuw gemaakt? */
+  nieuweKeuze: boolean;
+  /** Stond hetzelfde materiaal er al als optie? */
+  bestond: boolean;
+}
+
+/**
+ * Een materiaal uit 3D als optie bij zijn keuze: de keuze die 3D toont, anders
+ * die van het slot (Gevelsteen, Dakbedekking...) of van de aangetikte ruimte.
+ * Is er nog geen, dan maakt het ze, voor een vloer met enkel die ruimte. Staat
+ * hetzelfde materiaal er al, dan blijft het bij die optie. Kiezen gebeurt
+ * nog altijd bij de keuze zelf.
+ */
+export async function bewaarMateriaalActie(huisId: unknown, vraag: unknown): Promise<Uitkomst<BewaardMateriaal>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const nee = nietVoorSoort(toegang.huis, "keuzes");
+  if (nee) return mislukt(nee);
+  const materiaal = schoneMateriaalvraag(vraag);
+  if (!materiaal) return mislukt("Dit materiaal klopt niet. Herlaad de pagina en probeer opnieuw.");
+  const huis = toegang.huis.id;
+  const { slot, ruimteId } = materiaal;
+
+  let uit: BewaardMateriaal;
+  try {
+    const [keuzes, opties] = await Promise.all([lijstKeuzes(huis), lijstOpties(huis)]);
+    const past = (keuze: Keuze) => SLOT_VAN[keuze.categorie] === slot && (ruimteId === null || keuze.ruimte_ids.includes(ruimteId));
+    const metOpties = (keuzeId: number) => opties.some((optie) => optie.keuze_id === keuzeId && isTeTonen(optie));
+    const keuze =
+      keuzes.find((k) => k.id === materiaal.keuzeId && past(k)) ?? keuzeVoorPlek(slot, ruimteId, keuzes, metOpties);
+
+    let keuzeId: number;
+    let titel: string;
+    if (keuze) {
+      keuzeId = keuze.id;
+      titel = keuze.titel;
+    } else {
+      let ruimtes: number[] = [];
+      titel = KEUZE_VAN_SLOT[slot].titel;
+      if (slot === "vloer") {
+        const ruimte = (await lijstRuimtes(huis)).find((r) => r.id === ruimteId);
+        if (!ruimte) return mislukt("Deze ruimte bestaat niet meer. Herlaad de pagina.");
+        ruimtes = [ruimte.id];
+        titel = vloertitel(ruimte.naam);
+      }
+      const standaard = STANDAARDKEUZES.find((s) => s.titel === titel);
+      keuzeId = await voegKeuzeToe(
+        huis,
+        {
+          titel,
+          categorie: KEUZE_VAN_SLOT[slot].categorie,
+          omschrijving: null,
+          deadline: null,
+          planning_id: null,
+          levertermijn_weken: standaard?.levertermijn_weken ?? null,
+          eenheid: standaard?.eenheid ?? "m2",
+          hoeveelheid: null,
+          partij_id: null,
+        },
+        ruimtes,
+      );
+    }
+
+    const zelfde = opties.find(
+      (optie) =>
+        optie.keuze_id === keuzeId &&
+        !optie.foto_bestand_id &&
+        optie.kleur === materiaal.kleur &&
+        optie.patroon === materiaal.patroon &&
+        (optie.voegkleur ?? null) === materiaal.voegkleur,
+    );
+    const optieId =
+      zelfde?.id ??
+      (await voegOptieToe(huis, {
+        keuze_id: keuzeId,
+        naam: materiaal.naam,
+        leverancier_id: null,
+        prijs: null,
+        kleur: materiaal.kleur,
+        patroon: materiaal.patroon,
+        voegkleur: materiaal.voegkleur,
+        url: null,
+        opmerking: null,
+        volgorde: 0,
+      }));
+    uit = { keuzeId, optieId, titel, nieuweKeuze: !keuze, bestond: zelfde !== undefined };
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(huis, "/3d"));
+  revalidatePath(huispad(huis, "/keuzes"));
+  revalidatePath(huispad(huis, `/keuzes/${uit.keuzeId}`));
+  return gelukt(uit);
 }

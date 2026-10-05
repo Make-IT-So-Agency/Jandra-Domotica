@@ -8,11 +8,13 @@ import { bedrag, datum, getal, id, sleutelVan, tekst } from "@/lib/bouw/invoer";
 import { vandaag } from "@/lib/bouw/kalender";
 import {
   EENHEDEN,
+  MET_VOEG,
   STANDAARDKEUZES,
   beslissingstekst,
   hoeveelheidVan,
   isCategorieKeuze,
   isEenheid,
+  isPatroon,
   kostVan,
   korteNaam,
 } from "@/lib/bouw/keuzes";
@@ -192,12 +194,19 @@ function leesOptieformulier(formulier: FormData, terugNaar: string): Omit<Nieuwe
   const metKleur = formulier.get("met_kleur") === "ja";
   const kleur = String(formulier.get("kleur") ?? "").toLowerCase();
   if (metKleur && !/^#[0-9a-f]{6}$/.test(kleur)) terug(terugNaar, "fout", "Kies een kleur.");
+  const ruwPatroon = String(formulier.get("patroon") ?? "");
+  const patroon = isPatroon(ruwPatroon) ? ruwPatroon : null;
+  const metVoeg = formulier.get("met_voeg") === "ja";
+  const voegkleur = String(formulier.get("voegkleur") ?? "").toLowerCase();
+  if (metVoeg && !/^#[0-9a-f]{6}$/.test(voegkleur)) terug(terugNaar, "fout", "Kies een kleur voor de voeg.");
 
   return {
     naam,
     leverancier_id: id(formulier.get("leverancier_id")),
     prijs: prijs.waarde,
     kleur: metKleur ? kleur : null,
+    patroon,
+    voegkleur: patroon && MET_VOEG.includes(patroon) && metVoeg ? voegkleur : null,
     url,
     opmerking: tekst(formulier.get("opmerking")),
   };

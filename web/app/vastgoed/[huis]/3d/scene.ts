@@ -26,6 +26,31 @@ type P3 = [number, number, number];
 
 const in3d = (p: Xy, z: number): P3 => [p[0], z, p[1]];
 
+/**
+ * De textuurassen van een vlak: u horizontaal in het vlak, v er haaks op en
+ * naar boven. Een horizontaal vlak krijgt x en y van het plan, zoals een vloer.
+ */
+function vlakassen(punten: readonly P3[]): (p: P3) => [number, number] {
+  // De normaal volgens Newell: ook goed bij een veelhoek met punten op één lijn.
+  let [nx, ny, nz] = [0, 0, 0];
+  for (let i = 0; i < punten.length; i++) {
+    const [a, b] = [punten[i], punten[(i + 1) % punten.length]];
+    nx += (a[1] - b[1]) * (a[2] + b[2]);
+    ny += (a[2] - b[2]) * (a[0] + b[0]);
+    nz += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  // u = boven × n: horizontaal. Is dat nul, dan ligt het vlak plat.
+  const [hx, hz] = [nz, -nx];
+  const h = Math.hypot(hx, hz);
+  if (h < 1e-9 * Math.max(1, Math.hypot(nx, ny, nz))) return (p) => [p[0], p[2]];
+  const u: P3 = [hx / h, 0, hz / h];
+  // v = n × u: in het vlak, naar boven langs de helling.
+  const n = Math.hypot(nx, ny, nz);
+  const [ax, ay, az] = [nx / n, ny / n, nz / n];
+  const v: P3 = [ay * u[2] - az * u[1], az * u[0] - ax * u[2], ax * u[1] - ay * u[0]];
+  return (p) => [p[0] * u[0] + p[1] * u[1] + p[2] * u[2], p[0] * v[0] + p[1] * v[1] + p[2] * v[2]];
+}
+
 export class Bouwer {
   readonly delen = new Map<Sleutel, { posities: number[]; normalen: number[]; uvs: number[] }>();
 
@@ -55,12 +80,19 @@ export class Bouwer {
     }
   }
 
-  /** Een verticaal vlak van a naar b, van z0 tot z1, met de textuur in meter. */
+  /**
+   * Een verticaal vlak van a naar b, van z0 tot z1, met de textuur in meter:
+   * langs de muur gemeten vanaf de oorsprong, zodat een gevel in stukken
+   * zonder naad doorloopt.
+   */
   wand(sleutel: Sleutel, a: Xy, b: Xy, z0: number, z1: number) {
     if (z1 - z0 < 1e-4) return;
     const lengte = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    this.driehoek(sleutel, in3d(a, z0), in3d(b, z0), in3d(b, z1), [[0, z0], [lengte, z0], [lengte, z1]]);
-    this.driehoek(sleutel, in3d(a, z0), in3d(b, z1), in3d(a, z1), [[0, z0], [lengte, z1], [0, z1]]);
+    if (lengte < 1e-9) return;
+    const u0 = (a[0] * (b[0] - a[0]) + a[1] * (b[1] - a[1])) / lengte;
+    const u1 = u0 + lengte;
+    this.driehoek(sleutel, in3d(a, z0), in3d(b, z0), in3d(b, z1), [[u0, z0], [u1, z0], [u1, z1]]);
+    this.driehoek(sleutel, in3d(a, z0), in3d(b, z1), in3d(a, z1), [[u0, z0], [u1, z1], [u0, z1]]);
   }
 
   /** Een horizontaal vlak, met gaten, op hoogte z. */
@@ -75,11 +107,17 @@ export class Bouwer {
     }
   }
 
-  /** Een vlakke, convexe veelhoek in 3D (een dakvlak, een gevel), als waaier. */
+  /**
+   * Een vlakke, convexe veelhoek in 3D (een dakvlak, een gevel), als waaier.
+   * De textuur ligt in het vlak zelf, in meter: horizontaal langs de goot, en
+   * naar boven langs de helling. Zo lopen de pannen evenwijdig met de goot, op
+   * elk dakvlak, en zijn ze even groot als op een gevel.
+   */
   waaier(sleutel: Sleutel, punten: P3[]) {
+    const uv = vlakassen(punten);
     for (let i = 1; i < punten.length - 1; i++) {
       const [a, b, c] = [punten[0], punten[i], punten[i + 1]];
-      this.driehoek(sleutel, a, b, c, [[a[0], a[2]], [b[0], b[2]], [c[0], c[2]]]);
+      this.driehoek(sleutel, a, b, c, [uv(a), uv(b), uv(c)]);
     }
   }
 

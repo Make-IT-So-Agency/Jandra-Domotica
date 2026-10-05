@@ -1,5 +1,6 @@
 import {
   EENHEIDNAMEN,
+  PATROONNAMEN,
   euroRond,
   meerprijsTekst,
   type Eenheid,
@@ -10,6 +11,7 @@ import {
 import type { Partij } from "@/lib/bouw/types";
 
 import { BevestigKnop } from "@/components/bouw/bevestig-knop";
+import { Staalbeeld } from "@/components/bouw/staal";
 import {
   beslisActie,
   verwijderFotoActie,
@@ -54,8 +56,12 @@ export function Optiekaart({
         <a href={foto} target="_blank" rel="noreferrer" className="optie-foto">
           <img src={foto} alt={optie.naam} loading="lazy" />
         </a>
-      ) : optie.kleur ? (
-        <div className="optie-foto kleurstaal" style={{ background: optie.kleur }} aria-hidden="true" />
+      ) : optie.kleur || optie.patroon ? (
+        // Het patroon zoals in 3D, op schaal: een baksteen met zijn voeg, een parketvloer.
+        <Staalbeeld
+          materiaal={{ kleur: optie.kleur ?? "#cccccc", foto: null, patroon: optie.patroon, voegkleur: optie.voegkleur }}
+          className="optie-foto kleurstaal"
+        />
       ) : null}
       <h3>
         {optie.naam}{" "}
@@ -63,6 +69,7 @@ export function Optiekaart({
         {optie.basis ? <span className="label-vlag">Basis</span> : null}
       </h3>
       {leverancier ? <p className="hulp">{leverancier}</p> : null}
+      {optie.patroon ? <p className="hulp">{PATROONNAMEN[optie.patroon]} in 3D</p> : null}
       <p>
         {optie.prijs === null ? (
           <span className="hulp">Nog geen prijs</span>

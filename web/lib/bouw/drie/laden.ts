@@ -80,6 +80,8 @@ export interface Driegegevens {
   gebouwen: { id: number; naam: string; dak: Dakinstelling; plaats: Plaatsing | null }[];
   verdiepingen: Drieverdieping[];
   materialen: Materiaalkeuze[];
+  /** Heeft het huis keuzes? Enkel dan kan je een materiaal als optie bewaren; een bestaand huis heeft er geen. */
+  metKeuzes: boolean;
   punten: Driepunt[];
   /** De meubels en toestellen, met hun verdieping. */
   stukken: GeplaatstStuk[];
@@ -100,7 +102,7 @@ export interface Driegegevens {
   };
 }
 
-export async function laadDrie(huisId: number, ik: string, metAdres = false): Promise<Driegegevens> {
+export async function laadDrie(huisId: number, ik: string, { metAdres = false, metKeuzes = true }: { metAdres?: boolean; metKeuzes?: boolean } = {}): Promise<Driegegevens> {
   const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, stukken, leidingen, inplanting] = await Promise.all([
     lijstGebouwen(huisId),
     lijstDaken(huisId),
@@ -177,6 +179,7 @@ export async function laadDrie(huisId: number, ik: string, metAdres = false): Pr
       };
     }),
     materialen: materiaalkeuzes(keuzes, opties, voorkeuren, fotos, ik),
+    metKeuzes,
     punten: punten.map((punt) => {
       const soort = soortVan(punt.soort);
       return {

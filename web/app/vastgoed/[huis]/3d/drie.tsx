@@ -11,7 +11,7 @@ import { obstakels } from "@/lib/bouw/drie/inrichten";
 import { OVERTUIGEND, type Inplantingsvondst, type Zoekgebouw } from "@/lib/bouw/drie/inplanting";
 import type { Driegegevens } from "@/lib/bouw/drie/laden";
 import { isAan, lagenVan } from "@/lib/bouw/drie/lagen";
-import { SLOTNAMEN, STANDAARDKLEUREN, materiaalVan, type Slot } from "@/lib/bouw/drie/materialen";
+import { STANDAARDKLEUREN, type Proef } from "@/lib/bouw/drie/materialen";
 import { maakModel, type Model3d } from "@/lib/bouw/drie/model";
 import { georefVanPlaatsing, plaatsingVanGeoref, type Georef, type Lambert, type Omgeving } from "@/lib/bouw/drie/omgeving";
 import { STAND_AFSTAND, type Trap3d } from "@/lib/bouw/drie/trappen";
@@ -42,15 +42,17 @@ import type { GeladenPlan } from "./inplantingsplan";
 import { Inrichtkaart, useInrichten } from "./inrichten";
 import { bouwLeidingen, type Leidingenscene } from "./leidingen-scene";
 import { richtStraal, useTik, zichtbareRaak } from "./kern";
+import { Materiaalkaart, Staalstrook, useMateriaalproef, werkMateriaalBij, type Vloerruimte } from "./materiaalproef";
 import { useMeten } from "./meten";
 import { bouwOmgeving, type Omgevingsscene } from "./omgeving-scene";
 import { bouwPunten, puntBijTik, type Puntenscene } from "./punten-scene";
 import { bouwScene, plaats, type Opgebouwd, type Sleutel } from "./scene";
+import { ruimTexturenOp } from "./texturen";
 import { Noordpijl, Zonkaart } from "./zon";
 
 type Modus = "rond" | "wandel";
 /** Wat een tik of slepen op het beeld doet. Er staat altijd maar één gereedschap aan. */
-type Gereedschap = "kijken" | "meten" | "verplaatsen" | "omgeving" | "inrichten";
+type Gereedschap = "kijken" | "meten" | "verplaatsen" | "omgeving" | "inrichten" | "materiaal";
 
 /** Hoe dicht en hoe ver de camera bij het middelpunt mag komen, in meter. */
 const MIN_AFSTAND = 1.5;
@@ -74,44 +76,8 @@ function bewaarPaneel(open: boolean) {
   }
 }
 
-/** Welk slot een sleutel van de scène volgt; de rest heeft een vaste kleur. */
-function slotVan(sleutel: Sleutel): { slot: Slot; ruimteId?: number } | null {
-  if (sleutel === "gevel") return { slot: "gevel" };
-  if (sleutel === "binnenmuur") return { slot: "binnenmuur" };
-  if (sleutel === "dak" || sleutel === "dakplat") return { slot: "dak" };
-  if (sleutel === "schrijnwerk") return { slot: "schrijnwerk" };
-  if (sleutel.startsWith("vloer:")) return { slot: "vloer", ruimteId: Number(sleutel.slice(6)) };
-  return null;
-}
-
-/** Zet kleur of textuur van een materiaal, met wat er nu uitgeprobeerd wordt. */
-function werkMateriaalBij(
-  sleutel: Sleutel,
-  m: THREE.MeshStandardMaterial,
-  materialen: Driegegevens["materialen"],
-  proef: ReadonlyMap<number, number>,
-  texturen: Map<string, THREE.Texture>,
-) {
-  const welk = slotVan(sleutel);
-  if (!welk) return;
-  const { kleur, foto } = materiaalVan(welk.slot, materialen, proef, welk.ruimteId);
-  if (foto) {
-    let textuur = texturen.get(foto);
-    if (!textuur) {
-      textuur = new THREE.TextureLoader().setCrossOrigin("anonymous").load(foto);
-      textuur.wrapS = THREE.RepeatWrapping;
-      textuur.wrapT = THREE.RepeatWrapping;
-      textuur.colorSpace = THREE.SRGBColorSpace;
-      texturen.set(foto, textuur);
-    }
-    m.map = textuur;
-    m.color.set("#ffffff");
-  } else {
-    m.map = null;
-    m.color.set(kleur);
-  }
-  m.needsUpdate = true;
-}
+/** Hoe scherp een textuur schuin gezien blijft: 8 is genoeg, en spaart de grafische kaart. */
+const anisotropie = (renderer: THREE.WebGLRenderer) => Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
 /** De kijkrichting bij het openen: schuin van boven, van rechtsvoor. */
 const KIJKRICHTING = new THREE.Vector3(0.9, 0.85, 1.15).normalize();
@@ -180,7 +146,6 @@ const VASTE_KLEUREN: Record<string, string> = {
 export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: Driegegevens }) {
   const vak = useRef<HTMLDivElement>(null);
   const [daken, setDaken] = useState<Map<number, Dakinstelling>>(() => new Map(gegevens.gebouwen.map((g) => [g.id, g.dak])));
-  const [proef, setProef] = useState<Map<number, number>>(new Map());
   // Wat er te zien is: per laag aan of uit, onthouden per browser (zie lib/bouw/drie/lagen.ts).
   const [lagen, zetLagen] = useLagen();
   const [doorsnede, setDoorsnede] = useState<number | null>(null);
@@ -306,8 +271,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     wandel: { stand: Wandelstand | null; kijk: number; op: number; toetsen: Set<string> };
   } | null>(null);
   // De lus van three.js en het bouwen lezen de laatste stand uit refs, niet uit een oude render.
-  const proefRef = useRef(proef);
-  proefRef.current = proef;
+  const proefRef = useRef<ReadonlyMap<string, Proef>>(new Map());
   const modelRef = useRef(model);
   modelRef.current = model;
   const plaatsingenRef = useRef(plaatsingen);
@@ -337,7 +301,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
         m.clippingPlanes = [d.snede];
         m.clipShadows = true;
         d.materialen.set(sleutel, m);
-        werkMateriaalBij(sleutel, m, gegevens.materialen, proefRef.current, d.texturen);
+        werkMateriaalBij(sleutel, m, gegevens.materialen, proefRef.current, d.texturen, anisotropie(d.renderer));
       }
       return m;
     },
@@ -909,11 +873,29 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   const wereldRef = useRef(wereld);
   wereldRef.current = wereld;
 
-  // Een ander materiaal uitproberen: enkel de kleuren en texturen.
+  // Materialen uitproberen: een muur, het dak of een vloer aantikken en er een staal op leggen (zie materiaalproef.tsx).
+  const vloerruimtes: Vloerruimte[] = useMemo(() => {
+    const metVloer = new Set(model.verdiepingen.flatMap((v) => v.vloeren.map((vloer) => vloer.ruimteId)));
+    return gegevens.verdiepingen.flatMap((v) =>
+      v.ruimtes.filter((r) => metVloer.has(r.id)).map((r) => ({ id: r.id, naam: r.naam, verdieping: v.naam })),
+    );
+  }, [model, gegevens.verdiepingen]);
+  const materiaalproef = useMateriaalproef(drie, {
+    aan: gereedschap === "materiaal",
+    huisId,
+    materialen: gegevens.materialen,
+    vloerruimtes,
+    meld: setMelding,
+  });
+  const proef = materiaalproef.proef;
+  proefRef.current = proef;
+
+  // Een ander materiaal: enkel de kleuren en texturen. Wat geen vlak nog gebruikt, gaat weg.
   useEffect(() => {
     const d = drie.current;
     if (!d) return;
-    for (const [sleutel, m] of d.materialen) werkMateriaalBij(sleutel, m, gegevens.materialen, proef, d.texturen);
+    for (const [sleutel, m] of d.materialen) werkMateriaalBij(sleutel, m, gegevens.materialen, proef, d.texturen, anisotropie(d.renderer));
+    ruimTexturenOp(d.texturen, d.materialen.values());
   }, [proef, gegevens.materialen]);
 
   // Wat er te zien is: de lagen, en de doorsnede.
@@ -1461,7 +1443,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   return (
     <div className={`drie-scherm${volledig ? " volledig" : ""}${paneel ? "" : " zonder-paneel"}`}>
       <div className="drie-beeld">
-        <div className="drie-raam">
+        <div className={`drie-raam${gereedschap === "materiaal" ? " met-stalen" : ""}`}>
           <div
             ref={vak}
             className={`drie-vak${modus === "wandel" ? " wandel" : ""}${gereedschap === "meten" || (gereedschap === "inrichten" && inrichting.nieuw) ? " meten" : ""}`}
@@ -1476,6 +1458,15 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             >
               {gereedschap === "meten" ? "Klaar met meten" : "Meten"}
             </button>
+            <button
+              type="button"
+              className="drie-knop"
+              aria-pressed={gereedschap === "materiaal"}
+              title={gereedschap === "materiaal" ? "Stoppen met materialen (Esc)" : "Materialen: tik een muur, het dak of een vloer, en kies een staal"}
+              onClick={() => wissel("materiaal")}
+            >
+              {gereedschap === "materiaal" ? "Klaar met materialen" : "Materialen"}
+            </button>
             {meetlint.aantal > 0 ? (
               <button type="button" className="drie-knop" title="Alle maten weghalen" onClick={meetlint.wis}>
                 Wissen ({meetlint.aantal})
@@ -1483,6 +1474,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             ) : null}
           </div>
           <Noordpijl kern={drie} klaar={klaar} noorden={noorden} tonen={isAan(lagen, "hulp:noorden")} />
+          {gereedschap === "materiaal" ? <Staalstrook proef={materiaalproef} metKeuzes={gegevens.metKeuzes} boven={modus === "wandel"} /> : null}
           <div className="drie-boven">
             <button
               type="button"
@@ -1531,6 +1523,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             ? meetlint.bezig
               ? "Tik het einde van de maat. Esc breekt af."
               : "Tik het begin van een maat; een tik dicht bij een hoek kleeft eraan. Slepen draait zoals altijd."
+            : gereedschap === "materiaal"
+            ? "Tik een gevel, een binnenmuur, het dak, een raam of een vloer, en kies onderaan een staal. Uitproberen bewaart niets; Bewaren als optie zet het bij de keuze."
             : gereedschap === "inrichten"
             ? inrichting.nieuw
               ? inrichting.dakwerk
@@ -1644,6 +1638,15 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             }}
           />
         </section>
+
+        <Materiaalkaart
+          proef={materiaalproef}
+          huisId={huisId}
+          metKeuzes={gegevens.metKeuzes}
+          aan={gereedschap === "materiaal"}
+          wissel={() => wissel("materiaal")}
+          vloerruimtes={vloerruimtes}
+        />
 
         <Inrichtkaart
           inrichting={inrichting}
@@ -2004,35 +2007,6 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
                     </button>
                   </div>
                 ) : null}
-              </div>
-            ))}
-          </section>
-        ) : null}
-
-        {gegevens.materialen.length > 0 ? (
-          <section className="kaart">
-            <h3>Materialen</h3>
-            <p className="hulp">Uitproberen bewaart niets. Kiezen doe je bij de keuze zelf.</p>
-            {gegevens.materialen.map((keuze) => (
-              <div key={keuze.keuzeId} style={{ marginTop: 8 }}>
-                <label htmlFor={`proef-${keuze.keuzeId}`}>
-                  {SLOTNAMEN[keuze.slot]}: {keuze.titel}
-                </label>
-                <select
-                  id={`proef-${keuze.keuzeId}`}
-                  value={proef.get(keuze.keuzeId) ?? keuze.standaard}
-                  onChange={(g) => {
-                    const optieId = Number(g.currentTarget.value);
-                    setProef((huidig) => new Map(huidig).set(keuze.keuzeId, optieId));
-                  }}
-                >
-                  {keuze.opties.map((optie) => (
-                    <option key={optie.id} value={optie.id}>
-                      {optie.naam}
-                      {optie.id === keuze.standaard ? " (nu)" : ""}
-                    </option>
-                  ))}
-                </select>
               </div>
             ))}
           </section>

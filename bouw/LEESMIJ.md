@@ -387,10 +387,38 @@ grondplannen.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
-- **Materialen.** De gevelsteen kleurt de gevel, de dakbedekking het dak, de
-  ramen het schrijnwerk, de wanden de binnenmuren, en een vloer of tegels de
-  ruimtes die eraan gekoppeld zijn. Een optie met een foto wordt een textuur.
-  Een andere optie uitproberen kan in het 3D-scherm, zonder iets te bewaren.
+- **Materialen.** De keuze Gevelsteen kleurt de gevel, Dakbedekking het dak,
+  Ramen en buitendeuren het schrijnwerk, Binnenmuren de binnenmuren, en een
+  vloer of tegels de ruimtes die eraan gekoppeld zijn. Een keuze die anders
+  heet, telt ook, als ze opties heeft en geen andere gewone keuze is: het
+  voegwerk is geen gevel, de voordeur niet alle ramen
+  (`drie/materialen.ts`).
+
+  **Uitproberen in 3D.** Met **Materialen** linksboven op het beeld tik je een
+  gevel, een binnenmuur, het dak, een raam of een vloer aan: die licht even
+  op, en onderaan het beeld staan de stalen. Eerst de opties van de keuze,
+  dan stalen van gewone materialen: baksteen in zes kleuren, crepi, hout,
+  zichtbeton, dakpannen, leien, zink, parket, tegels en verf
+  (`drie/stalen.ts`). In het paneel kies je ook het onderdeel zonder te
+  tikken, en een eigen kleur met een patroon en, bij baksteen en tegels, de
+  kleur van de voeg. Uitproberen bewaart niets.
+  - **Op echte schaal.** Een baksteen is 21 op 5 cm met een voeg van 1,2 cm,
+    een tegel 60 op 60, een pan 25 op 33. De browser tekent het patroon
+    (`components/bouw/staal.tsx`) en legt het als textuur op de muur, in
+    meter. Op een dak lopen de pannen evenwijdig met de goot, op elk dakvlak
+    (`3d/scene.ts`, `3d/texturen.ts`).
+  - **Een vloer** hoort bij de keuze van haar ruimte: wat je op de leefruimte
+    legt, ligt ook in de keuken als ze aan dezelfde keuze hangen. Een ruimte
+    zonder keuze verandert alleen.
+  - **Bewaren als optie** zet het materiaal bij de keuze, zonder prijs, en je
+    blijft in 3D. Is er nog geen keuze, dan maakt de app ze: Gevelsteen,
+    Dakbedekking, Ramen en buitendeuren, Binnenmuren, of voor een vloer
+    "Vloer badkamer" met enkel die ruimte. Staat hetzelfde materiaal er al,
+    dan blijft het bij die optie. Kiezen doe je nog altijd bij de keuze zelf
+    (`bewaarMateriaalActie`). Een bestaand huis heeft geen keuzes: daar kan je
+    enkel uitproberen.
+  - Een optie kan ook bij Keuzes een patroon en een voeg krijgen; het staal op
+    de optie toont het zoals in 3D (`bouw_opties.patroon` en `voegkleur`).
 - **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
@@ -398,8 +426,8 @@ grondplannen.
   weer in beeld. Een doorsnede op een hoogte; rondwandelen op ooghoogte met W
   A S D of de knoppen, zonder door muren te lopen, en de trap op en af
   (`drie/wandelen.ts`); een beeld downloaden. Er staat altijd maar één
-  gereedschap aan (meten, inrichten, gebouwen verplaatsen, de omgeving
-  verschuiven); Esc zet terug op kijken.
+  gereedschap aan (meten, materialen, inrichten, gebouwen verplaatsen, de
+  omgeving verschuiven); Esc zet terug op kijken.
 - **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
   daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
   de buren, wat nu op ons perceel staat (standaard uit), de punten per
@@ -554,6 +582,11 @@ totaal, per m², per lopende meter of per stuk.
 - **Beslissen.** "Kies deze" maakt de keuze definitief en schrijft een regel in
   het beslissingslog, met de prijs. Terug open zetten kan, en komt ook in het
   log.
+- **Hoe het eruitziet in 3D.** Een optie heeft een kleur, en eventueel een
+  patroon (baksteen, dakpannen, leien, zink, planken, parket, tegels, beton,
+  crepi) en bij baksteen en tegels de kleur van de voeg. Zo toont 3D ze op
+  schaal; een optie die je in 3D bewaarde, krijgt ze vanzelf. Zie
+  [Het huis in 3D](#het-huis-in-3d).
 - **Foto's.** De browser verkleint een foto eerst tot een JPEG van hoogstens
   1600 pixels, zonder de EXIF-gegevens (en dus zonder de plaats waar ze
   genomen werd). Ze komt in dezelfde privé-bucket, onder `fotos/`.
@@ -938,6 +971,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/deuren.ts` | Een deurblad op een kier, de boog op de vloer, vast glas naast een voordeur, en een deur omdraaien; puur, met tests |
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, de trap op het plan van Ruimtes, en de trap op en af wandelen |
 | `web/lib/bouw/drie/zones.ts`, `traphal.ts` | Kleine zones zonder ruimte (een traphal, een kast) en de openingen ernaartoe, en een traphal die boven open is aanvullen van de verdieping eronder; puur, met tests |
+| `web/lib/bouw/drie/materialen.ts`, `stalen.ts` | Welke keuze welk materiaal bepaalt, wat er uitgeprobeerd wordt, de stalen en hun maten, en een materiaal bewaren nakijken; puur, met tests |
+| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, en het patroon als textuur |
+| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
+| `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
 | `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
 | `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |

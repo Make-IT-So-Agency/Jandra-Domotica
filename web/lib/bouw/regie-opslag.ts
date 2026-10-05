@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/lib/supabase";
 
 import { binnenHuis, check, geraakt, huisVanRij, zelfdeHuis } from "./databank";
-import type { CategorieKeuze, Eenheid, Keuze, Optie, Voorkeur } from "./keuzes";
+import { isPatroon, type CategorieKeuze, type Eenheid, type Keuze, type Optie, type Voorkeur } from "./keuzes";
 import type { Planningsitem, SoortPlanning, StatusPlanning, Voorbeelditem } from "./planning";
 
 /**
@@ -252,6 +252,8 @@ function alsOptie(rij: Record<string, unknown>): Optie {
     prijs: getalOfNull(rij.prijs),
     basis: rij.basis === true,
     kleur: tekstOfNull(rij.kleur),
+    patroon: isPatroon(rij.patroon) ? rij.patroon : null,
+    voegkleur: tekstOfNull(rij.voegkleur),
     url: tekstOfNull(rij.url),
     foto_bestand_id: getalOfNull(rij.foto_bestand_id),
     opmerking: tekstOfNull(rij.opmerking),
