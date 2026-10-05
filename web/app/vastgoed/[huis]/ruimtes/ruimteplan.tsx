@@ -1,5 +1,6 @@
+import { tredelijnen } from "@/lib/bouw/drie/trappen";
 import { kaderVan, middenVan } from "@/lib/bouw/omzetting/geometrie";
-import type { Kader, Xy } from "@/lib/bouw/omzetting/types";
+import type { Kader, Trapdeel, Xy } from "@/lib/bouw/omzetting/types";
 import type { Ruimte } from "@/lib/bouw/types";
 
 function pad(ringen: Xy[][]): string {
@@ -17,11 +18,14 @@ export function Ruimteplan({
   ruimtes,
   kader,
   punten = [],
+  trappen = [],
 }: {
   ruimtes: Ruimte[];
   kader: Kader;
   /** De punten op deze verdieping, als bolletjes in de kleur van hun categorie. */
   punten?: { id: number; x_m: number; y_m: number; kleur: string; naam: string }[];
+  /** De trappen van het plan: die hier beginnen met hun treden, die van de verdieping eronder als trapgat in streepjes. */
+  trappen?: { delen: Trapdeel[]; vanOnder: boolean }[];
 }) {
   const marge = 0.4;
   const x = kader.x0 - marge;
@@ -45,6 +49,19 @@ export function Ruimteplan({
           {/* Eén tekst: React vergelijkt een <title> met meer stukken anders dan de server hem schreef. */}
           <title>{`${ruimte.naam}, ${m2(ruimte.oppervlakte_m2)}`}</title>
         </path>
+      ))}
+      {trappen.map((trap, t) => (
+        <g key={`t${t}`} className={trap.vanOnder ? "ruimteplan-trapgat" : "ruimteplan-trap"}>
+          <title>{trap.vanOnder ? "Trapgat: de trap van de verdieping eronder" : "Trap naar boven"}</title>
+          {trap.delen.map((deel, d) => (
+            <path key={d} d={pad([deel.hoeken])} />
+          ))}
+          {trap.vanOnder
+            ? null
+            : trap.delen.flatMap((deel, d) =>
+                tredelijnen(deel).map(([p, q], k) => <line key={`${d}-${k}`} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} />),
+              )}
+        </g>
       ))}
       {punten.map((punt) => (
         <circle key={`p${punt.id}`} cx={punt.x_m} cy={punt.y_m} r={0.11} fill={punt.kleur} stroke="#ffffff" strokeWidth={0.03}>

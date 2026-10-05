@@ -2,10 +2,11 @@ import * as THREE from "three";
 
 import { deurbladOpKier, draaiboog, vastGlasNaast } from "@/lib/bouw/drie/deuren";
 import type { Gat } from "@/lib/bouw/drie/gaten";
-import type { Model3d, Plaat } from "@/lib/bouw/drie/model";
+import { KLEINE_ZONE, type Model3d, type Plaat } from "@/lib/bouw/drie/model";
 import { middenVan, type Plaatsing } from "@/lib/bouw/drie/plaatsing";
 import type { Trap3d } from "@/lib/bouw/drie/trappen";
 import type { Veelhoek } from "@/lib/bouw/drie/vlak";
+import { oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import type { Xy } from "@/lib/bouw/omzetting/types";
 
 /**
@@ -171,11 +172,15 @@ function gat(bouwer: Bouwer, g: Gat, z0: number, z1: number) {
   for (let i = 1; i < grenzen.length; i++) vak(grenzen[i - 1], grenzen[i]);
 }
 
-function plaat(bouwer: Bouwer, p: Plaat, boven: Sleutel, onder: Sleutel, zijkant: Sleutel) {
+/** Een plaat met haar zijkanten. Rond een klein gat erin, zoals een trapgat, is de zijkant binnen; rond een patio buiten. */
+function plaat(bouwer: Bouwer, p: Plaat, boven: Sleutel, onder: Sleutel, zijkant: Sleutel, binnenkant: Sleutel = zijkant) {
   for (const veelhoek of p.veelhoeken) {
     bouwer.vlak(boven, veelhoek, p.z1);
     bouwer.vlak(onder, veelhoek, p.z0);
-    for (const ring of veelhoek) for (let i = 0; i < ring.length; i++) bouwer.wand(zijkant, ring[i], ring[(i + 1) % ring.length], p.z0, p.z1);
+    veelhoek.forEach((ring, r) => {
+      const sleutel = r > 0 && Math.abs(oppervlakte(ring)) <= KLEINE_ZONE ? binnenkant : zijkant;
+      for (let i = 0; i < ring.length; i++) bouwer.wand(sleutel, ring[i], ring[(i + 1) % ring.length], p.z0, p.z1);
+    });
   }
 }
 
@@ -287,7 +292,7 @@ export function bouwScene(
     }
     for (const g of v.gaten) gat(bouwer, g, v.z0, v.z1);
     for (const vloer of v.vloeren) bouwer.vlak(`vloer:${vloer.ruimteId}`, vloer.ringen, v.z0 + 0.012);
-    plaat(bouwer, v.plaat, "plaat", "plafond", "gevel");
+    plaat(bouwer, v.plaat, "plaat", "plafond", "gevel", "binnenmuur");
     for (const t of v.trappen) trap(bouwer, t);
     for (const l of v.leuningen) leuning(bouwer, l, v.z0);
     // Een luifel hoort bij haar verdieping: met de laag gaat ze mee aan en uit.

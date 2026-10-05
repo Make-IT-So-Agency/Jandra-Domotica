@@ -1,10 +1,21 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { trappenOpPlan } from "@/lib/bouw/drie/trappen";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { kaderVan } from "@/lib/bouw/omzetting/geometrie";
 import { omzetstand, teDoen } from "@/lib/bouw/omzetting/reeks";
-import { lijstGebouwen, lijstOmzettingen, lijstPlannen, lijstPunten, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
+import { bevestigdGrondplan } from "@/lib/bouw/omzetting/referentie";
+import type { Trapvoorstel } from "@/lib/bouw/omzetting/types";
+import {
+  leesMurenEnOpeningen,
+  lijstGebouwen,
+  lijstOmzettingen,
+  lijstPlannen,
+  lijstPunten,
+  lijstRuimtes,
+  lijstVerdiepingen,
+} from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { CATEGORIEKLEUREN, ruimteVan, soortVan, type Punt } from "@/lib/bouw/punten";
 import { RUIMTENAMEN, type Gebouw, type Ruimte, type Verdieping } from "@/lib/bouw/types";
@@ -40,6 +51,7 @@ export default async function Ruimtespagina({
   let punten: Punt[];
   let nogOmTeZetten: number;
   let verouderd: number;
+  let trappenPer: Map<number, Trapvoorstel[]>;
   try {
     const [g, v, r, p, pt] = await Promise.all([
       lijstGebouwen(huis.id),
@@ -56,6 +68,13 @@ export default async function Ruimtespagina({
     const omzettingen = await lijstOmzettingen(p.flatMap((plan) => plan.versies.map((versie) => versie.id)));
     const { bevestigd, oud } = omzetstand(omzettingen);
     ({ open: nogOmTeZetten, verouderd } = teDoen(p, v, g, bevestigd, oud));
+    // De trappen die de omzetting op het bevestigde grondplan vond, zoals 3D ze leest.
+    const versies = v.flatMap((verdieping) => {
+      const grondplan = bevestigdGrondplan(p, verdieping.id, bevestigd);
+      return grondplan ? [[verdieping.id, grondplan.versie.id] as const] : [];
+    });
+    const bewaard = await leesMurenEnOpeningen(versies.map(([, versieId]) => versieId));
+    trappenPer = new Map(versies.map(([verdiepingId, versieId]) => [verdiepingId, bewaard.get(versieId)?.trappen ?? []]));
   } catch (fout) {
     return (
       <>
@@ -89,6 +108,7 @@ export default async function Ruimtespagina({
         if (eigen.length === 0) return null;
         const vanGebouw = ruimtes.filter((r) => eigen.some((v) => v.id === r.verdieping_id));
         const kader = vanGebouw.length > 0 ? kaderVan(vanGebouw.flatMap((r) => r.veelhoek[0] ?? [])) : null;
+        const trappen = trappenOpPlan(eigen, trappenPer);
         return (
           <section key={gebouw.id} aria-label={gebouw.naam}>
             {gebouwen.length > 1 ? <h2>{gebouw.naam}</h2> : null}
@@ -130,6 +150,7 @@ export default async function Ruimtespagina({
                         <Ruimteplan
                           ruimtes={lijst}
                           kader={kader}
+                          trappen={trappen.get(verdieping.id)}
                           punten={eigenPunten.map((punt) => {
                             const soort = soortVan(punt.soort);
                             return {

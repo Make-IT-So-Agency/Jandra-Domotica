@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { maakDak } from "@/lib/bouw/drie/dak";
 import { deurbladOpKier, draaiboog, vastGlasNaast } from "@/lib/bouw/drie/deuren";
-import { vindGaten, type Gekendeopening } from "@/lib/bouw/drie/gaten";
-import { maakModel, stapel, type Invoerverdieping } from "@/lib/bouw/drie/model";
+import { ramenLangs, vindGaten, type Gekendeopening } from "@/lib/bouw/drie/gaten";
+import { maakModel, stapel, type Invoerverdieping, type Verdieping3d } from "@/lib/bouw/drie/model";
 import { binnenVeelhoeken, doorsnede, omhullende, vergrootConvex, vereniging, verschil } from "@/lib/bouw/drie/vlak";
 import { nettoOppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import type { Xy } from "@/lib/bouw/omzetting/types";
@@ -100,6 +100,16 @@ describe("ramen en deuren in de open plekken", () => {
   });
 
   const muren = vereniging(MUREN.map((ring) => [ring]));
+
+  it("zoekt ook langs een zone zonder ruimte, zoals een traphal, maar enkel naar buiten", () => {
+    // Zonder de leefruimte ziet vindGaten het raam in de linkermuur (x = 0 tot 0,4) niet: het ligt langs geen ruimte.
+    expect(vindGaten([RECHTS], muren, [], 2.8).some((g) => g.a[0] < 1)).toBe(false);
+    // Langs de rand van die zone wel; de deur naar de keuken vindt de keuken zelf.
+    const langs = ramenLangs([LINKS.ringen[0]], [RECHTS], muren, [], 2.8);
+    expect(langs).toHaveLength(1);
+    expect(langs[0]).toMatchObject({ soort: "raam", onder: 0.9, boven: 2.15, dikte: 0.4 });
+    expect(langs[0].a[0]).toBeCloseTo(0.4);
+  });
   const raamMet = (openingen: Gekendeopening[]) => vindGaten([LINKS, RECHTS], muren, openingen, 2.8).find((g) => g.soort === "raam")!;
 
   it("neemt een maat op een maatlijn buiten de muur, met dezelfde breedte", () => {
@@ -256,6 +266,8 @@ describe("het model", () => {
     // Boven: het trapgat blijft open, en ook daar zijn de muren eromheen binnenmuren.
     expect(binnenVeelhoeken([7, 6.8], v1.plaat.veelhoeken)).toBe(false);
     expect(zijdeOp(v1, 5, 7, [0, 1])).toBe("binnen");
+    // Maar het dak erboven is dicht: een traphal staat niet open naar de lucht.
+    expect(binnenVeelhoeken([7, 6.8], v1.dakplaat!.veelhoeken)).toBe(true);
     // Ook als het trapgat aan een raam ligt dat de omzetting niet als opening las: wat boven de trap ligt, is binnen.
     const zonderRaam = { ...boven, muren: [...muren.filter((m) => m[0][1] !== 7.6), rechthoek(0, 7.6, 5.14, 8)] };
     const [, open] = maakModel([{ id: 1, dak: { type: "plat", helling: 35, nok: "x", overstek: 0.3 } }], [onder, zonderRaam]).verdiepingen;
@@ -281,6 +293,91 @@ describe("het model", () => {
     const [metPatio] = maakModel([{ id: 1, dak: { type: "plat", helling: 35, nok: "x", overstek: 0.3 } }], [rond]).verdiepingen;
     expect(binnenVeelhoeken([5, 5], metPatio.plaat.veelhoeken)).toBe(false);
     expect(zijdeOp(metPatio, 3, 5, [0, 1])).toBe("buiten");
+    // Een patio heeft ook geen dak.
+    expect(binnenVeelhoeken([5, 5], metPatio.dakplaat!.veelhoeken)).toBe(false);
+  });
+
+  it("vult een traphal aan die boven open is naar buiten: met het raam ervoor, of met de gevel van beneden", () => {
+    // Zoals hierboven: rechts onderaan een trapzone van 4,46 × 2,6 m zonder ruimte, met een trap van het plan erin.
+    const muren: Xy[][] = [
+      rechthoek(0, 0, 10, 0.4),
+      rechthoek(9.6, 0.4, 10, 7.6),
+      rechthoek(0, 7.6, 10, 8),
+      rechthoek(0, 0.4, 0.4, 7.6),
+      rechthoek(5, 0.4, 5.14, 7.6),
+      rechthoek(5.14, 4.86, 9.6, 5),
+    ];
+    const keuken = { ...RECHTS, ringen: [rechthoek(5.14, 0.4, 9.6, 4.86)] };
+    const trap = {
+      richting: "pijl" as const,
+      delen: [{ soort: "vlucht" as const, hoeken: [[5.3, 5], [5.3, 6.1], [9.4, 6.1], [9.4, 5]] as [Xy, Xy, Xy, Xy], treden: 16 }],
+    };
+    const onder = verdieping({ ruimtes: [LINKS, keuken], muren, openingen: [], trappen: [trap] });
+    // Boven dezelfde muren, met een andere onderste gevel.
+    const boven = (gevel: Xy[][], ruimtes = [LINKS, keuken], binnenmuren = muren.filter((m) => m[0][1] !== 7.6)) =>
+      verdieping({ id: 11, naam: "Verdieping", volgorde: 1, vloerpeil: 3.2, verdiepingshoogte: null, ruimtes, muren: [...binnenmuren, ...gevel], openingen: [] });
+    const plat = [{ id: 1, dak: { type: "plat" as const, helling: 35, nok: "x" as const, overstek: 0.3 } }];
+    const geenDak = (v: Verdieping3d, p: Xy) => v.dakplaat === null || !binnenVeelhoeken(p, v.dakplaat.veelhoeken);
+    const zijdeOp = (v: Verdieping3d, y: number, x: number, n: Xy) =>
+      v.muren
+        .flatMap((m) => m.veelhoek.flatMap((ring, r) => ring.map((a, i) => ({ a, b: ring[(i + 1) % ring.length], ...m.zijden[r][i] }))))
+        .find((k) => k.a[1] === y && k.b[1] === y && Math.min(k.a[0], k.b[0]) <= x && Math.max(k.a[0], k.b[0]) >= x && k.n[1] === n[1])?.zijde;
+    const raamOnderaan = (v: Verdieping3d) => v.gaten.find((g) => g.soort === "raam" && Math.abs(g.a[1] - 7.6) < 0.01 && g.a[0] > 5);
+
+    // Boven staat in de gevel voor de trapzone een raam van 2,6 m, dat de omzetting niet als opening las: daar is de muur open.
+    const [gv, v1] = maakModel(plat, [onder, boven([rechthoek(0, 7.6, 6, 8), rechthoek(8.6, 7.6, 10, 8)])]).verdiepingen;
+    const raam = raamOnderaan(v1);
+    expect(raam).toBeDefined();
+    expect(Math.min(raam!.a[0], raam!.b[0])).toBeCloseTo(6, 1);
+    expect(Math.max(raam!.a[0], raam!.b[0])).toBeCloseTo(8.6, 1);
+    // Het gelijkvloers krijgt er geen plat dak meer, ook niet op zijn gevel; boven is het dak dicht.
+    expect(geenDak(gv, [7, 6.8])).toBe(true);
+    expect(geenDak(gv, [7.3, 7.8])).toBe(true);
+    expect(binnenVeelhoeken([7, 6.8], v1.dakplaat!.veelhoeken)).toBe(true);
+    // Het trapgat blijft open, onder het raam ligt vloer, en rond de traphal zijn het binnenmuren.
+    expect(binnenVeelhoeken([7, 6.8], v1.plaat.veelhoeken)).toBe(false);
+    expect(binnenVeelhoeken([7.3, 7.8], v1.plaat.veelhoeken)).toBe(true);
+    expect(zijdeOp(v1, 5, 7, [0, 1])).toBe("binnen");
+
+    // Ligt ook de hoek open, dan vindt de app geen raam: dan komt de gevelmuur van beneden, binnen gepleisterd.
+    const [gv2, v2] = maakModel(plat, [onder, boven([rechthoek(0, 7.6, 5.14, 8)])]).verdiepingen;
+    expect(raamOnderaan(v2)).toBeUndefined();
+    expect(zijdeOp(v2, 8, 7, [0, 1])).toBe("buiten");
+    expect(zijdeOp(v2, 7.6, 7, [0, -1])).toBe("binnen");
+    expect(geenDak(gv2, [7, 6.8])).toBe(true);
+    expect(binnenVeelhoeken([7, 6.8], v2.dakplaat!.veelhoeken)).toBe(true);
+    expect(binnenVeelhoeken([7, 6.8], v2.plaat.veelhoeken)).toBe(false);
+
+    // Dekt de verdieping erboven de hele rechterkant niet (een terras), dan komt er niets bij: de keuken krijgt een plat dak,
+    // de trap van beneden niet.
+    const links = [rechthoek(0, 0, 5.14, 0.4), rechthoek(0, 0.4, 0.4, 7.6), rechthoek(5, 0.4, 5.14, 7.6)];
+    const [gv3, v3] = maakModel(plat, [onder, boven([rechthoek(0, 7.6, 5.14, 8)], [LINKS], links)]).verdiepingen;
+    expect(v3.muren.some((m) => binnenVeelhoeken([9.8, 3], [m.veelhoek]))).toBe(false);
+    expect(binnenVeelhoeken([7, 2], gv3.dakplaat!.veelhoeken)).toBe(true);
+    expect(binnenVeelhoeken([7, 6.8], gv3.dakplaat!.veelhoeken)).toBe(false);
+  });
+
+  it("maakt van een opening naar een trapzone een doorgang, geen raam", () => {
+    // De keuken komt via een opening van 1 m uit in de trapzone eronder, die geen ruimte heeft.
+    const muren: Xy[][] = [
+      rechthoek(0, 0, 10, 0.4),
+      rechthoek(9.6, 0.4, 10, 7.6),
+      rechthoek(0, 7.6, 10, 8),
+      rechthoek(0, 0.4, 0.4, 7.6),
+      rechthoek(5, 0.4, 5.14, 7.6),
+      rechthoek(5.14, 4.86, 6, 5),
+      rechthoek(7, 4.86, 9.6, 5),
+    ];
+    const keuken = { ...RECHTS, ringen: [rechthoek(5.14, 0.4, 9.6, 4.86)] };
+    const plat = [{ id: 1, dak: { type: "plat" as const, helling: 35, nok: "x" as const, overstek: 0.3 } }];
+    const [gv] = maakModel(plat, [verdieping({ ruimtes: [LINKS, keuken], muren, openingen: [] })]).verdiepingen;
+    const opening = gv.gaten.find((g) => Math.abs(g.a[1] - 4.86) < 0.01);
+    expect(opening).toMatchObject({ soort: "doorgang", onder: 0, boven: 2.15 });
+    // Naar buiten blijft een raam een raam.
+    expect(gv.gaten.some((g) => g.soort === "raam")).toBe(false);
+    const rechts = [...muren.filter((m) => m[0][0] !== 9.6), rechthoek(9.6, 0.4, 10, 2), rechthoek(9.6, 3, 10, 7.6)];
+    const [metRaam] = maakModel(plat, [verdieping({ ruimtes: [LINKS, keuken], muren: rechts, openingen: [] })]).verdiepingen;
+    expect(metRaam.gaten.find((g) => g.a[0] > 9)?.soort).toBe("raam");
   });
 
   it("legt een plat dak op wat de verdieping erboven niet bedekt", () => {
