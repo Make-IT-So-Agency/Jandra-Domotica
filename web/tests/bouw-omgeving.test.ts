@@ -6,6 +6,8 @@ import {
   georefVanPlaatsing,
   leesAdrespunt,
   leesGrb,
+  leesPerceelnummer,
+  leesPerceelpunt,
   lokaal,
   maakOmgeving,
   naarLambert,
@@ -59,6 +61,27 @@ describe("de antwoorden van Digitaal Vlaanderen", () => {
     expect(leesAdrespunt({ LocationResult: [{ Location: { X_Lambert72: "150000", Y_Lambert72: 180000 } }] })).toBeNull();
     expect(leesAdrespunt({ LocationResult: [{ Location: { X_Lambert72: 0, Y_Lambert72: 0 } }] })).toBeNull();
     expect(leesAdrespunt(null)).toBeNull();
+  });
+
+  it("leest een perceelnummer zoals op Geopunt, ook met spaties, kleine letters of een streepje", () => {
+    // Verzonnen nummers, nooit dat van ons huis.
+    expect(leesPerceelnummer("12345A0678/00B000")).toBe("12345A0678/00B000");
+    expect(leesPerceelnummer(" 12345 a 0678 / 00 b 000 ")).toBe("12345A0678/00B000");
+    expect(leesPerceelnummer("12345A0678-00B000")).toBe("12345A0678/00B000");
+    expect(leesPerceelnummer("12345A0678/00_000")).toBe("12345A0678/00_000");
+    for (const fout of ["", "12345A678/00B000", "1234A0678/00B000", "12345A0678/00B00", "Kerkstraat 1", "12345A0678"]) {
+      expect(leesPerceelnummer(fout)).toBeNull();
+    }
+  });
+
+  it("leest het middelpunt van een perceel uit de CaPaKey-dienst, de rest niet", () => {
+    const punt = JSON.stringify({ type: "Point", coordinates: [150000.5, 180000.25] });
+    expect(leesPerceelpunt({ capakey: "12345A0678/00B000", geometry: { center: punt, boundingBox: "{}" } })).toEqual([150000.5, 180000.25]);
+    // Ook als het al een object is.
+    expect(leesPerceelpunt({ geometry: { center: { coordinates: [150000, 180000] } } })).toEqual([150000, 180000]);
+    for (const fout of [null, {}, { geometry: { center: "geen json" } }, { geometry: { center: { coordinates: {} } } }, { geometry: { center: JSON.stringify({ coordinates: [0, 0] }) } }]) {
+      expect(leesPerceelpunt(fout)).toBeNull();
+    }
   });
 
   it("leest polygonen en multipolygonen uit de WFS, zonder perceelnummers", () => {

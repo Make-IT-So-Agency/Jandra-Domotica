@@ -70,12 +70,12 @@ function begin(fouten = {}) {
 beforeEach(() => begin());
 
 describe("het project", () => {
-  it("bewaart naam en adres bij het huis, en wist wat leeg is", async () => {
-    await bewaarProject(1, { projectnaam: "Ons huis", adres: "Ergens 1" });
-    expect(await leesHuis(1)).toMatchObject({ projectnaam: "Ons huis", adres: "Ergens 1" });
+  it("bewaart naam, adres en perceel bij het huis, en wist wat leeg is", async () => {
+    await bewaarProject(1, { projectnaam: "Ons huis", adres: "Ergens 1", perceel: "12345A0678/00B000" });
+    expect(await leesHuis(1)).toMatchObject({ projectnaam: "Ons huis", adres: "Ergens 1", perceel: "12345A0678/00B000" });
 
-    await bewaarProject(1, { projectnaam: "Ons nieuwe huis", adres: null });
-    expect(await leesHuis(1)).toMatchObject({ projectnaam: "Ons nieuwe huis", adres: null });
+    await bewaarProject(1, { projectnaam: "Ons nieuwe huis", adres: null, perceel: null });
+    expect(await leesHuis(1)).toMatchObject({ projectnaam: "Ons nieuwe huis", adres: null, perceel: null });
     // Het andere huis blijft ongemoeid.
     expect(db.tabellen.bouw_huizen.map((huis) => [huis.id, huis.projectnaam, huis.adres])).toEqual([
       [1, "Ons nieuwe huis", null],

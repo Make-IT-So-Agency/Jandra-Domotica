@@ -284,9 +284,15 @@ export default async function Bouwoverzicht({
             <label htmlFor="adres">Adres</label>
             <input id="adres" name="adres" defaultValue={stand.project.adres ?? ""} />
           </div>
+          <div>
+            <label htmlFor="perceel">Perceelnummer</label>
+            <input id="perceel" name="perceel" defaultValue={stand.project.perceel ?? ""} placeholder="12345A0678/00B000" />
+          </div>
         </div>
         <p className="hulp">
-          Naam en adres staan enkel in de databank, nooit in de code: de repository is publiek.
+          Kent Digitaal Vlaanderen het adres nog niet, zoals bij nieuwbouw, vul dan het perceelnummer in: de CaPaKey die Geopunt
+          toont als je het perceel aantikt, of die op de omgevingsvergunning staat. Dan zoekt 3D de omgeving bij het perceel. Naam,
+          adres en perceel staan enkel in de databank, nooit in de code: de repository is publiek.
         </p>
         <div className="knoppenrij" style={{ marginTop: 12 }}>
           <button type="submit">Bewaren</button>

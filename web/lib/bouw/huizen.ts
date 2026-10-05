@@ -12,8 +12,8 @@ import { isSoortHuis, type Huis, type SoortHuis } from "./types";
  * De huizen: de nieuwbouw, en later bv. het huidige huis. Elk huis heeft zijn
  * eigen gegevens; zie databank.ts voor hoe een rij bij een huis hoort.
  *
- * De naam, de projectnaam en het adres staan enkel in de databank, nooit in de
- * repository.
+ * De naam, de projectnaam, het adres en het perceel staan enkel in de
+ * databank, nooit in de repository.
  */
 
 const getal = (waarde: unknown) => (waarde === null || waarde === undefined || waarde === "" ? null : Number(waarde));
@@ -26,6 +26,7 @@ function alsHuis(rij: Record<string, unknown>): Huis {
     soort: isSoortHuis(soort) ? soort : "nieuwbouw",
     projectnaam: (rij.projectnaam as string | null) ?? null,
     adres: (rij.adres as string | null) ?? null,
+    perceel: (rij.perceel as string | null) ?? null,
     krediet_totaal: getal(rij.krediet_totaal),
     eigen_inbreng: getal(rij.eigen_inbreng),
     volgorde: Number(rij.volgorde ?? 0),
@@ -74,11 +75,14 @@ export async function standaardHuis(): Promise<Huis> {
 }
 
 /** Een lege waarde wist het veld, zodat "niet ingevuld" ook echt niets is. */
-export async function bewaarProject(huisId: number, project: { projectnaam: string | null; adres: string | null }): Promise<void> {
+export async function bewaarProject(
+  huisId: number,
+  project: { projectnaam: string | null; adres: string | null; perceel: string | null },
+): Promise<void> {
   check(
     await db()
       .from("bouw_huizen")
-      .update({ projectnaam: project.projectnaam || null, adres: project.adres || null })
+      .update({ projectnaam: project.projectnaam || null, adres: project.adres || null, perceel: project.perceel || null })
       .eq("id", huisId),
     "Projectgegevens bewaren",
   );

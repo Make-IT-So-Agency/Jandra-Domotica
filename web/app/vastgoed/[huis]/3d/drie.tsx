@@ -1850,8 +1850,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           <h3>Omgeving</h3>
           {!gegevens.omgeving.metAdres ? (
             <p className="hulp">
-              Vul het adres in bij <a href={huispad(huisId, "")}>Overzicht</a>: dan toont de app de percelen, de huizen van de buren en de
-              luchtfoto, uit de gegevens van Digitaal Vlaanderen.
+              Vul het adres of het perceelnummer in bij <a href={huispad(huisId, "")}>Overzicht</a>: dan toont de app de percelen, de
+              huizen van de buren en de luchtfoto, uit de gegevens van Digitaal Vlaanderen.
             </p>
           ) : omgevingstand === "laden" ? (
             <p className="hulp">De omgeving ophalen bij Digitaal Vlaanderen…</p>

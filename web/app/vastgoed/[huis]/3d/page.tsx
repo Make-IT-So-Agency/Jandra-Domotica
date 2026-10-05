@@ -19,7 +19,7 @@ export default async function Driepagina({ params }: { params: Promise<{ huis: s
   const huis = await vereistHuis(params);
   let gegevens: Driegegevens;
   try {
-    gegevens = await laadDrie(huis.id, ik.email, Boolean(huis.adres?.trim()));
+    gegevens = await laadDrie(huis.id, ik.email, Boolean(huis.adres?.trim() || huis.perceel));
   } catch (fout) {
     return (
       <>

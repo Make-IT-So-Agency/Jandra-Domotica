@@ -99,6 +99,38 @@ export const rond = (punt: Lambert, straal = STRAAL): Kader => ({
 
 const isGetal = (waarde: unknown): waarde is number => typeof waarde === "number" && Number.isFinite(waarde);
 
+/**
+ * Een perceelnummer zoals op Geopunt, de CaPaKey: de afdeling (vijf cijfers),
+ * de sectie (een letter), het grondnummer (vier cijfers), een schuine streep,
+ * het bisnummer (twee cijfers), de exponent (een letter, of _ als er geen is)
+ * en de macht (drie cijfers), zoals 12345A0678/00B000. Spaties, kleine
+ * letters en een streepje in plaats van de schuine streep mogen. Null als het
+ * er geen is.
+ */
+export function leesPerceelnummer(tekst: string): string | null {
+  const kaal = tekst
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/^(\d{5}[A-Z]\d{4})[-.]/, "$1/");
+  return /^\d{5}[A-Z]\d{4}\/\d{2}[A-Z_]\d{3}$/.test(kaal) ? kaal : null;
+}
+
+/** Het middelpunt van een perceel uit de CaPaKey-dienst, in Lambert 72; de rest van het antwoord valt weg. */
+export function leesPerceelpunt(json: unknown): Lambert | null {
+  const center = (json as { geometry?: { center?: unknown } } | null)?.geometry?.center;
+  let punt: unknown = center;
+  if (typeof center === "string") {
+    try {
+      punt = JSON.parse(center);
+    } catch {
+      return null;
+    }
+  }
+  const coordinaten = (punt as { coordinates?: unknown } | null)?.coordinates;
+  const [x, y]: unknown[] = Array.isArray(coordinaten) ? coordinaten : [];
+  return isGetal(x) && isGetal(y) && x > 0 && x < 300000 && y > 0 && y < 300000 ? [x, y] : null;
+}
+
 /** Het adrespunt uit een antwoord van Geolocation v4, of null. */
 export function leesAdrespunt(json: unknown): Lambert | null {
   const eerste = (json as { LocationResult?: { Location?: Record<string, unknown> }[] } | null)?.LocationResult?.[0];

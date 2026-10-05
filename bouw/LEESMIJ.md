@@ -507,11 +507,17 @@ grondplannen.
   `bouw_huizen.inplanting_*`); een gebouw zonder bewaarde plaats zoekt de app
   bij elk bezoek opnieuw. Het zoeken loopt in een webworker, zodat het beeld
   vlot blijft. Zonder inplantingsplan staan de gebouwen naast elkaar.
-- **De omgeving uit Vlaanderen.** Met een adres bij Overzicht haalt de server
-  bij Digitaal Vlaanderen (gratis, zonder sleutel; `omgeving-diensten.ts`):
-  - het adrespunt in Lambert 72 (Geolocation);
+- **De omgeving uit Vlaanderen.** Met een adres of een perceelnummer bij
+  Overzicht haalt de server bij Digitaal Vlaanderen (gratis, zonder sleutel;
+  `omgeving-diensten.ts`):
+  - het punt in Lambert 72: van het perceel als het perceelnummer ingevuld is
+    (de CaPaKey-dienst), anders van het adres (Geolocation). Bij nieuwbouw
+    kent Digitaal Vlaanderen het adres vaak nog niet, het perceel wel. Het
+    perceelnummer is de CaPaKey zoals Geopunt ze toont als je het perceel
+    aantikt (`12345A0678/00B000`); spaties, kleine letters en een streepje
+    mogen (`bouw_huizen.perceel`);
   - de percelen en de gebouwen binnen 100 m (de WFS van het GRB): ons perceel
-    is dat met het adrespunt erin;
+    is dat met het punt erin;
   - de luchtfoto van 200 × 200 m, de nieuwste winteropname, op 2048 pixels
     (ongeveer 10 cm per pixel). De browser bewaart ze een dag; wij nergens.
 
@@ -834,10 +840,10 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
   moment gemaakt en nergens bewaard. Er staat geen adres op.
 - De tests maken hun eigen plannen met een kleine PDF-schrijver
   (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
-- De omgeving: het adres gaat enkel van de server naar Digitaal Vlaanderen,
-  zonder cache. Het antwoord aan de browser bevat geen adres en geen
-  perceelnummers. Een fout in het log zegt welke dienst en welke HTTP-status,
-  nooit het adres of de coördinaten. De coördinaten van het terrein staan
+- De omgeving: het adres en het perceelnummer gaan enkel van de server naar
+  Digitaal Vlaanderen, zonder cache. Het antwoord aan de browser bevat geen
+  adres en geen perceelnummers. Een fout in het log zegt welke dienst en welke
+  HTTP-status, nooit het adres, het perceelnummer of de coördinaten. De coördinaten van het terrein staan
   enkel in de databank; de telling in `scripts/sql/` zegt enkel of ze er zijn.
   De tests gebruiken verzonnen adressen en coördinaten.
 
@@ -1073,7 +1079,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    inplantingsplan nog niet bij Plannen, laad het dan op als soort
    Inplantingsplan.
 6. **De omgeving:** het adres invullen bij **Overzicht**, als het er nog niet
-   staat. Dan bij 3D nakijken of de luchtfoto en de perceelgrenzen op het
+   staat. Vindt Digitaal Vlaanderen het niet (nieuwbouw), vul dan ook het
+   perceelnummer in. Dan bij 3D nakijken of de luchtfoto en de perceelgrenzen op het
    plan vallen, zo nodig bijsturen met **Omgeving verschuiven en draaien**, en
    **Omgeving bewaren**.
 7. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →

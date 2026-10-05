@@ -9,6 +9,7 @@ import type { Huis } from "@/lib/bouw/types";
  */
 
 const ADRES = "Voorbeeldstraat 1, 9999 Nergens";
+const PERCEEL = "12345A0678/00B000";
 const nep = vi.hoisted(() => ({ huis: null as Huis | null }));
 vi.mock("@/lib/bouw/huistoegang", () => ({
   huisVoorRoute: async () => (nep.huis ? { ik: { id: "h", email: "rook@voorbeeld.be", rol: "hoofdbeheerder" }, huis: nep.huis } : null),
@@ -20,6 +21,7 @@ const HUIS: Huis = {
   soort: "nieuwbouw",
   projectnaam: null,
   adres: ADRES,
+  perceel: null,
   krediet_totaal: null,
   eigen_inbreng: null,
   volgorde: 0,
@@ -36,6 +38,10 @@ function diensten(over: { wfs?: number; luchtfoto?: "beeld" | "xml" } = {}) {
     gevraagd.push(url);
     if (url.pathname.startsWith("/geolocation/")) {
       return Response.json({ LocationResult: [{ Location: { X_Lambert72: 150000, Y_Lambert72: 180000 } }] });
+    }
+    if (url.pathname.startsWith("/capakey/v2/parcel/")) {
+      if (decodeURIComponent(url.pathname) !== `/capakey/v2/parcel/${PERCEEL}`) return new Response("notfound:Parcel not found", { status: 404 });
+      return Response.json({ capakey: PERCEEL, geometry: { center: JSON.stringify({ type: "Point", coordinates: [150020, 180010] }) } });
     }
     if (url.pathname === "/GRB/wfs") {
       if (over.wfs) return new Response("stuk", { status: over.wfs });
@@ -124,6 +130,33 @@ describe("de omgeving van een huis", () => {
     expect((await GET(vraag("/api/bouw/omgeving"))).status).toBe(404);
   });
 
+  it("zoekt bij nieuwbouw het perceel: zonder adres, of als het adres niet bestaat", async () => {
+    const gevraagd = diensten();
+    const { GET } = await import("@/app/api/bouw/omgeving/route");
+    nep.huis = { ...HUIS, adres: null, perceel: PERCEEL };
+    const antwoord = await GET(vraag("/api/bouw/omgeving"));
+    expect(antwoord.status).toBe(200);
+    const omgeving = await antwoord.json();
+    expect(omgeving.punt).toEqual([150020, 180010]);
+    expect(JSON.stringify(omgeving)).not.toContain("12345A");
+    // Het perceel, met zijn kader in Lambert 72; geen adres gevraagd.
+    expect(gevraagd.some((url) => url.pathname.startsWith("/geolocation/"))).toBe(false);
+    const perceel = gevraagd.find((url) => url.pathname.startsWith("/capakey/"))!;
+    expect([perceel.searchParams.get("geometry"), perceel.searchParams.get("srs")]).toEqual(["bbox", "31370"]);
+
+    // Een perceel dat niet bestaat: zeg het, zonder het nummer te loggen.
+    nep.huis = { ...HUIS, perceel: "12345A9999/00B000" };
+    const onbekend = await GET(vraag("/api/bouw/omgeving"));
+    expect(onbekend.status).toBe(404);
+    expect((await onbekend.json()).fout).toContain("vindt dit perceel niet");
+    expect(fouten.join(" ")).not.toContain("12345A");
+
+    // Een adres dat niet bestaat: dan het perceelnummer.
+    nep.huis = { ...HUIS };
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ LocationResult: [] })));
+    expect((await (await GET(vraag("/api/bouw/omgeving"))).json()).fout).toContain("perceelnummer");
+  });
+
   it("meldt een dienst die niet antwoordt, zonder het adres of de coördinaten te loggen", async () => {
     diensten({ wfs: 503 });
     const { GET } = await import("@/app/api/bouw/omgeving/route");
@@ -157,6 +190,14 @@ describe("de luchtfoto", () => {
     expect(kaart.searchParams.get("CRS")).toBe("EPSG:31370");
     expect(kaart.searchParams.get("BBOX")).toBe("149900.00,179900.00,150100.00,180100.00");
     expect([kaart.searchParams.get("WIDTH"), kaart.searchParams.get("HEIGHT")]).toEqual(["2048", "2048"]);
+
+    // Met een perceel: rond het perceel.
+    const metPerceel = diensten();
+    nep.huis = { ...HUIS, perceel: PERCEEL };
+    expect((await GET(vraag("/api/bouw/omgeving/luchtfoto"))).status).toBe(200);
+    expect(metPerceel.find((url) => url.searchParams.get("REQUEST") === "GetMap")!.searchParams.get("BBOX")).toBe(
+      "149920.00,179910.00,150120.00,180110.00",
+    );
   });
 
   it("geeft een fout als de dienst XML terugstuurt in plaats van een beeld", async () => {
