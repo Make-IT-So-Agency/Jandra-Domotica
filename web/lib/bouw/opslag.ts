@@ -53,10 +53,11 @@ export { Bouwfout, check, type Meldingen };
 export interface Project {
   projectnaam: string | null;
   adres: string | null;
+  perceel: string | null;
 }
 
 export function projectVan(huis: Huis): Project {
-  return { projectnaam: huis.projectnaam, adres: huis.adres };
+  return { projectnaam: huis.projectnaam, adres: huis.adres, perceel: huis.perceel };
 }
 
 // ---------------------------------------------------------------------------

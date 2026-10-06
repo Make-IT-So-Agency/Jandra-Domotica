@@ -387,10 +387,38 @@ grondplannen.
 - **Het dak** stel je per gebouw in, in het 3D-scherm: plat, een zadeldak of
   een lessenaarsdak, met de helling en de richting van de nok. Het dakplan van
   de architect leest de app (nog) niet.
-- **Materialen.** De gevelsteen kleurt de gevel, de dakbedekking het dak, de
-  ramen het schrijnwerk, de wanden de binnenmuren, en een vloer of tegels de
-  ruimtes die eraan gekoppeld zijn. Een optie met een foto wordt een textuur.
-  Een andere optie uitproberen kan in het 3D-scherm, zonder iets te bewaren.
+- **Materialen.** De keuze Gevelsteen kleurt de gevel, Dakbedekking het dak,
+  Ramen en buitendeuren het schrijnwerk, Binnenmuren de binnenmuren, en een
+  vloer of tegels de ruimtes die eraan gekoppeld zijn. Een keuze die anders
+  heet, telt ook, als ze opties heeft en geen andere gewone keuze is: het
+  voegwerk is geen gevel, de voordeur niet alle ramen
+  (`drie/materialen.ts`).
+
+  **Uitproberen in 3D.** Met **Materialen** linksboven op het beeld tik je een
+  gevel, een binnenmuur, het dak, een raam of een vloer aan: die licht even
+  op, en onderaan het beeld staan de stalen. Eerst de opties van de keuze,
+  dan stalen van gewone materialen: baksteen in zes kleuren, crepi, hout,
+  zichtbeton, dakpannen, leien, zink, parket, tegels en verf
+  (`drie/stalen.ts`). In het paneel kies je ook het onderdeel zonder te
+  tikken, en een eigen kleur met een patroon en, bij baksteen en tegels, de
+  kleur van de voeg. Uitproberen bewaart niets.
+  - **Op echte schaal.** Een baksteen is 21 op 5 cm met een voeg van 1,2 cm,
+    een tegel 60 op 60, een pan 25 op 33. De browser tekent het patroon
+    (`components/bouw/staal.tsx`) en legt het als textuur op de muur, in
+    meter. Op een dak lopen de pannen evenwijdig met de goot, op elk dakvlak
+    (`3d/scene.ts`, `3d/texturen.ts`).
+  - **Een vloer** hoort bij de keuze van haar ruimte: wat je op de leefruimte
+    legt, ligt ook in de keuken als ze aan dezelfde keuze hangen. Een ruimte
+    zonder keuze verandert alleen.
+  - **Bewaren als optie** zet het materiaal bij de keuze, zonder prijs, en je
+    blijft in 3D. Is er nog geen keuze, dan maakt de app ze: Gevelsteen,
+    Dakbedekking, Ramen en buitendeuren, Binnenmuren, of voor een vloer
+    "Vloer badkamer" met enkel die ruimte. Staat hetzelfde materiaal er al,
+    dan blijft het bij die optie. Kiezen doe je nog altijd bij de keuze zelf
+    (`bewaarMateriaalActie`). Een bestaand huis heeft geen keuzes: daar kan je
+    enkel uitproberen.
+  - Een optie kan ook bij Keuzes een patroon en een voeg krijgen; het staal op
+    de optie toont het zoals in 3D (`bouw_opties.patroon` en `voegkleur`).
 - **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
@@ -398,8 +426,8 @@ grondplannen.
   weer in beeld. Een doorsnede op een hoogte; rondwandelen op ooghoogte met W
   A S D of de knoppen, zonder door muren te lopen, en de trap op en af
   (`drie/wandelen.ts`); een beeld downloaden. Er staat altijd maar één
-  gereedschap aan (meten, inrichten, gebouwen verplaatsen, de omgeving
-  verschuiven); Esc zet terug op kijken.
+  gereedschap aan (meten, materialen, inrichten, gebouwen verplaatsen, de
+  omgeving verschuiven); Esc zet terug op kijken.
 - **Lagen.** Bij **Lagen** zet je aan en uit wat je ziet: elke verdieping, de
   daken, het inplantingsplan, de luchtfoto, de perceelgrenzen, de huizen van
   de buren, wat nu op ons perceel staat (standaard uit), de punten per
@@ -428,10 +456,23 @@ grondplannen.
   - de stand van de zon, en wanneer ze op- en ondergaat: de formules van de
     NOAA, op een tiende graad en een minuut.
 
-  Het noorden komt uit de omgeving zoals ze nu ligt. Zonder omgeving is het
-  boven op het plan, en zonder adres staat de zon zoals in het midden van
-  Vlaanderen; de kaart zegt welke. Een noordpijl linksonder op het beeld
-  draait mee met de camera.
+  Het noorden komt uit de omgeving zoals ze nu ligt. Zonder omgeving komt
+  het van de noordpijl op het inplantingsplan; zonder noordpijl is het boven
+  op het plan. Zonder adres staat de zon zoals in het midden van Vlaanderen.
+  De kaart zegt welke. Een noordpijl linksonder op het beeld draait mee met
+  de camera.
+
+  **De noordpijl op het plan** (`drie/noordpijl.ts`). Een plan ligt meestal
+  met de straat onderaan, en het noorden staat dan niet altijd boven. Staat
+  het onder, dan stond de zon zonder omgeving vroeger 180° verkeerd.
+  - De app zoekt de letters van de windroos rond de pijlen: N, Z, O en W, of
+    N, S, E en W, of N, S, E en O.
+  - Het noorden ligt waar de N staat, tegenover de Z. Zijn er enkel de N en
+    de zijkanten, dan haaks op de lijn van oost naar west.
+  - Staat het westen waar het oosten hoort, dan is het geen windroos.
+  - Een pijl met enkel een N leest de app niet: daar zit de richting in de
+    tekening, niet in de letters. Dan geldt de omgeving, of boven op het
+    plan.
 - **Inrichten.** Met **Inrichten** zet je meubels en toestellen in het huis
   (`inrichting.ts`, `drie/inrichten.ts`, `3d/inrichten.tsx`,
   `3d/stukken-scene.ts`):
@@ -507,11 +548,17 @@ grondplannen.
   `bouw_huizen.inplanting_*`); een gebouw zonder bewaarde plaats zoekt de app
   bij elk bezoek opnieuw. Het zoeken loopt in een webworker, zodat het beeld
   vlot blijft. Zonder inplantingsplan staan de gebouwen naast elkaar.
-- **De omgeving uit Vlaanderen.** Met een adres bij Overzicht haalt de server
-  bij Digitaal Vlaanderen (gratis, zonder sleutel; `omgeving-diensten.ts`):
-  - het adrespunt in Lambert 72 (Geolocation);
+- **De omgeving uit Vlaanderen.** Met een adres of een perceelnummer bij
+  Overzicht haalt de server bij Digitaal Vlaanderen (gratis, zonder sleutel;
+  `omgeving-diensten.ts`):
+  - het punt in Lambert 72: van het perceel als het perceelnummer ingevuld is
+    (de CaPaKey-dienst), anders van het adres (Geolocation). Bij nieuwbouw
+    kent Digitaal Vlaanderen het adres vaak nog niet, het perceel wel. Het
+    perceelnummer is de CaPaKey zoals Geopunt ze toont als je het perceel
+    aantikt (`12345A0678/00B000`); spaties, kleine letters en een streepje
+    mogen (`bouw_huizen.perceel`);
   - de percelen en de gebouwen binnen 100 m (de WFS van het GRB): ons perceel
-    is dat met het adrespunt erin;
+    is dat met het punt erin;
   - de luchtfoto van 200 × 200 m, de nieuwste winteropname, op 2048 pixels
     (ongeveer 10 cm per pixel). De browser bewaart ze een dag; wij nergens.
 
@@ -524,8 +571,9 @@ grondplannen.
   Waar de omgeving ligt, zoekt de app zelf (`drie/omgeving.ts`): ons perceel
   uit het GRB op het perceel van het inplantingsplan, met dezelfde overlap
   als de gebouwen en op de schaal van het plan, met y omgekeerd (Lambert telt
-  naar het noorden). Lukt dat niet, dan komt het adrespunt op de woning met
-  het noorden naar boven. Met **Omgeving verschuiven en draaien** stuur je
+  naar het noorden). Lukt dat niet, dan komt het adrespunt op de woning, met
+  het noorden zoals de noordpijl op het plan, of anders naar boven. Met
+  **Omgeving verschuiven en draaien** stuur je
   bij: slepen, draaien rond de woning per 0,1°, 1° of 90°, en de pijltjes.
   **Omgeving bewaren** bewaart waar de linkerbovenhoek van het plan in Lambert
   ligt en de hoek (`bouw_huizen.lambert_*`).
@@ -548,6 +596,11 @@ totaal, per m², per lopende meter of per stuk.
 - **Beslissen.** "Kies deze" maakt de keuze definitief en schrijft een regel in
   het beslissingslog, met de prijs. Terug open zetten kan, en komt ook in het
   log.
+- **Hoe het eruitziet in 3D.** Een optie heeft een kleur, en eventueel een
+  patroon (baksteen, dakpannen, leien, zink, planken, parket, tegels, beton,
+  crepi) en bij baksteen en tegels de kleur van de voeg. Zo toont 3D ze op
+  schaal; een optie die je in 3D bewaarde, krijgt ze vanzelf. Zie
+  [Het huis in 3D](#het-huis-in-3d).
 - **Foto's.** De browser verkleint een foto eerst tot een JPEG van hoogstens
   1600 pixels, zonder de EXIF-gegevens (en dus zonder de plaats waar ze
   genomen werd). Ze komt in dezelfde privé-bucket, onder `fotos/`.
@@ -834,10 +887,10 @@ Een partij krijgt geen account maar een persoonlijke link: `/extern/<token>`.
   moment gemaakt en nergens bewaard. Er staat geen adres op.
 - De tests maken hun eigen plannen met een kleine PDF-schrijver
   (`web/tests/fixtures/bouw/`). Een echt plan komt nooit in de repository.
-- De omgeving: het adres gaat enkel van de server naar Digitaal Vlaanderen,
-  zonder cache. Het antwoord aan de browser bevat geen adres en geen
-  perceelnummers. Een fout in het log zegt welke dienst en welke HTTP-status,
-  nooit het adres of de coördinaten. De coördinaten van het terrein staan
+- De omgeving: het adres en het perceelnummer gaan enkel van de server naar
+  Digitaal Vlaanderen, zonder cache. Het antwoord aan de browser bevat geen
+  adres en geen perceelnummers. Een fout in het log zegt welke dienst en welke
+  HTTP-status, nooit het adres, het perceelnummer of de coördinaten. De coördinaten van het terrein staan
   enkel in de databank; de telling in `scripts/sql/` zegt enkel of ze er zijn.
   De tests gebruiken verzonnen adressen en coördinaten.
 
@@ -932,6 +985,11 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/deuren.ts` | Een deurblad op een kier, de boog op de vloer, vast glas naast een voordeur, en een deur omdraaien; puur, met tests |
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, de trap op het plan van Ruimtes, en de trap op en af wandelen |
 | `web/lib/bouw/drie/zones.ts`, `traphal.ts` | Kleine zones zonder ruimte (een traphal, een kast) en de openingen ernaartoe, en een traphal die boven open is aanvullen van de verdieping eronder; puur, met tests |
+| `web/lib/bouw/drie/materialen.ts`, `stalen.ts` | Welke keuze welk materiaal bepaalt, wat er uitgeprobeerd wordt, de stalen en hun maten, en een materiaal bewaren nakijken; puur, met tests |
+| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, en het patroon als textuur |
+| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
+| `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
+| `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
 | `web/lib/bouw/drie/inplanting.ts` | De gebouwen automatisch op het inplantingsplan: vormen, schaal en overlap; puur, met tests |
 | `web/app/vastgoed/[huis]/3d/inplantingsplan.ts`, `zoek-inplanting.worker.ts` | Het inplantingsplan lezen en tekenen, en het zoeken in een webworker |
@@ -1073,7 +1131,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    inplantingsplan nog niet bij Plannen, laad het dan op als soort
    Inplantingsplan.
 6. **De omgeving:** het adres invullen bij **Overzicht**, als het er nog niet
-   staat. Dan bij 3D nakijken of de luchtfoto en de perceelgrenzen op het
+   staat. Vindt Digitaal Vlaanderen het niet (nieuwbouw), vul dan ook het
+   perceelnummer in. Dan bij 3D nakijken of de luchtfoto en de perceelgrenzen op het
    plan vallen, zo nodig bijsturen met **Omgeving verschuiven en draaien**, en
    **Omgeving bewaren**.
 7. **De bot van Bouw** (mag later, of nooit): in de app, bij **Vastgoed →

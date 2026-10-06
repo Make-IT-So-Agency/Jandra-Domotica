@@ -293,7 +293,7 @@ describe("de regie in de databank", () => {
     expect(keuze).toMatchObject({ id: keuzeId, eenheid: "m2", gekozen_optie_id: null, ruimte_ids: [11, 12] });
 
     const optie = (naam: string, prijs: number | null) =>
-      voegOptieToe(1, { keuze_id: keuzeId, naam, leverancier_id: null, prijs, kleur: null, url: null, opmerking: null, volgorde: 0 });
+      voegOptieToe(1, { keuze_id: keuzeId, naam, leverancier_id: null, prijs, kleur: null, patroon: null, voegkleur: null, url: null, opmerking: null, volgorde: 0 });
     const eik = await optie("Eik", 65);
     const tegel = await optie("Keramische tegel", 48);
     await zetBasis(1, keuzeId, tegel);

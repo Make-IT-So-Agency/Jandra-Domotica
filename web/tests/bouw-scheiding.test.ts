@@ -233,7 +233,7 @@ describe("twee huizen naast elkaar", () => {
     await expect(voegPuntToe(1, 20, punt)).rejects.toThrow(ANDER_HUIS);
     await expect(voegKeuzeToe(1, nieuweKeuze("Ramen", 2))).rejects.toThrow(ANDER_HUIS);
     await expect(
-      voegOptieToe(1, { keuze_id: 2, naam: "Blauw", leverancier_id: null, prijs: null, kleur: null, url: null, opmerking: null, volgorde: 0 }),
+      voegOptieToe(1, { keuze_id: 2, naam: "Blauw", leverancier_id: null, prijs: null, kleur: null, patroon: null, voegkleur: null, url: null, opmerking: null, volgorde: 0 }),
     ).rejects.toThrow(ANDER_HUIS);
     await expect(zetKeuzeRuimtes(1, 1, [100, 200])).rejects.toThrow(ANDER_HUIS);
     await expect(beslisKeuze(1, 1, 2, "jan")).rejects.toThrow(ANDER_HUIS);

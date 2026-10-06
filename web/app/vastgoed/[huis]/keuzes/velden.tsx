@@ -4,6 +4,8 @@ import {
   CATEGORIENAMEN_KEUZE,
   EENHEDEN,
   EENHEIDNAMEN,
+  PATRONEN,
+  PATROONNAMEN,
   type Eenheid,
   type Keuze,
   type Optie,
@@ -183,6 +185,24 @@ export function Optievelden({
           <div className="kleurveld">
             <input type="checkbox" name="met_kleur" value="ja" defaultChecked={!!optie?.kleur} aria-label="Een kleur gebruiken" />
             <input id={`${voorvoegsel}-kleur`} name="kleur" type="color" defaultValue={optie?.kleur ?? "#a0522d"} />
+          </div>
+        </div>
+        <div>
+          <label htmlFor={`${voorvoegsel}-patroon`}>Patroon in 3D</label>
+          <select id={`${voorvoegsel}-patroon`} name="patroon" defaultValue={optie?.patroon ?? ""}>
+            <option value="">Egaal</option>
+            {PATRONEN.map((patroon) => (
+              <option key={patroon} value={patroon}>
+                {PATROONNAMEN[patroon]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${voorvoegsel}-voegkleur`}>Voeg (baksteen, tegels)</label>
+          <div className="kleurveld">
+            <input type="checkbox" name="met_voeg" value="ja" defaultChecked={!!optie?.voegkleur} aria-label="Een voegkleur gebruiken" />
+            <input id={`${voorvoegsel}-voegkleur`} name="voegkleur" type="color" defaultValue={optie?.voegkleur ?? "#c9c2b8"} />
           </div>
         </div>
         <div>

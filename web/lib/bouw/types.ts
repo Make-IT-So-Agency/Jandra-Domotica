@@ -38,6 +38,8 @@ export interface Huis {
   soort: SoortHuis;
   projectnaam: string | null;
   adres: string | null;
+  /** Het perceelnummer (CaPaKey), voor als Digitaal Vlaanderen het adres nog niet kent. */
+  perceel: string | null;
   krediet_totaal: number | null;
   eigen_inbreng: number | null;
   volgorde: number;

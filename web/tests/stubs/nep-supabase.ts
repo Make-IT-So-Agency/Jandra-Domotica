@@ -82,6 +82,7 @@ export const TESTHUIS = {
   soort: "nieuwbouw" as const,
   projectnaam: null,
   adres: null,
+  perceel: null,
   krediet_totaal: null,
   eigen_inbreng: null,
   volgorde: 0,
