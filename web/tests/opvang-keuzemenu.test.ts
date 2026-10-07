@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { conflicten, keuzemenu, overzicht, slotsVanWeek, weken, type Slot } from "@/lib/opvang/keuzemenu";
+import { conflicten, ingeschrevenOverzicht, keuzemenu, overzicht, slotsVanWeek, weken, type Slot } from "@/lib/opvang/keuzemenu";
 import { dagenTot } from "@/lib/opvang/menu";
 
 let id = 0;
@@ -125,5 +125,30 @@ describe("dagen tot de opening", () => {
     expect(dagenTot(opent, new Date("2026-10-05T22:30:00Z"))).toBe(0);
     expect(dagenTot(opent, new Date("2026-10-05T21:30:00Z"))).toBe(1);
     expect(dagenTot(opent, new Date("2026-09-29T08:00:00Z"))).toBe(7);
+  });
+});
+
+describe("wat er effectief ingeschreven is", () => {
+  const a = slot("2026-12-01", "Naschoolse opvang", "ingeschreven");
+  const b = slot("2026-12-03", "Naschoolse opvang", "reservelijst");
+  const c = slot("2026-12-04", "Naschoolse opvang", "vrij");
+  const d = slot("2026-12-07", "Naschoolse opvang", "vrij");
+  const oud = slot("2026-11-30", "Naschoolse opvang", "ingeschreven");
+
+  it("toont per maand ✔, ⏸ en wat gekozen was maar er niet staat; niet wat enkel vrij is", () => {
+    const tekst = ingeschrevenOverzicht([{ naam: "Finn", slots: [oud, a, b, c, d] }], new Set([c.id]), "2026-12-01", null);
+    expect(tekst.split("\n")).toEqual([
+      "Ingeschreven volgens i-Active:",
+      "",
+      "📅 december 2026",
+      "🧒 Finn: 1 ingeschreven",
+      "✔ di 1/12 naschools (Speelhuis)",
+      "⏸ do 3/12 naschools (Speelhuis): reservelijst",
+      "❌ vr 4/12 naschools (Speelhuis): gekozen, niet ingeschreven (vrij)",
+    ]);
+  });
+
+  it("zegt het als er niets is", () => {
+    expect(ingeschrevenOverzicht([{ naam: "Finn", slots: [c] }], new Set(), "2026-12-01", null)).toBe("Ik zie in i-Active niets ingeschreven vanaf vandaag.");
   });
 });

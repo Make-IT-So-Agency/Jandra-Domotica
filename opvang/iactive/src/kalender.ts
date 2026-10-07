@@ -3,7 +3,8 @@
  * tegels in Supabase, zodat de bot er een keuzemenu van kan maken. Wijzigt
  * niets in i-Active.
  *
- *   node src/kalender.ts            elke ronde die binnen 21 dagen opent
+ *   node src/kalender.ts            elke ronde die binnen 21 dagen opent,
+ *                                   of al opende en waarvan de opvang nog komt
  *   node src/kalender.ts 2026-12    enkel die opvangmaand, ook zonder ronde
  *   node src/kalender.ts --stil     zonder de webapp te roepen: geen
  *                                   berichten in Telegram
@@ -13,7 +14,7 @@
  */
 
 import { leesLeerlingen, leesTegels, login, naarKalender, openKalender, startBrowser } from "./iactive.ts";
-import { kalenderMaanden, lopendeRondes, type Ronde } from "./rondes.ts";
+import { kalenderMaanden, rondesMetOpvangVanaf, type Ronde } from "./rondes.ts";
 import { rest } from "./supabase.ts";
 
 const VOORUIT_DAGEN = 21;
@@ -24,7 +25,7 @@ async function main() {
   if (!stil) await vraagMenu(false);
   const gevraagd = process.argv.slice(2).find((a) => /^(\d{4}-\d{2}|zomer-\d{4})$/.test(a));
   const nu = Date.now();
-  const rondes: Pick<Ronde, "id" | "maand">[] = (await lopendeRondes()).filter((r) =>
+  const rondes: Pick<Ronde, "id" | "maand">[] = (await rondesMetOpvangVanaf(new Date(nu).toISOString().slice(0, 7))).filter((r) =>
     gevraagd ? r.maand === gevraagd : new Date(r.opent).getTime() - nu < VOORUIT_DAGEN * 86_400_000,
   );
   // Een gevraagde maand zonder ronde: toch lezen, de tegels hangen aan het kind.

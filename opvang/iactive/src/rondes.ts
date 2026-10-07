@@ -22,6 +22,15 @@ export function lopendeRondes(): Promise<Ronde[]> {
   return rest<Ronde[]>("GET", "opvang_rondes?status=in.(open,definitief,bezig)&order=opent");
 }
 
+/**
+ * Rondes waarvan de opvang nog komt, wat hun status ook is: ook na het
+ * inschrijven kan een tegel nog wijzigen (reservelijst, annulering, zelf
+ * ingeschreven), en /ingeschreven toont wat de kalender het laatst zag.
+ */
+export async function rondesMetOpvangVanaf(maand: string): Promise<Ronde[]> {
+  return (await rest<Ronde[]>("GET", "opvang_rondes?order=opent")).filter((r) => kalenderMaanden(r.maand).some((m) => m >= maand));
+}
+
 export async function ronde(id: number): Promise<Ronde | null> {
   const [r] = await rest<Ronde[]>("GET", `opvang_rondes?id=eq.${id}`);
   return r ?? null;

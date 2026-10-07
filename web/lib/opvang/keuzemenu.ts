@@ -273,3 +273,38 @@ export function overzicht(perKind: { naam: string; slots: Slot[] }[]): string {
   }
   return regels.join("\n").trim();
 }
+
+/**
+ * Wat i-Active het laatst toonde, per maand en per kind: ingeschreven (✔),
+ * op de reservelijst (⏸), en wat gekozen was maar er niet staat (❌). Enkel
+ * vanaf `vandaag`. `gekozen` zijn de keuzes van rondes waarvan de opening
+ * voorbij is: van een ronde die nog moet openen, is nog niets ingeschreven.
+ */
+export function ingeschrevenOverzicht(
+  perKind: { naam: string; slots: Slot[] }[],
+  gekozen: ReadonlySet<number>,
+  vandaag: string,
+  gelezenOp: Date | null,
+): string {
+  const maanden = new Map<string, string[]>();
+  for (const kind of perKind) {
+    const telt = sorteer(kind.slots.filter((s) => s.datum >= vandaag && (["ingeschreven", "reservelijst"].includes(s.staat) || gekozen.has(s.id))));
+    const perMaand = new Map<string, Slot[]>();
+    for (const s of telt) perMaand.set(s.datum.slice(0, 7), [...(perMaand.get(s.datum.slice(0, 7)) ?? []), s]);
+    for (const [maand, lijst] of perMaand) {
+      const regels = lijst.map((s) => {
+        const wat = `${dagLabel(s.datum)} ${langMoment(s.moment)}${s.locatie ? ` (${kortLocatie(s.locatie)})` : ""}`;
+        if (s.staat === "ingeschreven") return `✔ ${wat}`;
+        if (s.staat === "reservelijst") return `⏸ ${wat}: reservelijst`;
+        return `❌ ${wat}: gekozen, niet ingeschreven (${s.staat.replace(/_/g, " ")})`;
+      });
+      const ok = lijst.filter((s) => s.staat === "ingeschreven").length;
+      maanden.set(maand, [...(maanden.get(maand) ?? []), "", `🧒 ${kind.naam}: ${ok} ingeschreven`, ...regels]);
+    }
+  }
+  const gelezen = gelezenOp ? ` (kalender gelezen ${momentLabel(gelezenOp)})` : "";
+  if (!maanden.size) return `Ik zie in i-Active niets ingeschreven vanaf vandaag${gelezen}.`;
+  const regels = [`Ingeschreven volgens i-Active${gelezen}:`];
+  for (const maand of [...maanden.keys()].sort()) regels.push("", `📅 ${opvangLabel(maand)}`, ...maanden.get(maand)!.slice(1));
+  return regels.join("\n");
+}

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { momentLabel, opvangLabel, volgendeMomenten } from "./inschrijfmomenten";
-import { kinderenBericht, overzichtVan, toonMenus, volgendeRonde, vorigeRonde } from "./menu";
+import { ingeschrevenBericht, kinderenBericht, overzichtVan, toonMenus, volgendeRonde, vorigeRonde } from "./menu";
 import * as opslag from "./opslag";
 import { commando, stuurBericht, type Bericht } from "./telegram";
 import { heeftToegang, toegelatenIds } from "./toegang";
@@ -86,6 +86,9 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
       );
       return;
     }
+    case "ingeschreven":
+      await stuurBericht(token, bericht.chat.id, await ingeschrevenBericht());
+      return;
     case "stop": {
       const lopend = (await opslag.lopendeRondes()).filter((r) => r.status === "bezig" || r.status === "definitief");
       for (const r of lopend) await opslag.werkRondeBij(r.id, { stop_gevraagd: true });
@@ -106,6 +109,7 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
 const HULP = [
   "/plannen: toon het keuzemenu van de volgende inschrijving",
   "/status: of de vorige inschrijving gelukt is, wat er nu gekozen is, en of het definitief is",
+  "/ingeschreven: wat er volgens i-Active effectief ingeschreven is",
   "/kinderen: voor wie ik opvang reserveer",
   "/stop: stop een inschrijving die bezig is",
   "/volgende: de volgende inschrijfmomenten",

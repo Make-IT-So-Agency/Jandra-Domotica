@@ -35,6 +35,8 @@ Vercel, 's ochtends en 's avonds: na de opening niet ingeschreven? → Telegram
 1. **Tien dagen vóór de opening** maakt de webapp de ronde aan (dagelijkse
    taak op Vercel, 10:00). De workflow **Opvang - kalender lezen** (elke
    ochtend) leest de tegels van die maand uit i-Active en zet ze in Supabase.
+   Hij blijft dat doen tot de opvangmaand voorbij is, ook na het inschrijven:
+   daarop steunt `/ingeschreven`.
 2. **Meteen daarna** stuurt de bot in Telegram per kind een keuzemenu: per
    week de dagen, per dag een knop per moment (`voor`, `na`, `woe-nm`, in
    vakanties `vm`, `nm`, `dag`, per locatie). Jan en Sandra tikken aan wat
@@ -81,6 +83,7 @@ de hand) doet enkel wat nog niet gebeurd is.
 | --- | --- |
 | `/plannen` | het keuzemenu van de volgende inschrijving (opnieuw) tonen |
 | `/status` | of de vorige inschrijving gelukt is, wat er nu gekozen is, en of het definitief is |
+| `/ingeschreven` | wat er volgens i-Active effectief ingeschreven is, vanaf vandaag: ✔, ⏸ reservelijst, en ❌ wat gekozen was maar er niet staat. Zoals de kalender het die ochtend las, ook als jullie zelf inschreven |
 | `/kinderen` | voor wie de bot reserveert (aan/uit per kind) |
 | `/stop` | een lopende inschrijving stoppen |
 | `/hier` | de bot praat voortaan in deze chat (de groep) |
