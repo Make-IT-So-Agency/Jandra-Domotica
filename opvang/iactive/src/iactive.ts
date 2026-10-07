@@ -111,6 +111,9 @@ export async function openKalender(pagina: Page, leerlingId: string, maand: stri
     await wachtOpRust(pagina, 2500);
   }
 
+  // Na het kiezen van kind of groep tekent FullCalendar zich opnieuw; de titel
+  // meteen lezen gaf soms niets ("De kalender toont geen maand", 6 oktober 2026).
+  await pagina.locator(".fc-toolbar-title").first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
   for (let stap = 0; stap < 24; stap++) {
     const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "");
     const huidig = maandVanTitel(titel);

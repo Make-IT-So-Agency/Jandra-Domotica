@@ -20,6 +20,17 @@ export const VRAGEN_VANAF_DAGEN = 10;
 /** Op deze dagen vóór de opening herinnert de bot, zolang het niet definitief is. */
 const HERINNEREN_OP = [7, 3, 1, 0];
 
+/** Zo lang na de opening schrijft de workflow nog vanzelf in (WACHTEN.inhalenMs in opvang/iactive/src/startsein.ts). */
+const INHALEN_MS = 24 * 3_600_000;
+
+/** Een ronde die langer "bezig" staat, is blijven steken: inschrijven duurt geen uur. */
+const BEZIG_HOOGSTENS_MS = 2 * 3_600_000;
+
+/** Tot zoveel dagen na de opening zegt de bot dat er niet ingeschreven is. */
+const NAMELDEN_DAGEN = 2;
+
+const GELUKT: opslag.Uitkomst[] = ["ingeschreven", "reservelijst", "al_ingeschreven"];
+
 async function menuVoor(ronde: opslag.Ronde, kind: opslag.Kind, week: number) {
   const [lijst, keuzes, vakantieLocatie] = await Promise.all([
     opslag.slots(kind.id, ronde.maand),
@@ -199,6 +210,8 @@ export async function verwerkKlik(klik: Klik, token: string): Promise<void> {
         await opslag.zetStatus(ronde.id, ["open"], "definitief", {
           definitief_door: naam(klik.from),
           definitief_op: new Date().toISOString(),
+          // Een /stop van vóór Wijzigen geldt niet meer: wie opnieuw definitief maakt, wil dat het gebeurt.
+          stop_gevraagd: false,
         })
       ) {
         await toonMenus(token, ronde.id, chat.id);
@@ -289,6 +302,10 @@ export async function dagelijks(token: string, nu = new Date(), vernieuw = false
       }
       continue;
     }
+    if (opent <= nu) {
+      if (chat && (await meldNietIngeschreven(token, chat, r, nu))) gedaan.push(`niet ingeschreven ${r.maand} gemeld`);
+      continue;
+    }
     if (!chat || dagen > VRAGEN_VANAF_DAGEN || r.status === "bezig") continue;
 
     const planbaar = (await opslag.kinderen()).filter((k) => k.plannen);
@@ -336,11 +353,88 @@ export async function dagelijks(token: string, nu = new Date(), vernieuw = false
         gedaan.push(`herinnering ${r.maand}`);
       } else if (dagen === 0) {
         const { tekst, aantal } = await overzichtVan(r);
-        await stuurBericht(token, chat, `Vandaag ${momentLabel(opent)} schrijf ik ${aantal} momenten in:\n\n${tekst}`);
+        await stuurBericht(
+          token,
+          chat,
+          `Vandaag ${momentLabel(opent)} schrijf ik ${aantal} momenten in:\n\n${tekst}\n\nKort vóór het openingsuur meld ik hier dat ik ingelogd ben. Hoor je dan niets van mij, schrijf dan zelf in via i-Active.`,
+        );
         gedaan.push(`aankondiging ${r.maand}`);
       }
       await opslag.werkRondeBij(r.id, { herinnerd_op: nu.toISOString() });
     }
   }
   return gedaan;
+}
+
+/**
+ * Is de opening voorbij zonder dat de workflow inschreef? "niet_gestart": de
+ * ronde staat nog op definitief (de workflow begon niet, of zette ze na een
+ * fout terug). "vastgelopen": ze staat te lang op bezig.
+ */
+export function nietIngeschreven(r: opslag.Ronde, nu: Date): "niet_gestart" | "vastgelopen" | null {
+  if (new Date(r.opent) > nu) return null;
+  if (r.status === "definitief") return "niet_gestart";
+  if (r.status === "bezig" && (!r.bezig_sinds || nu.getTime() - Date.parse(r.bezig_sinds) > BEZIG_HOOGSTENS_MS)) return "vastgelopen";
+  return null;
+}
+
+/**
+ * Na de opening niets ingeschreven: dat zeggen, en wat jullie kunnen doen.
+ * Eén keer per dag, tot twee dagen na de opening; niet na een /stop. De
+ * aankondiging van de ochtend zelf telt niet mee, zodat het 's avonds na de
+ * opening altijd gezegd wordt (Vercel roept de dagelijkse ronde ook 's avonds).
+ */
+async function meldNietIngeschreven(token: string, chat: number, r: opslag.Ronde, nu: Date): Promise<boolean> {
+  const hoe = nietIngeschreven(r, nu);
+  if (!hoe || r.stop_gevraagd) return false;
+  const opent = new Date(r.opent);
+  if (-dagenTot(opent, nu) > NAMELDEN_DAGEN) return false;
+  if (r.herinnerd_op && new Date(r.herinnerd_op) >= opent && zelfdeDag(r.herinnerd_op, nu)) return false;
+
+  const [{ aantal }, uitkomsten] = await Promise.all([overzichtVan(r), opslag.resultaten(r.id)]);
+  const gelukt = uitkomsten.filter((u) => GELUKT.includes(u)).length;
+  const tot = new Date(opent.getTime() + INHALEN_MS);
+  const waarom = hoe === "vastgelopen" ? "de taak in GitHub is blijven steken" : "de taak in GitHub is niet (op tijd) gestart";
+  const regels = [
+    nu < tot
+      ? `⚠️ Opvang ${opvangLabel(r.maand)} is ${gelukt ? `maar voor ${gelukt} van de ${aantal} momenten` : "nog niet"} ingeschreven. De inschrijving opende ${momentLabel(opent)}, maar ${waarom}.`
+      : `❌ Opvang ${opvangLabel(r.maand)} is ${gelukt ? `maar voor ${gelukt} van de ${aantal} momenten` : "niet"} ingeschreven. De inschrijving opende ${momentLabel(opent)}, maar ${waarom}.`,
+    "",
+    nu < tot
+      ? `GitHub start de taak om de vier uur opnieuw, vaak uren te laat. Start ze vóór ${momentLabel(tot)}, dan schrijf ik meteen alsnog in en stuur ik het verslag.`
+      : "Vanzelf schrijf ik niet meer in: het is langer dan een dag geleden.",
+    nu < tot
+      ? "Niet wachten? Start ze nu zelf (GitHub → Actions → Opvang - inschrijven → Run workflow, modus normaal), of schrijf zelf in via i-Active; wat daar al staat, sla ik over. Moet ik niets meer doen: /stop."
+      : "Schrijf zelf in via i-Active, of laat het mij nog doen: GitHub → Actions → Opvang - inschrijven → Run workflow, modus inhalen.",
+  ];
+  await stuurBericht(token, chat, regels.join("\n"));
+  await opslag.werkRondeBij(r.id, { herinnerd_op: nu.toISOString() });
+  return true;
+}
+
+/** Hoe de laatste ronde die al opende, afliep, in één regel. Voor /status. */
+export async function vorigeRonde(nu = new Date()): Promise<{ id: number; tekst: string } | null> {
+  const r = await opslag.laatstGeopend(nu);
+  if (!r || nu.getTime() - Date.parse(r.opent) > 40 * 86_400_000) return null;
+  const kop = `Opvang ${opvangLabel(r.maand)} (opende ${momentLabel(new Date(r.opent))}):`;
+  if (r.status === "open" || r.status === "gemist") return { id: r.id, tekst: `${kop} niet definitief gemaakt, niets ingeschreven.` };
+  const hoe = nietIngeschreven(r, nu);
+  if (r.status === "bezig" && !hoe) return { id: r.id, tekst: `${kop} ⏳ de bot is aan het inschrijven.` };
+  const uitkomsten = await opslag.resultaten(r.id);
+  const tel = (...soorten: opslag.Uitkomst[]) => uitkomsten.filter((u) => soorten.includes(u)).length;
+  if (r.status === "klaar") {
+    const delen = [
+      [tel("ingeschreven", "al_ingeschreven"), "✔", "ingeschreven"],
+      [tel("reservelijst"), "⏸", "op de reservelijst"],
+      [tel("mislukt"), "❌", "niet gelukt"],
+      [tel("gestopt"), "🛑", "niet gedaan (gestopt)"],
+    ].filter(([n]) => n);
+    return { id: r.id, tekst: `${kop} ${delen.map(([n, teken, wat]) => `${teken} ${n} ${wat}`).join(", ") || "niets gekozen"}.` };
+  }
+  const { aantal } = await overzichtVan(r);
+  const gelukt = tel(...GELUKT);
+  return {
+    id: r.id,
+    tekst: `${kop} ⚠️ ${gelukt ? `maar ${gelukt} van de ${aantal} momenten ingeschreven` : "niet ingeschreven"}: ${hoe === "vastgelopen" ? "de taak in GitHub is blijven steken" : "de taak in GitHub is niet (op tijd) gestart"}.`,
+  };
 }

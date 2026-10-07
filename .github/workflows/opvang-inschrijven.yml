@@ -3,27 +3,31 @@ name: Opvang - inschrijven
 # Schrijft de definitieve keuze in op het moment dat i-Active opent, en
 # controleert elk slot daarna in i-Active zelf. Zie opvang/LEESMIJ.md.
 #
-# Start drie keer per dag vanzelf. Op een dag zonder opening stopt het na
-# enkele seconden. Op een openingsdag wacht de eerste run tot enkele minuten
-# vóór het openingsuur, logt in, en schrijft in; de latere runs zijn een
-# vangnet voor als GitHub een geplande run laat vallen, en stoppen meteen als
-# de eerste al bezig of klaar is.
+# Op het uur van een geplande workflow kan je bij GitHub niet rekenen: in
+# oktober 2026 vertrok hij elke dag 3 tot 7 uur te laat, en zo werd december
+# (opening 6 oktober, 18:00) niet ingeschreven. Daarom:
 #
-# Met de hand: een proef (alles behalve de klik op Inschrijven), of één echte
-# testinschrijving van een slot dat nu al open staat.
+# - Deze workflow start om de vier uur. Het startsein (src/startsein.ts) kijkt
+#   of er binnen 30 uur een opening is; zo niet, dan stopt de run meteen.
+# - Zo ja, dan wacht de run en start hij na hoogstens 5 uur zelf een nieuwe
+#   run: de estafette. Een job mag bij GitHub niet langer dan 6 uur lopen, en
+#   een run die zo gestart wordt, vertrekt meteen, niet uren later.
+# - De run die 2 uur of minder vóór de opening vertrekt, logt 6 minuten
+#   vooraf in en schrijft in.
+# - Is de opening al voorbij (minder dan 24 uur), dan schrijft de run meteen
+#   in, en zegt in Telegram dat hij te laat is. Later dan dat: modus inhalen.
+#
+# Met de hand: een proef (alles behalve de klik op Inschrijven), één echte
+# testinschrijving van een slot dat nu al open staat, of inhalen.
 on:
   schedule:
-    # Openingen zijn om 18:00 Belgische tijd: 16:00 UTC in de zomer, 17:00 in
-    # de winter. Alle drie vallen ruim vóór beide.
-    - cron: "7 14 * * *"
-    - cron: "7 15 * * *"
-    - cron: "37 15 * * *"
+    - cron: "7 */4 * * *"
   workflow_dispatch:
     inputs:
       modus:
-        description: "normaal (de ronde van vandaag), proef (niets klikken), of test (één slot écht)"
+        description: "normaal (zoals gepland), inhalen (de laatste definitieve keuze nu nog inschrijven), proef (niets klikken), of test (één slot écht)"
         type: choice
-        options: ["proef", "normaal", "test"]
+        options: ["proef", "normaal", "inhalen", "test"]
         default: "proef"
       maand:
         description: "Bij proef: een maand met open tegels, bv. 2026-11 (leeg: de lopende ronde)"
@@ -40,16 +44,22 @@ concurrency:
 
 permissions:
   contents: read
+  # De estafette: een nieuwe run van deze workflow starten.
+  actions: write
 
 jobs:
   inschrijven:
     name: Inschrijven
     runs-on: ubuntu-latest
     environment: productie
-    timeout-minutes: 300
+    # GitHub stopt een job na 6 uur. Een estafettebeurt wacht hoogstens 5 uur;
+    # de run die inschrijft, wacht hoogstens 2 uur en werkt daarna.
+    timeout-minutes: 345
     defaults:
       run:
         working-directory: opvang/iactive
+    env:
+      MODUS: ${{ inputs.modus || 'normaal' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,21 +67,36 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: opvang/iactive/package-lock.json
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Startsein
+        # Zonder afhankelijkheden: dit loopt ook als npm of Playwright hapert.
+        id: startsein
+        if: env.MODUS == 'normaal'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node src/startsein.ts
+      - name: Afhankelijkheden
+        if: env.MODUS != 'normaal' || steps.startsein.outputs.besluit == 'inschrijven'
+        # Eén herkansing elk: een hapering bij npm of bij de download van
+        # Chromium mag geen opening kosten.
+        run: |
+          npm ci || { sleep 30; npm ci; }
+          npx playwright install --with-deps chromium || { sleep 30; npx playwright install --with-deps chromium; }
       - name: Inschrijven
+        id: inschrijven
+        if: env.MODUS != 'normaal' || steps.startsein.outputs.besluit == 'inschrijven'
         env:
           IACTIVE_EMAIL: ${{ secrets.IACTIVE_EMAIL }}
           IACTIVE_WACHTWOORD: ${{ secrets.IACTIVE_WACHTWOORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          MODUS: ${{ inputs.modus || 'normaal' }}
           MAAND: ${{ inputs.maand }}
           SLOT: ${{ inputs.slot }}
         run: |
           case "$MODUS" in
             normaal) node src/reserveren.ts ;;
+            inhalen) node src/reserveren.ts --inhalen ;;
             proef)
               if [ -n "$MAAND" ]; then node src/reserveren.ts --proef --maand "$MAAND"; else node src/reserveren.ts --proef; fi ;;
             test)
@@ -81,3 +106,24 @@ jobs:
               node src/reserveren.ts --test "$SLOT" ;;
             *) echo "::error::Onbekende modus $MODUS"; exit 1 ;;
           esac
+      - name: Estafette
+        if: steps.startsein.outputs.besluit == 'estafette'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for poging in 1 2 3; do
+            gh workflow run opvang-inschrijven.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" -f modus=normaal && exit 0
+            sleep 30
+          done
+          echo "::error::De volgende run van de estafette kon niet gestart worden."
+          exit 1
+      - name: Melden dat het misliep
+        # Wat misliep vóór het inschrijven begon (npm, Playwright, de
+        # estafette), hoort anders niemand vóór de opening. Een fout tijdens
+        # het inschrijven meldt reserveren.ts zelf.
+        if: failure() && env.MODUS == 'normaal' && steps.inschrijven.outcome != 'failure'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: node src/startsein.ts --mislukt

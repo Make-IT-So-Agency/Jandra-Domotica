@@ -1,7 +1,7 @@
 import "server-only";
 
 import { momentLabel, opvangLabel, volgendeMomenten } from "./inschrijfmomenten";
-import { kinderenBericht, overzichtVan, toonMenus, volgendeRonde } from "./menu";
+import { kinderenBericht, overzichtVan, toonMenus, volgendeRonde, vorigeRonde } from "./menu";
 import * as opslag from "./opslag";
 import { commando, stuurBericht, type Bericht } from "./telegram";
 import { heeftToegang, toegelatenIds } from "./toegang";
@@ -69,12 +69,15 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
       return;
     }
     case "status": {
+      // Eerst hoe de vorige ronde afliep: "is het gelukt?" moet je hier kunnen vragen.
+      const vorige = await vorigeRonde();
       const ronde = await volgendeRonde();
       const { tekst, aantal } = await overzichtVan(ronde);
       await stuurBericht(
         token,
         bericht.chat.id,
         [
+          ...(vorige && vorige.id !== ronde.id ? [`Vorige: ${vorige.tekst}`, ""] : []),
           `Opvang ${opvangLabel(ronde.maand)}, opent ${momentLabel(new Date(ronde.opent))}`,
           `Status: ${ronde.status}${ronde.definitief_door ? ` (definitief door ${ronde.definitief_door})` : ""}`,
           `Gekozen: ${aantal}`,
@@ -102,7 +105,7 @@ export async function verwerkBericht(bericht: Bericht, token: string): Promise<v
 
 const HULP = [
   "/plannen: toon het keuzemenu van de volgende inschrijving",
-  "/status: wat er nu gekozen is, en of het definitief is",
+  "/status: of de vorige inschrijving gelukt is, wat er nu gekozen is, en of het definitief is",
   "/kinderen: voor wie ik opvang reserveer",
   "/stop: stop een inschrijving die bezig is",
   "/volgende: de volgende inschrijfmomenten",

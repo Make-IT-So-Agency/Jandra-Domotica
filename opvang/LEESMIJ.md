@@ -3,7 +3,8 @@
 Buitenschoolse opvang in Sint-Katelijne-Waver reserveren zonder er elke maand
 zelf achter te moeten zitten. Jan en Sandra duiden in Telegram per dag aan wat
 ze nodig hebben, en op het moment dat i-Active de reservaties opent, reserveert
-de bot exact dat, en meldt daarna wat gelukt is.
+de bot exact dat, en meldt daarna wat gelukt is. Lukte het niet, dan zegt hij
+dat ook, dezelfde avond nog.
 
 Alles draait in dezelfde omgeving als de laadkosten: code in deze repository,
 de bot in de webapp op Vercel, de gegevens in Supabase, de browser in GitHub
@@ -18,13 +19,15 @@ Vercel: web/app/api/telegram          toegang, knoppen, selectie
         ▼
 Supabase                              kinderen, rondes, tegels, keuzes, resultaten
         ▲                ▲
-        │ elke ochtend   │ op de openingsdag, ~2 uur vooraf
+        │ elke ochtend   │ om de 4 uur; vanaf 30 uur vooraf een estafette
 GitHub Actions           GitHub Actions: Playwright
 kalender lezen           wachten, inloggen, om 18:00 inschrijven,
 (tegels → Supabase)      elk slot controleren
         │                │
         ▼                ▼
 Telegram: keuzemenu      Telegram: per slot ✔ / ⏸ / ❌, en een verslag
+
+Vercel, 's ochtends en 's avonds: na de opening niet ingeschreven? → Telegram
 ```
 
 ## Hoe een maand verloopt
@@ -42,29 +45,42 @@ Telegram: keuzemenu      Telegram: per slot ✔ / ⏸ / ❌, en een verslag
    stuurt anders het vaste overzicht van wat hij zal inschrijven. **✏️
    Wijzigen** kan tot 5 minuten vóór de opening.
 4. **Herinneringen** 7, 3 en 1 dag vooraf en de ochtend zelf, zolang het niet
-   definitief is. Om 16:00 op de openingsdag nog eens, vanuit de workflow.
-5. **Op de openingsdag** start **Opvang - inschrijven** vanzelf (drie keer,
-   als vangnet). De eerste run wacht, logt 6 minuten vooraf in, legt 4
-   minuten vooraf de keuze vast (status `bezig`), en wacht tot 18:00:00.
-   Daarna herlaadt hij de kalender tot de tegels opengaan, en schrijft per
-   slot in: venster openen, enkel het juiste kind aanvinken, **Inschrijven**,
-   en dan de tegel opnieuw lezen. Enkel de tegel beslist of het gelukt is.
-   Volzet: toch inschrijven, dan staat het kind op de reservelijst (⏸).
+   definitief is. Ongeveer 2 uur vooraf nog eens, vanuit de workflow. Is het
+   definitief, dan kondigt de bot die ochtend aan wat hij inschrijft, en dat
+   hij zich kort vóór 18:00 meldt.
+5. **Vanaf 30 uur vooraf** loopt **Opvang - inschrijven** als estafette: een
+   run wacht hoogstens 5 uur en start dan zelf de volgende (zie *Waarom een
+   estafette* hieronder). De run die 2 uur vooraf vertrekt, logt 6 minuten
+   vooraf in, legt 4 minuten vooraf de keuze vast (status `bezig`), meldt
+   **🟢 Ingelogd** in Telegram, en wacht tot 18:00:00. Daarna herlaadt hij de
+   kalender tot de tegels opengaan, en schrijft per slot in: venster openen,
+   enkel het juiste kind aanvinken, **Inschrijven**, en dan de tegel opnieuw
+   lezen. Enkel de tegel beslist of het gelukt is. Volzet: toch inschrijven,
+   dan staat het kind op de reservelijst (⏸). Een hapering in i-Active kost
+   één slot één poging, niet de hele run.
 6. **Na afloop** leest hij elke gekozen tegel opnieuw, van nul, en stuurt
    het verslag: ingeschreven, reservelijst, en wat niet lukte en je dus zelf
    moet doen.
 7. **Niet definitief om 18:00?** Dan schrijft de bot niets in, en zegt dat.
+8. **Te laat gestart?** Tot 24 uur na de opening schrijft een run meteen in
+   als hij start, en zegt in Telegram dat hij te laat is. Later dan dat enkel
+   met de hand, modus `inhalen`.
+9. **Niets gehoord?** De webapp kijkt 's avonds (vanaf 17:00 UTC: 19:00 in de
+   zomer, 18:00 in de winter) en de volgende ochtenden of er ingeschreven is.
+   Zo niet, dan zegt de bot dat, en wat je kan doen; tot twee dagen na de
+   opening, één keer per dag. `/status` zegt het ook, op elk moment.
 
 `/stop` in Telegram laat een lopende inschrijving stoppen vóór het volgende
-slot. Een run die crasht, zet de ronde terug op `definitief`; een nieuwe run
-(met de hand starten, modus `normaal`) doet enkel wat nog niet gebeurd is.
+slot, en houdt een te late run tegen. Een run die crasht, zet de ronde terug
+op `definitief`; de volgende run (vanzelf binnen 24 uur na de opening, of met
+de hand) doet enkel wat nog niet gebeurd is.
 
 ### Commando's
 
 | Commando | Wat |
 | --- | --- |
 | `/plannen` | het keuzemenu van de volgende inschrijving (opnieuw) tonen |
-| `/status` | wat er nu gekozen is, en of het definitief is |
+| `/status` | of de vorige inschrijving gelukt is, wat er nu gekozen is, en of het definitief is |
 | `/kinderen` | voor wie de bot reserveert (aan/uit per kind) |
 | `/stop` | een lopende inschrijving stoppen |
 | `/hier` | de bot praat voortaan in deze chat (de groep) |
@@ -77,7 +93,11 @@ slot. Een run die crasht, zet de ronde terug op `definitief`; een nieuwe run
   proef op één vrije en één volzette tegel.
 - Modus `test` met `slot` = `2026-11-16:voor`: schrijft **echt** dat ene slot
   in voor het kind dat ingepland wordt, en controleert het in i-Active.
-- Modus `normaal`: de ronde van vandaag, zoals de geplande run.
+- Modus `normaal`: zoals de geplande run. Tot 2 uur vóór de opening wacht
+  hij en geeft hij door; daarna schrijft hij in, ook tot 24 uur te laat.
+- Modus `inhalen`: de laatste definitieve keuze waarvan de opening voorbij is,
+  nu nog inschrijven, hoe lang ook geleden. Wat al ingeschreven is, slaat hij
+  over; wat volzet is, komt op de reservelijst.
 - **Opvang - kalender lezen**: de tegels opnieuw inlezen.
 
 ## Twee regels die niet onderhandelbaar zijn
@@ -101,11 +121,17 @@ slot. Een run die crasht, zet de ronde terug op `definitief`; een nieuwe run
 - [x] Keuzemenu per kind en per week, status **Definitief**, Wijzigen
 - [x] Herinneringen zolang niet definitief
 - [x] Inschrijfworkflow met proef, controle per slot, eindcontrole en verslag
-- [x] Startsein: geplande workflow, drie keer als vangnet
+- [x] Startsein: geplande workflow, drie keer als vangnet (bleek niet genoeg, zie hieronder)
 - [ ] Sandra erbij, gezamenlijke groep (`/hier`)
 - [x] Proef op november: vrije én volzette tegel hebben dezelfde knop "Inschrijven"
 - [x] Echte testinschrijving: vr 13/11 naschools, na de klik en bij de eindcontrole als ingeschreven gezien (29/09/2026)
-- [ ] Eerste echte ronde: december, dinsdag 6 oktober 2026 om 18:00
+- [ ] Eerste echte ronde: december, dinsdag 6 oktober 2026 om 18:00. **Niet
+      ingeschreven**: GitHub startte de drie runs om 21:22, 22:09 en 22:31,
+      en die stopten zonder iets te zeggen, want ze keken maar tot 3 uur na
+      de opening. Niemand hoorde iets.
+- [x] Startsein als estafette, te laat toch inschrijven, en melden als het
+      niet gebeurde (7 oktober 2026)
+- [ ] Eerste ronde met de estafette: januari, dinsdag 3 november 2026 om 18:00
 
 ## i-Active
 
@@ -284,14 +310,42 @@ runner van GitHub Actions is een gewone Linux-machine met Chromium, mag uren
 lopen, en bewaart logboeken die ook in een volgende Claude-sessie te lezen
 zijn.
 
-**Waarom een geplande workflow het startsein geeft, en geen `pg_cron`.** Een
-geplande workflow van GitHub kan tot een uur te laat vertrekken, of een keer
-wegvallen. Daarom start hij om 16:07, 17:07 en 17:37 (Belgische zomertijd),
-ruim vóór 18:00, en wacht de run zelf tot het exacte moment; de latere runs
-stoppen meteen als de eerste bezig of klaar is. `pg_cron` zou op de minuut
-starten, maar vraagt een GitHub-token in Supabase, en de marge van twee uur
-maakt dat overbodig. Let op: GitHub zet geplande workflows van een publieke
-repository stil na 60 dagen zonder commits; dan krijg je een mail.
+**Waarom een estafette, en geen geplande run op het uur zelf.** Een geplande
+workflow van GitHub vertrekt niet op tijd. Eerst rekenden we op hoogstens een
+uur te laat, met runs om 16:07, 17:07 en 17:37 (zomertijd). In oktober 2026
+bleek het elke dag 3 tot 7 uur: de eerste run van de dag, gepland om 14:07
+UTC, vertrok op 2, 3, 4, 5 en 6 oktober om 19:05, 17:51, 18:03, 21:25 en 19:22
+UTC, en de kalender van 04:23 UTC tussen 09:57 en 11:41. Zo werd december niet
+ingeschreven.
+
+Daarom bepaalt de planning enkel nog wanneer een run *ergens* in de 30 uur
+vóór een opening binnenvalt, en zorgt de run zelf voor het juiste moment
+(`src/startsein.ts`):
+
+- De workflow start om de vier uur. Is er binnen 30 uur geen opening, dan
+  stopt de run na enkele seconden, nog vóór npm en Playwright.
+- Is er wel een, dan wacht de run hoogstens 5 uur en start dan met
+  `gh workflow run` een nieuwe run van zichzelf. Een job mag bij GitHub niet
+  langer dan 6 uur duren, en een run die zo gestart wordt, vertrekt meteen:
+  het `GITHUB_TOKEN` mag dat (`workflow_dispatch` is de uitzondering op de
+  regel dat het geen nieuwe runs start), met `actions: write`.
+- De run die 2 uur of minder vóór de opening vertrekt, schrijft in.
+- Een geplande run die binnenvalt terwijl de estafette loopt, wacht in de rij
+  (`concurrency`). Er loopt nooit meer dan één run, en wie aan de beurt komt,
+  beslist opnieuw.
+- Loopt er iets mis vóór het inschrijven begint (npm, Playwright, de
+  estafette), dan zegt de workflow dat in Telegram, met de link naar de run.
+
+Toch te laat (GitHub laat alle runs vallen, of een run crasht)? Tot 24 uur na
+de opening schrijft de eerste run die start meteen in. En omdat de planning
+van Vercel wél op tijd is, kijkt de webapp 's avonds en 's ochtends of er
+ingeschreven is, en zegt het in Telegram als dat niet zo is. Zo blijft het
+niet meer stil als het niet gebeurde.
+
+`pg_cron` of een eigen token voor Vercel zou op de minuut starten, maar vraagt
+een GitHub-token met schrijfrechten buiten GitHub. De estafette heeft dat niet
+nodig. Let op: GitHub zet geplande workflows van een publieke repository stil
+na 60 dagen zonder commits; dan krijg je een mail.
 
 **Waarom het geheim van de webhook niet apart ingesteld wordt.** Telegram
 stuurt bij elke aanroep een geheim mee in een header; zonder die controle kan

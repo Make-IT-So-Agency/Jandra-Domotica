@@ -4,6 +4,14 @@
  * token overblijft.
  */
 
+import { rest } from "./supabase.ts";
+
+/** De chat waarin de bot praat, zoals de webapp ze bewaarde (met /hier, of de groep). */
+export async function leesChat(): Promise<number | null> {
+  const [rij] = await rest<{ waarde: string }[]>("GET", "opvang_instellingen?sleutel=eq.telegram_chat_id");
+  return rij && Number.isSafeInteger(Number(rij.waarde)) ? Number(rij.waarde) : null;
+}
+
 export async function stuur(chatId: number, tekst: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN ontbreekt.");
