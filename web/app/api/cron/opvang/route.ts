@@ -9,11 +9,14 @@ export const dynamic = "force-dynamic";
 
 /**
  * De dagelijkse ronde van de opvang-bot: de volgende inschrijfronde
- * aanmaken, het keuzemenu sturen zodra de kalender gelezen is, en herinneren
- * zolang het niet definitief is.
+ * aanmaken, het keuzemenu sturen zodra de kalender gelezen is, herinneren
+ * zolang het niet definitief is, en na de opening zeggen als er niet
+ * ingeschreven werd.
  *
- * Vercel roept dit elke ochtend aan. De workflow die de kalender van i-Active
- * leest, roept het daarna ook aan (met ?vernieuw=1), zodat het menu meteen
+ * Vercel roept dit elke ochtend aan, en elke avond om 17:00 UTC: na de
+ * opening van 18:00, in zomer- en wintertijd. Zo hoor je het dezelfde avond
+ * als de workflow in GitHub niet startte. De workflow die de kalender van
+ * i-Active leest, roept het ook aan (met ?vernieuw=1), zodat het menu meteen
  * komt en bestaande menu's de nieuwe tegels tonen. Twee keer lopen kan geen
  * kwaad: elke stap onthoudt dat ze al gebeurd is.
  */

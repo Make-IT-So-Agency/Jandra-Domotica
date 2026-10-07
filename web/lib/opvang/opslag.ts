@@ -27,7 +27,11 @@ export interface Ronde {
   kalender_gelezen_op: string | null;
   gevraagd_op: string | null;
   herinnerd_op: string | null;
+  bezig_sinds: string | null;
 }
+
+/** Wat de workflow per gekozen slot deed, zoals i-Active het nadien toonde. */
+export type Uitkomst = "ingeschreven" | "reservelijst" | "al_ingeschreven" | "mislukt" | "gestopt";
 
 export interface MenuRij {
   ronde_id: number;
@@ -113,6 +117,21 @@ export async function zetStatus(
 ): Promise<boolean> {
   const r = await db().from("opvang_rondes").update({ status: naar, ...extra }).eq("id", id).in("status", van).select("id");
   return (check(r, "status bijwerken") ?? []).length > 0;
+}
+
+/** De laatste ronde waarvan de inschrijving al geopend is, wat haar status ook is. */
+export async function laatstGeopend(nu = new Date()): Promise<Ronde | null> {
+  return check(
+    await db().from("opvang_rondes").select("*").lt("opent", nu.toISOString()).order("opent", { ascending: false }).limit(1).maybeSingle(),
+    "ronde lezen",
+  ) as Ronde | null;
+}
+
+export async function resultaten(rondeId: number): Promise<Uitkomst[]> {
+  const rijen = check(await db().from("opvang_resultaten").select("uitkomst").eq("ronde_id", rondeId), "resultaten lezen") as {
+    uitkomst: Uitkomst;
+  }[];
+  return rijen.map((r) => r.uitkomst);
 }
 
 export async function werkRondeBij(id: number, velden: Partial<Ronde>): Promise<void> {

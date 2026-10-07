@@ -5,7 +5,7 @@ import { nepSupabase } from "./stubs/nep-supabase";
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 
-import { dagelijks, verwerkKlik } from "@/lib/opvang/menu";
+import { dagelijks, verwerkKlik, vorigeRonde } from "@/lib/opvang/menu";
 
 const TOKEN = "123456:nep-token-voor-de-test";
 const JAN = 1001;
@@ -16,6 +16,10 @@ let db: ReturnType<typeof nepSupabase>;
 
 beforeEach(() => {
   aanroepen = [];
+  // Wijzigen en Definitief kijken naar de echte klok; die staat hier op de dag
+  // dat het menu kwam, anders faalt de test vanzelf zodra de opening voorbij is.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-29T08:00:00Z"));
   vi.stubEnv("TOEGELATEN_TELEGRAM_IDS", `${JAN},${GROEP}`);
   vi.stubGlobal(
     "fetch",
@@ -55,6 +59,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -136,6 +141,103 @@ describe("een ronde van begin tot definitief", () => {
     await dagelijks(TOKEN, new Date("2026-10-06T16:30:00Z"));
     expect(db.tabellen.opvang_rondes[0].status).toBe("gemist");
     expect(verstuurd().at(-1)).toContain("Ik heb niets ingeschreven");
+  });
+
+  it("de aankondiging op de dag zelf zegt wanneer je iets moet horen", async () => {
+    Object.assign(db.tabellen.opvang_rondes[0], { status: "definitief", gevraagd_op: "2026-09-29T08:00:00.000Z" });
+    db.tabellen.opvang_keuzes = [{ ronde_id: 5, slot_id: 11 }];
+    await dagelijks(TOKEN, new Date("2026-10-06T08:00:00Z"));
+    expect(verstuurd()).toHaveLength(1);
+    expect(verstuurd()[0]).toContain("schrijf ik 1 momenten in");
+    expect(verstuurd()[0]).toContain("Hoor je dan niets van mij, schrijf dan zelf in via i-Active.");
+  });
+
+  it("opnieuw definitief maken na /stop: de stop geldt niet meer", async () => {
+    db.tabellen.opvang_rondes[0].stop_gevraagd = true;
+    await verwerkKlik(klik("o:t:5:1:11"), TOKEN);
+    await verwerkKlik(klik("o:d:5"), TOKEN);
+    expect(db.tabellen.opvang_rondes[0]).toMatchObject({ status: "definitief", stop_gevraagd: false });
+  });
+});
+
+describe("na de opening: is er ingeschreven?", () => {
+  beforeEach(() => {
+    // Definitief, en op de ochtend zelf aangekondigd: zoals december 2026.
+    Object.assign(db.tabellen.opvang_rondes[0], {
+      status: "definitief",
+      definitief_door: "Jan",
+      gevraagd_op: "2026-09-29T08:00:00.000Z",
+      herinnerd_op: "2026-10-06T08:00:00.000Z",
+    });
+    db.tabellen.opvang_keuzes = [
+      { ronde_id: 5, slot_id: 11 },
+      { ronde_id: 5, slot_id: 12 },
+    ];
+  });
+
+  it("niet gestart: 's avonds gezegd, de volgende ochtend nog eens, na 24 uur hoe het nog kan, en dan stilte", async () => {
+    await dagelijks(TOKEN, new Date("2026-10-06T17:05:00Z"));
+    expect(verstuurd()).toHaveLength(1);
+    expect(verstuurd()[0]).toContain("⚠️ Opvang december 2026 is nog niet ingeschreven.");
+    expect(verstuurd()[0]).toContain("niet (op tijd) gestart");
+    expect(verstuurd()[0]).toContain("modus normaal");
+
+    aanroepen = [];
+    await dagelijks(TOKEN, new Date("2026-10-06T17:50:00Z"));
+    expect(verstuurd()).toEqual([]);
+
+    await dagelijks(TOKEN, new Date("2026-10-07T08:00:00Z"));
+    expect(verstuurd()).toHaveLength(1);
+    expect(verstuurd()[0]).toContain("Start ze vóór");
+
+    aanroepen = [];
+    await dagelijks(TOKEN, new Date("2026-10-08T08:00:00Z"));
+    expect(verstuurd()).toHaveLength(1);
+    expect(verstuurd()[0]).toContain("❌ Opvang december 2026 is niet ingeschreven.");
+    expect(verstuurd()[0]).toContain("Vanzelf schrijf ik niet meer in");
+    expect(verstuurd()[0]).toContain("modus inhalen");
+
+    aanroepen = [];
+    await dagelijks(TOKEN, new Date("2026-10-09T08:00:00Z"));
+    expect(verstuurd()).toEqual([]);
+    expect(db.tabellen.opvang_rondes[0].status).toBe("definitief");
+  });
+
+  it("deels gelukt: zegt hoeveel", async () => {
+    db.tabellen.opvang_resultaten = [
+      { ronde_id: 5, slot_id: 11, uitkomst: "ingeschreven" },
+      { ronde_id: 5, slot_id: 12, uitkomst: "mislukt" },
+    ];
+    await dagelijks(TOKEN, new Date("2026-10-06T17:05:00Z"));
+    expect(verstuurd()[0]).toContain("is maar voor 1 van de 2 momenten ingeschreven");
+  });
+
+  it("bezig: zwijgt zolang de workflow werkt, en zegt het als hij is blijven steken", async () => {
+    Object.assign(db.tabellen.opvang_rondes[0], { status: "bezig", bezig_sinds: "2026-10-06T15:56:00.000Z" });
+    await dagelijks(TOKEN, new Date("2026-10-06T17:05:00Z"));
+    expect(verstuurd()).toEqual([]);
+    await dagelijks(TOKEN, new Date("2026-10-06T18:30:00Z"));
+    expect(verstuurd()).toHaveLength(1);
+    expect(verstuurd()[0]).toContain("blijven steken");
+  });
+
+  it("na /stop: geen melding", async () => {
+    db.tabellen.opvang_rondes[0].stop_gevraagd = true;
+    await dagelijks(TOKEN, new Date("2026-10-06T17:05:00Z"));
+    expect(verstuurd()).toEqual([]);
+  });
+
+  it("/status zegt hoe de vorige ronde afliep", async () => {
+    expect(await vorigeRonde(new Date("2026-10-06T15:00:00Z"))).toBeNull();
+    expect((await vorigeRonde(new Date("2026-10-07T08:00:00Z")))?.tekst).toContain("⚠️ niet ingeschreven: de taak in GitHub is niet (op tijd) gestart.");
+
+    Object.assign(db.tabellen.opvang_rondes[0], { status: "klaar" });
+    db.tabellen.opvang_resultaten = [
+      { ronde_id: 5, slot_id: 11, uitkomst: "ingeschreven" },
+      { ronde_id: 5, slot_id: 12, uitkomst: "reservelijst" },
+    ];
+    const klaar = await vorigeRonde(new Date("2026-10-07T08:00:00Z"));
+    expect(klaar?.tekst).toMatch(/^Opvang december 2026 \(opende .+\): ✔ 1 ingeschreven, ⏸ 1 op de reservelijst\.$/);
   });
 });
 
