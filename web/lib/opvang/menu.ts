@@ -1,7 +1,7 @@
 import "server-only";
 
 import { heeftToegang, toegelatenIds } from "./toegang";
-import { aanklikbaar, conflicten, keuzemenu, overzicht, slotsVanWeek, vakantieLocaties, welkeVakantieLocatie, type Slot } from "./keuzemenu";
+import { aanklikbaar, conflicten, ingeschrevenOverzicht, keuzemenu, overzicht, slotsVanWeek, vakantieLocaties, welkeVakantieLocatie, type Slot } from "./keuzemenu";
 import { momentLabel, opvangLabel, volgendeMomenten } from "./inschrijfmomenten";
 import * as opslag from "./opslag";
 import { beantwoordKnop, bewerkBericht, stuurBericht, type Klik, type Knoppen } from "./telegram";
@@ -437,4 +437,17 @@ export async function vorigeRonde(nu = new Date()): Promise<{ id: number; tekst:
     id: r.id,
     tekst: `${kop} ⚠️ ${gelukt ? `maar ${gelukt} van de ${aantal} momenten ingeschreven` : "niet ingeschreven"}: ${hoe === "vastgelopen" ? "de taak in GitHub is blijven steken" : "de taak in GitHub is niet (op tijd) gestart"}.`,
   };
+}
+
+/** Voor /ingeschreven: wat i-Active het laatst toonde, vanaf vandaag, voor elk kind met iets ingeschreven of gekozen. */
+export async function ingeschrevenBericht(nu = new Date()): Promise<string> {
+  const vandaag = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels" }).format(nu);
+  const [kinderen, slots, gekozen] = await Promise.all([opslag.kinderen(), opslag.slotsVanaf(vandaag.slice(0, 7)), opslag.gekozenNaOpening(nu)]);
+  const laatst = slots.reduce<string | null>((m, s) => (!m || s.gezien_op > m ? s.gezien_op : m), null);
+  return ingeschrevenOverzicht(
+    kinderen.map((k) => ({ naam: k.naam, slots: slots.filter((s) => s.kind_id === k.id) })),
+    gekozen,
+    vandaag,
+    laatst ? new Date(laatst) : null,
+  );
 }

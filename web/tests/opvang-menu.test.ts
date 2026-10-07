@@ -5,7 +5,7 @@ import { nepSupabase } from "./stubs/nep-supabase";
 const nep = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase", () => ({ db: () => nep.client }));
 
-import { dagelijks, verwerkKlik, vorigeRonde } from "@/lib/opvang/menu";
+import { dagelijks, ingeschrevenBericht, verwerkKlik, vorigeRonde } from "@/lib/opvang/menu";
 
 const TOKEN = "123456:nep-token-voor-de-test";
 const JAN = 1001;
@@ -260,5 +260,29 @@ describe("van de persoonlijke chat naar de groep", () => {
     ];
     await dagelijks(TOKEN, new Date("2026-09-30T09:00:00Z"));
     expect(db.tabellen.opvang_instellingen.find((i) => i.sleutel === "telegram_chat_id")?.waarde).toBe(String(JAN));
+  });
+});
+
+describe("/ingeschreven", () => {
+  it("toont wat de kalender als ingeschreven zag, en wat van een geopende ronde gekozen was maar ontbreekt", async () => {
+    Object.assign(db.tabellen.opvang_rondes[0], { status: "klaar" });
+    db.tabellen.opvang_keuzes = [
+      { ronde_id: 5, slot_id: 11 },
+      { ronde_id: 5, slot_id: 12 },
+    ];
+    Object.assign(db.tabellen.opvang_slots[0], { staat: "ingeschreven", gezien_op: "2026-10-07T11:12:00.000Z" });
+    Object.assign(db.tabellen.opvang_slots[1], { staat: "vrij", gezien_op: "2026-10-07T11:12:00.000Z" });
+    const tekst = await ingeschrevenBericht(new Date("2026-10-07T20:00:00Z"));
+    expect(tekst).toMatch(/^Ingeschreven volgens i-Active \(kalender gelezen .+\):/);
+    expect(tekst).toContain("🧒 Kind: 1 ingeschreven");
+    expect(tekst).toContain("✔ di 1/12 voorschools (Speelhuis)");
+    expect(tekst).toContain("❌ di 1/12 naschools (Speelhuis): gekozen, niet ingeschreven (vrij)");
+  });
+
+  it("een ronde die nog moet openen, telt niet als ontbrekend", async () => {
+    Object.assign(db.tabellen.opvang_rondes[0], { status: "definitief" });
+    db.tabellen.opvang_keuzes = [{ ronde_id: 5, slot_id: 12 }];
+    Object.assign(db.tabellen.opvang_slots[1], { staat: "nog_niet_open", gezien_op: "2026-09-30T11:12:00.000Z" });
+    expect(await ingeschrevenBericht(new Date("2026-10-01T08:00:00Z"))).toContain("Ik zie in i-Active niets ingeschreven");
   });
 });

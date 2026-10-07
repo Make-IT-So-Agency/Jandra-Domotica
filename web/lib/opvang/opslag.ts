@@ -149,6 +149,28 @@ export async function slots(kindId: number, maand: string): Promise<Slot[]> {
   ) as Slot[];
 }
 
+/** Alle tegels van alle kinderen vanaf een maand, met wanneer de kalender ze het laatst las. */
+export async function slotsVanaf(maand: string): Promise<(Slot & { kind_id: number; gezien_op: string })[]> {
+  const rijen = check(
+    await db().from("opvang_slots").select("id, kind_id, maand, datum, moment, locatie, staat, gezien_op").order("datum"),
+    "slots lezen",
+  ) as (Slot & { kind_id: number; gezien_op: string })[];
+  return rijen.filter((r) => r.datum.slice(0, 7) >= maand);
+}
+
+/** De gekozen slots van rondes die al opengingen en definitief waren: daarvan verwachten we een inschrijving. */
+export async function gekozenNaOpening(nu = new Date()): Promise<Set<number>> {
+  const rondes = (
+    check(await db().from("opvang_rondes").select("id, status").lt("opent", nu.toISOString()), "rondes lezen") as { id: number; status: string }[]
+  ).filter((r) => ["definitief", "bezig", "klaar"].includes(r.status));
+  if (!rondes.length) return new Set();
+  const rijen = check(
+    await db().from("opvang_keuzes").select("slot_id").in("ronde_id", rondes.map((r) => r.id)),
+    "keuzes lezen",
+  ) as { slot_id: number }[];
+  return new Set(rijen.map((r) => r.slot_id));
+}
+
 export async function gekozen(rondeId: number): Promise<Set<number>> {
   const rijen = check(await db().from("opvang_keuzes").select("slot_id").eq("ronde_id", rondeId), "keuzes lezen") as {
     slot_id: number;
