@@ -3232,3 +3232,44 @@ details.palet:not([open]) {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Technieken: het voorstel voor de elektriciteit. */
+.technieken-instellingen {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.technieken-instellingen .keuzevak input {
+  width: auto;
+}
+
+.technieken-plaatsen {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0 0 8px;
+}
+
+.technieken-plaatsen dt {
+  font-weight: 600;
+}
+
+.technieken-plaatsen dd {
+  margin: 0;
+}
+
+/* Een schema zoals op papier: wit, en schuiven als het breder is dan het scherm. */
+.tekening-omhulsel {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin-bottom: 8px;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.tekening {
+  display: block;
+  max-width: none;
+}

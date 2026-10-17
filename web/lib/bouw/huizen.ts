@@ -6,6 +6,7 @@ import { db } from "@/lib/supabase";
 
 import { Bouwfout, HUISTABELLEN, check, geraakt, idsVanHuis } from "./databank";
 import { ruimOngebruikteBestandenOp } from "./opladen";
+import { schoneInstellingen, type Techniekinstellingen } from "./technieken/voorstel";
 import { isSoortHuis, type Huis, type SoortHuis } from "./types";
 
 /**
@@ -86,6 +87,19 @@ export async function bewaarProject(
       .eq("id", huisId),
     "Projectgegevens bewaren",
   );
+}
+
+/** Hoe het voorstel voor de technieken rekent, zoals bewaard; null als er niets (geldigs) bewaard is. */
+export async function leesTechniekinstellingen(huisId: number): Promise<Techniekinstellingen | null> {
+  const rij = check(
+    await db().from("bouw_huizen").select("technieken").eq("id", huisId).maybeSingle(),
+    "Technieken lezen",
+  ) as { technieken?: unknown } | null;
+  return schoneInstellingen(rij?.technieken ?? null);
+}
+
+export async function bewaarTechniekinstellingen(huisId: number, instellingen: Techniekinstellingen): Promise<void> {
+  check(await db().from("bouw_huizen").update({ technieken: instellingen }).eq("id", huisId), "Technieken bewaren");
 }
 
 export async function bewaarFinanciering(

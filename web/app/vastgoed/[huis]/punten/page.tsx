@@ -78,7 +78,8 @@ export default async function Puntenpagina({
       <p className="inleiding">
         Lichtpunten, schakelaars, stopcontacten, netwerk, sensoren en zo verder, op het plan. Daaruit volgt de{" "}
         <Link href={huispad(huis.id, "/punten/wensenlijst")}>wensenlijst</Link> voor de elektricien en de domotica-installateur.
-        De leidingen teken je bij <Link href={huispad(huis.id, `/punten/leidingen?verdieping=${verdieping.id}`)}>Leidingen</Link>.
+        De leidingen teken je bij <Link href={huispad(huis.id, `/punten/leidingen?verdieping=${verdieping.id}`)}>Leidingen</Link>. Bij{" "}
+        <Link href={huispad(huis.id, "/technieken")}>Technieken</Link> staat een voorstel voor de kringen, de kasten en het eendraadschema.
       </p>
 
       <Melding soort={soort} melding={melding} />

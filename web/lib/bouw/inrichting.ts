@@ -141,6 +141,9 @@ export const STUKSOORTEN: readonly Stuksoort[] = [
   { soort: "buffervat", naam: "Buffervat", groep: "klimaat", vorm: "cilinder", plaats: "vloer", maat: [0.65, 0.65, 1.5] },
   { soort: "meterkast", naam: "Meterkast", groep: "energie", vorm: "kast", plaats: "muur", maat: [0.6, 0.25, 0.9], z: 0.5 },
   { soort: "verdeelkast", naam: "Verdeelkast", groep: "energie", vorm: "kast", plaats: "muur", maat: [0.55, 0.12, 0.8], z: 1.0 },
+  // De kasten die Technieken voorstelt: zet je ze hier, dan rekent het voorstel de kabels vanaf hier.
+  { soort: "domoticakast", naam: "Domoticakast", groep: "energie", vorm: "kast", plaats: "muur", maat: [0.55, 0.12, 0.8], z: 1.0 },
+  { soort: "netwerkkast", naam: "Netwerkkast (19 duim)", groep: "energie", vorm: "kast", plaats: "muur", maat: [0.6, 0.45, 0.5], z: 1.4 },
   { soort: "thuisbatterij", naam: "Thuisbatterij", groep: "energie", vorm: "toestel", plaats: "muur", maat: [0.75, 0.2, 1.15] },
   { soort: "omvormer", naam: "Omvormer", groep: "energie", vorm: "toestel", plaats: "muur", maat: [0.45, 0.2, 0.6], z: 1.2 },
   { soort: "wallbox", naam: "Laadpunt aan de muur", groep: "energie", vorm: "toestel", plaats: "muur", maat: [0.3, 0.15, 0.4], z: 0.9 },

@@ -55,6 +55,10 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
   [Punten en de wensenlijst](#punten-en-de-wensenlijst).
+- **Technieken** (`/vastgoed/1/technieken`): uit de punten en de toestellen een
+  voorstel voor de elektriciteit: de kringen, de verdeelkast, de domoticakast,
+  de netwerkkast, het eendraadschema en het situatieschema, ook als PDF; zie
+  [Technieken](#technieken).
 - **3D** (`/vastgoed/1/3d`): het huis in 3D, uit de omgezette grondplannen, met de
   materialen uit de keuzes. Rondkijken, een verdieping of het dak weglaten,
   een doorsnede, en rondwandelen; zie [Het huis in 3D](#het-huis-in-3d).
@@ -253,6 +257,111 @@ data en vloerverwarming, op het omgezette grondplan, met de punten erbij.
 - per verdieping staat de lengte per soort, en de oppervlakte van de zones.
   Bij **Lagen** zet je een soort aan of uit, net als in 3D. Op een gsm kan je
   enkel kijken, in 3D.
+
+## Technieken
+
+Een voorstel voor de elektriciteit (`/vastgoed/1/technieken`), uit wat er al
+in de app staat: de punten op het plan, de ruimtes, en de toestellen bij
+Inrichten in 3D. Om met de elektricien te bespreken: hij tekent het
+definitieve schema, en een erkend organisme keurt de installatie. Wat je bij
+Punten of Inrichten verandert, staat er meteen. De regels staan in
+`lib/bouw/technieken/voorstel.ts`, puur en met tests.
+
+**Uitgangspunten.** De aansluiting (één fase van 230 V of drie fasen van
+3N400 V, met de stroom van de hoofdschakelaar), en of er domotica komt.
+Zolang niets bewaard is, kiest de app zelf:
+- drie fasen van 25 A met een laadpaal of een warmtepomp, anders één fase
+  van 40 A;
+- domotica als er drukknoppen op het plan staan.
+
+**Bewaren** legt het vast, per huis (`bouw_huizen.technieken`).
+
+**De kringen**, met de vuistregels van het AREI:
+- **verlichting** per verdieping, hoogstens 10 lichtpunten per kring, in
+  1,5 mm² op 16 A. Spots in één ruimte gaan samen aan: ze tellen als één
+  lichtpunt;
+- **stopcontacten** per verdieping, hoogstens 8 contactdozen per kring, in
+  2,5 mm² op 20 A. Een dubbele in één doos telt als één. De stopcontacten
+  boven het aanrecht hebben een eigen kring;
+- **de badkamer** apart: licht en stopcontacten samen, elk lichtpunt telt als
+  een contactdoos, op 16 A;
+- **buiten** apart, met de kabel in de grond in EXVB;
+- **rolluiken en screens** per verdieping, hoogstens 10 motoren per kring;
+- **een eigen kring** voor elk groot toestel: kookplaat, oven, vaatwasser,
+  wasmachine, droogkast, koelkast of diepvries, warmtepomp, boiler,
+  ventilatie, omvormer, thuisbatterij en laadpaal. Ze komen van de punten
+  *Vast toestel* (het label zegt welk: "Kookplaat", "Oven"...), van het
+  laadpunt op het plan, en van de toestellen bij Inrichten. Met drie fasen
+  gaan de kookplaat, de warmtepomp, de laadpaal, de omvormer en de
+  thuisbatterij op alle drie;
+- **de domoticakast en de netwerkkast** elk een eigen kring, als ze er
+  zijn.
+
+**De differentiëlen.**
+- een algemene van 300 mA type A;
+- 30 mA type A voor de badkamer, buiten, de vaatwasser, de wasmachine en de
+  droogkast, hoogstens vijf kringen per differentieel;
+- de laadpaal een eigen van 30 mA: type A als de laadpaal zelf 6 mA
+  gelijkstroom ziet, anders type B;
+- de koelkast of diepvries blijft achter de 300 mA: valt een 30 mA uit, dan
+  blijft de diepvries draaien.
+
+**Waar de kasten komen.**
+- **de verdeelkast:** waar de verdeelkast of de meterkast bij Inrichten
+  staat. Anders in de technische ruimte, de berging, de wasplaats of de
+  garage van het hoofdgebouw, eerst op het gelijkvloers, en anders in het
+  midden;
+- **de domoticakast en de netwerkkast:** naast de verdeelkast, tenzij ze
+  bij Inrichten staan;
+- de kabels rekenen vanaf daar.
+
+**De verdeelkast** telt de modules: de hoofdschakelaar met de
+differentieel, de differentiëlen, de automaten en de
+overspanningsbeveiliging, met 20% vrij voor later (minstens 4), in rijen van
+13 modules.
+
+**De domotica**, los van het merk:
+- **uitgangen:** elke lichtgroep een relais, of een dimmer als er een dimmer
+  in de ruimte staat. Een ledstrip krijgt een ledsturing, elk rolluik een
+  motoruitgang;
+- **ingangen:** elke drukknop, schakelaar en dimmer, en elke melder
+  (aanwezigheid, temperatuur, CO₂, waterlek, thermostaat, deurbel);
+- daaruit een ruwe schatting van de modules: elk systeem heeft zijn eigen;
+- met domotica gaat elke lichtgroep en elk rolluik met een eigen kabel naar
+  de domoticakast.
+
+**Het netwerk.**
+- **de poorten:** een per netwerkaansluiting, tv-aansluiting,
+  wifi-toegangspunt, camera en deurbel, met PoE voor wifi, camera's en de
+  deurbel. Een poort per toestel dat op het netwerk gaat (laadpaal,
+  omvormer, batterij, warmtepomp, ventilatie), en een voor de domoticakast
+  als er domotica komt;
+- **de kast:** de patchpanelen van 24, de switch en de hoogte van de
+  wandkast;
+- een kabel langer dan 90 m meldt de app: daar haalt UTP de volle snelheid
+  niet.
+
+**De kabels** zijn geschat:
+- van de kast langs de muren (waterpas en haaks) naar elk punt, plus de
+  hoogte tussen de verdiepingen, telkens 1,5 m in de muur, en 10% speling;
+- een gewone kring loopt van punt tot punt. Met domotica gaat elke
+  lichtgroep apart naar de kast;
+- een ander gebouw telt niet mee: daar komt meestal een eigen verdeelbord.
+
+**De tekeningen** (`technieken/schema.ts`):
+- **het eendraadschema:** het net, de meter, de algemene differentieel en
+  de bus. Elke kring met haar automaat en kabel, en haar punten in de
+  volgorde van de kabel. De kringen achter een 30 mA hangen aan hun eigen
+  bus;
+- **het situatieschema:** per verdieping waar elk punt ligt, met zijn
+  nummer (A3) in de kleur van zijn kring, en de verdeelkast;
+- op de pagina als SVG. In de PDF op A3 liggend, over meer bladen als het
+  schema breed is.
+
+**De PDF** (`/api/bouw/technieken/pdf?huis=1`):
+- op A4 de uitgangspunten, de kringen, de kasten en de kabels;
+- daarna het eendraadschema, en per verdieping het situatieschema op A3;
+- een momentopname, met de datum erop.
 
 ## Het huis in 3D
 
@@ -517,7 +626,7 @@ grondplannen.
   - **de catalogus:** bedden, kasten, zetels, tafels, de keuken, de badkamer,
     de wasmachine, en de toestellen: de warmtepomp (binnen en buiten), de
     ventilatie, de boiler, het buffervat, de meterkast, de verdeelkast, de
-    thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
+    domoticakast, de netwerkkast, de thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
     regenwaterput; en zonnepanelen. Elk stuk is een eenvoudig blok met een
     herkenbare vorm, in een zachte kleur per groep. Een stuk achter een muur
     of onder het dak tik je niet aan;
@@ -985,6 +1094,12 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/vastgoed/[huis]/plannen/omzetten/` | Alle grondplannen in één keer omzetten |
 | `web/app/vastgoed/[huis]/punten/` | Punten zetten, en de wensenlijst |
 | `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
+| `web/lib/bouw/technieken/voorstel.ts` | Het voorstel voor de elektriciteit: de kringen, de differentiëlen, de kasten, de domotica, het netwerk en de kabels; puur, met tests |
+| `web/lib/bouw/technieken/schema.ts`, `weergave.ts` | Het eendraadschema en het situatieschema als tekening, en het voorstel in woorden; puur, met tests |
+| `web/lib/bouw/technieken/laden.ts`, `pdf.tsx` | Alles laden voor de pagina, en de PDF |
+| `web/app/vastgoed/[huis]/technieken/`, `web/app/api/bouw/technieken/pdf/` | De pagina Technieken met de uitgangspunten, en de PDF |
+| `web/components/bouw/tekening.tsx` | Een tekening van de technieken als SVG |
+| `supabase/migrations/20261017110000_bouw_technieken.sql` | De uitgangspunten van de technieken, per huis |
 | `web/app/vastgoed/[huis]/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |
 | `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
 | `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
@@ -1185,6 +1300,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
      of iPad, en het huis bekijken bij 3D (het dak instellen);
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
+   - bij Technieken het voorstel nakijken en de PDF downloaden;
    - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
      optie zetten met de gsm;
    - bij Geld de gewone posten aanmaken, het krediet invullen, een offerte
@@ -1219,6 +1335,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **2** Punten op het plan (licht, bediening, stopcontacten, netwerk,
       sensoren, klimaat, zonwering) en de wensenlijst voor de elektricien, als
       PDF en Excel
+- [x] **2b** Technieken: uit de punten en de toestellen een voorstel voor
+      de kringen, de verdeelkast, de domoticakast en de netwerkkast, met een
+      eendraadschema en een situatieschema, ook als PDF
 - [x] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
 - [x] **4** Geld: posten, offertes, meer- en minwerken, facturen met
@@ -1242,6 +1361,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5j** Zonnepanelen op het dak
 - [x] **5k** Opnieuw omzetten met de nieuwste regels; de ramen met hun maat
       en borstwering, de deuren met hun blad, en de luifels, ook zelf gezet
+- [x] **5l** Materialen uitproberen in 3D en bewaren als optie, ook op een
+      deel van een muur, vloer of plat dak
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat
