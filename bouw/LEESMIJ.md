@@ -267,12 +267,25 @@ definitieve schema, en een erkend organisme keurt de installatie. Wat je bij
 Punten of Inrichten verandert, staat er meteen. De regels staan in
 `lib/bouw/technieken/voorstel.ts`, puur en met tests.
 
-**Uitgangspunten.** De aansluiting (één fase van 230 V of drie fasen van
-3N400 V, met de stroom van de hoofdschakelaar), en of er domotica komt.
-Zolang niets bewaard is, kiest de app zelf:
+**Uitgangspunten.**
+- **de aansluiting:** één fase van 230 V of drie fasen van 3N400 V, met de
+  stroom van de hoofdschakelaar;
+- **de domotica:** geen, KNX met Home Assistant, of een ander systeem (dan
+  schat de app los van het merk);
+- **de laadpaal:** geen, 7,4 kW (één fase van 32 A), 11 kW (drie fasen van
+  16 A) of 22 kW (drie fasen van 32 A). Op één fase laadt hij hoogstens
+  7,4 kW;
+- **de zonnepanelen**, in kWp;
+- **de thuisbatterij:** geen, hybride (aan de omvormer van de panelen, dan
+  geen eigen kring) of met een eigen omvormer.
+
+Wat op het plan of in 3D staat, telt altijd mee. Staat een laadpaal,
+omvormer of batterij hier maar nog niet op het plan, dan krijgt ze een kring
+zonder kabellengte. Zolang niets bewaard is, kiest de app zelf:
 - drie fasen van 25 A met een laadpaal of een warmtepomp, anders één fase
   van 40 A;
-- domotica als er drukknoppen op het plan staan.
+- KNX als er drukknoppen op het plan staan;
+- de laadpaal, de zonnepanelen en de batterij zoals op het plan en in 3D.
 
 **Bewaren** legt het vast, per huis (`bouw_huizen.technieken`).
 
@@ -292,8 +305,10 @@ Zolang niets bewaard is, kiest de app zelf:
   ventilatie, omvormer, thuisbatterij en laadpaal. Ze komen van de punten
   *Vast toestel* (het label zegt welk: "Kookplaat", "Oven"...), van het
   laadpunt op het plan, en van de toestellen bij Inrichten. Met drie fasen
-  gaan de kookplaat, de warmtepomp, de laadpaal, de omvormer en de
-  thuisbatterij op alle drie;
+  gaan de kookplaat, de warmtepomp, de omvormer en de thuisbatterij op alle
+  drie;
+- **de laadpaal** volgens zijn vermogen: 1P+N 32 A in XVB 3G6, of 3P+N 16 A
+  of 32 A in XVB 5G6 (zo kan later ook 22 kW);
 - **de domoticakast en de netwerkkast** elk een eigen kring, als ze er
   zijn.
 
@@ -305,6 +320,13 @@ Zolang niets bewaard is, kiest de app zelf:
   gelijkstroom ziet, anders type B;
 - de koelkast of diepvries blijft achter de 300 mA: valt een 30 mA uit, dan
   blijft de diepvries draaien.
+
+**De aansluiting en de laadpaal.** Vraagt de laadpaal evenveel stroom als de
+aansluiting, dan zegt de app: een grotere aansluiting, of trager laden. Neemt
+hij meer dan 60% ervan, dan: laat hem sturen op wat de digitale meter meet.
+Met een laadpaal komt er ook een woord over het capaciteitstarief: Home
+Assistant (of de laadpaal zelf) stuurt het laden op de P1-poort van de
+digitale meter.
 
 **Waar de kasten komen.**
 - **de verdeelkast:** waar de verdeelkast of de meterkast bij Inrichten
@@ -320,22 +342,37 @@ differentieel, de differentiëlen, de automaten en de
 overspanningsbeveiliging, met 20% vrij voor later (minstens 4), in rijen van
 13 modules.
 
-**De domotica**, los van het merk:
+**De domotica.**
 - **uitgangen:** elke lichtgroep een relais, of een dimmer als er een dimmer
   in de ruimte staat. Een ledstrip krijgt een ledsturing, elk rolluik een
-  motoruitgang;
+  motoruitgang. Elke lichtgroep en elk rolluik krijgt een eigen kabel naar
+  de domoticakast;
 - **ingangen:** elke drukknop, schakelaar en dimmer, en elke melder
   (aanwezigheid, temperatuur, CO₂, waterlek, thermostaat, deurbel);
-- daaruit een ruwe schatting van de modules: elk systeem heeft zijn eigen;
-- met domotica gaat elke lichtgroep en elk rolluik met een eigen kabel naar
-  de domoticakast.
+- **KNX met Home Assistant:**
+  - de drukknoppen en de melders zitten op de groene buskabel (EIB-Y(St)Y
+    2×2×0,8), doorgelust van toestel tot toestel, zonder ring. Een
+    drukknop met meer knoppen is één toestel. Een waterlekmelder en de
+    deurbel komen op een binaire ingang;
+  - in de kast: een voeding van 640 mA en een IP-router per lijn,
+    schakelactoren van 12 kanalen, dimactoren van 4, jaloezieactoren van 8,
+    led-dimactoren met een voeding van 24 V, en binaire ingangen van 4. De
+    modules zijn die van gewone KNX-actoren; ze verschillen wat per merk;
+  - hoogstens 64 toestellen per lijn, met de IP-router. Zijn er meer, dan
+    rekent de app met meer lijnen en zegt ze het;
+  - Home Assistant draait op een mini-pc of een Home Assistant Green in de
+    netwerkkast, en praat via de IP-router met KNX;
+- **een ander systeem:** een ruwe schatting van de modules, los van het
+  merk, met een kabel per ingang.
 
 **Het netwerk.**
 - **de poorten:** een per netwerkaansluiting, tv-aansluiting,
   wifi-toegangspunt, camera en deurbel, met PoE voor wifi, camera's en de
   deurbel. Een poort per toestel dat op het netwerk gaat (laadpaal,
   omvormer, batterij, warmtepomp, ventilatie), en een voor de domoticakast
-  als er domotica komt;
+  als er domotica komt. Bij KNX een per IP-router en een voor Home
+  Assistant. Met KNX, een laadpaal of zonnepanelen ook een kabel van de
+  P1-poort van de digitale meter;
 - **de kast:** de patchpanelen van 24, de switch en de hoogte van de
   wandkast;
 - een kabel langer dan 90 m meldt de app: daar haalt UTP de volle snelheid

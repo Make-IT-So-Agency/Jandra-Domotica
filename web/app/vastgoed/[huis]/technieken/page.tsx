@@ -7,12 +7,19 @@ import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { huispad } from "@/lib/bouw/paden";
 import { laadTechnieken } from "@/lib/bouw/technieken/laden";
 import { eendraadschema, situatieschema } from "@/lib/bouw/technieken/schema";
+import { BATTERIJEN, DOMOTICASYSTEMEN, kwpIn3d } from "@/lib/bouw/technieken/voorstel";
 import {
+  BATTERIJNAMEN,
+  DOMOTICANAMEN,
   aansluitingTekst,
   aansluitingen,
   beveiligingTekst,
   differentieelTekst,
   domoticaTekst,
+  domoticakabelTekst,
+  knxTekst,
+  komma,
+  laadpalen,
   meters,
   netwerkTekst,
   plaatsTekst,
@@ -41,6 +48,7 @@ export default async function Techniekenpagina({
   const { kringen, differentielen, verdeelkast, domotica, netwerk } = voorstel;
   const verdiepingen = invoer.verdiepingen;
   const kabel = voorstel.kabels.reduce((som, k) => som + k.lengte, 0);
+  const zon3d = kwpIn3d(invoer.stukken);
 
   return (
     <>
@@ -83,10 +91,52 @@ export default async function Techniekenpagina({
                   ))}
                 </select>
               </div>
-              <label className="keuzevak">
-                <input type="checkbox" name="domotica" value="ja" defaultChecked={instellingen.domotica} />
-                Domotica: drukknoppen, en elke lichtgroep en elk rolluik een eigen kabel naar de domoticakast
-              </label>
+              <div>
+                <label htmlFor="domotica">Domotica</label>
+                <select id="domotica" name="domotica" defaultValue={instellingen.domotica}>
+                  {DOMOTICASYSTEMEN.map((d) => (
+                    <option key={d} value={d}>
+                      {DOMOTICANAMEN[d]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="laadpaal">Laadpaal</label>
+                <select id="laadpaal" name="laadpaal" defaultValue={instellingen.laadpaal === null ? "" : String(instellingen.laadpaal)}>
+                  {laadpalen().map((l) => (
+                    <option key={l.waarde} value={l.waarde}>
+                      {l.naam}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="zonnepanelen">Zonnepanelen (kWp)</label>
+                <input
+                  id="zonnepanelen"
+                  name="zonnepanelen"
+                  inputMode="decimal"
+                  placeholder="Geen"
+                  defaultValue={instellingen.zonnepanelen === null ? "" : komma(instellingen.zonnepanelen)}
+                />
+                {zon3d.kwp > 0 ? (
+                  <p className="hulp">
+                    Op het dak in 3D: {zon3d.panelen} panelen, {komma(zon3d.kwp)} kWp.
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label htmlFor="batterij">Thuisbatterij</label>
+                <select id="batterij" name="batterij" defaultValue={instellingen.batterij ?? ""}>
+                  <option value="">Geen thuisbatterij</option>
+                  {BATTERIJEN.map((b) => (
+                    <option key={b} value={b}>
+                      {BATTERIJNAMEN[b]}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="knoppenrij">
                 <button type="submit">Bewaren</button>
               </div>
@@ -94,7 +144,8 @@ export default async function Techniekenpagina({
             <p className="hulp">
               {bewaard
                 ? "Zoals bewaard."
-                : "De app koos dit zelf: drie fasen met een laadpaal of een warmtepomp, domotica als er drukknoppen op het plan staan. Bewaar om het vast te leggen."}
+                : "De app koos dit zelf: drie fasen met een laadpaal of een warmtepomp, KNX als er drukknoppen op het plan staan, en de toestellen zoals in 3D. Bewaar om het vast te leggen."}{" "}
+              Wat op het plan of in 3D staat, telt altijd mee. Hier zet je erbij wat er nog niet op staat, en het vermogen.
             </p>
           </section>
 
@@ -115,10 +166,13 @@ export default async function Techniekenpagina({
             </div>
             {domotica ? (
               <div className="tegel">
-                <div className="label">Domotica</div>
+                <div className="label">{domotica.knx ? "KNX" : "Domotica"}</div>
                 <div className="waarde">{domotica.relais + domotica.dimmers + domotica.led + domotica.motoren} uitgangen</div>
                 <div className="bij">
-                  {domotica.drukknoppen + domotica.melders} ingangen · {domotica.kast.rijen} rijen
+                  {domotica.knx
+                    ? `${domotica.knx.toestellen} toestellen op ${domotica.knx.lijnen === 1 ? "1 lijn" : `${domotica.knx.lijnen} lijnen`}`
+                    : `${domotica.drukknoppen + domotica.melders} ingangen`}{" "}
+                  · {domotica.kast.rijen} rijen
                 </div>
               </div>
             ) : null}
@@ -270,12 +324,14 @@ export default async function Techniekenpagina({
 
           {domotica ? (
             <>
-              <h2>Domoticakast</h2>
-              <p>{domoticaTekst(domotica)}.</p>
+              <h2>Domoticakast{domotica.knx ? ": KNX met Home Assistant" : ""}</h2>
+              <p>
+                {domoticaTekst(domotica)}.{domotica.knx ? ` ${knxTekst(domotica.knx)}` : ""}
+              </p>
               <p className="hulp">
-                Uitgangen en ingangen, los van het merk: elke lichtgroep een relais of een dimmer (met een dimmer in de ruimte), spots samen
-                één, elk rolluik een motoruitgang, elke drukknop en melder een ingang. De modules zijn een ruwe schatting; elk systeem heeft
-                zijn eigen.
+                {domotica.knx
+                  ? "Elke lichtgroep heeft een eigen kabel naar een schakel- of dimactor (met een dimmer in de ruimte), spots samen één, en elk rolluik naar een jaloezieactor. Een waterlekmelder en de deurbel komen op een binaire ingang. De modules zijn die van gewone KNX-actoren: ze verschillen wat per merk."
+                  : "Uitgangen en ingangen, los van het merk: elke lichtgroep een relais of een dimmer (met een dimmer in de ruimte), spots samen één, elk rolluik een motoruitgang, elke drukknop en melder een ingang. De modules zijn een ruwe schatting; elk systeem heeft zijn eigen."}
               </p>
               <div className="tabel-omhulsel">
                 <table>
@@ -379,9 +435,8 @@ export default async function Techniekenpagina({
                 </table>
               </div>
               <p className="hulp">
-                Kabels naar de kast:{" "}
-                {domotica.kabels.map((k) => `${k.aantal} × ${k.soort} (${meters(k.lengte)})`).join(", ")}. Bij een bus (KNX, Loxone Tree)
-                lussen de drukknoppen en melders door op één buskabel.
+                Kabels naar de kast: {domotica.kabels.map(domoticakabelTekst).join(", ")}.
+                {domotica.knx ? "" : " Bij een bus (KNX, Loxone Tree) lussen de drukknoppen en melders door op één buskabel."}
               </p>
             </>
           ) : null}

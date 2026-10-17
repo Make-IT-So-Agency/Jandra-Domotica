@@ -31,13 +31,37 @@ import type { SoortRuimte } from "../types";
 // Instellingen
 // ---------------------------------------------------------------------------
 
+/** De domotica: geen, KNX met Home Assistant, of een ander systeem (dan schat de app los van het merk). */
+export const DOMOTICASYSTEMEN = ["geen", "knx", "ander"] as const;
+
+export type Domoticasysteem = (typeof DOMOTICASYSTEMEN)[number];
+
+/** Het vermogen van een laadpaal, in kW: eenfasig op 32 A, driefasig op 16 A of op 32 A. */
+export const LAADVERMOGENS = [7.4, 11, 22] as const;
+
+export type Laadvermogen = (typeof LAADVERMOGENS)[number];
+
+/** Een thuisbatterij aan de omvormer van de zonnepanelen (hybride), of met een eigen omvormer. */
+export const BATTERIJEN = ["hybride", "eigen"] as const;
+
+export type Batterij = (typeof BATTERIJEN)[number];
+
+/** Meer zonnepanelen dan dit (kWp) is geen woning meer: een tikfout. */
+export const MAX_KWP = 100;
+
 export interface Techniekinstellingen {
   /** De aansluiting: één fase (230 V) of drie fasen met nul (3N400 V). */
   fasen: 1 | 3;
   /** De stroom van de aansluiting, in ampère. */
   stroom: number;
-  /** Domotica: elke lichtgroep en elk rolluik een eigen kabel naar de kast, drukknoppen in plaats van schakelaars. */
-  domotica: boolean;
+  /** Met domotica gaat elke lichtgroep en elk rolluik met een eigen kabel naar de kast, en komen er drukknoppen in plaats van schakelaars. */
+  domotica: Domoticasysteem;
+  /** De laadpaal, in kW, of null. Een laadpaal op het plan of in 3D telt altijd mee. */
+  laadpaal: Laadvermogen | null;
+  /** De zonnepanelen, in kWp, of null. Panelen op het dak in 3D tellen altijd mee. */
+  zonnepanelen: number | null;
+  /** De thuisbatterij, of null. Een batterij in 3D telt altijd mee. */
+  batterij: Batterij | null;
 }
 
 /** De gewone aansluitingen van Fluvius: eenfasig 40 A (9,2 kVA), driefasig 3N400 V van 16 tot 63 A. */
@@ -47,21 +71,66 @@ export const STROMEN: Record<1 | 3, readonly number[]> = { 1: [40, 63], 3: [16, 
 export const kva = (instellingen: Pick<Techniekinstellingen, "fasen" | "stroom">) =>
   Math.round(((instellingen.fasen === 3 ? Math.sqrt(3) * 400 : 230) * instellingen.stroom) / 100) / 10;
 
-/** Zonder bewaarde instellingen: driefasig met een laadpaal of warmtepomp, domotica met drukknoppen op het plan. */
-export function standaardInstellingen(punten: readonly Pick<Punt, "soort">[], stukken: readonly Pick<GeplaatstStuk, "soort">[]): Techniekinstellingen {
-  const zwaar =
-    punten.some((p) => p.soort === "laadpunt") ||
-    stukken.some((s) => ["laadpaal", "wallbox", "warmtepomp_binnen", "warmtepomp_buiten"].includes(s.soort));
-  return { fasen: zwaar ? 3 : 1, stroom: zwaar ? 25 : 40, domotica: punten.some((p) => p.soort === "drukknop") };
+/** Het vermogen van de zonnepanelen op het dak in 3D, in kWp. */
+export function kwpIn3d(stukken: readonly Pick<GeplaatstStuk, "soort" | "breedte" | "diepte">[]): { panelen: number; kwp: number } {
+  const som = stukken
+    .filter((s) => s.soort === "zonnepanelen")
+    .reduce(
+      (totaal, s) => {
+        const { panelen, kwp } = vermogen(veldVan(s.breedte, s.diepte));
+        return { panelen: totaal.panelen + panelen, kwp: totaal.kwp + kwp };
+      },
+      { panelen: 0, kwp: 0 },
+    );
+  return { panelen: som.panelen, kwp: Math.round(som.kwp * 100) / 100 };
 }
 
-/** Wat bewaard of ingestuurd werd, nagekeken; null als het niet klopt. */
+/**
+ * Zonder bewaarde instellingen kiest de app uit wat op het plan staat: drie
+ * fasen met een laadpaal of een warmtepomp, KNX als er drukknoppen staan, en
+ * de laadpaal, de zonnepanelen en de batterij zoals in 3D.
+ */
+export function standaardInstellingen(
+  punten: readonly Pick<Punt, "soort">[],
+  stukken: readonly Pick<GeplaatstStuk, "soort" | "breedte" | "diepte">[],
+): Techniekinstellingen {
+  const laadpaal = punten.some((p) => p.soort === "laadpunt") || stukken.some((s) => s.soort === "laadpaal" || s.soort === "wallbox");
+  const warmtepomp = stukken.some((s) => s.soort === "warmtepomp_binnen" || s.soort === "warmtepomp_buiten");
+  const fasen = laadpaal || warmtepomp ? 3 : 1;
+  const { kwp } = kwpIn3d(stukken);
+  return {
+    fasen,
+    stroom: fasen === 3 ? 25 : 40,
+    domotica: punten.some((p) => p.soort === "drukknop") ? "knx" : "geen",
+    laadpaal: laadpaal ? (fasen === 3 ? 11 : 7.4) : null,
+    zonnepanelen: kwp > 0 ? kwp : null,
+    batterij: stukken.some((s) => s.soort === "thuisbatterij") ? (kwp > 0 ? "hybride" : "eigen") : null,
+  };
+}
+
+const eenVan = <T>(lijst: readonly T[], waarde: unknown): waarde is T => (lijst as readonly unknown[]).includes(waarde);
+
+/** Wat bewaard of ingestuurd werd, nagekeken; null als het niet klopt. Wat ontbreekt (laadpaal, zonnepanelen, batterij) is er niet. */
 export function schoneInstellingen(ruw: unknown): Techniekinstellingen | null {
   if (!ruw || typeof ruw !== "object") return null;
   const r = ruw as Record<string, unknown>;
   const fasen = r.fasen === 1 || r.fasen === 3 ? r.fasen : null;
-  if (fasen === null || typeof r.stroom !== "number" || !STROMEN[fasen].includes(r.stroom) || typeof r.domotica !== "boolean") return null;
-  return { fasen, stroom: r.stroom, domotica: r.domotica };
+  if (fasen === null || typeof r.stroom !== "number" || !STROMEN[fasen].includes(r.stroom)) return null;
+  if (!eenVan(DOMOTICASYSTEMEN, r.domotica)) return null;
+  const laadpaal = r.laadpaal ?? null;
+  if (laadpaal !== null && !eenVan(LAADVERMOGENS, laadpaal)) return null;
+  const zon = r.zonnepanelen ?? null;
+  if (zon !== null && (typeof zon !== "number" || !Number.isFinite(zon) || zon <= 0 || zon > MAX_KWP)) return null;
+  const batterij = r.batterij ?? null;
+  if (batterij !== null && !eenVan(BATTERIJEN, batterij)) return null;
+  return {
+    fasen,
+    stroom: r.stroom,
+    domotica: r.domotica as Domoticasysteem,
+    laadpaal: laadpaal as Laadvermogen | null,
+    zonnepanelen: zon === null ? null : Math.round(zon * 100) / 100,
+    batterij: batterij as Batterij | null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +276,16 @@ function omvormerVoor(kwp: number, fasen: 1 | 3): { beveiliging: Beveiliging; ka
   return kwp <= 4.6 ? { beveiliging: { polen: "1P+N", ampere: 25 }, kabel: "XVB 3G4" } : { beveiliging: { polen: "1P+N", ampere: 32 }, kabel: "XVB 3G6" };
 }
 
+/** De automaat en de kabel van een laadpaal, volgens zijn vermogen. Driefasig altijd 5G6: zo kan later ook 22 kW. */
+function laadpaalVoor(kw: Laadvermogen, fasen: 1 | 3): { beveiliging: Beveiliging; kabel: string } {
+  if (fasen === 3 && kw === 22) return { beveiliging: { polen: "3P+N", ampere: 32 }, kabel: "XVB 5G6" };
+  if (fasen === 3 && kw === 11) return { beveiliging: { polen: "3P+N", ampere: 16 }, kabel: "XVB 5G6" };
+  return { beveiliging: { polen: "1P+N", ampere: 32 }, kabel: "XVB 3G6" };
+}
+
+/** Een vermogen in woorden: "7,4", "22". */
+const komma = (getal: number) => String(getal).replace(".", ",");
+
 /** Een vast toestel herkennen aan zijn label: "Oven", "Kookplaat", "Wasmachine"... */
 export function toestelVan(label: string | null): Kringsoort {
   const t = (label ?? "").toLowerCase();
@@ -318,6 +397,8 @@ export interface Kast {
 }
 
 export interface Domotica {
+  /** KNX met Home Assistant, of een ander systeem: dan schat de app los van het merk. */
+  systeem: "knx" | "ander";
   /** Waar de domoticakast staat: bij Inrichten, of naast de verdeelkast. */
   plaats: Kastplaats | null;
   relais: number;
@@ -327,6 +408,8 @@ export interface Domotica {
   drukknoppen: number;
   melders: number;
   perRuimte: { verdieping: string; ruimte: string; relais: number; dimmers: number; led: number; motoren: number; drukknoppen: number; melders: number }[];
+  /** KNX: de toestellen op de bus (drukknoppen, melders, actoren en IP-routers), de lijnen, en de buskabel in meter. */
+  knx: { toestellen: number; lijnen: number; buskabel: number | null } | null;
   kast: Kast;
   /** Een kabel per uitgang en per drukknop of melder, naar de kast. */
   kabels: { soort: string; aantal: number; lengte: number | null }[];
@@ -564,13 +647,7 @@ function verbruikers(invoer: Techniekinvoer): { lijst: Verbruiker[]; kwp: number
   }
   // De toestellen bij Inrichten, als er geen punt van die soort voor staat. Eén warmtepomp, ook met een binnen- en buitenunit.
   const zonnepanelen = invoer.stukken.filter((s) => s.soort === "zonnepanelen");
-  const opgeteld = zonnepanelen.reduce(
-    (som, s) => {
-      const { panelen, kwp } = vermogen(veldVan(s.breedte, s.diepte));
-      return { panelen: som.panelen + panelen, kwp: som.kwp + kwp };
-    },
-    { panelen: 0, kwp: 0 },
-  );
+  const opgeteld = kwpIn3d(zonnepanelen);
   // Een punt gaat voor: een vast toestel "wasmachine" op het plan is de wasmachine bij Inrichten.
   const metPunt = new Set(lijst.map((v) => v.kring));
   for (const stuk of invoer.stukken) {
@@ -619,7 +696,7 @@ function verbruikers(invoer: Techniekinvoer): { lijst: Verbruiker[]; kwp: number
       });
     }
   }
-  return { lijst, kwp: Math.round(opgeteld.kwp * 100) / 100, panelen: opgeteld.panelen };
+  return { lijst, kwp: opgeteld.kwp, panelen: opgeteld.panelen };
 }
 
 /** Zet de eenheden achter elkaar in kringen van hoogstens `max`, ruimte per ruimte. Een ruimte wordt enkel gesplitst als ze alleen al te veel heeft. */
@@ -658,7 +735,15 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
   const netwerkplaats = kastBijInrichten(invoer, "netwerkkast") ?? kast;
   const verdiepingen = invoer.verdiepingen;
   const verdiepingVan = (id: number) => verdiepingen.find((v) => v.id === id);
-  const { lijst, kwp, panelen } = verbruikers(invoer);
+  const { lijst: alle, kwp: kwp3d, panelen } = verbruikers(invoer);
+  // De zonnepanelen: zoals bij Uitgangspunten, anders zoals op het dak in 3D.
+  const kwp = instellingen.zonnepanelen ?? kwp3d;
+  // Een hybride omvormer neemt de thuisbatterij mee: die krijgt geen eigen kring.
+  const hybride = instellingen.batterij === "hybride" && kwp > 0;
+  const lijst = hybride ? alle.filter((v) => v.kring !== "batterij") : alle;
+  // De laadpaal: zoals bij Uitgangspunten, en eenfasig hoogstens 7,4 kW.
+  const laadkw: Laadvermogen = instellingen.fasen === 1 ? 7.4 : (instellingen.laadpaal ?? 11);
+  const metDomotica = instellingen.domotica !== "geen";
   const opmerkingen: string[] = [];
   const afstandTotKast = (p: Plek) => (kastplek ? (kabelafstand(kastplek, p, verdiepingen) ?? 1e6) : 0);
 
@@ -668,6 +753,8 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
     naam: string;
     leden: Verbruiker[];
     sorteer: number;
+    /** Staat bij Uitgangspunten, maar nog niet op het plan of in 3D: de kabel is niet te schatten. */
+    zonderPlaats?: boolean;
   }
   const ontwerpen: Ontwerp[] = [];
   const meer = lijst.filter((v) => KRINGREGELS[v.kring].max !== null);
@@ -728,9 +815,37 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
       for (const o of ontwerpen) if (o.soort === soort && KRINGREGELS[soort].max === null) o.naam = `${KRINGNAMEN[soort]} ${++i}`;
     }
   }
+  // Wat bij Uitgangspunten staat maar nog niet op het plan of in 3D: een kring zonder plaats.
+  const heeft = (soort: Kringsoort) => lijst.some((v) => v.kring === soort);
+  const zonderPlaats = (soort: Kringsoort) => ontwerpen.push({ soort, naam: KRINGNAMEN[soort], leden: [], sorteer: 99, zonderPlaats: true });
+  if (instellingen.laadpaal !== null && !heeft("laadpaal")) zonderPlaats("laadpaal");
+  if (kwp > 0 && !heeft("omvormer")) zonderPlaats("omvormer");
+  if (instellingen.batterij !== null && !hybride && !heeft("batterij")) zonderPlaats("batterij");
+  // Een laadpaal heet naar zijn vermogen.
+  for (const o of ontwerpen) if (o.soort === "laadpaal") o.naam = o.naam.replace(KRINGNAMEN.laadpaal, `${KRINGNAMEN.laadpaal} ${komma(laadkw)} kW`);
+
   // De kasten zelf: de domoticakast en de netwerkkast krijgen hun eigen kring.
-  const netwerk = netwerkVan(invoer, lijst, netwerkplaats, verdiepingen, instellingen.domotica);
-  if (instellingen.domotica) ontwerpen.push({ soort: "domotica", naam: KRINGNAMEN.domotica, leden: [], sorteer: 0 });
+  const domotica = metDomotica ? domoticaVan(invoer, domoticaplaats, verdiepingen, instellingen.domotica === "knx" ? "knx" : "ander") : null;
+  const extra: Netwerkpoort[] = [];
+  // Toestellen op het netwerk: een poort per laadpaal, omvormer en batterij, en één voor de warmtepomp en voor de ventilatie.
+  const eenmaal = new Set<Kringsoort>();
+  for (const o of ontwerpen) {
+    if (!NETWERKKRINGEN.has(o.soort) || ((o.soort === "warmtepomp" || o.soort === "ventilatie") && eenmaal.has(o.soort))) continue;
+    eenmaal.add(o.soort);
+    extra.push({ wat: TOESTELPOORTEN, aantal: 1, plek: o.leden[0] ?? null });
+  }
+  if (domotica?.knx) {
+    extra.push({ wat: "KNX IP-router", aantal: domotica.knx.lijnen, plek: plekVan(domoticaplaats) });
+    extra.push({ wat: "Home Assistant (mini-pc of Home Assistant Green)", aantal: 1, plek: null });
+  } else if (domotica) {
+    extra.push({ wat: "Domoticakast", aantal: 1, plek: plekVan(domoticaplaats) });
+  }
+  // De P1-poort van de digitale meter: voor Home Assistant, en om de laadpaal of de zonnepanelen te sturen.
+  if (instellingen.domotica === "knx" || heeft("laadpaal") || instellingen.laadpaal !== null || kwp > 0) {
+    extra.push({ wat: "Digitale meter (P1-poort)", aantal: 1, plek: plekVan(kastBijInrichten(invoer, "meterkast") ?? kast) });
+  }
+  const netwerk = netwerkVan(invoer, netwerkplaats, verdiepingen, extra);
+  if (domotica) ontwerpen.push({ soort: "domotica", naam: KRINGNAMEN.domotica, leden: [], sorteer: 0 });
   if (netwerk.totaal > 0) ontwerpen.push({ soort: "netwerk", naam: KRINGNAMEN.netwerk, leden: [], sorteer: 0 });
 
   // De volgorde: eerst wat op de algemene differentieel staat, dan de 30 mA, dan de laadpaal.
@@ -768,7 +883,7 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
       naam: o.naam,
       gevoeligheid: 30,
       type: "A of B",
-      polen: instellingen.fasen === 3 ? "4P" : "2P",
+      polen: laadpaalVoor(laadkw, instellingen.fasen).beveiliging.polen === "3P+N" ? "4P" : "2P",
       ampere: 40,
     });
   }
@@ -776,8 +891,9 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
   const kringen: Kring[] = ontwerpen.map((o, i) => {
     const letter = kringletter(i);
     const regel = KRINGREGELS[o.soort];
-    const { beveiliging, kabel } = o.soort === "omvormer" ? omvormerVoor(kwp, instellingen.fasen) : regel.bij(instellingen.fasen);
-    const ster = instellingen.domotica && (o.soort === "verlichting" || o.soort === "rolluiken");
+    const { beveiliging, kabel } =
+      o.soort === "omvormer" ? omvormerVoor(kwp, instellingen.fasen) : o.soort === "laadpaal" ? laadpaalVoor(laadkw, instellingen.fasen) : regel.bij(instellingen.fasen);
+    const ster = metDomotica && (o.soort === "verlichting" || o.soort === "rolluiken");
     // Met domotica vertrekt elke lichtgroep en elk rolluik uit de domoticakast.
     const vanaf = ster ? plekVan(domoticaplaats) : kastplek;
     const { volgorde, lengte } = doorlussen(vanaf, o.leden, verdiepingen);
@@ -794,17 +910,26 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
       y: v.y,
       nummer: `${letter}${j + 1}`,
     }));
-    const kabellengte = o.leden.length === 0 ? (kastplek ? 3 : null) : ster ? sterlengte(vanaf, o.leden, verdiepingen) : lengte;
+    const kabellengte = o.zonderPlaats ? null : o.leden.length === 0 ? (kastplek ? 3 : null) : ster ? sterlengte(vanaf, o.leden, verdiepingen) : lengte;
+    const knx = instellingen.domotica === "knx";
     const opmerking =
-      o.soort === "laadpaal"
-        ? "Een eigen differentieel van 30 mA: type A als de laadpaal zelf 6 mA gelijkstroom ziet, anders type B."
-        : o.soort === "koeling"
-          ? "Niet achter de 30 mA: zo blijft de diepvries draaien als die uitvalt."
-          : o.soort === "omvormer" && kwp > 0
-            ? `${panelen} panelen, ${String(kwp).replace(".", ",")} kWp.${instellingen.fasen === 1 && kwp > 4.6 ? " Eenfasig mag een omvormer hoogstens 5 kVA leveren: driefasig is beter." : ""}`
-            : ster
-              ? `Domotica: een kabel per ${o.soort === "rolluiken" ? "motor (4G1,5)" : "lichtgroep"}, recht naar de domoticakast.`
-              : null;
+      [
+        o.soort === "laadpaal" ? "Een eigen differentieel van 30 mA: type A als de laadpaal zelf 6 mA gelijkstroom ziet, anders type B." : null,
+        o.soort === "koeling" ? "Niet achter de 30 mA: zo blijft de diepvries draaien als die uitvalt." : null,
+        o.soort === "omvormer" && kwp > 0
+          ? `${panelen > 0 && instellingen.zonnepanelen === null ? `${panelen} panelen, ` : ""}${komma(kwp)} kWp.` +
+            (hybride ? " Hybride: de thuisbatterij hangt aan de omvormer, op gelijkstroom." : "") +
+            (instellingen.fasen === 1 && kwp > 4.6 ? " Eenfasig mag een omvormer hoogstens 5 kVA leveren: driefasig is beter." : "")
+          : null,
+        ster && knx
+          ? `KNX: een kabel per ${o.soort === "rolluiken" ? "motor (4G1,5), naar de jaloezieactor" : "lichtgroep, naar de schakel- of dimactor"} in de domoticakast.`
+          : ster
+            ? `Domotica: een kabel per ${o.soort === "rolluiken" ? "motor (4G1,5)" : "lichtgroep"}, recht naar de domoticakast.`
+            : null,
+        o.zonderPlaats ? "Nog niet op het plan of in 3D: zet het erop, dan rekent de app de kabel." : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || null;
     return {
       letter,
       soort: o.soort,
@@ -826,12 +951,38 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
       `Punten in een ander gebouw dan de verdeelkast (${[...anderGebouw].map((id) => verdiepingVan(id)?.naam).join(", ")}): daar komt meestal een eigen verdeelbord, met een voedingskabel vanuit de woning. De kabel erheen schat de app niet.`,
     );
   }
-  if (instellingen.fasen === 1 && lijst.some((v) => v.kring === "laadpaal" || v.kring === "warmtepomp")) {
+  const metLaadpaal = kringen.some((k) => k.soort === "laadpaal");
+  if (instellingen.fasen === 1 && (metLaadpaal || kringen.some((k) => k.soort === "warmtepomp"))) {
     opmerkingen.push("Met een laadpaal of een warmtepomp is een driefasige aansluiting (3N400 V) beter: zo verdeelt de belasting zich.");
+  }
+  if (metLaadpaal) {
+    if (instellingen.fasen === 1 && instellingen.laadpaal !== null && instellingen.laadpaal > 7.4) {
+      opmerkingen.push(`Een laadpaal van ${komma(instellingen.laadpaal)} kW vraagt drie fasen: op één fase laadt hij hoogstens 7,4 kW.`);
+    }
+    const laadstroom = laadpaalVoor(laadkw, instellingen.fasen).beveiliging.ampere;
+    if (laadstroom >= instellingen.stroom) {
+      opmerkingen.push(
+        `De laadpaal vraagt ${laadstroom} A, evenveel als of meer dan de aansluiting van ${instellingen.stroom} A: vraag een grotere aansluiting aan, of laat de laadpaal trager laden.`,
+      );
+    } else if (laadstroom > instellingen.stroom * 0.6) {
+      opmerkingen.push(
+        `De laadpaal neemt ${laadstroom} van de ${instellingen.stroom} A van de aansluiting: laat hem sturen op wat de digitale meter meet, zodat de hoofdschakelaar niet afslaat als ook de kookplaat en de warmtepomp draaien.`,
+      );
+    }
+    opmerkingen.push(
+      `Met het capaciteitstarief betaal je voor je hoogste kwartierpiek van de maand: laat ${instellingen.domotica === "knx" ? "Home Assistant" : "de laadpaal of een energiebeheerder"} het laden sturen op de P1-poort van de digitale meter.`,
+    );
+  }
+  if (domotica?.knx && domotica.knx.lijnen > 1) {
+    opmerkingen.push(
+      `${domotica.knx.toestellen} KNX-toestellen, meer dan ${KNX_PER_LIJN} op één lijn: de app rekent met ${domotica.knx.lijnen} lijnen, elk met een voeding en een IP-router.`,
+    );
+  }
+  if (domotica?.knx?.buskabel && domotica.knx.buskabel / domotica.knx.lijnen > 1000) {
+    opmerkingen.push("Meer dan 1000 m buskabel op één lijn: verdeel de toestellen over meer lijnen.");
   }
 
   const verdeelkast = verdeelkastVan(kringen, differentielen, instellingen);
-  const domotica = instellingen.domotica ? domoticaVan(invoer, domoticaplaats, verdiepingen) : null;
 
   // De kabels per soort: van de kringen, de domotica (drukknoppen en melders) en het netwerk.
   const perSoort = new Map<string, number>();
@@ -851,7 +1002,7 @@ export function maakVoorstel(invoer: Techniekinvoer, instellingen: Techniekinste
     domotica,
     netwerk,
     kabels: [...perSoort].map(([soort, lengte]) => ({ soort, lengte })).sort((a, b) => a.soort.localeCompare(b.soort, "nl")),
-    zonnepanelen: panelen > 0 ? { panelen, kwp } : null,
+    zonnepanelen: kwp > 0 ? { panelen, kwp } : null,
     opmerkingen,
   };
 }
@@ -876,11 +1027,11 @@ function verdeelkastVan(kringen: readonly Kring[], differentielen: readonly Diff
   return kastVan([
     { wat: `Algemene schakelaar met differentieel 300 mA type A, ${differentielen[0].polen} ${differentielen[0].ampere} A`, aantal: 1, breedte: vier ? 4 : 2 },
     { wat: "Differentieel 30 mA type A, 2P 40 A", aantal: differentielen.filter((d) => d.nummer > 0 && d.type === "A").length, breedte: 2 },
-    {
-      wat: `Differentieel 30 mA voor de laadpaal, ${vier ? "4P" : "2P"} 40 A`,
-      aantal: differentielen.filter((d) => d.type === "A of B").length,
-      breedte: vier ? 4 : 2,
-    },
+    ...(["4P", "2P"] as const).map((polen) => ({
+      wat: `Differentieel 30 mA voor de laadpaal, ${polen} 40 A`,
+      aantal: differentielen.filter((d) => d.type === "A of B" && d.polen === polen).length,
+      breedte: polen === "4P" ? 4 : 2,
+    })),
     { wat: "Automaat 1P+N", aantal: automaten("1P+N"), breedte: 1 },
     { wat: "Automaat 3P+N", aantal: automaten("3P+N"), breedte: 4 },
     { wat: `Overspanningsbeveiliging, ${vier ? "4P" : "2P"}`, aantal: 1, breedte: vier ? 4 : 2 },
@@ -888,13 +1039,35 @@ function verdeelkastVan(kringen: readonly Kring[], differentielen: readonly Diff
 }
 
 const LICHT = new Set(["lichtpunt", "wandlicht", "inbouwspot", "buitenlicht"]);
-const MELDERS = new Set(["aanwezigheid", "temperatuur", "co2", "waterlek", "thermostaat", "deurbel"]);
+/** Melders die bij KNX op de bus zitten. Een waterlekmelder en een deurbel komen op een binaire ingang. */
+const BUSMELDERS = new Set(["aanwezigheid", "temperatuur", "co2", "thermostaat"]);
+const MELDERS = new Set([...BUSMELDERS, "waterlek", "deurbel"]);
 const KNOPPEN = new Set(["drukknop", "schakelaar", "dimmer", "zonwering_bediening"]);
 
-function domoticaVan(invoer: Techniekinvoer, plaats: Kastplaats | null, verdiepingen: readonly Techniekverdieping[]): Domotica {
+/** Hoeveel toestellen een KNX-lijn hoogstens heeft, met haar IP-router. */
+export const KNX_PER_LIJN = 64;
+
+/** De buskabel van KNX, groen, doorgelust van toestel tot toestel. */
+export const KNX_BUSKABEL = "KNX-buskabel EIB-Y(St)Y 2×2×0,8";
+
+/**
+ * De domotica, per ruimte: de uitgangen (een relais of een dimmer per
+ * lichtgroep, een ledsturing per ledstrip, een motoruitgang per rolluik) en
+ * de ingangen (drukknoppen en melders).
+ * - KNX: de drukknoppen en de meeste melders zitten op de buskabel, van
+ *   toestel tot toestel; de actoren zitten in de kast, met de modules van
+ *   gewone KNX-actoren. Een IP-router per lijn koppelt Home Assistant.
+ * - Een ander systeem: een ruwe schatting los van het merk, met een kabel per
+ *   ingang naar de kast.
+ */
+function domoticaVan(invoer: Techniekinvoer, plaats: Kastplaats | null, verdiepingen: readonly Techniekverdieping[], systeem: "knx" | "ander"): Domotica {
   const kastplek = plekVan(plaats);
   const perRuimte: Domotica["perRuimte"] = [];
-  const kabels: { soort: "XVB 3G1,5" | "XVB 4G1,5" | "UTP of buskabel"; plek: Plek }[] = [];
+  const uitgangen: { soort: "XVB 3G1,5" | "XVB 4G1,5"; plek: Plek }[] = [];
+  // Een ander systeem: een kabel per drukknop en per melder. KNX: een toestel op de bus, of een contact op een binaire ingang.
+  const ingangen: Plek[] = [];
+  const bus: Plek[] = [];
+  const binair: Plek[] = [];
   for (const v of verdiepingen) {
     const perId = new Map<number | null, Punt[]>();
     for (const p of invoer.punten.filter((punt) => punt.verdieping_id === v.id)) {
@@ -911,17 +1084,24 @@ function domoticaVan(invoer: Techniekinvoer, plaats: Kastplaats | null, verdiepi
           // Een lichtpunt is één uitgang, ook met meer lampen: die gaan samen aan.
           if (dimbaar && p.soort !== "buitenlicht") r.dimmers++;
           else r.relais++;
-          kabels.push({ soort: "XVB 3G1,5", plek: plek(p) });
+          uitgangen.push({ soort: "XVB 3G1,5", plek: plek(p) });
         } else if (p.soort === "ledstrip") {
           r.led++;
-          kabels.push({ soort: "XVB 3G1,5", plek: plek(p) });
+          uitgangen.push({ soort: "XVB 3G1,5", plek: plek(p) });
         } else if (p.soort === "rolluik") {
           r.motoren += p.aantal;
-          for (let i = 0; i < p.aantal; i++) kabels.push({ soort: "XVB 4G1,5", plek: plek(p) });
-        } else if (KNOPPEN.has(p.soort) || MELDERS.has(p.soort)) {
-          if (KNOPPEN.has(p.soort)) r.drukknoppen += p.aantal;
-          else r.melders += p.aantal;
-          kabels.push({ soort: "UTP of buskabel", plek: plek(p) });
+          for (let i = 0; i < p.aantal; i++) uitgangen.push({ soort: "XVB 4G1,5", plek: plek(p) });
+        } else if (KNOPPEN.has(p.soort)) {
+          r.drukknoppen += p.aantal;
+          // Bij KNX is een drukknop met meer knoppen op één plaats één toestel.
+          bus.push(plek(p));
+          for (let i = 0; i < p.aantal; i++) ingangen.push(plek(p));
+        } else if (MELDERS.has(p.soort)) {
+          r.melders += p.aantal;
+          for (let i = 0; i < p.aantal; i++) {
+            (BUSMELDERS.has(p.soort) ? bus : binair).push(plek(p));
+            ingangen.push(plek(p));
+          }
         }
       }
       // De spots van een ruimte gaan samen aan: één uitgang.
@@ -929,36 +1109,67 @@ function domoticaVan(invoer: Techniekinvoer, plaats: Kastplaats | null, verdiepi
       if (spots.length > 0) {
         if (dimbaar) r.dimmers++;
         else r.relais++;
-        kabels.push({ soort: "XVB 3G1,5", plek: plek(spots[0]) });
+        uitgangen.push({ soort: "XVB 3G1,5", plek: plek(spots[0]) });
       }
       if (r.relais + r.dimmers + r.led + r.motoren + r.drukknoppen + r.melders > 0) perRuimte.push(r);
     }
   }
   const som = (veld: "relais" | "dimmers" | "led" | "motoren" | "drukknoppen" | "melders") => perRuimte.reduce((s, r) => s + r[veld], 0);
   const [relais, dimmers, led, motoren, drukknoppen, melders] = [som("relais"), som("dimmers"), som("led"), som("motoren"), som("drukknoppen"), som("melders")];
+  const uitgangkabels = (["XVB 3G1,5", "XVB 4G1,5"] as const).flatMap((soort) => {
+    const eigen = uitgangen.filter((k) => k.soort === soort);
+    return eigen.length > 0 ? [{ soort, aantal: eigen.length, lengte: sterlengte(kastplek, eigen.map((k) => k.plek), verdiepingen) }] : [];
+  });
+  const basis = { plaats, relais, dimmers, led, motoren, drukknoppen, melders, perRuimte };
+
+  if (systeem === "knx") {
+    // De modules van gewone KNX-actoren op een DIN-rail: ze verschillen wat per merk.
+    const actoren = {
+      schakel: Math.ceil(relais / 12),
+      dim: Math.ceil(dimmers / 4),
+      led: Math.ceil(led / 4),
+      jaloezie: Math.ceil(motoren / 8),
+      binair: Math.ceil(binair.length / 4),
+    };
+    const zonderRouters = bus.length + actoren.schakel + actoren.dim + actoren.led + actoren.jaloezie + actoren.binair;
+    const lijnen = Math.max(1, Math.ceil(zonderRouters / (KNX_PER_LIJN - 1)));
+    const buskabel = bus.length > 0 ? doorlussen(kastplek, bus, verdiepingen).lengte : null;
+    return {
+      systeem,
+      ...basis,
+      knx: { toestellen: zonderRouters + lijnen, lijnen, buskabel },
+      kast: kastVan([
+        { wat: "KNX-voeding 640 mA, met smoorspoel", aantal: lijnen, breedte: 4 },
+        { wat: "KNX IP-router, naar Home Assistant", aantal: lijnen, breedte: 2 },
+        { wat: "Schakelactor 12 kanalen, 16 A", aantal: actoren.schakel, breedte: 8 },
+        { wat: "Dimactor 4 kanalen, universeel", aantal: actoren.dim, breedte: 4 },
+        { wat: "Led-dimactor 4 kanalen, 24 V", aantal: actoren.led, breedte: 4 },
+        { wat: "Voeding 24 V voor de ledstrips", aantal: actoren.led, breedte: 4 },
+        { wat: "Jaloezieactor 8 kanalen, 230 V", aantal: actoren.jaloezie, breedte: 8 },
+        { wat: "Binaire ingang 4 kanalen", aantal: actoren.binair, breedte: 2 },
+      ]),
+      kabels: [
+        ...uitgangkabels,
+        ...(bus.length > 0 ? [{ soort: KNX_BUSKABEL, aantal: bus.length, lengte: buskabel }] : []),
+        ...(binair.length > 0 ? [{ soort: "Signaalkabel naar een binaire ingang", aantal: binair.length, lengte: sterlengte(kastplek, binair, verdiepingen) }] : []),
+      ],
+    };
+  }
+
   // Een ruwe schatting: elk systeem heeft zijn eigen modules.
-  const kast = kastVan([
-    { wat: "Sturing, voeding en netwerk", aantal: 1, breedte: 10 },
-    { wat: "Schakelactor, 8 uitgangen", aantal: Math.ceil(relais / 8), breedte: 4 },
-    { wat: "Dimactor, 4 kanalen", aantal: Math.ceil(dimmers / 4), breedte: 4 },
-    { wat: "Ledsturing, 4 kanalen", aantal: Math.ceil(led / 4), breedte: 4 },
-    { wat: "Rolluikactor, 4 motoren", aantal: Math.ceil(motoren / 4), breedte: 4 },
-    { wat: "Ingangen, 8 per module", aantal: Math.ceil((drukknoppen + melders) / 8), breedte: 4 },
-  ]);
   return {
-    plaats,
-    relais,
-    dimmers,
-    led,
-    motoren,
-    drukknoppen,
-    melders,
-    perRuimte,
-    kast,
-    kabels: (["XVB 3G1,5", "XVB 4G1,5", "UTP of buskabel"] as const).flatMap((soort) => {
-      const eigen = kabels.filter((k) => k.soort === soort);
-      return eigen.length > 0 ? [{ soort, aantal: eigen.length, lengte: sterlengte(kastplek, eigen.map((k) => k.plek), verdiepingen) }] : [];
-    }),
+    systeem,
+    ...basis,
+    knx: null,
+    kast: kastVan([
+      { wat: "Sturing, voeding en netwerk", aantal: 1, breedte: 10 },
+      { wat: "Schakelactor, 8 uitgangen", aantal: Math.ceil(relais / 8), breedte: 4 },
+      { wat: "Dimactor, 4 kanalen", aantal: Math.ceil(dimmers / 4), breedte: 4 },
+      { wat: "Ledsturing, 4 kanalen", aantal: Math.ceil(led / 4), breedte: 4 },
+      { wat: "Rolluikactor, 4 motoren", aantal: Math.ceil(motoren / 4), breedte: 4 },
+      { wat: "Ingangen, 8 per module", aantal: Math.ceil((drukknoppen + melders) / 8), breedte: 4 },
+    ]),
+    kabels: [...uitgangkabels, ...(ingangen.length > 0 ? [{ soort: "UTP of buskabel", aantal: ingangen.length, lengte: sterlengte(kastplek, ingangen, verdiepingen) }] : [])],
   };
 }
 
@@ -971,15 +1182,16 @@ const NETWERKPUNTEN: Record<string, { wat: string; poe: boolean }> = {
   deurbel: { wat: "Deurbel of parlofoon", poe: true },
 };
 
-const NETWERKTOESTELLEN: Record<string, string> = {
-  laadpaal: "Laadpaal",
-  wallbox: "Laadpaal",
-  omvormer: "Omvormer",
-  thuisbatterij: "Thuisbatterij",
-  warmtepomp_binnen: "Warmtepomp",
-  warmtepomp_buiten: "Warmtepomp",
-  ventilatie: "Ventilatie",
-};
+/** Een poort op de netwerkkast die niet van een punt komt: een toestel, de domotica, Home Assistant, de digitale meter. */
+interface Netwerkpoort {
+  wat: string;
+  aantal: number;
+  /** Waar de kabel naartoe loopt; null: in de kast zelf, of nog niet op het plan. */
+  plek: Plek | null;
+}
+
+/** De kringen waarvan het toestel een netwerkkabel krijgt. */
+const NETWERKKRINGEN = new Set<Kringsoort>(["laadpaal", "omvormer", "batterij", "warmtepomp", "ventilatie"]);
 
 /** De regel van de toestellen bij de poorten van de netwerkkast. */
 const TOESTELPOORTEN = "Toestellen: laadpaal, omvormer, batterij, warmtepomp, ventilatie";
@@ -987,13 +1199,7 @@ const TOESTELPOORTEN = "Toestellen: laadpaal, omvormer, batterij, warmtepomp, ve
 /** De gewone hoogtes van een netwerkkast aan de muur, in rackeenheden. */
 const RACKHOOGTES = [6, 9, 12, 15, 18, 22];
 
-function netwerkVan(
-  invoer: Techniekinvoer,
-  verbruikers: readonly Verbruiker[],
-  plaats: Kastplaats | null,
-  verdiepingen: readonly Techniekverdieping[],
-  domotica: boolean,
-): Netwerk {
+function netwerkVan(invoer: Techniekinvoer, plaats: Kastplaats | null, verdiepingen: readonly Techniekverdieping[], extra: readonly Netwerkpoort[]): Netwerk {
   const kastplek = plekVan(plaats);
   const poorten = new Map<string, { wat: string; aantal: number; poe: boolean }>();
   const perRuimte = new Map<string, Netwerk["perRuimte"][number]>();
@@ -1019,19 +1225,7 @@ function netwerkVan(
       voeg(soort.wat, soort.poe, p.aantal, { verdiepingId: v.id, x: p.x_m, y: p.y_m }, { verdieping: v.naam, ruimte });
     }
   }
-  // Toestellen met een netwerkaansluiting: één kabel per toestel, de warmtepomp één keer. Een laadpunt op het plan gaat voor een laadpaal bij Inrichten.
-  const gezien = new Set<string>();
-  const laadpunten = verbruikers.some((v) => v.bron === "punt" && v.kring === "laadpaal");
-  for (const stuk of invoer.stukken) {
-    const wat = NETWERKTOESTELLEN[stuk.soort];
-    if (!wat || (wat !== "Laadpaal" && gezien.has(wat)) || (wat === "Laadpaal" && laadpunten)) continue;
-    gezien.add(wat);
-    voeg(TOESTELPOORTEN, false, 1, { verdiepingId: stuk.verdiepingId, x: stuk.x, y: stuk.y }, null);
-  }
-  for (const v of verbruikers) {
-    if (v.bron === "punt" && v.kring === "laadpaal") voeg(TOESTELPOORTEN, false, 1, v, null);
-  }
-  if (domotica) voeg("Domoticakast", false, 1, null, null);
+  for (const poort of extra) voeg(poort.wat, false, poort.aantal, poort.plek, null);
   const lijst = [...poorten.values()];
   const totaal = lijst.reduce((s, p) => s + p.aantal, 0);
   const poe = lijst.filter((p) => p.poe).reduce((s, p) => s + p.aantal, 0);

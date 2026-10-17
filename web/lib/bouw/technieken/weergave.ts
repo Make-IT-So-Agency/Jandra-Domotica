@@ -1,4 +1,19 @@
-import { STROMEN, kva, type Beveiliging, type Differentieel, type Domotica, type Kastplaats, type Kring, type Netwerk, type Techniekinstellingen } from "./voorstel";
+import {
+  KNX_BUSKABEL,
+  LAADVERMOGENS,
+  STROMEN,
+  kva,
+  type Batterij,
+  type Beveiliging,
+  type Differentieel,
+  type Domotica,
+  type Domoticasysteem,
+  type Kastplaats,
+  type Kring,
+  type Laadvermogen,
+  type Netwerk,
+  type Techniekinstellingen,
+} from "./voorstel";
 
 /**
  * Hoe het voorstel voor de technieken er in woorden uitziet: op de pagina en
@@ -69,6 +84,22 @@ export function domoticaTekst(d: Pick<Domotica, "relais" | "dimmers" | "led" | "
   return `${uitgangen || "geen uitgangen"}; ${ingangen || "geen drukknoppen of melders"}`;
 }
 
+/** De KNX-installatie in één zin: hoeveel toestellen, op hoeveel lijnen, en hoe Home Assistant eraan hangt. */
+export function knxTekst(knx: NonNullable<Domotica["knx"]>): string {
+  return (
+    `${telwoord(knx.toestellen, "KNX-toestel", "KNX-toestellen")} op ${telwoord(knx.lijnen, "lijn", "lijnen")}: ` +
+    "de drukknoppen en de melders op de groene buskabel, doorgelust van toestel tot toestel (geen ring), de actoren in de domoticakast, " +
+    `en Home Assistant via ${knx.lijnen === 1 ? "de IP-router" : "de IP-routers"}.`
+  );
+}
+
+/** Een kabel naar de domoticakast: "12 × XVB 3G1,5 (± 140 m)", of de buskabel langs haar toestellen. */
+export function domoticakabelTekst(k: { soort: string; aantal: number; lengte: number | null }): string {
+  return k.soort === KNX_BUSKABEL
+    ? `de ${KNX_BUSKABEL}, doorgelust langs ${telwoord(k.aantal, "toestel", "toestellen")} (${meters(k.lengte)})`
+    : `${k.aantal} × ${k.soort} (${meters(k.lengte)})`;
+}
+
 /** Wat er in de netwerkkast komt, en hoeveel kabel: onder de tabel van de poorten. */
 export function netwerkTekst(n: Pick<Netwerk, "patchpanelen" | "switchpoorten" | "poe" | "hoogte" | "kabellengte" | "telang">): string {
   const poe = n.poe > 0 ? ` met minstens ${n.poe} PoE-poorten (wifi, camera's, deurbel)` : "";
@@ -79,7 +110,8 @@ export function netwerkTekst(n: Pick<Netwerk, "patchpanelen" | "switchpoorten" |
   );
 }
 
-const komma = (getal: number) => String(getal).replace(".", ",");
+/** Een getal met een komma, zoals op het scherm: "9,6". */
+export const komma = (getal: number) => String(getal).replace(".", ",");
 
 /** De aansluitingen om uit te kiezen: "3x25" is drie fasen van 25 A. */
 export function aansluitingen(): { waarde: string; naam: string }[] {
@@ -93,6 +125,36 @@ export function aansluitingen(): { waarde: string; naam: string }[] {
 
 export const aansluitingTekst = (i: Pick<Techniekinstellingen, "fasen" | "stroom">) =>
   `${i.fasen === 1 ? "Eén fase, 230 V" : "Drie fasen, 3N400 V"}, ${i.stroom} A (${komma(kva(i))} kVA)`;
+
+export const DOMOTICANAMEN: Record<Domoticasysteem, string> = {
+  geen: "Geen domotica",
+  knx: "KNX met Home Assistant",
+  ander: "Ander systeem (los van het merk)",
+};
+
+export const laadpaalTekst = (kw: Laadvermogen) =>
+  `${komma(kw)} kW: ${kw === 7.4 ? "één fase van 32 A" : kw === 11 ? "drie fasen van 16 A" : "drie fasen van 32 A"}`;
+
+/** De laadpalen om uit te kiezen; "" is geen. */
+export function laadpalen(): { waarde: string; naam: string }[] {
+  return [{ waarde: "", naam: "Geen laadpaal" }, ...LAADVERMOGENS.map((kw) => ({ waarde: String(kw), naam: laadpaalTekst(kw) }))];
+}
+
+export const BATTERIJNAMEN: Record<Batterij, string> = {
+  hybride: "Hybride: aan de omvormer van de panelen",
+  eigen: "Met een eigen omvormer",
+};
+
+/** De uitgangspunten in woorden, een regel per onderwerp: voor de PDF. */
+export function uitgangspunten(i: Techniekinstellingen): string[] {
+  return [
+    `Aansluiting: ${aansluitingTekst(i)}.`,
+    `Domotica: ${i.domotica === "geen" ? "geen" : i.domotica === "knx" ? "KNX met Home Assistant" : "een ander systeem, los van het merk"}.`,
+    `Laadpaal: ${i.laadpaal === null ? "geen, of zoals op het plan" : laadpaalTekst(i.laadpaal)}.`,
+    `Zonnepanelen: ${i.zonnepanelen === null ? "geen, of zoals op het dak in 3D" : `${komma(i.zonnepanelen)} kWp`}.`,
+    `Thuisbatterij: ${i.batterij === null ? "geen, of zoals in 3D" : BATTERIJNAMEN[i.batterij].toLowerCase()}.`,
+  ];
+}
 
 /** Waar een kast staat, in woorden: "Berging (woning · gelijkvloers): waar de verdeelkast bij Inrichten staat." */
 export function plaatsTekst(plaats: Kastplaats | null, verdiepingen: readonly { id: number; naam: string }[]): string {

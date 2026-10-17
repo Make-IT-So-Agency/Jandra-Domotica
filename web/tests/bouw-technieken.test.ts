@@ -5,6 +5,7 @@ import type { Xy } from "@/lib/bouw/omzetting/types";
 import type { Punt } from "@/lib/bouw/punten";
 import { eendraadschema, naamplek, regels, situatieschema, type Tekenstuk } from "@/lib/bouw/technieken/schema";
 import {
+  KNX_BUSKABEL,
   kastplaatsVan,
   kringletter,
   kva,
@@ -13,6 +14,7 @@ import {
   standaardInstellingen,
   toestelVan,
   type Kring,
+  type Techniekinstellingen,
   type Techniekinvoer,
 } from "@/lib/bouw/technieken/voorstel";
 import { domoticaTekst, netwerkTekst, plaatsTekst, ruimtesTekst } from "@/lib/bouw/technieken/weergave";
@@ -56,6 +58,9 @@ const stuk = (verdieping: number, soort: string, x: number, y: number, over: Par
   ...over,
 });
 const reeks = (n: number, maak: (i: number) => Punt) => Array.from({ length: n }, (_, i) => maak(i));
+
+/** Drie fasen van 25 A, domotica los van het merk, en enkel wat op het plan staat. */
+const ANDER: Techniekinstellingen = { fasen: 3, stroom: 25, domotica: "ander", laadpaal: null, zonnepanelen: null, batterij: null };
 
 // Een verzonnen huis: beneden een leefruimte, een keuken en een technische ruimte, boven een slaapkamer en een badkamer.
 function huis(): Techniekinvoer {
@@ -127,17 +132,34 @@ function huis(): Techniekinvoer {
 describe("de instellingen", () => {
   it("kiest driefasig met een laadpaal of warmtepomp, en domotica met drukknoppen", () => {
     const { punten, stukken } = huis();
-    expect(standaardInstellingen(punten, stukken)).toEqual({ fasen: 3, stroom: 25, domotica: true });
-    expect(standaardInstellingen([{ soort: "stopcontact" }], [])).toEqual({ fasen: 1, stroom: 40, domotica: false });
+    // Een laadpunt en een warmtepomp, drukknoppen, en panelen op het dak.
+    expect(standaardInstellingen(punten, stukken)).toEqual({ fasen: 3, stroom: 25, domotica: "knx", laadpaal: 11, zonnepanelen: 3.44, batterij: null });
+    expect(standaardInstellingen([{ soort: "stopcontact" }], [])).toEqual({ fasen: 1, stroom: 40, domotica: "geen", laadpaal: null, zonnepanelen: null, batterij: null });
+    const batterij = [{ soort: "thuisbatterij", breedte: 0.75, diepte: 0.2 }];
+    expect(standaardInstellingen([], batterij).batterij).toBe("eigen");
+    expect(standaardInstellingen([], [...batterij, ...stukken]).batterij).toBe("hybride");
     expect(kva({ fasen: 3, stroom: 25 })).toBeCloseTo(17.3);
     expect(kva({ fasen: 1, stroom: 40 })).toBeCloseTo(9.2);
   });
 
   it("weigert wat niet kan", () => {
-    expect(schoneInstellingen({ fasen: 3, stroom: 25, domotica: false })).toEqual({ fasen: 3, stroom: 25, domotica: false });
-    expect(schoneInstellingen({ fasen: 1, stroom: 25, domotica: false })).toBeNull();
-    expect(schoneInstellingen({ fasen: 2, stroom: 40, domotica: false })).toBeNull();
-    expect(schoneInstellingen({ fasen: 1, stroom: 40, domotica: "ja" })).toBeNull();
+    const goed = { fasen: 3, stroom: 40, domotica: "knx", laadpaal: 22, zonnepanelen: 9.6, batterij: "hybride" };
+    expect(schoneInstellingen(goed)).toEqual(goed);
+    // Wat ontbreekt, is er niet.
+    expect(schoneInstellingen({ fasen: 3, stroom: 25, domotica: "geen" })).toEqual({ ...ANDER, domotica: "geen" });
+    expect(schoneInstellingen({ ...goed, zonnepanelen: 9.6049 })?.zonnepanelen).toBe(9.6);
+    for (const fout of [
+      { ...goed, fasen: 2 },
+      { ...goed, fasen: 1, stroom: 25 },
+      { ...goed, domotica: true },
+      { ...goed, laadpaal: 15 },
+      { ...goed, zonnepanelen: 0 },
+      { ...goed, zonnepanelen: 250 },
+      { ...goed, zonnepanelen: "9,6" },
+      { ...goed, batterij: "ja" },
+    ]) {
+      expect(schoneInstellingen(fout), JSON.stringify(fout)).toBeNull();
+    }
     expect(schoneInstellingen(null)).toBeNull();
   });
 
@@ -169,7 +191,7 @@ describe("waar de kasten komen", () => {
 });
 
 describe("het voorstel", () => {
-  const voorstel = maakVoorstel(huis(), { fasen: 3, stroom: 25, domotica: true });
+  const voorstel = maakVoorstel(huis(), ANDER);
   const kring = (naam: string) => voorstel.kringen.find((k) => k.naam === naam);
 
   it("verdeelt de contactdozen per verdieping, hoogstens acht per kring", () => {
@@ -197,7 +219,7 @@ describe("het voorstel", () => {
     expect(voorstel.kringen.filter((k) => k.soort === "warmtepomp")).toHaveLength(1);
     expect(kring("Koelkast of diepvries")).toMatchObject({ differentieel: 0 });
     for (const naam of ["Vaatwasser", "Wasmachine"]) expect(voorstel.differentielen[kring(naam)!.differentieel].gevoeligheid).toBe(30);
-    const laadpaal = kring("Laadpaal")!;
+    const laadpaal = kring("Laadpaal 11 kW")!;
     expect(laadpaal.beveiliging).toEqual({ polen: "3P+N", ampere: 16 });
     expect(voorstel.differentielen[laadpaal.differentieel]).toMatchObject({ gevoeligheid: 30, type: "A of B", polen: "4P" });
     expect(kring("Omvormer zonnepanelen")?.opmerking).toContain("8 panelen");
@@ -230,7 +252,9 @@ describe("het voorstel", () => {
 
   it("telt de netwerkpoorten, met PoE voor wifi en camera's, en kiest het rack", () => {
     const { netwerk } = voorstel;
-    expect(netwerk.totaal).toBe(4 + 2 + 1 + 3 + 1);
+    // Netwerk, wifi, de camera, drie toestellen, de domoticakast en de digitale meter.
+    expect(netwerk.totaal).toBe(4 + 2 + 1 + 3 + 1 + 1);
+    expect(netwerk.poorten.map((p) => p.wat)).toEqual(expect.arrayContaining(["Domoticakast", "Digitale meter (P1-poort)"]));
     expect(netwerk.poe).toBe(3);
     expect(netwerk).toMatchObject({ patchpanelen: 1, switchpoorten: 24, hoogte: 9, telang: 0 });
     expect(netwerk.kabellengte).toBeGreaterThan(0);
@@ -246,7 +270,7 @@ describe("het voorstel", () => {
 
 describe("zonder domotica, op één fase", () => {
   it("houdt de verlichting doorgelust, en waarschuwt voor de laadpaal", () => {
-    const voorstel = maakVoorstel(huis(), { fasen: 1, stroom: 40, domotica: false });
+    const voorstel = maakVoorstel(huis(), { ...ANDER, fasen: 1, stroom: 40, domotica: "geen" });
     expect(voorstel.domotica).toBeNull();
     expect(voorstel.kringen.find((k) => k.soort === "domotica")).toBeUndefined();
     expect(voorstel.kringen.find((k) => k.naam === "Verlichting gelijkvloers")?.kabel).toBe("XVB 3G1,5");
@@ -256,12 +280,104 @@ describe("zonder domotica, op één fase", () => {
   });
 });
 
+describe("KNX met Home Assistant", () => {
+  const voorstel = maakVoorstel(huis(), { ...ANDER, domotica: "knx" });
+  const { domotica, netwerk } = voorstel;
+
+  it("zet de drukknoppen en melders op de bus, en de actoren in de kast", () => {
+    // Vier drukknoppen, een dimmer en een aanwezigheidsmelder op de bus; een schakel-, een dim- en een jaloezieactor.
+    expect(domotica).toMatchObject({ systeem: "knx", relais: 3, dimmers: 4, motoren: 3, knx: { toestellen: 6 + 3 + 1, lijnen: 1 } });
+    const regels = Object.fromEntries(domotica!.kast.regels.map((r) => [r.wat, r.aantal]));
+    expect(regels).toMatchObject({
+      "KNX-voeding 640 mA, met smoorspoel": 1,
+      "KNX IP-router, naar Home Assistant": 1,
+      "Schakelactor 12 kanalen, 16 A": 1,
+      "Dimactor 4 kanalen, universeel": 1,
+      "Jaloezieactor 8 kanalen, 230 V": 1,
+    });
+    const bus = domotica!.kabels.find((k) => k.soort === KNX_BUSKABEL)!;
+    expect(bus.aantal).toBe(6);
+    expect(bus.lengte).toBeGreaterThan(0);
+    expect(domotica!.kabels.map((k) => k.soort)).not.toContain("UTP of buskabel");
+    expect(voorstel.kabels.map((k) => k.soort)).toContain(KNX_BUSKABEL);
+  });
+
+  it("legt elke lichtgroep naar een actor, en koppelt Home Assistant op het netwerk", () => {
+    const licht = voorstel.kringen.find((k) => k.naam === "Verlichting gelijkvloers")!;
+    expect(licht.kabel).toBe("XVB 3G1,5 per lichtgroep");
+    expect(licht.opmerking).toContain("schakel- of dimactor");
+    const poorten = netwerk.poorten.map((p) => p.wat);
+    expect(poorten).toEqual(expect.arrayContaining(["KNX IP-router", "Home Assistant (mini-pc of Home Assistant Green)", "Digitale meter (P1-poort)"]));
+    expect(poorten).not.toContain("Domoticakast");
+  });
+
+  it("verdeelt meer dan 64 toestellen over meer lijnen", () => {
+    const invoer = huis();
+    invoer.punten.push(...reeks(70, (i) => punt(1, "drukknop", 0.5 + (i % 7), 0.5 + Math.floor(i / 7) * 0.5)));
+    const groot = maakVoorstel(invoer, { ...ANDER, domotica: "knx" });
+    expect(groot.domotica!.knx!.lijnen).toBe(2);
+    expect(groot.domotica!.kast.regels.find((r) => r.wat.startsWith("KNX-voeding"))?.aantal).toBe(2);
+    expect(groot.opmerkingen.join(" ")).toContain("2 lijnen");
+  });
+});
+
+describe("de laadpaal, de zonnepanelen en de batterij", () => {
+  it("geeft een laadpaal van 22 kW drie fasen van 32 A, en waarschuwt voor de aansluiting", () => {
+    const op25 = maakVoorstel(huis(), { ...ANDER, laadpaal: 22 });
+    const laadpaal = op25.kringen.find((k) => k.soort === "laadpaal")!;
+    expect(laadpaal).toMatchObject({ naam: "Laadpaal 22 kW", beveiliging: { polen: "3P+N", ampere: 32 }, kabel: "XVB 5G6" });
+    expect(op25.differentielen[laadpaal.differentieel]).toMatchObject({ polen: "4P", type: "A of B" });
+    expect(op25.opmerkingen.join(" ")).toContain("grotere aansluiting");
+    const op40 = maakVoorstel(huis(), { ...ANDER, stroom: 40, domotica: "knx", laadpaal: 22 });
+    const tekst = op40.opmerkingen.join(" ");
+    expect(tekst).toContain("neemt 32 van de 40 A");
+    expect(tekst).toContain("capaciteitstarief");
+    expect(tekst).toContain("Home Assistant");
+  });
+
+  it("laadt op één fase hoogstens 7,4 kW", () => {
+    const voorstel = maakVoorstel(huis(), { ...ANDER, fasen: 1, stroom: 40, laadpaal: 22 });
+    const laadpaal = voorstel.kringen.find((k) => k.soort === "laadpaal")!;
+    expect(laadpaal).toMatchObject({ naam: "Laadpaal 7,4 kW", beveiliging: { polen: "1P+N", ampere: 32 }, kabel: "XVB 3G6" });
+    expect(voorstel.differentielen[laadpaal.differentieel].polen).toBe("2P");
+    expect(voorstel.opmerkingen.join(" ")).toContain("vraagt drie fasen");
+  });
+
+  it("zet erbij wat bij Uitgangspunten staat maar nog niet op het plan, zonder kabel", () => {
+    const invoer = huis();
+    invoer.punten = invoer.punten.filter((p) => p.soort !== "laadpunt");
+    invoer.stukken = invoer.stukken.filter((s) => s.soort !== "omvormer" && s.soort !== "zonnepanelen");
+    const voorstel = maakVoorstel(invoer, { ...ANDER, laadpaal: 22, zonnepanelen: 9.6, batterij: "eigen" });
+    const zonder = voorstel.kringen.filter((k) => ["laadpaal", "omvormer", "batterij"].includes(k.soort));
+    expect(zonder.map((k) => k.naam)).toEqual(["Omvormer zonnepanelen", "Thuisbatterij", "Laadpaal 22 kW"]);
+    for (const k of zonder) {
+      expect(k.kabellengte, k.naam).toBeNull();
+      expect(k.punten).toHaveLength(0);
+      expect(k.opmerking, k.naam).toContain("Nog niet op het plan");
+    }
+    expect(zonder[0].opmerking).toContain("9,6 kWp");
+    expect(voorstel.zonnepanelen).toEqual({ panelen: 0, kwp: 9.6 });
+    // Een netwerkpoort per toestel, ook zonder plaats.
+    expect(voorstel.netwerk.poorten.find((p) => p.wat.startsWith("Toestellen"))?.aantal).toBe(4);
+  });
+
+  it("hangt een hybride batterij aan de omvormer", () => {
+    const invoer = huis();
+    invoer.stukken.push(stuk(1, "thuisbatterij", 13.5, 2.8));
+    const eigen = maakVoorstel(invoer, { ...ANDER, batterij: "eigen" });
+    expect(eigen.kringen.some((k) => k.soort === "batterij")).toBe(true);
+    const hybride = maakVoorstel(invoer, { ...ANDER, batterij: "hybride" });
+    expect(hybride.kringen.some((k) => k.soort === "batterij")).toBe(false);
+    expect(hybride.kringen.find((k) => k.soort === "omvormer")?.opmerking).toContain("Hybride");
+  });
+});
+
 describe("een bijgebouw", () => {
   it("schat geen kabel naar een ander gebouw, en zegt het", () => {
     const invoer = huis();
     invoer.verdiepingen.push({ id: 3, naam: "Garage", gebouwId: 2, z0: 0, ruimtes: [{ id: 31, naam: "Garage", soort: "garage", veelhoek: rechthoek(0, 0, 6, 4) }] });
     invoer.punten.push(punt(3, "stopcontact", 1, 0.2), punt(3, "lichtpunt", 3, 2));
-    const voorstel = maakVoorstel(invoer, { fasen: 3, stroom: 25, domotica: false });
+    const voorstel = maakVoorstel(invoer, { ...ANDER, domotica: "geen" });
     const garage = voorstel.kringen.filter((k) => k.punten.some((p) => p.verdiepingId === 3));
     expect(garage.length).toBeGreaterThan(0);
     for (const k of garage) expect(k.kabellengte).toBeNull();
@@ -270,7 +386,7 @@ describe("een bijgebouw", () => {
 });
 
 describe("de tekeningen", () => {
-  const voorstel = maakVoorstel(huis(), { fasen: 3, stroom: 25, domotica: true });
+  const voorstel = maakVoorstel(huis(), ANDER);
   const teksten = (stukken: Tekenstuk[]) => stukken.flatMap((s) => (s.soort === "tekst" ? [s.tekst] : []));
 
   it("tekent elke kring met haar letter, automaat, kabel en punten", () => {

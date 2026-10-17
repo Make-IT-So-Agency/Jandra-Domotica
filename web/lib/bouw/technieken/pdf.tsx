@@ -6,7 +6,19 @@ import type { ReactElement } from "react";
 import { datumTijd } from "@/lib/format";
 import { eendraadschema, situatieschema, sneden, type Tekening, type Tekenstuk } from "./schema";
 import type { Techniekinvoer, Techniekvoorstel } from "./voorstel";
-import { aansluitingTekst, beveiligingTekst, differentieelTekst, domoticaTekst, meters, netwerkTekst, plaatsTekst, ruimtesTekst, tellingTekst } from "./weergave";
+import {
+  beveiligingTekst,
+  differentieelTekst,
+  domoticaTekst,
+  domoticakabelTekst,
+  knxTekst,
+  meters,
+  netwerkTekst,
+  plaatsTekst,
+  ruimtesTekst,
+  tellingTekst,
+  uitgangspunten,
+} from "./weergave";
 
 /**
  * Het voorstel voor de technieken als PDF, voor de elektricien: de
@@ -157,12 +169,11 @@ function Voorstel_({ voorstel, invoer, project, opgemaakt }: { voorstel: Technie
         </Text>
 
         <Kop>Uitgangspunten</Kop>
-        <Text style={stijl.tekst}>Aansluiting: {aansluitingTekst(instellingen)}.</Text>
-        <Text style={stijl.tekst}>
-          {instellingen.domotica
-            ? "Domotica: drukknoppen, en elke lichtgroep en elk rolluik een eigen kabel naar de domoticakast."
-            : "Zonder domotica: schakelaars bij de punten, de kringen doorgelust."}
-        </Text>
+        {uitgangspunten(instellingen).map((regel) => (
+          <Text key={regel} style={stijl.tekst}>
+            {regel}
+          </Text>
+        ))}
         <Text style={stijl.tekst}>Verdeelkast: {plaatsTekst(voorstel.kast, invoer.verdiepingen)}</Text>
         {voorstel.opmerkingen.map((o) => (
           <Text key={o} style={[stijl.tekst, stijl.zacht]}>
@@ -197,10 +208,12 @@ function Voorstel_({ voorstel, invoer, project, opgemaakt }: { voorstel: Technie
 
         {domotica ? (
           <View wrap={false}>
-            <Kop>Domoticakast</Kop>
+            <Kop>{domotica.knx ? "Domoticakast: KNX met Home Assistant" : "Domoticakast"}</Kop>
             <Text style={stijl.tekst}>
               {domoticaTekst(domotica)}. {domotica.plaats?.bron === "domoticakast" ? plaatsTekst(domotica.plaats, invoer.verdiepingen) : "Naast de verdeelkast."}
+              {domotica.knx ? ` ${knxTekst(domotica.knx)}` : ""}
             </Text>
+            <Text style={[stijl.tekst, { marginBottom: 6 }]}>Kabels naar de kast: {domotica.kabels.map(domoticakabelTekst).join(", ")}.</Text>
             <Tabel
               koppen={["Module (ruwe schatting)", "Aantal", "Modules"]}
               breedtes={["70%", "15%", "15%"]}
