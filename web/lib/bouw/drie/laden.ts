@@ -24,6 +24,7 @@ import { lijstKeuzes, lijstOpties, lijstVoorkeuren } from "../regie-opslag";
 import type { SoortPlan } from "../types";
 import { verdiepingNaam } from "../weergave";
 import { STANDAARDDAK, type Dakinstelling } from "./dakregels";
+import type { Deel } from "./delen";
 import { materiaalkeuzes, type Materiaalkeuze } from "./materialen";
 import type { Invoerverdieping } from "./model";
 import type { Georef } from "./omgeving";
@@ -39,6 +40,8 @@ import type { Plaatsing } from "./plaatsing";
  */
 
 export interface Drieverdieping extends Invoerverdieping {
+  /** De delen van de vlakken met een eigen materiaal, zoals bewaard (zie drie/delen.ts). */
+  delen: Deel[];
   /** Heeft het grondplan een bevestigde omzetting, en daarin muren? */
   omgezet: boolean;
   metMuren: boolean;
@@ -171,6 +174,7 @@ export async function laadDrie(huisId: number, ik: string, { metAdres = false, m
         luifels: opgeslagen?.luifels ?? [],
         trapstanden: verdieping.trapstanden ?? [],
         correcties: verdieping.correcties ?? [],
+        delen: verdieping.delen ?? [],
         omgezet: grondplan !== null,
         metMuren: (opgeslagen?.muren.length ?? 0) > 0,
         grondplanId: grondplan?.plan.id ?? null,

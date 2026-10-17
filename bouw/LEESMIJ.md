@@ -419,6 +419,44 @@ grondplannen.
     enkel uitproberen.
   - Een optie kan ook bij Keuzes een patroon en een voeg krijgen; het staal op
     de optie toont het zoals in 3D (`bouw_opties.patroon` en `voegkleur`).
+
+  **Een deel van een vlak** (`drie/delen.ts`, `3d/deeltekening.ts`). Een
+  materiaal hoeft niet op het hele onderdeel: een stuk gevel in hout, de
+  badkamer tot 1,20 m in tegels, tegels in een deel van de leefruimte, een
+  groendak op een deel van het platte dak. Tik een muur, vloer of plat dak
+  aan; onderaan staat dan wat het staal krijgt:
+  - **Heel de gevel** (of alle binnenmuren, de vloer van de ruimte, heel het
+    dak): zoals hierboven;
+  - **Dit muurvlak** (bij een binnenmuur **Deze muur**): de muur van hoek tot
+    hoek, op die verdieping. Een raam of deur onderbreekt het vlak niet, een
+    muur die er haaks op staat wel. Een gevel loopt tot de vloer van de
+    verdieping erboven, een binnenmuur tot het plafond;
+  - **Muren badkamer**: alle binnenmuren van de ruimte die je aantikte;
+  - **Deel tekenen**: op een muur tik je twee hoeken van een rechthoek, op
+    een vloer of plat dak de hoeken van een veelhoek (tik op het eerste punt
+    of **Klaar** om ze te sluiten). Een tik kleeft aan de hoeken van de
+    muren, en op een muur aan de randen van het vlak, aan de zijkanten, de
+    borstwering en de latei van de ramen, aan de vloer en de bovenkant;
+    anders op 5 cm. Esc breekt af.
+
+  Een deel begint met het materiaal dat er al lag; kies dan een staal, een
+  optie of een eigen kleur. In de kaart **Materialen** staan alle delen: daar
+  geef je een deel een naam, en een rechthoek op een muur of de muren van een
+  ruimte ook hun maten. Van en Tot meten langs het muurvlak, van links gezien
+  van voor de muur; de onderkant en de bovenkant boven de vloer van de
+  verdieping, met **Tot 1,2 m**, **Tot 2,1 m** en **Volle hoogte**. Een gevel
+  mag hoger dan de verdieping: dan loopt het deel door op de gevel erboven,
+  tot in de punt onder het dak. Een later deel ligt over een vroeger, en een
+  rechthoek op een muur over de muren van een ruimte.
+
+  Een deel heeft zijn eigen materiaal: het maakt geen keuze en geen optie.
+  **Delen bewaren** bewaart ze per verdieping, in meter in het assenstelsel
+  van het gebouw (`bouw_verdiepingen.delen`); zo blijven ze liggen bij een
+  nieuwe versie van het plan, zoals de punten. **Herbeginnen** gooit weg wat
+  niet bewaard is. In de scène knipt de bouwer elke wand, vloer, plat dak en
+  puntgevel waar een deel op ligt (`knipWand`, `knipVlak`, `knipGevel`); een
+  deel krijgt zijn eigen materiaal, `deel:<id>`. Een ander deel vervangt
+  enkel de vlakken: wat de lagen verbergen en de meubels blijven.
 - **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
@@ -986,7 +1024,10 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, de trap op het plan van Ruimtes, en de trap op en af wandelen |
 | `web/lib/bouw/drie/zones.ts`, `traphal.ts` | Kleine zones zonder ruimte (een traphal, een kast) en de openingen ernaartoe, en een traphal die boven open is aanvullen van de verdieping eronder; puur, met tests |
 | `web/lib/bouw/drie/materialen.ts`, `stalen.ts` | Welke keuze welk materiaal bepaalt, wat er uitgeprobeerd wordt, de stalen en hun maten, en een materiaal bewaren nakijken; puur, met tests |
-| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, en het patroon als textuur |
+| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, een deel maken, en het patroon als textuur |
+| `web/lib/bouw/drie/delen.ts` | Een deel van een vlak met een eigen materiaal: nakijken, het muurvlak onder een tik, wanden, vloeren en puntgevels knippen, kleven en namen; puur, met tests |
+| `web/app/vastgoed/[huis]/3d/deeltekening.ts` | Een deel tekenen in 3D: een tik op het vlak, en het voorbeeld in het oranje |
+| `supabase/migrations/20261017100000_bouw_delen.sql` | De delen van de vlakken, per verdieping |
 | `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
 | `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
 | `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |

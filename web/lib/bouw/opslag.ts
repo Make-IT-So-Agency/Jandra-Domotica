@@ -9,6 +9,7 @@ import type { Gekendeluifel } from "./drie/luifels";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
+import { schoneDelen, type Deel } from "./drie/delen";
 import { schoneTrapstanden } from "./drie/trappen";
 import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
 import { isLigging, type Leiding, type Nieuweleiding } from "./leidingen";
@@ -237,6 +238,7 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
     plafondhoogte_m: getal(rij.plafondhoogte_m),
     trapstanden: schoneTrapstanden(rij.trappen),
     correcties: schoneCorrecties(rij.correcties),
+    delen: schoneDelen(rij.delen),
   };
 }
 
@@ -249,6 +251,20 @@ export async function bewaarTrapstanden(huisId: number, verdiepingId: number, st
       "Trappen bewaren",
     ),
   );
+}
+
+/**
+ * De delen van de muren, vloeren en platte daken van een verdieping met een
+ * eigen materiaal, allemaal samen, zoals het 3D-scherm ze doorstuurt. De
+ * muren van een ruimte enkel met een ruimte van deze verdieping. Geeft terug
+ * wat bewaard is.
+ */
+export async function bewaarDelen(huisId: number, verdiepingId: number, delen: Deel[]): Promise<Deel[]> {
+  if (!(await leesVerdieping(huisId, verdiepingId))) throw new Bouwfout("Deze verdieping bestaat niet meer.");
+  const ruimtes = new Set((await lijstRuimtes(huisId, verdiepingId)).map((ruimte) => ruimte.id));
+  const schoon = schoneDelen(delen).filter((deel) => deel.vorm.soort !== "wanden" || ruimtes.has(deel.vorm.ruimteId));
+  geraakt(check(await db().from("bouw_verdiepingen").update({ delen: schoon }).eq("id", verdiepingId).select("id"), "Delen bewaren"));
+  return schoon;
 }
 
 /** Wat op het plan verbeterd werd aan de muren, ramen en deuren van een verdieping. */

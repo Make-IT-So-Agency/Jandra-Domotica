@@ -2318,10 +2318,35 @@ a.tl-naam:hover {
   font-size: 14px;
 }
 
+/* Na een tik: het hele onderdeel, dit vlak, de muren van de ruimte, of een deel tekenen. */
+.drie-bereik {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.drie-bereik .drie-knop {
+  box-shadow: none;
+}
+
+/* De naam en de maten van een deel, in de kaart Materialen. */
+.deelvelden {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lijn);
+}
+
 /* Op een gsm de volle breedte voor de stalen: zoomen gaat er met twee vingers. */
 @media (max-width: 640px) {
   .drie-stalen {
     right: 10px;
+  }
+
+  .drie-bereik .drie-knop.klein {
+    min-height: 32px;
+    padding: 2px 8px;
+    font-size: 13px;
   }
 
   .drie-raam.met-stalen .drie-zoom {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { schoneCorrecties } from "@/lib/bouw/drie/correcties";
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
+import { MAX_DELEN, schoneDelen, type Deel } from "@/lib/bouw/drie/delen";
 import { KEUZE_VAN_SLOT, SLOT_VAN, isTeTonen, keuzeVoorPlek, schoneMateriaalvraag, vloertitel } from "@/lib/bouw/drie/materialen";
 import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
@@ -13,7 +14,16 @@ import { MAX_STUKKEN, schoneStukken, type GeplaatstStuk } from "@/lib/bouw/inric
 import { id } from "@/lib/bouw/invoer";
 import { STANDAARDKEUZES, type Keuze } from "@/lib/bouw/keuzes";
 import { nietVoorSoort } from "@/lib/bouw/onderdelen";
-import { bewaarCorrecties, bewaarDak, bewaarGeoref, bewaarInplanting, bewaarStukken, bewaarTrapstanden, lijstRuimtes } from "@/lib/bouw/opslag";
+import {
+  bewaarCorrecties,
+  bewaarDak,
+  bewaarDelen,
+  bewaarGeoref,
+  bewaarInplanting,
+  bewaarStukken,
+  bewaarTrapstanden,
+  lijstRuimtes,
+} from "@/lib/bouw/opslag";
 import { huispad } from "@/lib/bouw/paden";
 import { lijstKeuzes, lijstOpties, voegKeuzeToe, voegOptieToe } from "@/lib/bouw/regie-opslag";
 import { foutmelding } from "@/lib/bouw/terug";
@@ -106,6 +116,26 @@ export async function bewaarCorrectiesActie(huisId: unknown, vraag: { verdieping
   revalidatePath(huispad(toegang.huis.id, "/3d"));
   revalidatePath(huispad(toegang.huis.id, "/3d/verbeteren"));
   return gelukt(null);
+}
+
+/** De delen van de vlakken van een verdieping met een eigen materiaal, allemaal samen; terug komen ze zoals ze bewaard zijn. */
+export async function bewaarDelenActie(huisId: unknown, vraag: { verdiepingId: number; delen: unknown }): Promise<Uitkomst<Deel[]>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const verdiepingId = id(String(vraag?.verdiepingId));
+  if (!verdiepingId) return mislukt("Onbekende verdieping.");
+  if (!Array.isArray(vraag?.delen)) return mislukt("Onbekende delen.");
+  if (vraag.delen.length > MAX_DELEN) return mislukt(`Hoogstens ${MAX_DELEN} delen per verdieping.`);
+  const delen = schoneDelen(vraag.delen);
+  if (delen.length !== vraag.delen.length) return mislukt("Een deel klopt niet. Herlaad de pagina en probeer opnieuw.");
+  let bewaard: Deel[];
+  try {
+    bewaard = await bewaarDelen(toegang.huis.id, verdiepingId, delen);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(bewaard);
 }
 
 /** De meubels en toestellen van een verdieping, allemaal samen; terug komen ze zoals ze bewaard zijn. */

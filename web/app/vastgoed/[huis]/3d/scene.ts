@@ -1,11 +1,12 @@
 import * as THREE from "three";
 
+import { knipGevel, knipVlak, knipWand, ruimteVoor, type Muurknip, type Scenedelen, type Vlakknip, type Wandknip } from "@/lib/bouw/drie/delen";
 import { deurbladOpKier, draaiboog, vastGlasNaast } from "@/lib/bouw/drie/deuren";
 import type { Gat } from "@/lib/bouw/drie/gaten";
 import { KLEINE_ZONE, type Model3d, type Plaat } from "@/lib/bouw/drie/model";
 import { middenVan, type Plaatsing } from "@/lib/bouw/drie/plaatsing";
 import type { Trap3d } from "@/lib/bouw/drie/trappen";
-import type { Veelhoek } from "@/lib/bouw/drie/vlak";
+import { binnenVeelhoeken, type Veelhoek } from "@/lib/bouw/drie/vlak";
 import { oppervlakte } from "@/lib/bouw/omzetting/geometrie";
 import type { Xy } from "@/lib/bouw/omzetting/types";
 
@@ -17,7 +18,10 @@ import type { Xy } from "@/lib/bouw/omzetting/types";
  * het huis dan net zoals op het plan.
  *
  * Elk materiaal heeft een sleutel; per sleutel komt er één geometrie, zodat
- * een ander materiaal uitproberen enkel een kleur of textuur verandert.
+ * een ander materiaal uitproberen enkel een kleur of textuur verandert. Een
+ * deel van een vlak met een eigen materiaal (zie lib/bouw/drie/delen.ts)
+ * krijgt zijn eigen sleutel, "deel:<id>": de bouwer knipt de muren, vloeren
+ * en daken waar het op ligt.
  */
 
 export type Sleutel = string;
@@ -51,14 +55,28 @@ function vlakassen(punten: readonly P3[]): (p: P3) => [number, number] {
   return (p) => [p[0] * u[0] + p[1] * u[1] + p[2] * u[2], p[0] * v[0] + p[1] * v[1] + p[2] * v[2]];
 }
 
+/** Wat een bouwer knipt: de delen van de muren, en de ruimte voor een muur (voor de muren van een ruimte). */
+export interface Knipper {
+  muren: readonly Muurknip[];
+  wanden: readonly Wandknip[];
+  ruimte: (a: Xy, b: Xy, kijk: Xy) => number | null;
+}
+
 export class Bouwer {
-  readonly delen = new Map<Sleutel, { posities: number[]; normalen: number[]; uvs: number[] }>();
+  private readonly stukken = new Map<Sleutel, { posities: number[]; normalen: number[]; uvs: number[] }>();
+
+  constructor(private readonly knipper: Knipper | null = null) {}
+
+  /** Liggen er delen op de muren? Dan heeft een wand de kant nodig die je ziet. */
+  get knipt(): boolean {
+    return this.knipper !== null && (this.knipper.muren.length > 0 || this.knipper.wanden.length > 0);
+  }
 
   private deel(sleutel: Sleutel) {
-    let deel = this.delen.get(sleutel);
+    let deel = this.stukken.get(sleutel);
     if (!deel) {
       deel = { posities: [], normalen: [], uvs: [] };
-      this.delen.set(sleutel, deel);
+      this.stukken.set(sleutel, deel);
     }
     return deel;
   }
@@ -83,9 +101,20 @@ export class Bouwer {
   /**
    * Een verticaal vlak van a naar b, van z0 tot z1, met de textuur in meter:
    * langs de muur gemeten vanaf de oorsprong, zodat een gevel in stukken
-   * zonder naad doorloopt.
+   * zonder naad doorloopt. Met `kijk`, de kant die je ziet, knipt de bouwer
+   * een gevel of binnenmuur met de delen die erop liggen.
    */
-  wand(sleutel: Sleutel, a: Xy, b: Xy, z0: number, z1: number) {
+  wand(sleutel: Sleutel, a: Xy, b: Xy, z0: number, z1: number, kijk?: Xy) {
+    if (kijk && this.knipper && this.knipt && (sleutel === "gevel" || sleutel === "binnenmuur")) {
+      const { muren, wanden, ruimte } = this.knipper;
+      const ruimteId = sleutel === "binnenmuur" && wanden.length > 0 ? ruimte(a, b, kijk) : null;
+      for (const stuk of knipWand({ sleutel, a, b, z0, z1 }, kijk, ruimteId, muren, wanden)) this.rechthoek(stuk.sleutel, stuk.a, stuk.b, stuk.z0, stuk.z1);
+      return;
+    }
+    this.rechthoek(sleutel, a, b, z0, z1);
+  }
+
+  private rechthoek(sleutel: Sleutel, a: Xy, b: Xy, z0: number, z1: number) {
     if (z1 - z0 < 1e-4) return;
     const lengte = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (lengte < 1e-9) return;
@@ -121,6 +150,21 @@ export class Bouwer {
     }
   }
 
+  /**
+   * Een vlakke veelhoek in 3D met gaten, zoals een stuk van een gevel onder
+   * het dak, met de textuur zoals `uv` ze geeft: in het vlak, in meter.
+   */
+  veelhoek(sleutel: Sleutel, ringen: P3[][], uv: (p: P3) => [number, number]) {
+    const [buiten, ...gaten] = ringen;
+    if (!buiten || buiten.length < 3) return;
+    const v2 = (ring: P3[]) => ring.map((p) => new THREE.Vector2(...uv(p)));
+    const alle = [buiten, ...gaten].flat();
+    for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(v2(buiten), gaten.map(v2))) {
+      const [a, b, c] = [alle[i], alle[j], alle[k]];
+      this.driehoek(sleutel, a, b, c, [uv(a), uv(b), uv(c)]);
+    }
+  }
+
   /** Een balk: een rechthoek op het plan (a, b, c, d), van z0 tot z1. */
   balk(sleutel: Sleutel, hoeken: [Xy, Xy, Xy, Xy], z0: number, z1: number, vlakken: { onder?: boolean; boven?: boolean } = {}) {
     for (let i = 0; i < 4; i++) this.wand(sleutel, hoeken[i], hoeken[(i + 1) % 4], z0, z1);
@@ -130,7 +174,7 @@ export class Bouwer {
 
   geometrieen(): Map<Sleutel, THREE.BufferGeometry> {
     const uit = new Map<Sleutel, THREE.BufferGeometry>();
-    for (const [sleutel, deel] of this.delen) {
+    for (const [sleutel, deel] of this.stukken) {
       const geometrie = new THREE.BufferGeometry();
       geometrie.setAttribute("position", new THREE.Float32BufferAttribute(deel.posities, 3));
       geometrie.setAttribute("normal", new THREE.Float32BufferAttribute(deel.normalen, 3));
@@ -152,16 +196,18 @@ function gat(bouwer: Bouwer, g: Gat, z0: number, z1: number) {
   const [a, b] = [g.a, g.b];
   const [d, c] = [plus(a, g.n, g.dikte), plus(b, g.n, g.dikte)];
 
+  // De kant van de ruimte kijkt de ruimte in, de overkant naar buiten of naar de andere ruimte.
+  const binnenkant: Xy = [-g.n[0], -g.n[1]];
   if (g.onder > 0.01) {
     const top = z0 + g.onder;
-    bouwer.wand(voor, a, b, z0, top);
-    bouwer.wand(achter, c, d, z0, top);
+    bouwer.wand(voor, a, b, z0, top, binnenkant);
+    bouwer.wand(achter, c, d, z0, top, g.n);
     bouwer.vlak("muurtop", [[a, b, c, d]], top);
   }
   const latei = z0 + g.boven;
   if (z1 - latei > 0.01) {
-    bouwer.wand(voor, a, b, latei, z1);
-    bouwer.wand(achter, c, d, latei, z1);
+    bouwer.wand(voor, a, b, latei, z1, binnenkant);
+    bouwer.wand(achter, c, d, latei, z1, g.n);
     bouwer.vlak("muurtop", [[a, b, c, d]], latei);
   }
 
@@ -210,14 +256,37 @@ function gat(bouwer: Bouwer, g: Gat, z0: number, z1: number) {
   for (let i = 1; i < grenzen.length; i++) vak(grenzen[i - 1], grenzen[i]);
 }
 
-/** Een plaat met haar zijkanten. Rond een klein gat erin, zoals een trapgat, is de zijkant binnen; rond een patio buiten. */
-function plaat(bouwer: Bouwer, p: Plaat, boven: Sleutel, onder: Sleutel, zijkant: Sleutel, binnenkant: Sleutel = zijkant) {
+/** De kant van een rand van een plaat die je ziet: weg van de plaat. */
+function buitenkant(veelhoek: Veelhoek, a: Xy, b: Xy): Xy {
+  const lengte = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const links: Xy = [-(b[1] - a[1]) / lengte, (b[0] - a[0]) / lengte];
+  const proef: Xy = [(a[0] + b[0]) / 2 + links[0] * 0.01, (a[1] + b[1]) / 2 + links[1] * 0.01];
+  return binnenVeelhoeken(proef, [veelhoek]) ? [-links[0], -links[1]] : links;
+}
+
+/**
+ * Een plaat met haar zijkanten. Rond een klein gat erin, zoals een trapgat,
+ * is de zijkant binnen; rond een patio buiten. `knipBoven`: de delen op de
+ * bovenkant, zoals een groendak op een deel van een plat dak.
+ */
+function plaat(
+  bouwer: Bouwer,
+  p: Plaat,
+  boven: Sleutel,
+  onder: Sleutel,
+  zijkant: Sleutel,
+  binnenkant: Sleutel = zijkant,
+  knipBoven: readonly Vlakknip[] = [],
+) {
   for (const veelhoek of p.veelhoeken) {
-    bouwer.vlak(boven, veelhoek, p.z1);
+    for (const stuk of knipVlak(veelhoek, knipBoven, boven)) bouwer.vlak(stuk.sleutel, stuk.veelhoek, p.z1);
     bouwer.vlak(onder, veelhoek, p.z0);
     veelhoek.forEach((ring, r) => {
       const sleutel = r > 0 && Math.abs(oppervlakte(ring)) <= KLEINE_ZONE ? binnenkant : zijkant;
-      for (let i = 0; i < ring.length; i++) bouwer.wand(sleutel, ring[i], ring[(i + 1) % ring.length], p.z0, p.z1);
+      for (let i = 0; i < ring.length; i++) {
+        const [a, b] = [ring[i], ring[(i + 1) % ring.length]];
+        bouwer.wand(sleutel, a, b, p.z0, p.z1, bouwer.knipt ? buitenkant(veelhoek, a, b) : undefined);
+      }
     });
   }
 }
@@ -268,15 +337,23 @@ export function plaats(groep: THREE.Group, plaatsing: Plaatsing) {
   groep.rotation.set(0, (-plaatsing.hoek * Math.PI) / 180, 0);
 }
 
+const GEEN_DELEN: Scenedelen = { muren: new Map(), wanden: new Map(), vloeren: new Map(), daken: new Map() };
+
 /**
  * Bouwt de scène. `materiaal` geeft voor elke sleutel het materiaal; dezelfde
  * sleutel krijgt overal hetzelfde materiaal-object, zodat een kleur wijzigen
- * overal meteen werkt.
+ * overal meteen werkt. `delen`: de delen van de vlakken met een eigen
+ * materiaal (zie scenedelen in lib/bouw/drie/delen.ts).
+ *
+ * Elk vlak weet bij welk gebouw en welke verdieping het hoort
+ * (userData.gebouwId en verdiepingId): zo weet een tik waar hij een deel kan
+ * tekenen.
  */
 export function bouwScene(
   model: Model3d,
   materiaal: (sleutel: Sleutel) => THREE.Material,
   plaatsingen: ReadonlyMap<number, Plaatsing>,
+  delen: Scenedelen = GEEN_DELEN,
 ): Opgebouwd {
   const wortel = new THREE.Group();
   const gebouwen = new Map<number, THREE.Group>();
@@ -304,12 +381,14 @@ export function bouwScene(
   }
   const dakVan = (gebouwId: number): THREE.Group | undefined => daken[model.gebouwen.findIndex((g) => g.id === gebouwId)];
 
-  const voegToe = (groep: THREE.Group, bouwer: Bouwer) => {
+  const voegToe = (groep: THREE.Group, bouwer: Bouwer, waar: { gebouwId: number; verdiepingId: number | null }) => {
     for (const [sleutel, geometrie] of bouwer.geometrieen()) {
       const mesh = new THREE.Mesh(geometrie, materiaal(sleutel));
       mesh.castShadow = sleutel !== "glas" && sleutel !== "deurboog";
       mesh.receiveShadow = true;
       mesh.userData.sleutel = sleutel;
+      mesh.userData.gebouwId = waar.gebouwId;
+      mesh.userData.verdiepingId = waar.verdiepingId;
       groep.add(mesh);
       meshes.push(mesh);
     }
@@ -318,18 +397,26 @@ export function bouwScene(
   for (const v of model.verdiepingen) {
     const eigen = binnen.get(v.gebouwId);
     if (!eigen) continue;
-    const bouwer = new Bouwer();
+    const bouwer = new Bouwer({
+      muren: delen.muren.get(v.gebouwId) ?? [],
+      wanden: delen.wanden.get(v.id) ?? [],
+      ruimte: (a, b, kijk) => ruimteVoor(v.vloeren, a, b, kijk),
+    });
     for (const muur of v.muren) {
       muur.veelhoek.forEach((ring, r) => {
         ring.forEach((a, i) => {
           const b = ring[(i + 1) % ring.length];
-          bouwer.wand(muur.zijden[r][i].zijde === "buiten" ? "gevel" : "binnenmuur", a, b, v.z0, v.z1);
+          const kant = muur.zijden[r][i];
+          bouwer.wand(kant.zijde === "buiten" ? "gevel" : "binnenmuur", a, b, v.z0, v.z1, kant.n);
         });
       });
       bouwer.vlak("muurtop", muur.veelhoek, v.z1);
     }
     for (const g of v.gaten) gat(bouwer, g, v.z0, v.z1);
-    for (const vloer of v.vloeren) bouwer.vlak(`vloer:${vloer.ruimteId}`, vloer.ringen, v.z0 + 0.012);
+    const vloerdelen = delen.vloeren.get(v.id) ?? [];
+    for (const vloer of v.vloeren) {
+      for (const stuk of knipVlak(vloer.ringen, vloerdelen, `vloer:${vloer.ruimteId}`)) bouwer.vlak(stuk.sleutel, stuk.veelhoek, v.z0 + 0.012);
+    }
     plaat(bouwer, v.plaat, "plaat", "plafond", "gevel", "binnenmuur");
     for (const t of v.trappen) trap(bouwer, t);
     for (const l of v.leuningen) leuning(bouwer, l, v.z0);
@@ -338,15 +425,15 @@ export function bouwScene(
 
     const groep = new THREE.Group();
     groep.name = `verdieping-${v.id}`;
-    voegToe(groep, bouwer);
+    voegToe(groep, bouwer, { gebouwId: v.gebouwId, verdiepingId: v.id });
     eigen.add(groep);
     verdiepingen.set(v.id, groep);
 
     const dakgroep = dakVan(v.gebouwId);
     if (v.dakplaat && dakgroep) {
       const dakbouwer = new Bouwer();
-      plaat(dakbouwer, v.dakplaat, "dakplat", "plafond", "dakrand");
-      voegToe(dakgroep, dakbouwer);
+      plaat(dakbouwer, v.dakplaat, "dakplat", "plafond", "dakrand", "dakrand", delen.daken.get(v.id) ?? []);
+      voegToe(dakgroep, dakbouwer, { gebouwId: v.gebouwId, verdiepingId: v.id });
     }
   }
 
@@ -355,8 +442,23 @@ export function bouwScene(
     if (!dakgroep) continue;
     const dakbouwer = new Bouwer();
     for (const vlak of dak.vlakken) dakbouwer.waaier("dak", vlak.map(([x, y, z]) => [x, z, y] as P3));
-    for (const gevel of dak.gevels) dakbouwer.waaier("gevel", gevel.map(([x, y, z]) => [x, z, y] as P3));
-    voegToe(dakgroep, dakbouwer);
+    const muurdelen = delen.muren.get(gebouwId) ?? [];
+    for (const gevel of dak.gevels) {
+      const punten = gevel.map(([x, y, z]) => [x, z, y] as P3);
+      // Een deel van een gevel loopt door tot in de punt onder het dak.
+      const [p, q] = gevel;
+      const lengte = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+      const stukken = muurdelen.length > 0 ? knipGevel(gevel, [(q[1] - p[1]) / lengte, -(q[0] - p[0]) / lengte], muurdelen) : null;
+      if (!stukken) {
+        dakbouwer.waaier("gevel", punten);
+        continue;
+      }
+      const uv = vlakassen(punten);
+      for (const stuk of stukken) dakbouwer.veelhoek(stuk.sleutel, stuk.veelhoek.map((ring) => ring.map(([x, y, z]) => [x, z, y] as P3)), uv);
+    }
+    // De gevels onder het dak horen bij de bovenste verdieping van het gebouw.
+    const bovenste = model.verdiepingen.filter((v) => v.gebouwId === gebouwId).sort((a, b) => b.z0 - a.z0)[0];
+    voegToe(dakgroep, dakbouwer, { gebouwId, verdiepingId: bovenste?.id ?? null });
   }
 
   return { wortel, gebouwen, eigen: binnen, verdiepingen, daken, meshes };

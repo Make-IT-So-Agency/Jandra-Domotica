@@ -245,7 +245,8 @@ export interface Getoond {
   naam: string | null;
   /** De optie die getoond wordt, of null. */
   optieId: number | null;
-  bron: "proef" | "keuze" | "standaard";
+  /** Uitgeprobeerd, van de keuze, de standaardkleur, of het eigen materiaal van een deel (zie delen.ts). */
+  bron: "proef" | "keuze" | "standaard" | "deel";
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Correctie } from "./drie/correcties";
+import type { Deel } from "./drie/delen";
 
 /**
  * De vaste lijsten en de vorm van de rijen van de module Bouw. Puur, zonder
@@ -206,6 +207,8 @@ export interface Verdieping {
   trapstanden?: Trapstand[];
   /** Wat iemand op het plan verbeterde aan de muren, ramen en deuren. */
   correcties?: Correctie[];
+  /** De delen van de muren, vloeren en platte daken met een eigen materiaal (zie drie/delen.ts). */
+  delen?: Deel[];
 }
 
 export interface Plan {
