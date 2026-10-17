@@ -8,8 +8,9 @@ import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { materiaalVanDeel, type Deelmateriaal } from "@/lib/bouw/drie/delen";
 import { tegenMuur } from "@/lib/bouw/drie/inrichten";
 import { isAan, type Lagenstand } from "@/lib/bouw/drie/lagen";
+import { STANDAARDBLAD, schoneIndeling } from "@/lib/bouw/drie/maatwerk";
 import { alsMateriaal, keuzeVan, type Materiaal, type Materiaalkeuze } from "@/lib/bouw/drie/materialen";
-import { STALEN, eigenNaam } from "@/lib/bouw/drie/stalen";
+import { BLADSTALEN, STALEN, eigenNaam } from "@/lib/bouw/drie/stalen";
 import type { Model3d, Verdieping3d } from "@/lib/bouw/drie/model";
 import { binnenVeelhoeken } from "@/lib/bouw/drie/vlak";
 import { legOpDak, MAX_RIJEN, veldmaat, veldVan, vermogen } from "@/lib/bouw/drie/zonnepanelen";
@@ -33,7 +34,8 @@ import type { Xy } from "@/lib/bouw/omzetting/types";
 import { bewaarStukkenActie } from "./acties";
 import { richtStraal, TIKAFSTAND, useTik, zichtbareRaak, type Kern } from "./kern";
 import type { Opgebouwd } from "./scene";
-import { Materiaalimport } from "./materiaalimport";
+import { Stukindeling } from "./indeling";
+import { Materiaalimport, type Importbeeld } from "./materiaalimport";
 import { Staalknop } from "./materiaalproef";
 import { bouwStukken, type Stukkenscene } from "./stukken-scene";
 import { zetMateriaal, type Texturen } from "./texturen";
@@ -220,9 +222,10 @@ export function useInrichten(
     const eigen = new Map<string, THREE.MeshStandardMaterial>();
     const texturen: Texturen = new Map();
     const anisotropie = d.renderer.capabilities.getMaxAnisotropy();
-    const eigenMateriaal = (stuk: GeplaatstStuk) => {
-      if (!stuk.materiaal) return null;
-      const materiaal = materiaalVanDeel({ materiaal: stuk.materiaal }, materialen);
+    const eigenMateriaal = (stuk: GeplaatstStuk, welk: "front" | "blad") => {
+      const deel = welk === "blad" ? stuk.indeling?.bladmateriaal : stuk.materiaal;
+      if (!deel) return null;
+      const materiaal = materiaalVanDeel({ materiaal: deel }, materialen);
       const sleutel = JSON.stringify(materiaal);
       let m = eigen.get(sleutel);
       if (!m) {
@@ -548,7 +551,8 @@ function Veldkeuze({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
 }
 
 /**
- * Het materiaal van een meubel of kast: de standaardkleur van zijn groep, een
+ * Het materiaal van een meubel of kast (de fronten), of van zijn blad (het
+ * werkblad, de spatwand en een nis, zie drie/maatwerk.ts): de standaard, een
  * optie uit de bibliotheek (eerst die van Maatwerk en meubels, dan de andere
  * met een foto of patroon), een staal, een eigen kleur, of van een site of
  * foto. Bewaren gaat met de rest: Meubels bewaren.
@@ -559,15 +563,23 @@ function Stukmateriaal({
   materialen,
   huisId,
   metKeuzes,
+  welk = "front",
+  beelden,
 }: {
   inrichting: Inrichting;
   stuk: GeplaatstStuk;
   materialen: readonly Materiaalkeuze[];
   huisId: number;
   metKeuzes: boolean;
+  welk?: "front" | "blad";
+  beelden: readonly Importbeeld[];
 }) {
-  const huidig = stuk.materiaal ?? null;
+  const blad = welk === "blad";
+  const huidig = (blad ? stuk.indeling?.bladmateriaal : stuk.materiaal) ?? null;
   const groep = soortStuk(stuk.soort)?.groep;
+  const standaardkleur = blad ? STANDAARDBLAD : groep ? GROEPKLEUREN[groep] : "#dddddd";
+  const zet = (materiaal: Deelmateriaal | null) =>
+    blad ? inrichting.wijzig({ indeling: schoneIndeling({ ...(stuk.indeling ?? {}), bladmateriaal: materiaal }) }) : inrichting.wijzig({ materiaal });
   const meubelkeuze = keuzeVan("meubel", materialen);
   const bibliotheek = [
     ...(meubelkeuze?.opties ?? []).map((o) => ({ sleutel: `o${o.id}`, naam: o.naam, materiaal: alsMateriaal(o, "meubel"), optieId: o.id as number | null })),
@@ -575,32 +587,34 @@ function Stukmateriaal({
       .filter((k) => k !== meubelkeuze)
       .flatMap((k) => k.opties.filter((o) => o.foto || o.patroon).map((o) => ({ sleutel: `o${o.id}`, naam: o.naam, materiaal: alsMateriaal(o, k.slot), optieId: o.id as number | null }))),
   ];
-  const stalen = STALEN.meubel.map((s) => ({ sleutel: `s${s.naam}`, naam: s.naam, materiaal: s.materiaal, optieId: null as number | null }));
+  const stalen = (blad ? BLADSTALEN : STALEN.meubel).map((s) => ({ sleutel: `s${s.naam}`, naam: s.naam, materiaal: s.materiaal, optieId: null as number | null }));
   const kies = (naam: string, m: Materiaal, optieId: number | null) =>
-    inrichting.wijzig({ materiaal: { naam, kleur: m.kleur.toLowerCase(), patroon: m.patroon, voegkleur: m.voegkleur, optieId } satisfies Deelmateriaal });
+    zet({ naam, kleur: m.kleur.toLowerCase(), patroon: m.patroon, voegkleur: m.voegkleur, optieId } satisfies Deelmateriaal);
   const actief = (s: { optieId: number | null; materiaal: Materiaal }) =>
     huidig !== null &&
     (s.optieId !== null ? huidig.optieId === s.optieId : huidig.optieId === null && huidig.kleur === s.materiaal.kleur && huidig.patroon === s.materiaal.patroon);
   return (
     <details className="palet stukmateriaal">
-      <summary className="palet-kop">Materiaal: {huidig ? huidig.naam : "standaard"}</summary>
+      <summary className="palet-kop">
+        {blad ? "Werkblad en nis" : "Materiaal"}: {huidig ? huidig.naam : "standaard"}
+      </summary>
       <div className="stalen">
-        <button type="button" className="staal" aria-pressed={huidig === null} title="De kleur van de groep" onClick={() => inrichting.wijzig({ materiaal: null })}>
-          <span className="staal-beeld" style={{ backgroundColor: groep ? GROEPKLEUREN[groep] : "#ddd" }} aria-hidden="true" />
+        <button type="button" className="staal" aria-pressed={huidig === null} title={blad ? "Het gewone werkblad" : "De kleur van de groep"} onClick={() => zet(null)}>
+          <span className="staal-beeld" style={{ backgroundColor: standaardkleur }} aria-hidden="true" />
           <span className="staal-naam">Standaard</span>
         </button>
         {[...bibliotheek, ...stalen].map((s) => (
           <Staalknop key={s.sleutel} naam={s.naam} materiaal={s.materiaal} actief={actief(s)} kies={() => kies(s.naam, s.materiaal, s.optieId)} />
         ))}
       </div>
-      <label htmlFor="stuk-kleur" style={{ marginTop: 8 }}>
+      <label htmlFor={blad ? "stuk-bladkleur" : "stuk-kleur"} style={{ marginTop: 8 }}>
         Eigen kleur
       </label>
       <div className="kleurveld">
         <input
-          id="stuk-kleur"
+          id={blad ? "stuk-bladkleur" : "stuk-kleur"}
           type="color"
-          value={huidig?.kleur ?? (groep ? GROEPKLEUREN[groep] : "#dddddd")}
+          value={huidig?.kleur ?? standaardkleur}
           onChange={(g) => {
             const kleur = g.currentTarget.value.toLowerCase();
             kies(eigenNaam({ kleur, patroon: null }), { kleur, foto: null, patroon: null, voegkleur: null }, null);
@@ -610,10 +624,21 @@ function Stukmateriaal({
       {metKeuzes ? (
         <details className="palet importpalet">
           <summary className="palet-kop">Van een site of foto</summary>
-          <Materiaalimport huisId={huisId} slot="meubel" ruimteId={null} keuzeId={meubelkeuze?.keuzeId ?? null} klaar={(uit) => kies(uit.naam, uit.materiaal, uit.optieId)} />
+          <Materiaalimport
+            huisId={huisId}
+            slot="meubel"
+            ruimteId={null}
+            keuzeId={meubelkeuze?.keuzeId ?? null}
+            klaar={(uit) => kies(uit.naam, uit.materiaal, uit.optieId)}
+            beelden={beelden}
+          />
         </details>
       ) : null}
-      <p className="hulp">Een foto van de schrijnwerker of de leverancier komt in de keuze Maatwerk en meubels. Bewaar met Meubels bewaren.</p>
+      <p className="hulp">
+        {blad
+          ? "Een foto van het werkblad, of een stuk van een render, komt in de keuze Maatwerk en meubels. Bewaar met Meubels bewaren."
+          : "Een foto van de schrijnwerker of de leverancier komt in de keuze Maatwerk en meubels. Bewaar met Meubels bewaren."}
+      </p>
     </details>
   );
 }
@@ -625,12 +650,14 @@ function Stukkaart({
   materialen,
   huisId,
   metKeuzes,
+  beelden,
 }: {
   inrichting: Inrichting;
   stuk: GeplaatstStuk;
   materialen: readonly Materiaalkeuze[];
   huisId: number;
   metKeuzes: boolean;
+  beelden: readonly Importbeeld[];
 }) {
   const [hoektekst, setHoektekst] = useState<string | null>(null);
   const [labeltekst, setLabeltekst] = useState<string | null>(null);
@@ -712,7 +739,11 @@ function Stukkaart({
           if (g.key === "Enter") g.currentTarget.blur();
         }}
       />
-      {!dak ? <Stukmateriaal inrichting={inrichting} stuk={stuk} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} /> : null}
+      <Stukindeling stuk={stuk} wijzig={(indeling) => inrichting.wijzig({ indeling })} />
+      {!dak ? <Stukmateriaal inrichting={inrichting} stuk={stuk} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} beelden={beelden} /> : null}
+      {soort?.vorm === "keuken" || (soort?.vorm === "kast" && stuk.indeling?.nis) ? (
+        <Stukmateriaal inrichting={inrichting} stuk={stuk} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} beelden={beelden} welk="blad" />
+      ) : null}
       <div className="knoppenrij">
         {!dak ? (
           <button type="button" className="stil" onClick={inrichting.tegenDeMuur}>
@@ -739,11 +770,14 @@ export function Inrichtkaart({
   materialen,
   huisId,
   metKeuzes,
+  beelden = [],
 }: {
   inrichting: Inrichting;
   aan: boolean;
   wissel: () => void;
   verdiepingen: readonly { id: number; naam: string }[];
+  /** De beelden van het huis: ook daar kan een materiaal uit komen. */
+  beelden?: readonly Importbeeld[];
   /** De keuzes met hun opties: de bibliotheek voor het materiaal van een meubel. */
   materialen: readonly Materiaalkeuze[];
   huisId: number;
@@ -787,7 +821,15 @@ export function Inrichtkaart({
             ))}
           </select>
           {inrichting.gekozen ? (
-            <Stukkaart key={inrichting.gekozen.id} inrichting={inrichting} stuk={inrichting.gekozen} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} />
+            <Stukkaart
+              key={inrichting.gekozen.id}
+              inrichting={inrichting}
+              stuk={inrichting.gekozen}
+              materialen={materialen}
+              huisId={huisId}
+              metKeuzes={metKeuzes}
+              beelden={beelden}
+            />
           ) : null}
           <p className="hulp" style={{ marginTop: 10 }}>
             {inrichting.nieuw

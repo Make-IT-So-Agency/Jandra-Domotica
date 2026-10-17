@@ -50,7 +50,7 @@ import { huispad } from "@/lib/bouw/paden";
 
 import { bewaarDelenActie, bewaarMateriaalActie } from "./acties";
 import { kleefmarge, snijVlak, Voorbeeld } from "./deeltekening";
-import { Materiaalimport } from "./materiaalimport";
+import { Materiaalimport, type Importbeeld } from "./materiaalimport";
 import { richtStraal, useTik, zichtbareRaak, type Kern } from "./kern";
 import type { Opgebouwd, Sleutel } from "./scene";
 import { zetMateriaal, type Texturen } from "./texturen";
@@ -1084,6 +1084,7 @@ export function Materiaalkaart({
   wissel,
   vloerruimtes,
   verdiepingen,
+  beelden = [],
 }: {
   proef: Materiaalproef;
   huisId: number;
@@ -1093,6 +1094,8 @@ export function Materiaalkaart({
   vloerruimtes: readonly Vloerruimte[];
   /** De namen van de verdiepingen, voor de lijst met delen. */
   verdiepingen: readonly { id: number; naam: string }[];
+  /** De beelden van het huis: ook daar kan een materiaal uit komen. */
+  beelden?: readonly Importbeeld[];
 }) {
   const { plek, getoond, keuze } = p;
   const m = getoond.materiaal;
@@ -1243,6 +1246,7 @@ export function Materiaalkaart({
             ruimteId={plek.slot === "vloer" ? importruimte : null}
             keuzeId={keuze?.keuzeId ?? null}
             klaar={(uit) => p.probeer(uit.naam, uit.materiaal, uit.optieId)}
+            beelden={beelden}
           />
         </details>
       ) : null}

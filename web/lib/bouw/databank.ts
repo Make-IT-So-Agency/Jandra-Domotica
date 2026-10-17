@@ -65,6 +65,7 @@ export const HUISTABELLEN = [
   "bouw_werffotos",
   "bouw_inzendingen",
   "bouw_bestanden",
+  "bouw_beelden",
 ] as const;
 
 export type Huistabel = (typeof HUISTABELLEN)[number];

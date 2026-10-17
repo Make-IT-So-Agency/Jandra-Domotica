@@ -85,6 +85,17 @@ export const STALEN: Record<Slot, readonly Staal[]> = {
   ],
 };
 
+/** Stalen voor een werkblad, een spatwand of de achterkant van een nis (zie maatwerk.ts). */
+export const BLADSTALEN: readonly Staal[] = [
+  staal("Wit composiet", "#efece6"),
+  staal("Lichte natuursteen", "#e2d9c8"),
+  staal("Beige keramiek", "#d9cdb8"),
+  staal("Grijze keramiek", "#a9a7a2", "beton"),
+  staal("Zwart graniet", "#2b2b2d"),
+  staal("Inox", "#b8bdc3"),
+  staal("Eik", "#b48a5c", "planken"),
+];
+
 /** De echte maten, in meter. Een baksteen in waalformaat: 21 op 5 cm, met een voeg van 1,2 cm. */
 export const BAKSTEEN = { lengte: 0.21, hoogte: 0.05, voeg: 0.012 };
 /** Een tegel van 60 op 60, met een voeg van 3 mm. */

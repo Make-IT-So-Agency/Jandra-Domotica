@@ -304,7 +304,10 @@ zonder kabellengte. Zolang niets bewaard is, kiest de app zelf:
   wasmachine, droogkast, koelkast of diepvries, warmtepomp, boiler,
   ventilatie, omvormer, thuisbatterij en laadpaal. Ze komen van de punten
   *Vast toestel* (het label zegt welk: "Kookplaat", "Oven"...), van het
-  laadpunt op het plan, en van de toestellen bij Inrichten. Met drie fasen
+  laadpunt op het plan, en van de toestellen bij Inrichten, ook die in het
+  maatwerk: de ovens of de koelkast in een kolomkast, de kookplaat en de
+  vaatwasser in de onderkasten of het eiland. Een punt gaat voor: staat er
+  een punt "Oven" op het plan, dan telt dat, niet de ovens in de kast. Met drie fasen
   gaan de kookplaat, de warmtepomp, de omvormer en de thuisbatterij op alle
   drie;
 - **de laadpaal** volgens zijn vermogen: 1P+N 32 A in XVB 3G6, of 3P+N 16 A
@@ -651,6 +654,25 @@ grondplannen.
   puntgevel waar een deel op ligt (`knipWand`, `knipVlak`, `knipGevel`); een
   deel krijgt zijn eigen materiaal, `deel:<id>`. Een ander deel vervangt
   enkel de vlakken: wat de lagen verbergen en de meubels blijven.
+- **Beelden** (`3d/beelden.tsx`, `drie/beelden.ts`). Renders van de
+  keukenbouwer of de schrijnwerker, of andere beelden van het huis: bij
+  **Beelden toevoegen** laad je er meerdere tegelijk op, verkleind zoals een
+  foto (`bouw_beelden`). Tik een beeld aan en het ligt over het 3D-model,
+  met een schuif tussen **3D** en **Beeld**:
+  - **het standpunt:** de camera gaat naar waar ze voor dit beeld stond.
+    Zonder standpunt begint ze in een hoek van de ruimte die het beeld
+    toont, of van de grootste ruimte van het gelijkvloers;
+  - **zoeken:** slepen kijkt rond, W A S D schuift, Q en E zakken en
+    stijgen, de pijltjes draaien fijn, Shift gaat sneller. Het muiswiel, +
+    en − of de schuif veranderen de kijkhoek, tot het beeld en het huis
+    samenvallen. **Standpunt bewaren** legt het vast, in het assenstelsel
+    van het gebouw: verschuift het gebouw op het terrein, dan gaat het mee;
+  - **de titel en de ruimte** die het beeld toont, wijzig je in de kaart.
+    Bij **Ruimtes** staan de beelden onder hun verdieping; een tik opent
+    het beeld in 3D, vanuit zijn standpunt (`?beeld=`);
+  - **een materiaal** uit een beeld: bij **Van een site of foto** staan de
+    beelden van het huis. Duid er een recht stuk fineer of werkblad op aan,
+    van voren gezien, zo breed als in het echt.
 - **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
@@ -726,14 +748,34 @@ grondplannen.
     **Tegen de muur** zet het er opnieuw tegen, en **Weg** haalt het weg. Met
     de toetsen: de pijltjes verschuiven 5 cm (met Shift 50 cm), R draait 15°,
     Delete haalt weg;
+  - **maatwerk** (`drie/maatwerk.ts`, `3d/indeling.tsx`): zoals de
+    schrijnwerker of de keukenbouwer het tekent. Onder **Indeling**:
+    - **een kast** (bij Maatwerk en kasten ook de **kastenwand op maat**,
+      tot het plafond): het aantal fronten, een open vak links of rechts
+      met legplanken, een plint, en een nis over een paar fronten, zoals
+      een koffiehoek, met een legger en licht;
+    - **de onderkasten en het eiland:** deuren of rijen lades, de
+      kookplaat, de spoelbak met de kraan en de vaatwasser (links, in het
+      midden of rechts), de dikte van het werkblad, en tegen de muur een
+      spatwand. Bij een eiland steekt het werkblad aan een kant uit voor de
+      barkrukken, zonder kasten eronder, en kan het aan de uiteinden
+      doorlopen tot op de vloer (wangen);
+    - **de kolomkast:** een oven, een compacte oven, twee compacte ovens of
+      de koelkast, met de fronten erboven en eronder;
+    - **de zwevende legger:** een plank aan de muur.
+
+    Het eigen materiaal ligt op de fronten en het corpus; **Werkblad en
+    nis** geeft het werkblad, de spatwand, de wangen en de achterkant van
+    een nis een tweede materiaal. De indeling wordt bewaard met **Meubels
+    bewaren** (`bouw_objecten.indeling`);
   - **het materiaal:** onder **Materiaal** krijgt een meubel of kast een
     eigen materiaal. Eerst de opties van de keuze Maatwerk en meubels, dan de
     andere opties met een foto of patroon, de stalen (eik, notelaar, gelakt,
     betonlook) en een eigen kleur. **Van een site of foto** werkt zoals bij de
     materialen, en zet de optie bij Maatwerk en meubels: zo komt een foto van
-    de schrijnwerker of de leverancier op het meubel. Het materiaal ligt op
-    echte maat op de hoofddelen van het stuk; zonder materiaal blijft de
-    kleur van de groep;
+    de schrijnwerker of de leverancier op het meubel, of een stuk van een
+    render bij **Beelden**. Het materiaal ligt op echte maat op de
+    hoofddelen van het stuk; zonder materiaal blijft de kleur van de groep;
   - **bewaren:** **Meubels bewaren** bewaart elke verdieping die veranderde in
     één keer (`bouw_objecten`, met het materiaal), in meter in het
     assenstelsel van het gebouw, zoals de punten. **Herbeginnen** gooit weg
@@ -1242,6 +1284,11 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/fotostaal.ts` | Hoe 3D een foto gebruikt: een staal of een vlak herkennen, de kleuren en de voeg, het patroon uit de vorm, en een stukje per steen; puur, met tests |
 | `web/lib/bouw/materiaal-pagina.ts`, `web/lib/bouw/ophalen.ts`, `web/app/api/bouw/materiaal/` | De foto's van een productpagina, ophalen enkel van het openbare internet, en de routes om een site te lezen en een foto door te geven |
 | `supabase/migrations/20261018100000_bouw_materiaalfotos.sql` | De foto in het echt en het staal van een optie, en het materiaal van een meubel |
+| `web/lib/bouw/drie/beelden.ts`, `web/lib/bouw/beelden-opslag.ts` | Beelden van het huis: een standpunt nakijken, van het gebouw naar de wereld en terug, de kijkhoek van de camera (puur, met tests), en de opslag |
+| `web/app/vastgoed/[huis]/3d/beelden.tsx` | Een beeld over het 3D-model: de kaart, de schuif, kijken vanuit het beeld en het standpunt bewaren |
+| `supabase/migrations/20261018110000_bouw_beelden.sql` | De beelden van een huis, met hun ruimte en het standpunt van de camera |
+| `web/lib/bouw/drie/maatwerk.ts`, `web/app/vastgoed/[huis]/3d/indeling.tsx` | Maatwerk: de indeling van een kast, de keuken, een eiland en een kolomkast in delen, en de toestellen erin; puur, met tests, en het paneel |
+| `supabase/migrations/20261018120000_bouw_maatwerk.sql` | De indeling van een meubel of toestel |
 | `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
 | `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
@@ -1463,6 +1510,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       deel van een muur, vloer of plat dak
 - [x] **5m** Materialen van een site of foto, met een staal en een foto in
       het echt, op muren, vloeren, delen en meubels
+- [x] **5n** Het schrijnwerk: beelden over het 3D-model vanuit hun
+      standpunt, kasten op maat, de keuken met het eiland en de toestellen
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

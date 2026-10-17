@@ -17,7 +17,7 @@ begin
       'bouw_gebouwen', 'bouw_partijen', 'bouw_plannen', 'bouw_planning', 'bouw_keuzes',
       'bouw_beslissingen', 'bouw_posten', 'bouw_facturen', 'bouw_kredietopnames', 'bouw_dagboek',
       'bouw_opleverpunten', 'bouw_actiepunten', 'bouw_garanties', 'bouw_onderhoud',
-      'bouw_documenten', 'bouw_werffotos', 'bouw_inzendingen', 'bouw_bestanden'
+      'bouw_documenten', 'bouw_werffotos', 'bouw_inzendingen', 'bouw_bestanden', 'bouw_beelden'
     ]) as tabel
    where not exists (
      select 1 from information_schema.columns

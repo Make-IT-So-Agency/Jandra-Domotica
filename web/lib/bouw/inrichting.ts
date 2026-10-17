@@ -1,4 +1,5 @@
 import { deelmateriaal, type Deelmateriaal } from "./drie/delen";
+import { schoneIndeling, type Indeling } from "./drie/maatwerk";
 
 /**
  * Meubels en toestellen in het huis, voor het 3D-model: een bed, een zetel,
@@ -26,12 +27,13 @@ export const INRICHTINGSLAAGNAMEN: Record<Inrichtingslaag, string> = {
   zonnepanelen: "Zonnepanelen",
 };
 
-export const GROEPEN = ["slapen", "zitten", "eten", "keuken", "badkamer", "wassen", "klimaat", "energie", "buiten", "dak"] as const;
+export const GROEPEN = ["slapen", "zitten", "maatwerk", "eten", "keuken", "badkamer", "wassen", "klimaat", "energie", "buiten", "dak"] as const;
 export type Groep = (typeof GROEPEN)[number];
 
 export const GROEPNAMEN: Record<Groep, string> = {
   slapen: "Slapen",
   zitten: "Zitten",
+  maatwerk: "Maatwerk en kasten",
   eten: "Eten en werken",
   keuken: "Keuken",
   badkamer: "Badkamer",
@@ -46,6 +48,7 @@ export const GROEPNAMEN: Record<Groep, string> = {
 export const LAAG_VAN_GROEP: Record<Groep, Inrichtingslaag> = {
   slapen: "meubels",
   zitten: "meubels",
+  maatwerk: "meubels",
   eten: "meubels",
   keuken: "meubels",
   badkamer: "meubels",
@@ -60,6 +63,7 @@ export const LAAG_VAN_GROEP: Record<Groep, Inrichtingslaag> = {
 export const GROEPKLEUREN: Record<Groep, string> = {
   slapen: "#c9b8e8",
   zitten: "#a7bfd6",
+  maatwerk: "#d8c4a4",
   eten: "#cfae84",
   keuken: "#e7e1d3",
   badkamer: "#f3f5f6",
@@ -80,6 +84,8 @@ export type Vorm =
   | "bureau"
   | "kast"
   | "keuken"
+  | "kolom"
+  | "plank"
   | "wc"
   | "lavabo"
   | "douche"
@@ -112,6 +118,8 @@ export interface Stuksoort {
   maat: readonly [number, number, number];
   /** Wat aan de muur hangt: de onderkant boven de vloer. */
   z?: number;
+  /** Maatwerk: de indeling waarmee een nieuw stuk begint (zie drie/maatwerk.ts). */
+  indeling?: Indeling;
 }
 
 export const STUKSOORTEN: readonly Stuksoort[] = [
@@ -125,10 +133,21 @@ export const STUKSOORTEN: readonly Stuksoort[] = [
   { soort: "salontafel", naam: "Salontafel", groep: "zitten", vorm: "tafel", plaats: "vloer", maat: [1.1, 0.6, 0.4] },
   { soort: "tv_meubel", naam: "Tv-meubel", groep: "zitten", vorm: "kast", plaats: "muur", maat: [1.8, 0.45, 0.5] },
   { soort: "kast", naam: "Kast", groep: "zitten", vorm: "kast", plaats: "muur", maat: [1.0, 0.4, 2.0] },
+  // Maatwerk van de schrijnwerker: een kastenwand tot het plafond met een open vak, en een zwevende legger.
+  {
+    soort: "maatkast",
+    naam: "Kastenwand op maat",
+    groep: "maatwerk",
+    vorm: "kast",
+    plaats: "muur",
+    maat: [2.4, 0.6, 2.6],
+    indeling: { fronten: 3, open: { kant: "rechts", breedte: 0.4, planken: 4 }, plint: 0.08 },
+  },
+  { soort: "legger", naam: "Zwevende legger", groep: "maatwerk", vorm: "plank", plaats: "muur", maat: [1.8, 0.25, 0.04], z: 1.45 },
   { soort: "eettafel", naam: "Eettafel met stoelen", groep: "eten", vorm: "eettafel", plaats: "vloer", maat: [1.8, 0.9, 0.75] },
   { soort: "bureau", naam: "Bureau", groep: "eten", vorm: "bureau", plaats: "muur", maat: [1.4, 0.7, 0.75] },
   { soort: "keuken_onder", naam: "Onderkasten met werkblad", groep: "keuken", vorm: "keuken", plaats: "muur", maat: [2.4, 0.62, 0.9] },
-  { soort: "keuken_hoog", naam: "Hoge kast", groep: "keuken", vorm: "kast", plaats: "muur", maat: [0.6, 0.62, 2.2] },
+  { soort: "keuken_hoog", naam: "Kolomkast", groep: "keuken", vorm: "kolom", plaats: "muur", maat: [0.6, 0.62, 2.2] },
   { soort: "keukeneiland", naam: "Keukeneiland", groep: "keuken", vorm: "keuken", plaats: "vloer", maat: [2.0, 1.0, 0.9] },
   { soort: "wc", naam: "Wc", groep: "badkamer", vorm: "wc", plaats: "muur", maat: [0.4, 0.6, 0.8] },
   { soort: "lavabo", naam: "Lavabo", groep: "badkamer", vorm: "lavabo", plaats: "muur", maat: [0.6, 0.48, 0.85] },
@@ -189,6 +208,8 @@ export interface Stuk {
   label: string | null;
   /** Een eigen materiaal, zoals een deel van een muur: een staal, een kleur of een optie van een keuze. Zonder: de kleur van zijn groep. */
   materiaal?: Deelmateriaal | null;
+  /** Maatwerk: de fronten, een nis, de kookplaat, een oven… en het materiaal van het blad (zie drie/maatwerk.ts). */
+  indeling?: Indeling | null;
 }
 
 /** Een stuk met de verdieping waar het staat. */
@@ -221,7 +242,8 @@ const cm = (waarde: number) => Math.round(waarde * 100) / 100;
 export function nieuwStuk(soort: Stuksoort, [x, y]: readonly [number, number], id: number, grond: number): Stuk {
   const [breedte, diepte, hoogte] = soort.maat;
   const z = soort.plaats === "buiten" ? grond : soort.plaats === "grond" ? grond - hoogte : (soort.z ?? 0);
-  return { id, soort: soort.soort, x: mm(x), y: mm(y), z: cm(z), hoek: 0, kanteling: 0, breedte, diepte, hoogte, label: null };
+  const stuk: Stuk = { id, soort: soort.soort, x: mm(x), y: mm(y), z: cm(z), hoek: 0, kanteling: 0, breedte, diepte, hoogte, label: null };
+  return soort.indeling ? { ...stuk, indeling: soort.indeling } : stuk;
 }
 
 const getal = (ruw: unknown, min: number, max: number): number | null => {
@@ -272,8 +294,9 @@ export function schoneStukken(ruw: unknown): Stuk[] {
       diepte: Math.max(0.01, cm(diepte)),
       hoogte: Math.max(0.01, cm(hoogte)),
       label: schoonLabel(item.label),
-      // Een materiaal dat niet klopt, valt weg; het stuk blijft.
+      // Een materiaal of een indeling die niet klopt, valt weg; het stuk blijft.
       materiaal: deelmateriaal(item.materiaal),
+      indeling: schoneIndeling(item.indeling),
     });
   }
   return uit;

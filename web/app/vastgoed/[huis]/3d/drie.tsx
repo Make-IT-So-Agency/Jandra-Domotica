@@ -40,6 +40,7 @@ import { CATEGORIEEN, CATEGORIEKLEUREN, CATEGORIENAMEN, hoogteTekst, ruimteVan, 
 import type { Trapstand } from "@/lib/bouw/types";
 
 import { bewaarDakActie, bewaarInplantingActie, bewaarOmgevingActie, bewaarTrappenActie } from "./acties";
+import { Beeldbalk, Beeldenkaart, Beeldlaag, useBeelden, type Beeldcamera } from "./beelden";
 import type { GeladenPlan } from "./inplantingsplan";
 import { Inrichtkaart, useInrichten } from "./inrichten";
 import { bouwLeidingen, type Leidingenscene } from "./leidingen-scene";
@@ -145,7 +146,7 @@ const VASTE_KLEUREN: Record<string, string> = {
   luifel: STANDAARDKLEUREN.luifel,
 };
 
-export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: Driegegevens }) {
+export default function Drie({ huisId, gegevens, beeldId = null }: { huisId: number; gegevens: Driegegevens; beeldId?: number | null }) {
   const vak = useRef<HTMLDivElement>(null);
   const [daken, setDaken] = useState<Map<number, Dakinstelling>>(() => new Map(gegevens.gebouwen.map((g) => [g.id, g.dak])));
   // Wat er te zien is: per laag aan of uit, onthouden per browser (zie lib/bouw/drie/lagen.ts).
@@ -281,6 +282,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     naPlan: boolean;
     /** Rondwandelen: waar je bent (in het gebouw), waar je naar kijkt (op het terrein), en welke toetsen ingedrukt zijn. */
     wandel: { stand: Wandelstand | null; kijk: number; op: number; toetsen: Set<string> };
+    /** Vanuit een beeld kijken: dan zet beelden.tsx de camera, niet OrbitControls. */
+    beeld: Beeldcamera | null;
   } | null>(null);
   // De lus van three.js en het bouwen lezen de laatste stand uit refs, niet uit een oude render.
   const proefRef = useRef<ReadonlyMap<string, Proef>>(new Map());
@@ -390,6 +393,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       bewogen: false,
       naPlan: false,
       wandel: { stand: null, kijk: 0, op: 0, toetsen: new Set() },
+      beeld: null,
     };
 
     controls.addEventListener("start", () => {
@@ -417,7 +421,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       klok.update(tijd);
       const dt = Math.min(0.1, klok.getDelta());
       if (d.wandel.stand !== null) stap(d, dt);
-      else d.controls.update();
+      else if (!d.beeld) d.controls.update();
       for (const doe of d.elkBeeld) doe(dt);
       d.renderer.render(d.scene, d.camera);
       d.labels.render(d.scene, d.camera);
@@ -943,6 +947,31 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   });
   const materiaalproefRef = useRef(materiaalproef);
   materiaalproefRef.current = materiaalproef;
+
+  // Beelden van het huis, zoals renders, over het model vanuit hun standpunt (zie beelden.tsx).
+  const beelden = useBeelden(drie, {
+    huisId,
+    begin: beeldId,
+    bewaard: gegevens.beelden,
+    model,
+    plaatsingen,
+    meld: setMelding,
+    voorOpen: () => {
+      setModus("rond");
+      setGereedschap("kijken");
+    },
+  });
+  const beeldenRef = useRef(beelden);
+  beeldenRef.current = beelden;
+  const beeldOpen = beelden.gekozen !== null;
+  // Rondwandelen of een gereedschap sluit het beeld.
+  useEffect(() => {
+    if (modus === "wandel" || gereedschap !== "kijken") beeldenRef.current.sluit();
+  }, [modus, gereedschap]);
+  const ruimtekeuzes = useMemo(
+    () => gegevens.verdiepingen.flatMap((v) => v.ruimtes.map((r) => ({ id: r.id, naam: r.naam, verdieping: v.naam }))),
+    [gegevens.verdiepingen],
+  );
   const proef = materiaalproef.proef;
   proefRef.current = proef;
   delenRef.current = useMemo(() => new Map([...delen.values()].flat().map((deel) => [deel.id, deel])), [delen]);
@@ -977,7 +1006,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     if (!d) return;
     if (modus !== "wandel") {
       d.wandel.stand = null;
-      d.controls.enabled = true;
+      d.controls.enabled = d.beeld === null;
       return;
     }
     const verdieping = model.verdiepingen.find((v) => v.id === wandelOp) ?? model.verdiepingen[0];
@@ -1283,6 +1312,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (beeldenRef.current.breekAf()) return;
       if (meetlintRef.current.breekAf()) return;
       if (inrichtingRef.current.breekAf()) return;
       if (materiaalproefRef.current.breekAf()) return;
@@ -1300,7 +1330,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
       const veld = (e.target as HTMLElement | null)?.tagName;
       if (veld === "INPUT" || veld === "SELECT" || veld === "TEXTAREA" || e.ctrlKey || e.metaKey || e.altKey) return;
       const d = drie.current;
-      if (!d) return;
+      // Vanuit een beeld veranderen + en − de kijkhoek (zie beelden.tsx).
+      if (!d || d.beeld) return;
       if (e.key === "+" || e.key === "=") zoomCamera(d, 0.8);
       else if (e.key === "-" || e.key === "_") zoomCamera(d, 1.25);
       else return;
@@ -1507,8 +1538,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
         <div className={`drie-raam${gereedschap === "materiaal" ? " met-stalen" : ""}`}>
           <div
             ref={vak}
-            className={`drie-vak${modus === "wandel" ? " wandel" : ""}${gereedschap === "meten" || (gereedschap === "inrichten" && inrichting.nieuw) ? " meten" : ""}`}
+            className={`drie-vak${modus === "wandel" || beeldOpen ? " wandel" : ""}${gereedschap === "meten" || (gereedschap === "inrichten" && inrichting.nieuw) ? " meten" : ""}`}
           />
+          <Beeldlaag beelden={beelden} />
           <div className="drie-links" role="group" aria-label="Gereedschap">
             <button
               type="button"
@@ -1536,6 +1568,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           </div>
           <Noordpijl kern={drie} klaar={klaar} noorden={noorden} tonen={isAan(lagen, "hulp:noorden")} />
           {gereedschap === "materiaal" ? <Staalstrook proef={materiaalproef} metKeuzes={gegevens.metKeuzes} boven={modus === "wandel"} /> : null}
+          <Beeldbalk beelden={beelden} />
           <div className="drie-boven">
             <button
               type="button"
@@ -1556,7 +1589,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
               {volledig ? "✕ Sluiten" : "⛶ Volledig scherm"}
             </button>
           </div>
-          {modus === "rond" ? (
+          {beeldOpen ? null : modus === "rond" ? (
             <div className="drie-zoom" role="group" aria-label="Zoomen">
               <button type="button" className="drie-knop rond" aria-label="Inzoomen" title="Inzoomen (+)" onClick={() => drie.current && zoomCamera(drie.current, 0.8)}>
                 +
@@ -1580,7 +1613,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           )}
         </div>
         <p className="hulp drie-hulp">
-          {gereedschap === "meten"
+          {beeldOpen
+            ? "Slepen kijkt rond, W A S D schuift, Q en E zakken en stijgen, de pijltjes draaien fijn. Het muiswiel, + en − veranderen de kijkhoek. Vallen beeld en huis samen, bewaar dan het standpunt. Esc sluit."
+            : gereedschap === "meten"
             ? meetlint.bezig
               ? "Tik het einde van de maat. Esc breekt af."
               : "Tik het begin van een maat; een tik dicht bij een hoek kleeft eraan. Slepen draait zoals altijd."
@@ -1682,6 +1717,8 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           ) : null}
         </section>
 
+        <Beeldenkaart beelden={beelden} ruimtes={ruimtekeuzes} />
+
         <section className="kaart">
           <h3>Lagen</h3>
           <Lagenkeuze groepen={lagengroepen} stand={lagen} zet={zetLagen} />
@@ -1710,6 +1747,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           aan={gereedschap === "materiaal"}
           wissel={() => wissel("materiaal")}
           vloerruimtes={vloerruimtes}
+          beelden={gegevens.beelden}
         />
 
         <Inrichtkaart
@@ -1723,6 +1761,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
           materialen={gegevens.materialen}
           huisId={huisId}
           metKeuzes={gegevens.metKeuzes}
+          beelden={gegevens.beelden}
         />
 
         <Zonkaart kern={drie} klaar={klaar} noorden={noorden} terrein={terrein} metOmgeving={omgeving !== null && omgevingsplaats !== null} />

@@ -10,6 +10,7 @@ import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
 import { deelmateriaal, schoneDelen, type Deel } from "./drie/delen";
+import { schoneIndeling } from "./drie/maatwerk";
 import { schoneTrapstanden } from "./drie/trappen";
 import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
 import { isLigging, type Leiding, type Nieuweleiding } from "./leidingen";
@@ -786,6 +787,7 @@ function alsStuk(rij: Record<string, unknown>): GeplaatstStuk {
     hoogte: Number(rij.hoogte_m),
     label: (rij.label as string | null) ?? null,
     materiaal: deelmateriaal(rij.materiaal),
+    indeling: schoneIndeling(rij.indeling),
   };
 }
 
@@ -801,6 +803,7 @@ const stukrij = (stuk: Stuk) => ({
   hoogte_m: stuk.hoogte,
   label: stuk.label,
   materiaal: stuk.materiaal ?? null,
+  indeling: stuk.indeling ?? null,
 });
 
 /** De meubels en toestellen van het huis, op alle verdiepingen. */
@@ -976,8 +979,8 @@ export async function markeerKlaar(id: number, grootte: number): Promise<void> {
 
 /**
  * Gebruikt nog iets dit bestand: een planversie, een optie van een keuze (als
- * foto), een offerte, een factuur, of een inzending die nog niet ingelezen of
- * genegeerd is?
+ * foto), een offerte, een factuur, een beeld van het huis, of een inzending
+ * die nog niet ingelezen of genegeerd is?
  */
 export async function wordtGebruikt(bestandId: number): Promise<boolean> {
   const antwoorden = await Promise.all([
@@ -990,6 +993,7 @@ export async function wordtGebruikt(bestandId: number): Promise<boolean> {
     db().from("bouw_werffotos").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_werffotos").select("id").eq("duim_bestand_id", bestandId).limit(1),
     db().from("bouw_documenten").select("id").eq("bestand_id", bestandId).limit(1),
+    db().from("bouw_beelden").select("id").eq("bestand_id", bestandId).limit(1),
   ]);
   return antwoorden.some((antwoord) => (check(antwoord, "Gebruik van een bestand nakijken") as unknown[]).length > 0);
 }

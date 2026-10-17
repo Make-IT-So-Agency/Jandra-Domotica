@@ -1,3 +1,4 @@
+import { toestellenVan, type Keukentoestel } from "../drie/maatwerk";
 import { vermogen, veldVan } from "../drie/zonnepanelen";
 import { soortStuk, type GeplaatstStuk } from "../inrichting";
 import { middenVan } from "../omzetting/geometrie";
@@ -311,6 +312,11 @@ const KRING_VAN_STUK: Record<string, Kringsoort> = {
   wallbox: "laadpaal",
   laadpaal: "laadpaal",
 };
+
+/** De toestellen in maatwerk (zie drie/maatwerk.ts), zoals de ovens in een kolomkast of de kookplaat in het eiland. */
+const KRING_VAN_TOESTEL: Record<Keukentoestel, Kringsoort> = { oven: "oven", kookplaat: "kookplaat", vaatwasser: "vaatwasser", koelkast: "koeling" };
+const TOESTELCODES: Record<Keukentoestel, string> = { oven: "OV", kookplaat: "KP", vaatwasser: "VW", koelkast: "KK" };
+const KEUKENTOESTELNAMEN: Record<Keukentoestel, string> = { oven: "Oven", kookplaat: "Kookplaat", vaatwasser: "Vaatwasser", koelkast: "Koelkast" };
 
 /** De korte code van een toestel bij Inrichten, zoals een punt een code heeft. */
 const STUKCODES: Record<string, string> = {
@@ -648,30 +654,43 @@ function verbruikers(invoer: Techniekinvoer): { lijst: Verbruiker[]; kwp: number
   // De toestellen bij Inrichten, als er geen punt van die soort voor staat. Eén warmtepomp, ook met een binnen- en buitenunit.
   const zonnepanelen = invoer.stukken.filter((s) => s.soort === "zonnepanelen");
   const opgeteld = kwpIn3d(zonnepanelen);
-  // Een punt gaat voor: een vast toestel "wasmachine" op het plan is de wasmachine bij Inrichten.
+  // Een punt gaat voor: een vast toestel "wasmachine" op het plan is de wasmachine bij Inrichten, en een "oven" de oven in de kolomkast.
   const metPunt = new Set(lijst.map((v) => v.kring));
   for (const stuk of invoer.stukken) {
-    const kring = KRING_VAN_STUK[stuk.soort];
     const v = verdiepingen.get(stuk.verdiepingId);
-    if (!kring || !v || metPunt.has(kring)) continue;
-    if (kring === "warmtepomp" && lijst.some((x) => x.kring === "warmtepomp")) continue;
-    const ruimte = ruimteVanPunt(v, stuk.x, stuk.y);
-    lijst.push({
-      bron: "stuk",
-      id: stuk.id,
-      soort: stuk.soort,
-      code: STUKCODES[stuk.soort] ?? "T",
-      naam: stuk.label ? `${soortStuk(stuk.soort)?.naam ?? stuk.soort}: ${stuk.label}` : (soortStuk(stuk.soort)?.naam ?? stuk.soort),
-      aantal: 1,
-      telling: 1,
-      verdiepingId: v.id,
-      x: stuk.x,
-      y: stuk.y,
-      ruimteId: ruimte?.id ?? null,
-      ruimte: ruimte?.naam ?? null,
-      kring,
-      groep: null,
-    });
+    if (!v) continue;
+    const soortnaam = soortStuk(stuk.soort)?.naam ?? stuk.soort;
+    // Het stuk zelf, zoals een wasmachine, en wat erin zit, zoals de ovens in een kolomkast.
+    const eigen = KRING_VAN_STUK[stuk.soort];
+    const toestellen = [
+      ...(eigen ? [{ kring: eigen, code: STUKCODES[stuk.soort] ?? "T", naam: soortnaam }] : []),
+      ...toestellenVan(soortStuk(stuk.soort)?.vorm, stuk.indeling).map((t) => ({
+        kring: KRING_VAN_TOESTEL[t],
+        code: TOESTELCODES[t],
+        naam: `${KEUKENTOESTELNAMEN[t]} in ${soortnaam.toLowerCase()}`,
+      })),
+    ];
+    for (const { kring, code, naam } of toestellen) {
+      if (metPunt.has(kring)) continue;
+      if (kring === "warmtepomp" && lijst.some((x) => x.kring === "warmtepomp")) continue;
+      const ruimte = ruimteVanPunt(v, stuk.x, stuk.y);
+      lijst.push({
+        bron: "stuk",
+        id: stuk.id,
+        soort: stuk.soort,
+        code,
+        naam: stuk.label ? `${naam}: ${stuk.label}` : naam,
+        aantal: 1,
+        telling: 1,
+        verdiepingId: v.id,
+        x: stuk.x,
+        y: stuk.y,
+        ruimteId: ruimte?.id ?? null,
+        ruimte: ruimte?.naam ?? null,
+        kring,
+        groep: null,
+      });
+    }
   }
   // Zonnepanelen zonder omvormer bij Inrichten: toch een kring, bij het eerste veld.
   if (zonnepanelen.length > 0 && !lijst.some((v) => v.kring === "omvormer")) {

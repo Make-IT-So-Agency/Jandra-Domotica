@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { STANDAARDBLAD, kastdelen, keukendelen, kolomdelen, plankdelen, type Blok, type Rol } from "@/lib/bouw/drie/maatwerk";
 import type { Model3d } from "@/lib/bouw/drie/model";
 import { PANEEL, veldVan } from "@/lib/bouw/drie/zonnepanelen";
 import { GROEPKLEUREN, laagVan, soortStuk, type GeplaatstStuk, type Stuk } from "@/lib/bouw/inrichting";
@@ -18,15 +19,56 @@ import { GROEPKLEUREN, laagVan, soortStuk, type GeplaatstStuk, type Stuk } from 
  *
  * Een stuk met een eigen materiaal (een fineer, een lak, een foto van de
  * schrijnwerker) krijgt dat op zijn hoofddelen, met textuurcoördinaten in
- * meter: een patroon ligt er op echte maat, zoals op de muren.
+ * meter: een patroon ligt er op echte maat, zoals op de muren. Maatwerk (een
+ * kast, de keuken, een kolomkast) bestaat uit delen met een rol (zie
+ * lib/bouw/drie/maatwerk.ts): de fronten krijgen het eigen materiaal, het
+ * werkblad, de spatwand en de achterkant van een nis het blad.
  */
 
 const WIT = "#f8fafc";
 const DONKER = "#374151";
-const WERKBLAD = "#6b6259";
+const WERKBLAD = STANDAARDBLAD;
 const WATER = "#bfdbfe";
 const SPIEGEL = "#dbeafe";
 const PANEELKLEUR = "#1f2b45";
+/** De achterkant van een nis zonder blad: lichte steen. */
+const LICHTSTEEN = "#e9e4da";
+const GLAS_ZWART = "#14161a";
+const SCHERM = "#3a414d";
+const INOX = "#9aa1a9";
+const INOX_LICHT = "#c3c8ce";
+const LED = "#fff6e0";
+
+/** Welke kleur een deel van maatwerk krijgt; de fronten krijgen de kleur van de groep, en zo het eigen materiaal. */
+function rolkleur(rol: Rol, kleur: string): string {
+  switch (rol) {
+    case "front":
+    case "corpus":
+    case "plint":
+    case "binnen":
+    case "plank":
+      return kleur;
+    case "blad":
+      return WERKBLAD;
+    case "nisrug":
+      return LICHTSTEEN;
+    case "naad":
+    case "greep":
+    case "sokkel":
+      return DONKER;
+    case "kookplaat":
+    case "toestel":
+      return GLAS_ZWART;
+    case "scherm":
+      return SCHERM;
+    case "spoelbak":
+      return INOX;
+    case "kraan":
+      return INOX_LICHT;
+    case "led":
+      return LED;
+  }
+}
 
 /** Eén kubus en één cilinder van 1 m voor alles, op maat geschaald. */
 const KUBUS = new THREE.BoxGeometry(1, 1, 1);
@@ -70,8 +112,8 @@ export function bouwStukken(
   model: Model3d,
   groepen: ReadonlyMap<number, THREE.Group>,
   snede: THREE.Plane,
-  /** Het eigen materiaal van een stuk; null: de kleur van zijn groep. Wie het geeft, ruimt het ook op. */
-  eigenMateriaal: (stuk: GeplaatstStuk) => THREE.MeshStandardMaterial | null = () => null,
+  /** Het eigen materiaal van een stuk (de fronten) of van zijn blad; null: de kleur van zijn groep. Wie het geeft, ruimt het ook op. */
+  eigenMateriaal: (stuk: GeplaatstStuk, welk: "front" | "blad") => THREE.MeshStandardMaterial | null = () => null,
 ): Stukkenscene {
   const geometrieen: THREE.BufferGeometry[] = [];
   const materialen = new Map<string, THREE.MeshStandardMaterial>();
@@ -81,8 +123,11 @@ export function bouwStukken(
     if (!m) {
       m = new THREE.MeshStandardMaterial({
         color: kleur,
-        roughness: doorzichtig ? 0.1 : 0.85,
-        metalness: 0,
+        roughness: doorzichtig ? 0.1 : kleur === GLAS_ZWART ? 0.15 : kleur === INOX || kleur === INOX_LICHT ? 0.35 : 0.85,
+        metalness: kleur === INOX || kleur === INOX_LICHT ? 0.6 : 0,
+        // Het licht in een nis of een legger gloeit.
+        emissive: kleur === LED ? kleur : "#000000",
+        emissiveIntensity: kleur === LED ? 1.2 : 0,
         transparent: doorzichtig,
         opacity: doorzichtig ? 0.3 : 1,
         depthWrite: !doorzichtig,
@@ -107,16 +152,19 @@ export function bouwStukken(
     const accent = tint(kleur, 0.78);
     const { breedte: w, diepte: d, hoogte: h } = stuk;
     const groep = new THREE.Group();
-    // De hoofddelen (in de kleur van de groep) krijgen het eigen materiaal, als er een is.
-    const eigen = eigenMateriaal(stuk);
+    // De hoofddelen (in de kleur van de groep) krijgen het eigen materiaal, het werkblad en de nis het blad, als er een is.
+    const eigen = eigenMateriaal(stuk, "front");
+    const eigenBlad = eigenMateriaal(stuk, "blad");
+    const eigenVoor = (k: string) => (k === kleur ? eigen : k === WERKBLAD || k === LICHTSTEEN ? eigenBlad : null);
 
     /** Een blok van x0 tot x1 (breedte), y0 tot y1 (hoogte) en z0 tot z1 (diepte). */
     const blok = (k: string, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, doorzichtig = false) => {
       if (x1 - x0 < 1e-3 || y1 - y0 < 1e-3 || z1 - z0 < 1e-3) return;
-      if (eigen && k === kleur) {
+      const met = eigenVoor(k);
+      if (met) {
         const geometrie = kubusInMeter(x1 - x0, y1 - y0, z1 - z0);
         geometrieen.push(geometrie);
-        const mesh = new THREE.Mesh(geometrie, eigen);
+        const mesh = new THREE.Mesh(geometrie, met);
         mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -147,6 +195,10 @@ export function bouwStukken(
       mesh.rotation.x = Math.PI / 2;
       mesh.position.set(x, y, d / 2 + 0.01);
       groep.add(mesh);
+    };
+    /** De delen van maatwerk, elk in de kleur of het materiaal van zijn rol. */
+    const tekenDelen = (lijst: readonly Blok[]) => {
+      for (const b of lijst) blok(rolkleur(b.rol, kleur), b.x0, b.x1, b.y0, b.y1, b.z0, b.z1);
     };
     const stoel = (x: number, z: number, naarVoren: boolean) => {
       const s = 0.21;
@@ -219,30 +271,19 @@ export function bouwStukken(
         }
         break;
       }
-      case "kast": {
-        blok(kleur, x0, x1, 0, h, z0, z1 - 0.01);
-        // De deuren, met een naad ertussen en een greep.
-        const deuren = Math.max(1, Math.round(w / 0.5));
-        const dw = w / deuren;
-        for (let i = 0; i < deuren; i++) {
-          blok(accent, x0 + i * dw + 0.008, x0 + (i + 1) * dw - 0.008, 0.01, h - 0.01, z1 - 0.012, z1);
-          const greep = i % 2 === 0 ? x0 + (i + 1) * dw - 0.05 : x0 + i * dw + 0.03;
-          blok(DONKER, greep, greep + 0.02, h * 0.45, h * 0.45 + Math.min(0.15, h / 4), z1, z1 + 0.02);
-        }
+      // Maatwerk: de delen komen uit lib/bouw/drie/maatwerk.ts, met of zonder indeling.
+      case "kast":
+        tekenDelen(kastdelen(stuk, stuk.indeling ?? null));
         break;
-      }
-      case "keuken": {
-        const blad = 0.04;
-        blok(DONKER, x0 + 0.02, x1 - 0.02, 0, 0.1, z0, z1 - 0.06);
-        blok(kleur, x0, x1, 0.1, h - blad, z0, z1 - 0.02);
-        blok(WERKBLAD, x0, x1, h - blad, h, z0, z1);
-        const deuren = Math.max(1, Math.round(w / 0.6));
-        const dw = w / deuren;
-        for (let i = 1; i < deuren; i++) blok(accent, x0 + i * dw - 0.004, x0 + i * dw + 0.004, 0.1, h - blad, z1 - 0.02, z1 - 0.012);
-        // Een kookplaat, links.
-        if (w >= 1.2) blok(DONKER, x0 + 0.15, x0 + 0.75, h, h + 0.006, z0 + (d - 0.5) / 2, z0 + (d + 0.5) / 2);
+      case "keuken":
+        tekenDelen(keukendelen(stuk, stuk.indeling ?? null, stuk.soort === "keukeneiland"));
         break;
-      }
+      case "kolom":
+        tekenDelen(kolomdelen(stuk, stuk.indeling ?? null));
+        break;
+      case "plank":
+        tekenDelen(plankdelen(stuk));
+        break;
       case "wc": {
         const wand = Math.min(0.14, d / 3);
         blok(WIT, x0, x1, 0, h, z0, z0 + wand);

@@ -226,6 +226,25 @@ describe("het voorstel", () => {
     expect(voorstel.zonnepanelen).toEqual({ panelen: 8, kwp: 3.44 });
   });
 
+  it("telt de toestellen in het maatwerk, als er geen punt van die soort voor staat", () => {
+    const zonderToestellen = huis();
+    zonderToestellen.punten = zonderToestellen.punten.filter((p) => p.soort !== "vast_toestel");
+    zonderToestellen.stukken = [
+      ...zonderToestellen.stukken,
+      stuk(1, "keuken_hoog", 9, 0.4, { indeling: { toestel: "twee" } }),
+      stuk(1, "keuken_hoog", 9.6, 0.4, { indeling: { toestel: "koelkast" } }),
+      stuk(1, "keukeneiland", 10, 3, { breedte: 3, diepte: 1, hoogte: 0.92, indeling: { kookplaat: "midden", vaatwasser: true } }),
+    ];
+    const keuken = maakVoorstel(zonderToestellen, ANDER);
+    const namen = keuken.kringen.map((k) => k.naam);
+    expect(namen).toEqual(expect.arrayContaining(["Oven 1", "Oven 2", "Kookplaat", "Vaatwasser", "Koelkast of diepvries"]));
+    expect(keuken.kringen.find((k) => k.naam === "Oven 1")?.punten[0]).toMatchObject({ bron: "stuk", code: "OV", naam: "Oven in kolomkast", ruimte: "Keuken" });
+    expect(keuken.kringen.find((k) => k.naam === "Kookplaat")?.beveiliging).toEqual({ polen: "3P+N", ampere: 20 });
+    // Met een punt "Oven" op het plan telt dat punt, niet de ovens in de kast.
+    const metPunt = maakVoorstel({ ...zonderToestellen, punten: [...zonderToestellen.punten, punt(1, "vast_toestel", 9, 1, { label: "Oven" })] }, ANDER);
+    expect(metPunt.kringen.filter((k) => k.soort === "oven")).toHaveLength(1);
+  });
+
   it("zet de kringen op volgorde: eerst de algemene, dan de 30 mA, dan de laadpaal, met letters en nummers", () => {
     const groepen = voorstel.kringen.map((k) => voorstel.differentielen[k.differentieel].gevoeligheid === 300 ? 0 : k.soort === "laadpaal" ? 2 : 1);
     expect([...groepen]).toEqual([...groepen].sort((a, b) => a - b));

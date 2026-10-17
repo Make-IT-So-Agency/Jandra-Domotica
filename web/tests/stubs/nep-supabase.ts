@@ -68,6 +68,7 @@ const MET_HUIS = new Set([
   "bouw_werffotos",
   "bouw_inzendingen",
   "bouw_bestanden",
+  "bouw_beelden",
 ]);
 
 /** Botsen twee rijen op deze sleutel? Een lege waarde botst nooit, zoals in Postgres. */

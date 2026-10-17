@@ -75,7 +75,7 @@ describe("stukken nakijken", () => {
     const [schoon] = schoneStukken([
       { id: 12, soort: "kast", x: 1.23456, y: "2,5".replace(",", "."), z: 0, hoek: 270, kanteling: 0, breedte: 1.004, diepte: 0.4, hoogte: 2, label: "  Boeken  " },
     ]);
-    expect(schoon).toEqual({ id: 12, soort: "kast", x: 1.235, y: 2.5, z: 0, hoek: -90, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: "Boeken", materiaal: null });
+    expect(schoon).toEqual({ id: 12, soort: "kast", x: 1.235, y: 2.5, z: 0, hoek: -90, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: "Boeken", materiaal: null, indeling: null });
   });
 
   it("houdt een eigen materiaal, en laat een fout materiaal vallen zonder het stuk", () => {

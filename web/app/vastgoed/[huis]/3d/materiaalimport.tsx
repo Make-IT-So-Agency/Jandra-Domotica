@@ -37,13 +37,21 @@ import { bewaarMateriaalActie, vraagMateriaalfotoAan } from "./acties";
 type Uitsnede = [number, number, number, number];
 type Lezing = Fotolezing & { palet: { kleur: string; aandeel: number }[] };
 
-/** Een foto om uit te kiezen: van een site (via de app, zodat de browser haar mag lezen) of van het toestel. */
+/** Een foto om uit te kiezen: van een site (via de app, zodat de browser haar mag lezen), van het toestel, of een beeld van het huis. */
 interface Kandidaat {
   sleutel: string;
   voorbeeld: string;
-  bron: { soort: "site"; url: string } | { soort: "bestand"; bestand: File };
+  bron: { soort: "site"; url: string } | { soort: "bestand"; bestand: File } | { soort: "beeld"; id: number };
   lezing: Lezing | null;
   fout: boolean;
+}
+
+/** Een beeld van het huis, zoals een render (zie beelden.tsx): ook daar kan een materiaal uit komen. */
+export interface Importbeeld {
+  id: number;
+  titel: string;
+  /** Een ondertekende URL uit Storage; die mag de browser lezen. */
+  url: string | null;
 }
 
 export interface Geimporteerd {
@@ -122,7 +130,7 @@ function Uitsnedekader({ voorbeeld, waarde, wijzig, label }: { voorbeeld: string
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- een foto van een andere site, via de app */}
-      <img src={voorbeeld} alt="" draggable={false} />
+      <img src={voorbeeld} alt="" draggable={false} crossOrigin="anonymous" />
       {toon ? (
         <div
           className="uitsnede"
@@ -139,6 +147,7 @@ export function Materiaalimport({
   ruimteId,
   keuzeId,
   klaar,
+  beelden = [],
 }: {
   huisId: number;
   /** Het onderdeel: bepaalt welk patroon past en bij welke keuze de optie komt. */
@@ -148,6 +157,8 @@ export function Materiaalimport({
   /** De keuze die het onderdeel volgt, of null: dan zoekt of maakt de server ze. */
   keuzeId: number | null;
   klaar: (uit: Geimporteerd) => void;
+  /** De beelden van het huis: een render toont vaak het fineer of het werkblad. */
+  beelden?: readonly Importbeeld[];
 }) {
   const [adres, setAdres] = useState("");
   const [site, setSite] = useState<string | null>(null);
@@ -285,7 +296,7 @@ export function Materiaalimport({
   async function laadOp(k: Kandidaat): Promise<number> {
     const blob = k.bron.soort === "bestand" ? k.bron.bestand : await (await fetch(k.voorbeeld)).blob();
     const foto = await verkleinFoto(blob);
-    const start = await vraagMateriaalfotoAan(huisId, { naam: k.bron.soort === "bestand" ? k.bron.bestand.name : "materiaal.jpg", grootte: foto.size });
+    const start = await vraagMateriaalfotoAan(huisId, { naam: k.bron.soort === "bestand" ? k.bron.bestand.name : k.bron.soort === "beeld" ? "beeld.jpg" : "materiaal.jpg", grootte: foto.size });
     if (!start.ok) throw new Error(start.melding);
     await zetOp(start.data.uploadUrl, foto, start.data.contentType, () => undefined);
     return start.data.bestandId;
@@ -361,6 +372,33 @@ export function Materiaalimport({
           }}
         />
       </label>
+      {beelden.some((b) => b.url) ? (
+        <>
+          <p className="hulp" style={{ marginBottom: 4 }}>
+            Of uit een beeld van het huis, zoals een render: duid er een recht stuk fineer of werkblad op aan.
+          </p>
+          <div className="importfotos">
+            {beelden.map((b) =>
+              b.url ? (
+                <button
+                  key={b.id}
+                  type="button"
+                  className="importfoto"
+                  title={b.titel}
+                  onClick={() => {
+                    setFout(null);
+                    setSite(null);
+                    begin([{ sleutel: `b${teller.current++}`, voorbeeld: b.url!, bron: { soort: "beeld", id: b.id }, lezing: null, fout: false }], b.titel);
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- een beeld uit Storage */}
+                  <img src={b.url} alt={b.titel} crossOrigin="anonymous" />
+                </button>
+              ) : null,
+            )}
+          </div>
+        </>
+      ) : null}
       {bezig ? <p className="hulp">{bezig}</p> : null}
       {fout ? <p className="melding fout">{fout}</p> : null}
       {toegevoegd ? <p className="melding goed">{toegevoegd}</p> : null}
@@ -386,6 +424,8 @@ export function Materiaalimport({
                   <img
                     src={k.voorbeeld}
                     alt=""
+                    // Een beeld uit Storage komt van elders: zo mag de browser zijn pixels lezen.
+                    crossOrigin={k.bron.soort === "beeld" ? "anonymous" : undefined}
                     onLoad={(g) => {
                       if (k.lezing) return;
                       let lezing: Lezing | null = null;

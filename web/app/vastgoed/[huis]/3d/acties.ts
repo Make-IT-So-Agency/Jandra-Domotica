@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
+import { aantalBeelden, verwijderBeeld, voegBeeldToe, wijzigBeeld, zetStandpunt } from "@/lib/bouw/beelden-opslag";
+import { MAX_BEELDEN, schoneTitel, schoonStandpunt } from "@/lib/bouw/drie/beelden";
 import { schoneCorrecties } from "@/lib/bouw/drie/correcties";
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
 import { MAX_DELEN, schoneDelen, type Deel } from "@/lib/bouw/drie/delen";
@@ -299,4 +301,113 @@ export async function vraagMateriaalfotoAan(huisId: unknown, vraag: { naam: stri
   } catch (fout) {
     return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Beelden van het huis, zoals de renders van de keukenbouwer: de browser
+// verkleint de foto en zet ze rechtstreeks in Storage (zie lib/bouw/opladen.ts),
+// daarna bewaart bewaarBeeldActie ze bij het huis. Elk soort huis kan beelden
+// hebben: ook een bestaand huis dat men wil verbouwen.
+// ---------------------------------------------------------------------------
+
+const GEEN_TOEGANG = "Het bouwproject is voorbehouden aan de hoofdbeheerder.";
+
+/** Een ruimte uit de browser: null, of een geldige id. Undefined als ze niet klopt. */
+const ruimteVan = (waarde: unknown): number | null | undefined => (waarde === null || waarde === undefined ? null : (id(String(waarde)) ?? undefined));
+
+export async function vraagBeeldAan(huisId: unknown, vraag: { naam: string; grootte: number }): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  try {
+    if ((await aantalBeelden(toegang.huis.id)) >= MAX_BEELDEN) return mislukt(`Hoogstens ${MAX_BEELDEN} beelden per huis.`);
+    return await startUpload(
+      toegang.huis.id,
+      { naam: String(vraag?.naam ?? "beeld.jpg").slice(0, 200), type: "image/jpeg", grootte: Number(vraag?.grootte) },
+      "foto",
+      toegang.ik.email,
+    );
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
+  }
+}
+
+/** Een opgeladen foto als beeld van het huis, met een titel en de ruimte die ze toont. */
+export async function bewaarBeeldActie(
+  huisId: unknown,
+  vraag: { bestandId: number; titel: string; ruimteId: number | null },
+): Promise<Uitkomst<{ id: number }>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  const huis = toegang.huis.id;
+  const bestandId = id(String(vraag?.bestandId));
+  const titel = schoneTitel(vraag?.titel);
+  const ruimteId = ruimteVan(vraag?.ruimteId);
+  if (!bestandId || !titel || ruimteId === undefined) return mislukt("Dit beeld klopt niet. Herlaad de pagina en probeer opnieuw.");
+  let nieuw: number;
+  try {
+    const afgerond = await rondUploadAf(huis, bestandId);
+    if (!afgerond.ok) return afgerond;
+    if (afgerond.data.doel !== "foto") return mislukt("Dit bestand is geen foto.");
+    nieuw = await voegBeeldToe(huis, { bestand_id: bestandId, titel, ruimte_id: ruimteId });
+  } catch (fout) {
+    await ruimOngebruikteBestandenOp(huis, [bestandId]).catch(() => undefined);
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(huis, "/3d"));
+  return gelukt({ id: nieuw });
+}
+
+/** De titel en de ruimte van een beeld. */
+export async function wijzigBeeldActie(huisId: unknown, vraag: { id: number; titel: string; ruimteId: number | null }): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  const beeldId = id(String(vraag?.id));
+  const titel = schoneTitel(vraag?.titel);
+  const ruimteId = ruimteVan(vraag?.ruimteId);
+  if (!beeldId || !titel || ruimteId === undefined) return mislukt("Geef het beeld een titel van hoogstens 80 tekens.");
+  try {
+    await wijzigBeeld(toegang.huis.id, beeldId, { titel, ruimte_id: ruimteId });
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
+}
+
+/** Waar de camera stond voor dit beeld, in het gebouw van de verdieping; null wist het. */
+export async function bewaarStandpuntActie(
+  huisId: unknown,
+  vraag: { id: number; verdiepingId: number | null; standpunt: unknown },
+): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  const beeldId = id(String(vraag?.id));
+  if (!beeldId) return mislukt("Onbekend beeld.");
+  const wissen = vraag?.standpunt === null;
+  const standpunt = wissen ? null : schoonStandpunt(vraag?.standpunt);
+  const verdiepingId = wissen ? null : id(String(vraag?.verdiepingId));
+  if (!wissen && (!standpunt || !verdiepingId)) return mislukt("Dit standpunt klopt niet. Herlaad de pagina en probeer opnieuw.");
+  try {
+    await zetStandpunt(toegang.huis.id, beeldId, verdiepingId, standpunt);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Bewaren mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
+}
+
+/** Een beeld weg, en de foto uit Storage als niets anders ze gebruikt. */
+export async function verwijderBeeldActie(huisId: unknown, vraag: { id: number }): Promise<Uitkomst<null>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt(GEEN_TOEGANG);
+  const beeldId = id(String(vraag?.id));
+  if (!beeldId) return mislukt("Onbekend beeld.");
+  try {
+    const bestand = await verwijderBeeld(toegang.huis.id, beeldId);
+    if (bestand !== null) await ruimOngebruikteBestandenOp(toegang.huis.id, [bestand]);
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Verwijderen mislukt."));
+  }
+  revalidatePath(huispad(toegang.huis.id, "/3d"));
+  return gelukt(null);
 }

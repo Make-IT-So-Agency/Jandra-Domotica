@@ -1,5 +1,6 @@
 import "server-only";
 
+import { lijstBeelden } from "../beelden-opslag";
 import { WERKWIJZE } from "../omzetting/pijplijn";
 import { bevestigdGrondplan } from "../omzetting/referentie";
 import {
@@ -23,6 +24,7 @@ import { CATEGORIEKLEUREN, soortVan, type Categorie, type StatusPunt } from "../
 import { lijstKeuzes, lijstOpties, lijstVoorkeuren } from "../regie-opslag";
 import type { SoortPlan } from "../types";
 import { verdiepingNaam } from "../weergave";
+import type { Beeld } from "./beelden";
 import { STANDAARDDAK, type Dakinstelling } from "./dakregels";
 import type { Deel } from "./delen";
 import { materiaalkeuzes, type Materiaalkeuze } from "./materialen";
@@ -90,6 +92,8 @@ export interface Driegegevens {
   stukken: GeplaatstStuk[];
   /** De leidingen, getekend op het plan van hun verdieping. */
   leidingen: Leiding[];
+  /** De beelden van het huis, zoals renders, met het standpunt van hun camera. */
+  beelden: Beeld[];
   inplanting: {
     /** Het bewaarde plan en zijn schaal (N van 1/N). */
     planId: number | null;
@@ -106,7 +110,7 @@ export interface Driegegevens {
 }
 
 export async function laadDrie(huisId: number, ik: string, { metAdres = false, metKeuzes = true }: { metAdres?: boolean; metKeuzes?: boolean } = {}): Promise<Driegegevens> {
-  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, stukken, leidingen, inplanting] = await Promise.all([
+  const [gebouwen, daken, verdiepingen, plannen, ruimtes, keuzes, opties, voorkeuren, punten, stukken, leidingen, inplanting, beelden] = await Promise.all([
     lijstGebouwen(huisId),
     lijstDaken(huisId),
     lijstVerdiepingen(huisId),
@@ -119,6 +123,7 @@ export async function laadDrie(huisId: number, ik: string, { metAdres = false, m
     lijstStukken(huisId),
     lijstLeidingen(huisId),
     leesInplanting(huisId),
+    lijstBeelden(huisId),
   ]);
 
   const omzettingen = await lijstOmzettingen(plannen.flatMap((plan) => plan.versies.map((versie) => versie.id)));
@@ -128,11 +133,11 @@ export async function laadDrie(huisId: number, ik: string, { metAdres = false, m
     [...grondplannen.values()].flatMap((grondplan) => (grondplan ? [grondplan.versie.id] : [])),
   );
 
-  // Een foto toont de browser als textuur, via een ondertekende URL van een uur.
-  const bestanden = await leesBestanden(
-    huisId,
-    opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])),
-  );
+  // Een foto toont de browser als textuur, en een beeld over het model, via een ondertekende URL van een uur.
+  const bestanden = await leesBestanden(huisId, [
+    ...opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])),
+    ...beelden.map((beeld) => beeld.bestand_id),
+  ]);
   const fotos = new Map(
     (
       await Promise.all(
@@ -204,6 +209,14 @@ export async function laadDrie(huisId: number, ik: string, { metAdres = false, m
     }),
     stukken,
     leidingen,
+    beelden: beelden.map((beeld) => ({
+      id: beeld.id,
+      titel: beeld.titel,
+      ruimteId: beeld.ruimte_id,
+      verdiepingId: beeld.verdieping_id,
+      standpunt: beeld.standpunt,
+      url: fotos.get(beeld.bestand_id) ?? null,
+    })),
     inplanting: {
       planId: inplanting.planId,
       schaal: inplanting.schaal,
