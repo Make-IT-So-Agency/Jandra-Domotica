@@ -5,8 +5,11 @@ import * as THREE from "three";
 import type { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
+import { materiaalVanDeel, type Deelmateriaal } from "@/lib/bouw/drie/delen";
 import { tegenMuur } from "@/lib/bouw/drie/inrichten";
 import { isAan, type Lagenstand } from "@/lib/bouw/drie/lagen";
+import { alsMateriaal, keuzeVan, type Materiaal, type Materiaalkeuze } from "@/lib/bouw/drie/materialen";
+import { STALEN, eigenNaam } from "@/lib/bouw/drie/stalen";
 import type { Model3d, Verdieping3d } from "@/lib/bouw/drie/model";
 import { binnenVeelhoeken } from "@/lib/bouw/drie/vlak";
 import { legOpDak, MAX_RIJEN, veldmaat, veldVan, vermogen } from "@/lib/bouw/drie/zonnepanelen";
@@ -30,7 +33,10 @@ import type { Xy } from "@/lib/bouw/omzetting/types";
 import { bewaarStukkenActie } from "./acties";
 import { richtStraal, TIKAFSTAND, useTik, zichtbareRaak, type Kern } from "./kern";
 import type { Opgebouwd } from "./scene";
+import { Materiaalimport } from "./materiaalimport";
+import { Staalknop } from "./materiaalproef";
 import { bouwStukken, type Stukkenscene } from "./stukken-scene";
+import { zetMateriaal, type Texturen } from "./texturen";
 
 /**
  * Inrichten: meubels en toestellen plaatsen, verschuiven, draaien en
@@ -100,6 +106,8 @@ export function useInrichten(
     lagen: Lagenstand;
     /** Waar de grond ligt in de scène. */
     grond: number;
+    /** De keuzes met hun opties: daaruit komt het materiaal van een meubel met een optie. */
+    materialen: readonly Materiaalkeuze[];
     meld: (melding: Melding) => void;
   },
 ): Inrichting {
@@ -203,16 +211,36 @@ export function useInrichten(
   }, [aan]);
 
   // De stukken in de scène, in de groep van hun verdieping; opnieuw na elke wijziging of een nieuw model.
+  // Een eigen materiaal krijgt hier zijn textuur, in een eigen voorraad: die van de muren ruimt op wat
+  // de muren niet meer gebruiken.
+  const { materialen } = opties;
   useEffect(() => {
     const d = kern.current;
     if (!d?.opgebouwd) return;
-    const nieuweScene = bouwStukken(stukken, model, d.opgebouwd.verdiepingen, d.snede);
+    const eigen = new Map<string, THREE.MeshStandardMaterial>();
+    const texturen: Texturen = new Map();
+    const anisotropie = d.renderer.capabilities.getMaxAnisotropy();
+    const eigenMateriaal = (stuk: GeplaatstStuk) => {
+      if (!stuk.materiaal) return null;
+      const materiaal = materiaalVanDeel({ materiaal: stuk.materiaal }, materialen);
+      const sleutel = JSON.stringify(materiaal);
+      let m = eigen.get(sleutel);
+      if (!m) {
+        m = new THREE.MeshStandardMaterial({ clippingPlanes: [d.snede], clipShadows: true });
+        zetMateriaal(m, materiaal, texturen, anisotropie);
+        eigen.set(sleutel, m);
+      }
+      return m;
+    };
+    const nieuweScene = bouwStukken(stukken, model, d.opgebouwd.verdiepingen, d.snede, eigenMateriaal);
     scene.current = nieuweScene;
     return () => {
       nieuweScene.opruimen();
+      eigen.forEach((m) => m.dispose());
+      texturen.forEach((t) => t.dispose());
       if (scene.current === nieuweScene) scene.current = null;
     };
-  }, [kern, model, stukken]);
+  }, [kern, model, stukken, materialen]);
 
   // De lagen; tijdens het inrichten zie je alles.
   useEffect(() => {
@@ -519,8 +547,91 @@ function Veldkeuze({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
   );
 }
 
-/** Het gekozen stuk: draaien, de maten, een label, tegen de muur, weg. */
-function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: GeplaatstStuk }) {
+/**
+ * Het materiaal van een meubel of kast: de standaardkleur van zijn groep, een
+ * optie uit de bibliotheek (eerst die van Maatwerk en meubels, dan de andere
+ * met een foto of patroon), een staal, een eigen kleur, of van een site of
+ * foto. Bewaren gaat met de rest: Meubels bewaren.
+ */
+function Stukmateriaal({
+  inrichting,
+  stuk,
+  materialen,
+  huisId,
+  metKeuzes,
+}: {
+  inrichting: Inrichting;
+  stuk: GeplaatstStuk;
+  materialen: readonly Materiaalkeuze[];
+  huisId: number;
+  metKeuzes: boolean;
+}) {
+  const huidig = stuk.materiaal ?? null;
+  const groep = soortStuk(stuk.soort)?.groep;
+  const meubelkeuze = keuzeVan("meubel", materialen);
+  const bibliotheek = [
+    ...(meubelkeuze?.opties ?? []).map((o) => ({ sleutel: `o${o.id}`, naam: o.naam, materiaal: alsMateriaal(o, "meubel"), optieId: o.id as number | null })),
+    ...materialen
+      .filter((k) => k !== meubelkeuze)
+      .flatMap((k) => k.opties.filter((o) => o.foto || o.patroon).map((o) => ({ sleutel: `o${o.id}`, naam: o.naam, materiaal: alsMateriaal(o, k.slot), optieId: o.id as number | null }))),
+  ];
+  const stalen = STALEN.meubel.map((s) => ({ sleutel: `s${s.naam}`, naam: s.naam, materiaal: s.materiaal, optieId: null as number | null }));
+  const kies = (naam: string, m: Materiaal, optieId: number | null) =>
+    inrichting.wijzig({ materiaal: { naam, kleur: m.kleur.toLowerCase(), patroon: m.patroon, voegkleur: m.voegkleur, optieId } satisfies Deelmateriaal });
+  const actief = (s: { optieId: number | null; materiaal: Materiaal }) =>
+    huidig !== null &&
+    (s.optieId !== null ? huidig.optieId === s.optieId : huidig.optieId === null && huidig.kleur === s.materiaal.kleur && huidig.patroon === s.materiaal.patroon);
+  return (
+    <details className="palet stukmateriaal">
+      <summary className="palet-kop">Materiaal: {huidig ? huidig.naam : "standaard"}</summary>
+      <div className="stalen">
+        <button type="button" className="staal" aria-pressed={huidig === null} title="De kleur van de groep" onClick={() => inrichting.wijzig({ materiaal: null })}>
+          <span className="staal-beeld" style={{ backgroundColor: groep ? GROEPKLEUREN[groep] : "#ddd" }} aria-hidden="true" />
+          <span className="staal-naam">Standaard</span>
+        </button>
+        {[...bibliotheek, ...stalen].map((s) => (
+          <Staalknop key={s.sleutel} naam={s.naam} materiaal={s.materiaal} actief={actief(s)} kies={() => kies(s.naam, s.materiaal, s.optieId)} />
+        ))}
+      </div>
+      <label htmlFor="stuk-kleur" style={{ marginTop: 8 }}>
+        Eigen kleur
+      </label>
+      <div className="kleurveld">
+        <input
+          id="stuk-kleur"
+          type="color"
+          value={huidig?.kleur ?? (groep ? GROEPKLEUREN[groep] : "#dddddd")}
+          onChange={(g) => {
+            const kleur = g.currentTarget.value.toLowerCase();
+            kies(eigenNaam({ kleur, patroon: null }), { kleur, foto: null, patroon: null, voegkleur: null }, null);
+          }}
+        />
+      </div>
+      {metKeuzes ? (
+        <details className="palet importpalet">
+          <summary className="palet-kop">Van een site of foto</summary>
+          <Materiaalimport huisId={huisId} slot="meubel" ruimteId={null} keuzeId={meubelkeuze?.keuzeId ?? null} klaar={(uit) => kies(uit.naam, uit.materiaal, uit.optieId)} />
+        </details>
+      ) : null}
+      <p className="hulp">Een foto van de schrijnwerker of de leverancier komt in de keuze Maatwerk en meubels. Bewaar met Meubels bewaren.</p>
+    </details>
+  );
+}
+
+/** Het gekozen stuk: draaien, de maten, een label, het materiaal, tegen de muur, weg. */
+function Stukkaart({
+  inrichting,
+  stuk,
+  materialen,
+  huisId,
+  metKeuzes,
+}: {
+  inrichting: Inrichting;
+  stuk: GeplaatstStuk;
+  materialen: readonly Materiaalkeuze[];
+  huisId: number;
+  metKeuzes: boolean;
+}) {
   const [hoektekst, setHoektekst] = useState<string | null>(null);
   const [labeltekst, setLabeltekst] = useState<string | null>(null);
   const soort = soortStuk(stuk.soort);
@@ -601,6 +712,7 @@ function Stukkaart({ inrichting, stuk }: { inrichting: Inrichting; stuk: Geplaat
           if (g.key === "Enter") g.currentTarget.blur();
         }}
       />
+      {!dak ? <Stukmateriaal inrichting={inrichting} stuk={stuk} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} /> : null}
       <div className="knoppenrij">
         {!dak ? (
           <button type="button" className="stil" onClick={inrichting.tegenDeMuur}>
@@ -624,11 +736,19 @@ export function Inrichtkaart({
   aan,
   wissel,
   verdiepingen,
+  materialen,
+  huisId,
+  metKeuzes,
 }: {
   inrichting: Inrichting;
   aan: boolean;
   wissel: () => void;
   verdiepingen: readonly { id: number; naam: string }[];
+  /** De keuzes met hun opties: de bibliotheek voor het materiaal van een meubel. */
+  materialen: readonly Materiaalkeuze[];
+  huisId: number;
+  /** Heeft dit huis keuzes? Anders kan een materiaal van een site of foto nergens heen. */
+  metKeuzes: boolean;
 }) {
   const aantal = inrichting.stukken.length;
   const velden = inrichting.stukken.filter((s) => opDak(s.soort)).map((s) => vermogen(veldVan(s.breedte, s.diepte)));
@@ -666,7 +786,9 @@ export function Inrichtkaart({
               </option>
             ))}
           </select>
-          {inrichting.gekozen ? <Stukkaart key={inrichting.gekozen.id} inrichting={inrichting} stuk={inrichting.gekozen} /> : null}
+          {inrichting.gekozen ? (
+            <Stukkaart key={inrichting.gekozen.id} inrichting={inrichting} stuk={inrichting.gekozen} materialen={materialen} huisId={huisId} metKeuzes={metKeuzes} />
+          ) : null}
           <p className="hulp" style={{ marginTop: 10 }}>
             {inrichting.nieuw
               ? opDak(inrichting.nieuw)

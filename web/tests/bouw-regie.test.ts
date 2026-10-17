@@ -43,6 +43,7 @@ import {
   voegOptieToe,
   voegPlanningToe,
   voegPlanningenToe,
+  wijzigOptie,
   zetBasis,
   zetFoto,
   zetInstelling,
@@ -253,6 +254,8 @@ describe("de regie in de databank", () => {
       bouw_bestanden: metHuis([
         { id: 501, pad: "fotos/eik-1.jpg", doel: "foto", status: "klaar" },
         { id: 502, pad: "fotos/eik-2.jpg", doel: "foto", status: "klaar" },
+        { id: 503, pad: "fotos/steen.jpg", doel: "foto", status: "klaar" },
+        { id: 504, pad: "fotos/huis.jpg", doel: "foto", status: "klaar" },
       ]),
       bouw_planning: [],
       bouw_keuzes: [],
@@ -318,10 +321,35 @@ describe("de regie in de databank", () => {
     expect(await zetFoto(1, eik, 502)).toBe(501);
 
     // De gekozen optie verwijderen maakt de keuze terug open.
-    expect(await verwijderOptie(1, eik)).toBe(502);
+    expect(await verwijderOptie(1, eik)).toEqual([502]);
     expect((await lijstKeuzes(1))[0]).toMatchObject({ gekozen_optie_id: null, beslist_op: null });
 
-    expect(await verwijderKeuze(1, keuzeId)).toEqual([]);
+    // Een materiaal van een site: de foto van de steen, die van het huis, en hoe 3D ze gebruikt.
+    const staal = { bron: "staal" as const, uitsnede: [0.2, 0.35, 0.8, 0.65] as [number, number, number, number], breedte: null };
+    const steen = await voegOptieToe(
+      1,
+      { keuze_id: keuzeId, naam: "Rode steen", leverancier_id: null, prijs: null, kleur: "#a03c28", patroon: "baksteen", voegkleur: "#c8c4bc", url: "https://www.voorbeeld.be/steen", opmerking: null, volgorde: 0 },
+      { foto_bestand_id: 503, referentie_bestand_id: 504, staal },
+    );
+    expect((await lijstOpties(1, [keuzeId])).find((o) => o.id === steen)).toMatchObject({ foto_bestand_id: 503, referentie_bestand_id: 504, staal });
+    // Een naam wijzigen laat de foto's staan.
+    await wijzigOptie(1, steen, { naam: "Rode handvorm", leverancier_id: null, prijs: 55, kleur: "#a03c28", patroon: "baksteen", voegkleur: "#c8c4bc", url: null, opmerking: null, volgorde: 0 });
+    expect((await lijstOpties(1, [keuzeId])).find((o) => o.id === steen)).toMatchObject({ naam: "Rode handvorm", foto_bestand_id: 503, staal });
+    // Een andere foto: het kader op de vorige telt niet meer, de referentie blijft.
+    db.tabellen.bouw_bestanden.push({ id: 505, huis_id: 1, pad: "fotos/nieuw.jpg", doel: "foto", status: "klaar" });
+    expect(await zetFoto(1, steen, 505)).toBe(503);
+    expect((await lijstOpties(1, [keuzeId])).find((o) => o.id === steen)).toMatchObject({ foto_bestand_id: 505, referentie_bestand_id: 504, staal: null });
+    // Een foto van een ander huis kan niet.
+    db.tabellen.bouw_bestanden.push({ id: 900, huis_id: 2, pad: "fotos/ander.jpg", doel: "foto", status: "klaar" });
+    await expect(
+      voegOptieToe(
+        1,
+        { keuze_id: keuzeId, naam: "Fout", leverancier_id: null, prijs: null, kleur: null, patroon: null, voegkleur: null, url: null, opmerking: null, volgorde: 0 },
+        { foto_bestand_id: 900, referentie_bestand_id: null, staal: null },
+      ),
+    ).rejects.toThrow();
+
+    expect(await verwijderKeuze(1, keuzeId)).toEqual([505, 504]);
     expect(await lijstKeuzes(1)).toEqual([]);
   });
 

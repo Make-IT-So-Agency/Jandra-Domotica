@@ -75,7 +75,15 @@ describe("stukken nakijken", () => {
     const [schoon] = schoneStukken([
       { id: 12, soort: "kast", x: 1.23456, y: "2,5".replace(",", "."), z: 0, hoek: 270, kanteling: 0, breedte: 1.004, diepte: 0.4, hoogte: 2, label: "  Boeken  " },
     ]);
-    expect(schoon).toEqual({ id: 12, soort: "kast", x: 1.235, y: 2.5, z: 0, hoek: -90, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: "Boeken" });
+    expect(schoon).toEqual({ id: 12, soort: "kast", x: 1.235, y: 2.5, z: 0, hoek: -90, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: "Boeken", materiaal: null });
+  });
+
+  it("houdt een eigen materiaal, en laat een fout materiaal vallen zonder het stuk", () => {
+    const basis = { id: 12, soort: "kast", x: 1, y: 2, z: 0, hoek: 0, kanteling: 0, breedte: 1, diepte: 0.4, hoogte: 2, label: null };
+    const [met] = schoneStukken([{ ...basis, materiaal: { naam: "Eik", kleur: "#C9B08C", patroon: "planken", voegkleur: null, optieId: 7 } }]);
+    expect(met.materiaal).toEqual({ naam: "Eik", kleur: "#c9b08c", patroon: "planken", voegkleur: null, optieId: 7 });
+    const [fout] = schoneStukken([{ ...basis, materiaal: { naam: "Paars", kleur: "paars" } }]);
+    expect(fout).toMatchObject({ id: 12, materiaal: null });
   });
 
   it("laat weg wat niet klopt", () => {

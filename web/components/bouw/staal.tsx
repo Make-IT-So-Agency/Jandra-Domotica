@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { venster } from "@/lib/bouw/drie/fotostaal";
 import type { Materiaal } from "@/lib/bouw/drie/materialen";
 import { BAKSTEEN, PATROONMATEN, TEGEL, tint, willekeur } from "@/lib/bouw/drie/stalen";
 import type { Patroon } from "@/lib/bouw/keuzes";
@@ -15,25 +16,71 @@ import type { Patroon } from "@/lib/bouw/keuzes";
  * Elk patroon is één herhaling: wat rechts of onderaan uit het doek loopt,
  * komt links of bovenaan terug. Bovenaan het doek is boven op de muur en
  * hogerop het dak.
+ *
+ * Met een foto van een staal (zie lib/bouw/drie/fotostaal.ts) vult een stukje
+ * van die foto elke steen, tegel, pan of plank, telkens elders en soms
+ * gespiegeld; de voegen blijven getekend.
  */
 
-/** Een patroon met zijn kleuren. */
-export type Patroonmateriaal = Pick<Materiaal, "kleur" | "voegkleur"> & { patroon: Patroon };
+/** Een foto die elke steen, tegel of plank vult: het beeld, en de uitsnede met het staal in pixels. */
+export interface Fotogezicht {
+  beeld: CanvasImageSource;
+  uitsnede: [number, number, number, number];
+  /** Voor het toeval: dezelfde foto geeft altijd dezelfde muur. */
+  sleutel: string;
+}
+
+/** Een patroon met zijn kleuren, en eventueel een foto per stuk. */
+export type Patroonmateriaal = Pick<Materiaal, "kleur" | "voegkleur"> & { patroon: Patroon; gezicht?: Fotogezicht };
 
 /** De voeg als er geen kleur voor gekozen is. */
 const STANDAARDVOEG = "#c9c2b8";
 
 type Doek = CanvasRenderingContext2D;
 
-/** Een rechthoek in meter, die rond de randen van het doek doorloopt. */
-function rond(ctx: Doek, s: number, b: number, h: number, x: number, y: number, w: number, hh: number) {
+type Tekenaar = (x: number, y: number, breedte: number, hoogte: number) => void;
+
+/** Een rechthoek in meter, die rond de randen van het doek doorloopt: effen, of met wat `teken` erin zet. */
+function rond(ctx: Doek, s: number, b: number, h: number, x: number, y: number, w: number, hh: number, teken?: Tekenaar) {
   for (const dx of [0, -b, b]) {
     for (const dy of [0, -h, h]) {
       const [x0, y0, x1, y1] = [(x + dx) * s, (y + dy) * s, (x + dx + w) * s, (y + dy + hh) * s];
       if (x1 <= 0 || y1 <= 0 || x0 >= b * s || y0 >= h * s) continue;
-      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      if (teken) teken(x0, y0, x1 - x0, y1 - y0);
+      else ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     }
   }
+}
+
+/**
+ * Hoe één stuk getekend wordt: effen in zijn kleur, of met een stukje van de
+ * foto met de vorm van het stuk, wat lichter of donkerder. Eén keer gekozen
+ * per stuk: ook als het rond de rand doorloopt, is het hetzelfde stukje.
+ */
+function stukVan(ctx: Doek, gezicht: Fotogezicht | undefined, toeval: () => number) {
+  return (kleur: string, verhouding: number): Tekenaar => {
+    if (!gezicht) {
+      return (x, y, breedte, hoogte) => {
+        ctx.fillStyle = kleur;
+        ctx.fillRect(x, y, breedte, hoogte);
+      };
+    }
+    const v = venster(gezicht.uitsnede, verhouding, toeval);
+    const helder = 0.9 + toeval() * 0.2;
+    return (x, y, breedte, hoogte) => {
+      ctx.save();
+      if (v.spiegel) {
+        ctx.translate(x + breedte, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(gezicht.beeld, v.x, v.y, v.breedte, v.hoogte, 0, 0, breedte, hoogte);
+      } else {
+        ctx.drawImage(gezicht.beeld, v.x, v.y, v.breedte, v.hoogte, x, y, breedte, hoogte);
+      }
+      ctx.restore();
+      ctx.fillStyle = helder > 1 ? `rgba(255,255,255,${(helder - 1).toFixed(3)})` : `rgba(0,0,0,${(1 - helder).toFixed(3)})`;
+      ctx.fillRect(x, y, breedte, hoogte);
+    };
+  };
 }
 
 /** Korrels: lichte en donkere stipjes, zoals in crepi, beton of een steen. */
@@ -49,8 +96,27 @@ function korrels(ctx: Doek, toeval: () => number, breedte: number, hoogte: numbe
 /**
  * Een plank van x tot x + lengte, met nerven: dunne lijnen in de lengte. Een
  * plank die rechts uit het doek loopt, komt links terug, met dezelfde nerven.
+ * Met een foto (`teken`): de foto, zonder getekende nerven.
  */
-function plank(ctx: Doek, toeval: () => number, s: number, b: number, kleur: string, x: number, y: number, lengte: number, breedte: number) {
+function plank(
+  ctx: Doek,
+  toeval: () => number,
+  s: number,
+  b: number,
+  kleur: string,
+  x: number,
+  y: number,
+  lengte: number,
+  breedte: number,
+  teken?: Tekenaar,
+) {
+  if (teken) {
+    for (const dx of [0, -b, b]) {
+      const [x0, x1] = [(x + dx) * s, (x + dx + lengte) * s];
+      if (x1 > 0 && x0 < b * s) teken(x0, y * s, x1 - x0, breedte * s);
+    }
+    return;
+  }
   const nerven = Array.from({ length: Math.max(3, Math.round(breedte * 60)) }, () => ({
     stijl: toeval() < 0.6 ? `rgba(60,35,15,${0.05 + 0.1 * toeval()})` : `rgba(255,240,220,${0.05 + 0.08 * toeval()})`,
     dikte: Math.max(0.5, s * 0.0015 * (0.5 + toeval())),
@@ -86,6 +152,12 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
   const [B, H] = [b * s, h * s];
   const toeval = willekeur(`${patroon}${kleur}${materiaal.voegkleur ?? ""}`);
   const variant = (sterkte: number) => tint(kleur, 1 + (toeval() - 0.5) * 2 * sterkte);
+  const { gezicht } = materiaal;
+  const stuk = stukVan(ctx, gezicht, willekeur(`${gezicht?.sleutel ?? ""}|${patroon}`));
+  /** Korrels enkel zonder foto: een foto heeft haar eigen korrel. */
+  const korrel = (...args: Parameters<typeof korrels>) => {
+    if (!gezicht) korrels(...args);
+  };
 
   switch (patroon) {
     case "baksteen": {
@@ -98,14 +170,13 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
         for (let c = 0; c < maat.kolommen; c++) {
           const x = c * mb + verschuiving + voeg / 2;
           const y = r * mh + voeg / 2;
-          ctx.fillStyle = variant(0.12);
-          rond(ctx, s, b, h, x, y, lengte, hoogte);
+          rond(ctx, s, b, h, x, y, lengte, hoogte, stuk(variant(0.12), lengte / hoogte));
           // De onderkant van de steen werpt een schaduwtje in de voeg.
           ctx.fillStyle = "rgba(0,0,0,0.18)";
           rond(ctx, s, b, h, x, y + hoogte, lengte, voeg * 0.35);
         }
       }
-      korrels(ctx, toeval, B, H, Math.round(b * h * 9000), s * 0.0025, 0.16);
+      korrel(ctx, toeval, B, H, Math.round(b * h * 9000), s * 0.0025, 0.16);
       break;
     }
     case "pannen": {
@@ -115,8 +186,7 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
       for (let r = 0; r < maat.rijen; r++) {
         for (let c = 0; c < maat.kolommen; c++) {
           const [x, y] = [c * pb * s, r * ph * s];
-          ctx.fillStyle = variant(0.07);
-          ctx.fillRect(x, y, pb * s, ph * s);
+          stuk(variant(0.07), pb / ph)(x, y, pb * s, ph * s);
           // Het golfje van de pan: licht op de bolle kant, donker in de holte.
           const golf = ctx.createLinearGradient(x, 0, x + pb * s, 0);
           golf.addColorStop(0, "rgba(0,0,0,0.12)");
@@ -137,7 +207,7 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
           ctx.fillRect(x + pb * s - Math.max(1, s * 0.003), y, Math.max(1, s * 0.003), ph * s);
         }
       }
-      korrels(ctx, toeval, B, H, Math.round(b * h * 3000), s * 0.003, 0.08);
+      korrel(ctx, toeval, B, H, Math.round(b * h * 3000), s * 0.003, 0.08);
       break;
     }
     case "leien": {
@@ -148,8 +218,7 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
       for (let r = 0; r < maat.rijen; r++) {
         const verschuiving = (r % 2) * (lb / 2);
         for (let c = 0; c < maat.kolommen; c++) {
-          ctx.fillStyle = variant(0.1);
-          rond(ctx, s, b, h, c * lb + verschuiving + spleet / 2, r * lh, lb - spleet, lh - spleet);
+          rond(ctx, s, b, h, c * lb + verschuiving + spleet / 2, r * lh, lb - spleet, lh - spleet, stuk(variant(0.1), (lb - spleet) / (lh - spleet)));
         }
         const schaduw = ctx.createLinearGradient(0, r * lh * s, 0, (r * lh + lh * 0.15) * s);
         schaduw.addColorStop(0, "rgba(0,0,0,0.35)");
@@ -157,7 +226,7 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
         ctx.fillStyle = schaduw;
         ctx.fillRect(0, r * lh * s, B, lh * 0.15 * s);
       }
-      korrels(ctx, toeval, B, H, Math.round(b * h * 4000), s * 0.002, 0.1);
+      korrel(ctx, toeval, B, H, Math.round(b * h * 4000), s * 0.002, 0.1);
       break;
     }
     case "zink": {
@@ -191,7 +260,8 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
         const verschuiving = ((r * 0.37) % 1) * lengte;
         for (let c = 0; c < maat.kolommen; c++) {
           const kleurplank = variant(patroon === "parket" ? 0.12 : 0.08);
-          plank(ctx, toeval, s, b, kleurplank, c * lengte + verschuiving + spleet / 2, r * rij, lengte - spleet, rij - spleet);
+          const met = gezicht ? stuk(kleurplank, (lengte - spleet) / (rij - spleet)) : undefined;
+          plank(ctx, toeval, s, b, kleurplank, c * lengte + verschuiving + spleet / 2, r * rij, lengte - spleet, rij - spleet, met);
         }
       }
       break;
@@ -202,12 +272,11 @@ export function tekenPatroon(ctx: Doek, materiaal: Patroonmateriaal, s: number) 
       ctx.fillRect(0, 0, B, H);
       for (let r = 0; r < maat.rijen; r++) {
         for (let c = 0; c < maat.kolommen; c++) {
-          ctx.fillStyle = variant(0.03);
           const v = Math.max(voeg * s, 1);
-          ctx.fillRect(c * zijde * s + v / 2, r * zijde * s + v / 2, zijde * s - v, zijde * s - v);
+          stuk(variant(0.03), 1)(c * zijde * s + v / 2, r * zijde * s + v / 2, zijde * s - v, zijde * s - v);
         }
       }
-      korrels(ctx, toeval, B, H, Math.round(b * h * 2500), s * 0.002, 0.06);
+      korrel(ctx, toeval, B, H, Math.round(b * h * 2500), s * 0.002, 0.06);
       break;
     }
     case "beton": {
@@ -288,21 +357,32 @@ function staalbeeld(materiaal: Patroonmateriaal): { url: string; breedte: number
   return beeld;
 }
 
+/** Hoe een uitsnede van een foto (in breukdelen) een vakje vult, in CSS. */
+export function uitsnedeStijl(uitsnede: readonly [number, number, number, number]): CSSProperties {
+  const [x0, y0, x1, y1] = uitsnede;
+  const [w, h] = [x1 - x0, y1 - y0];
+  const plaats = (begin: number, maat: number) => (maat >= 1 ? 0 : (begin / (1 - maat)) * 100);
+  return { backgroundSize: `${100 / w}% ${100 / h}%`, backgroundPosition: `${plaats(x0, w)}% ${plaats(y0, h)}%` };
+}
+
 /**
- * Een staal: de kleur, het patroon op schaal, of de foto. Op de server enkel
- * de kleur; het patroon tekent de browser erbij.
+ * Een staal: de kleur, het patroon op schaal, of de foto (bij een staal of
+ * vlak enkel het stuk dat telt). Op de server enkel de kleur; het patroon
+ * tekent de browser erbij.
  */
 export function Staalbeeld({ materiaal, className }: { materiaal: Materiaal; className?: string }) {
-  const { patroon, kleur, voegkleur, foto } = materiaal;
+  const { patroon, kleur, voegkleur, foto, staal } = materiaal;
   const [beeld, setBeeld] = useState<{ url: string; breedte: number; hoogte: number } | null>(null);
   useEffect(() => {
     setBeeld(patroon ? staalbeeld({ patroon, kleur, voegkleur }) : null);
   }, [patroon, kleur, voegkleur]);
   const stijl: CSSProperties =
-    patroon && beeld
-      ? { backgroundColor: kleur, backgroundImage: `url(${beeld.url})`, backgroundSize: `${beeld.breedte}px ${beeld.hoogte}px` }
-      : !patroon && foto
-        ? { backgroundColor: kleur, backgroundImage: `url(${JSON.stringify(foto)})`, backgroundSize: "cover", backgroundPosition: "center" }
-        : { backgroundColor: kleur };
+    foto && staal
+      ? { backgroundColor: kleur, backgroundImage: `url(${JSON.stringify(foto)})`, ...uitsnedeStijl(staal.uitsnede) }
+      : patroon && beeld
+        ? { backgroundColor: kleur, backgroundImage: `url(${beeld.url})`, backgroundSize: `${beeld.breedte}px ${beeld.hoogte}px` }
+        : !patroon && foto
+          ? { backgroundColor: kleur, backgroundImage: `url(${JSON.stringify(foto)})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { backgroundColor: kleur };
   return <span className={className} style={stijl} aria-hidden="true" />;
 }

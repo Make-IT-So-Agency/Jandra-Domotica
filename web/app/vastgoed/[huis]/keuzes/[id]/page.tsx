@@ -18,7 +18,7 @@ import {
 import { leesBestanden, lijstGebouwen, lijstPartijen, lijstRuimtes, lijstVerdiepingen } from "@/lib/bouw/opslag";
 import { tijdelijkeUrl } from "@/lib/bouw/opslagruimte";
 import { huispad } from "@/lib/bouw/paden";
-import { leesKeuze, lijstBeslissingen, lijstOpties, lijstPlanning, lijstVoorkeuren } from "@/lib/bouw/regie-opslag";
+import { fotosVanOptie, leesKeuze, lijstBeslissingen, lijstOpties, lijstPlanning, lijstVoorkeuren } from "@/lib/bouw/regie-opslag";
 import { sorteerVerdiepingen, verdiepingNaam } from "@/lib/bouw/weergave";
 import { datum, datumTijd } from "@/lib/format";
 import { magBouwZien } from "@/lib/rollen";
@@ -61,11 +61,8 @@ export default async function Keuzepagina({
     lijstBeslissingen(huis.id),
   ]);
 
-  // Een foto toont de browser via een ondertekende URL van een uur.
-  const bestanden = await leesBestanden(
-    huis.id,
-    opties.flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : [])),
-  );
+  // Een foto toont de browser via een ondertekende URL van een uur: die van de optie, en die in het echt.
+  const bestanden = await leesBestanden(huis.id, opties.flatMap(fotosVanOptie));
   const fotos = new Map(
     await Promise.all(
       bestanden.map(async (bestand) => [bestand.id, await tijdelijkeUrl(bestand.pad, 3600).catch(() => null)] as const),
@@ -149,6 +146,7 @@ export default async function Keuzepagina({
               prijs={prijzen.get(optie.id)}
               fans={voorkeuren.filter((voorkeur) => voorkeur.optie_id === optie.id)}
               foto={optie.foto_bestand_id ? (fotos.get(optie.foto_bestand_id) ?? null) : null}
+              referentie={optie.referentie_bestand_id ? (fotos.get(optie.referentie_bestand_id) ?? null) : null}
               mijnVoorkeur={mijnVoorkeur}
               leverancier={partijnaam(optie.leverancier_id)}
               heeftBasis={heeftBasis}

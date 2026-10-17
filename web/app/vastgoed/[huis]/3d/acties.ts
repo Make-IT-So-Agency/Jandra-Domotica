@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { schoneCorrecties } from "@/lib/bouw/drie/correcties";
 import { isDaktype, type Dakinstelling } from "@/lib/bouw/drie/dakregels";
 import { MAX_DELEN, schoneDelen, type Deel } from "@/lib/bouw/drie/delen";
-import { KEUZE_VAN_SLOT, SLOT_VAN, isTeTonen, keuzeVoorPlek, schoneMateriaalvraag, vloertitel } from "@/lib/bouw/drie/materialen";
+import { KEUZE_VAN_SLOT, SLOT_VAN, isTeTonen, keuzeVoorPlek, schoneMateriaalvraag, vloertitel, vrijeNaam } from "@/lib/bouw/drie/materialen";
 import { schoneGeoref } from "@/lib/bouw/drie/omgeving";
 import { schoneInplanting } from "@/lib/bouw/drie/plaatsing";
 import { schoneTrapstanden } from "@/lib/bouw/drie/trappen";
@@ -14,6 +14,7 @@ import { MAX_STUKKEN, schoneStukken, type GeplaatstStuk } from "@/lib/bouw/inric
 import { id } from "@/lib/bouw/invoer";
 import { STANDAARDKEUZES, type Keuze } from "@/lib/bouw/keuzes";
 import { nietVoorSoort } from "@/lib/bouw/onderdelen";
+import { rondUploadAf, ruimOngebruikteBestandenOp, startUpload, type Gestart } from "@/lib/bouw/opladen";
 import {
   bewaarCorrecties,
   bewaarDak,
@@ -163,6 +164,8 @@ export interface BewaardMateriaal {
   optieId: number;
   /** De titel van de keuze, voor de melding. */
   titel: string;
+  /** De naam van de optie: met (2) erachter als de keuze die naam al had. */
+  naam: string;
   /** Is de keuze nieuw gemaakt? */
   nieuweKeuze: boolean;
   /** Stond hetzelfde materiaal er al als optie? */
@@ -226,34 +229,74 @@ export async function bewaarMateriaalActie(huisId: unknown, vraag: unknown): Pro
       );
     }
 
-    const zelfde = opties.find(
-      (optie) =>
-        optie.keuze_id === keuzeId &&
-        !optie.foto_bestand_id &&
-        optie.kleur === materiaal.kleur &&
-        optie.patroon === materiaal.patroon &&
-        (optie.voegkleur ?? null) === materiaal.voegkleur,
-    );
+    // Een materiaal met foto's is altijd nieuw; een kleur of patroon dat er al staat niet.
+    const { fotos } = materiaal;
+    const zelfde = fotos
+      ? undefined
+      : opties.find(
+          (optie) =>
+            optie.keuze_id === keuzeId &&
+            !optie.foto_bestand_id &&
+            optie.kleur === materiaal.kleur &&
+            optie.patroon === materiaal.patroon &&
+            (optie.voegkleur ?? null) === materiaal.voegkleur,
+        );
+    for (const bestandId of [fotos?.foto ?? null, fotos?.referentie ?? null]) {
+      if (bestandId === null) continue;
+      const afgerond = await rondUploadAf(huis, bestandId);
+      if (!afgerond.ok) return afgerond;
+      if (afgerond.data.doel !== "foto") return mislukt("Dit bestand is geen foto.");
+    }
+    const naam = zelfde?.naam ?? vrijeNaam(materiaal.naam, opties.filter((optie) => optie.keuze_id === keuzeId).map((optie) => optie.naam));
     const optieId =
       zelfde?.id ??
-      (await voegOptieToe(huis, {
-        keuze_id: keuzeId,
-        naam: materiaal.naam,
-        leverancier_id: null,
-        prijs: null,
-        kleur: materiaal.kleur,
-        patroon: materiaal.patroon,
-        voegkleur: materiaal.voegkleur,
-        url: null,
-        opmerking: null,
-        volgorde: 0,
-      }));
-    uit = { keuzeId, optieId, titel, nieuweKeuze: !keuze, bestond: zelfde !== undefined };
+      (await voegOptieToe(
+        huis,
+        {
+          keuze_id: keuzeId,
+          naam,
+          leverancier_id: null,
+          prijs: null,
+          kleur: materiaal.kleur,
+          patroon: materiaal.patroon,
+          voegkleur: materiaal.voegkleur,
+          url: materiaal.url,
+          opmerking: null,
+          volgorde: 0,
+        },
+        { foto_bestand_id: fotos?.foto ?? null, referentie_bestand_id: fotos?.referentie ?? null, staal: fotos?.staal ?? null },
+      ));
+    uit = { keuzeId, optieId, titel, naam, nieuweKeuze: !keuze, bestond: zelfde !== undefined };
   } catch (fout) {
+    // De foto's die al opgeladen waren, mogen weg als niets ze gebruikt.
+    const fotos = [materiaal.fotos?.foto ?? null, materiaal.fotos?.referentie ?? null].filter((id): id is number => id !== null);
+    await ruimOngebruikteBestandenOp(huis, fotos).catch(() => undefined);
     return mislukt(foutmelding(fout, "Bewaren mislukt."));
   }
   revalidatePath(huispad(huis, "/3d"));
   revalidatePath(huispad(huis, "/keuzes"));
   revalidatePath(huispad(huis, `/keuzes/${uit.keuzeId}`));
   return gelukt(uit);
+}
+
+/**
+ * Een foto voor een materiaal van een site of foto: de browser verkleint ze
+ * en zet ze rechtstreeks in Storage (zie lib/bouw/opladen.ts). Daarna
+ * bewaart bewaarMateriaalActie ze bij de nieuwe optie.
+ */
+export async function vraagMateriaalfotoAan(huisId: unknown, vraag: { naam: string; grootte: number }): Promise<Uitkomst<Gestart>> {
+  const toegang = await huisgebruiker(huisId);
+  if (!toegang) return mislukt("Het bouwproject is voorbehouden aan de hoofdbeheerder.");
+  const nee = nietVoorSoort(toegang.huis, "keuzes");
+  if (nee) return mislukt(nee);
+  try {
+    return await startUpload(
+      toegang.huis.id,
+      { naam: String(vraag?.naam ?? "foto.jpg").slice(0, 200), type: "image/jpeg", grootte: Number(vraag?.grootte) },
+      "foto",
+      toegang.ik.email,
+    );
+  } catch (fout) {
+    return mislukt(foutmelding(fout, "Opladen voorbereiden mislukt."));
+  }
 }

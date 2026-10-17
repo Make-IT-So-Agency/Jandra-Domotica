@@ -299,7 +299,7 @@ describe("namen en materialen", () => {
         titel: "Gevelsteen",
         slot: "gevel",
         ruimteIds: [],
-        opties: [{ id: 5, naam: "Handvorm", kleur: null, foto: "https://opslag.test/foto", patroon: "baksteen", voegkleur: "#cccccc" }],
+        opties: [{ id: 5, naam: "Handvorm", kleur: null, foto: "https://opslag.test/foto", patroon: "baksteen", voegkleur: "#cccccc", staal: null }],
         standaard: 5,
       },
     ];

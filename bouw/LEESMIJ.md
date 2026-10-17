@@ -566,6 +566,54 @@ grondplannen.
   - Een optie kan ook bij Keuzes een patroon en een voeg krijgen; het staal op
     de optie toont het zoals in 3D (`bouw_opties.patroon` en `voegkleur`).
 
+  **Van een site of foto** (`3d/materiaalimport.tsx`, `drie/fotostaal.ts`,
+  `materiaal-pagina.ts`). Onder de stalen staat **Van een site of foto**:
+  plak het adres van een productpagina of van een foto, of kies foto's van je
+  toestel. Van een pagina toont de app de foto's van het product: de foto die
+  de site zelf naar voren schuift, die in de gegevens van het product, en de
+  grote foto's op de pagina, zonder logo's, iconen en dubbels. Tik een foto
+  aan en zeg wat ze toont:
+  - **Staal:** één steen, tegel of plank, op een effen achtergrond. Trek een
+    kader rond het deel dat telt. In 3D krijgt elke steen, tegel of plank van
+    het patroon een ander stukje uit dat kader, op echte maat, soms
+    gespiegeld en een tikje lichter of donkerder: zo ziet een muur er niet
+    gestempeld uit. Zonder patroon met stukken ligt het kader als één foto op
+    het vlak, zo breed als je opgeeft;
+  - **Referentie:** het materiaal in het echt, zoals een huis met die steen.
+    De app neemt er de kleur en de voeg uit. Trek je er een kader op, rond
+    een recht stuk muur of vloer van voren gezien, dan ligt dat stuk als foto
+    op het vlak, zo breed als je opgeeft;
+  - **Niet gebruiken.**
+
+  De app stelt zelf voor wat elke foto is. Iets op een effen achtergrond dat
+  zijn kader vult, is een staal. Een foto die tot aan de rand doorloopt, zoals
+  een gevel of hout met nerven, is een referentie. Uit de vorm van het staal
+  komt het patroon: een lange steen op een gevel is baksteen, een lange plank
+  op een vloer parket. Uit de foto's komen de kleur en de voeg. Alles kan je
+  aanpassen.
+
+  **Toevoegen aan de bibliotheek** laadt de foto's verkleind op, zoals een
+  foto bij Keuzes. Het maakt een optie bij de keuze van het onderdeel, met de
+  foto's, de site en hoe 3D ze gebruikt (`bouw_opties.referentie_bestand_id`
+  en `staal`):
+  - heeft de keuze die naam al, dan komt er (2) achter;
+  - bij Keuzes staat de foto in het echt klein onder die van het staal;
+  - krijgt een optie bij Keuzes een andere foto, dan valt het kader weg, en
+    legt 3D de nieuwe foto elke meter.
+
+  **De site lezen** gebeurt op de server (`ophalen.ts`,
+  `/api/bouw/materiaal/zoek` en `/api/bouw/materiaal/foto`):
+  - enkel http en https, op de gewone poorten, zonder wachtwoord in het
+    adres;
+  - enkel adressen op het openbare internet: ook wat de naam opzoekt, en na
+    elke omleiding (hoogstens 4);
+  - een pagina tot 3 MB, een foto tot 15 MB;
+  - enkel JPEG, PNG, WebP of GIF, nagekeken aan de eerste bytes; nooit een
+    SVG.
+
+  De foto's van een site komen via de app naar de browser, zodat die hun
+  pixels mag lezen. De app bewaart er niets van tot je toevoegt.
+
   **Een deel van een vlak** (`drie/delen.ts`, `3d/deeltekening.ts`). Een
   materiaal hoeft niet op het hele onderdeel: een stuk gevel in hout, de
   badkamer tot 1,20 m in tegels, tegels in een deel van de leefruimte, een
@@ -678,9 +726,18 @@ grondplannen.
     **Tegen de muur** zet het er opnieuw tegen, en **Weg** haalt het weg. Met
     de toetsen: de pijltjes verschuiven 5 cm (met Shift 50 cm), R draait 15°,
     Delete haalt weg;
+  - **het materiaal:** onder **Materiaal** krijgt een meubel of kast een
+    eigen materiaal. Eerst de opties van de keuze Maatwerk en meubels, dan de
+    andere opties met een foto of patroon, de stalen (eik, notelaar, gelakt,
+    betonlook) en een eigen kleur. **Van een site of foto** werkt zoals bij de
+    materialen, en zet de optie bij Maatwerk en meubels: zo komt een foto van
+    de schrijnwerker of de leverancier op het meubel. Het materiaal ligt op
+    echte maat op de hoofddelen van het stuk; zonder materiaal blijft de
+    kleur van de groep;
   - **bewaren:** **Meubels bewaren** bewaart elke verdieping die veranderde in
-    één keer (`bouw_objecten`), in meter in het assenstelsel van het gebouw,
-    zoals de punten. **Herbeginnen** gooit weg wat niet bewaard is;
+    één keer (`bouw_objecten`, met het materiaal), in meter in het
+    assenstelsel van het gebouw, zoals de punten. **Herbeginnen** gooit weg
+    wat niet bewaard is;
   - wat hoger komt dan 30 cm houdt je tegen bij het rondwandelen; wat aan de
     muur hangt boven 1 m niet;
   - **zonnepanelen** (`drie/zonnepanelen.ts`): kies Zonnepanelen bij **Op het
@@ -1180,7 +1237,11 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/delen.ts` | Een deel van een vlak met een eigen materiaal: nakijken, het muurvlak onder een tik, wanden, vloeren en puntgevels knippen, kleven en namen; puur, met tests |
 | `web/app/vastgoed/[huis]/3d/deeltekening.ts` | Een deel tekenen in 3D: een tik op het vlak, en het voorbeeld in het oranje |
 | `supabase/migrations/20261017100000_bouw_delen.sql` | De delen van de vlakken, per verdieping |
-| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
+| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes, ook met een stukje foto per steen |
+| `web/app/vastgoed/[huis]/3d/materiaalimport.tsx` | Een materiaal van een site of foto: de foto's kiezen, staal of referentie, het kader, en toevoegen aan de bibliotheek |
+| `web/lib/bouw/drie/fotostaal.ts` | Hoe 3D een foto gebruikt: een staal of een vlak herkennen, de kleuren en de voeg, het patroon uit de vorm, en een stukje per steen; puur, met tests |
+| `web/lib/bouw/materiaal-pagina.ts`, `web/lib/bouw/ophalen.ts`, `web/app/api/bouw/materiaal/` | De foto's van een productpagina, ophalen enkel van het openbare internet, en de routes om een site te lezen en een foto door te geven |
+| `supabase/migrations/20261018100000_bouw_materiaalfotos.sql` | De foto in het echt en het staal van een optie, en het materiaal van een meubel |
 | `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
 | `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
@@ -1400,6 +1461,8 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
       en borstwering, de deuren met hun blad, en de luifels, ook zelf gezet
 - [x] **5l** Materialen uitproberen in 3D en bewaren als optie, ook op een
       deel van een muur, vloer of plat dak
+- [x] **5m** Materialen van een site of foto, met een staal en een foto in
+      het echt, op muren, vloeren, delen en meubels
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

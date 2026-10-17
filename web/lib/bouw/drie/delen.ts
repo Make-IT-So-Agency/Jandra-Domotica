@@ -177,7 +177,8 @@ function vormVan(ruw: unknown): Deelvorm | null {
   }
 }
 
-function deelmateriaal(ruw: unknown): Deelmateriaal | null {
+/** Een eigen materiaal, nagekeken: van een deel, of van een meubel of kast bij Inrichten. Null als het niet klopt. */
+export function deelmateriaal(ruw: unknown): Deelmateriaal | null {
   if (!ruw || typeof ruw !== "object") return null;
   const m = ruw as Record<string, unknown>;
   const kleur = typeof m.kleur === "string" ? m.kleur.toLowerCase() : "";

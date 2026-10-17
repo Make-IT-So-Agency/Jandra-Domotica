@@ -9,7 +9,7 @@ import type { Gekendeluifel } from "./drie/luifels";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
-import { schoneDelen, type Deel } from "./drie/delen";
+import { deelmateriaal, schoneDelen, type Deel } from "./drie/delen";
 import { schoneTrapstanden } from "./drie/trappen";
 import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
 import { isLigging, type Leiding, type Nieuweleiding } from "./leidingen";
@@ -785,6 +785,7 @@ function alsStuk(rij: Record<string, unknown>): GeplaatstStuk {
     diepte: Number(rij.diepte_m),
     hoogte: Number(rij.hoogte_m),
     label: (rij.label as string | null) ?? null,
+    materiaal: deelmateriaal(rij.materiaal),
   };
 }
 
@@ -799,6 +800,7 @@ const stukrij = (stuk: Stuk) => ({
   diepte_m: stuk.diepte,
   hoogte_m: stuk.hoogte,
   label: stuk.label,
+  materiaal: stuk.materiaal ?? null,
 });
 
 /** De meubels en toestellen van het huis, op alle verdiepingen. */
@@ -981,6 +983,7 @@ export async function wordtGebruikt(bestandId: number): Promise<boolean> {
   const antwoorden = await Promise.all([
     db().from("bouw_planversies").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_opties").select("id").eq("foto_bestand_id", bestandId).limit(1),
+    db().from("bouw_opties").select("id").eq("referentie_bestand_id", bestandId).limit(1),
     db().from("bouw_offertes").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_facturen").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_inzendingen").select("id").eq("bestand_id", bestandId).eq("status", "nieuw").limit(1),

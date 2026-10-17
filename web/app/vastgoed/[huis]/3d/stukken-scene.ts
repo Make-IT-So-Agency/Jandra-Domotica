@@ -15,6 +15,10 @@ import { GROEPKLEUREN, laagVan, soortStuk, type GeplaatstStuk, type Stuk } from 
  * voorkant op +diepte/2) en y de hoogte vanaf de onderkant.
  * userData.stukId en userData.laag zeggen welk stuk het is, voor de lagen en
  * om het aan te tikken.
+ *
+ * Een stuk met een eigen materiaal (een fineer, een lak, een foto van de
+ * schrijnwerker) krijgt dat op zijn hoofddelen, met textuurcoördinaten in
+ * meter: een patroon ligt er op echte maat, zoals op de muren.
  */
 
 const WIT = "#f8fafc";
@@ -34,6 +38,26 @@ export interface Stukkenscene {
   opruimen(): void;
 }
 
+/** Een kubus van w op h op d met textuurcoördinaten in meter, zoals de muren: zo ligt een patroon op echte maat. */
+function kubusInMeter(w: number, h: number, d: number): THREE.BoxGeometry {
+  const geometrie = new THREE.BoxGeometry(w, h, d);
+  const uv = geometrie.attributes.uv;
+  // Vier hoeken per zijde, in de volgorde +x, -x, +y, -y, +z, -z; elk met haar eigen breedte en hoogte.
+  const maten: [number, number][] = [
+    [d, h],
+    [d, h],
+    [w, d],
+    [w, d],
+    [w, h],
+    [w, h],
+  ];
+  maten.forEach(([mu, mv], zijde) => {
+    for (let i = 0; i < 4; i++) uv.setXY(zijde * 4 + i, uv.getX(zijde * 4 + i) * mu, uv.getY(zijde * 4 + i) * mv);
+  });
+  uv.needsUpdate = true;
+  return geometrie;
+}
+
 /** Zet een groep van een stuk op zijn plaats: het midden op (x, y), de onderkant op z boven de vloer. */
 export function zetStuk(groep: THREE.Object3D, stuk: Pick<Stuk, "x" | "y" | "z" | "hoek" | "kanteling">, z0: number) {
   groep.position.set(stuk.x, z0 + stuk.z, stuk.y);
@@ -46,7 +70,10 @@ export function bouwStukken(
   model: Model3d,
   groepen: ReadonlyMap<number, THREE.Group>,
   snede: THREE.Plane,
+  /** Het eigen materiaal van een stuk; null: de kleur van zijn groep. Wie het geeft, ruimt het ook op. */
+  eigenMateriaal: (stuk: GeplaatstStuk) => THREE.MeshStandardMaterial | null = () => null,
 ): Stukkenscene {
+  const geometrieen: THREE.BufferGeometry[] = [];
   const materialen = new Map<string, THREE.MeshStandardMaterial>();
   const materiaal = (kleur: string, doorzichtig = false) => {
     const sleutel = `${kleur}|${doorzichtig}`;
@@ -80,10 +107,22 @@ export function bouwStukken(
     const accent = tint(kleur, 0.78);
     const { breedte: w, diepte: d, hoogte: h } = stuk;
     const groep = new THREE.Group();
+    // De hoofddelen (in de kleur van de groep) krijgen het eigen materiaal, als er een is.
+    const eigen = eigenMateriaal(stuk);
 
     /** Een blok van x0 tot x1 (breedte), y0 tot y1 (hoogte) en z0 tot z1 (diepte). */
     const blok = (k: string, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, doorzichtig = false) => {
       if (x1 - x0 < 1e-3 || y1 - y0 < 1e-3 || z1 - z0 < 1e-3) return;
+      if (eigen && k === kleur) {
+        const geometrie = kubusInMeter(x1 - x0, y1 - y0, z1 - z0);
+        geometrieen.push(geometrie);
+        const mesh = new THREE.Mesh(geometrie, eigen);
+        mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        groep.add(mesh);
+        return;
+      }
       const mesh = new THREE.Mesh(KUBUS, materiaal(k, doorzichtig));
       mesh.scale.set(x1 - x0, y1 - y0, z1 - z0);
       mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
@@ -94,7 +133,7 @@ export function bouwStukken(
     /** Een staande cilinder (of ellips) rond (x, z), van y0 tot y1. */
     const cilinder = (k: string, x: number, z: number, breed: number, diep: number, y0: number, y1: number) => {
       if (y1 - y0 < 1e-3) return;
-      const mesh = new THREE.Mesh(CILINDER, materiaal(k));
+      const mesh = new THREE.Mesh(CILINDER, eigen && k === kleur ? eigen : materiaal(k));
       mesh.scale.set(breed, y1 - y0, diep);
       mesh.position.set(x, (y0 + y1) / 2, z);
       mesh.castShadow = true;
@@ -301,6 +340,7 @@ export function bouwStukken(
     opruimen() {
       for (const groep of objecten.values()) groep.removeFromParent();
       materialen.forEach((m) => m.dispose());
+      geometrieen.forEach((g) => g.dispose());
     },
   };
 }

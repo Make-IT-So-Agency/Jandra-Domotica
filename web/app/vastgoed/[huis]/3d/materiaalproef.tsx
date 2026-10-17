@@ -50,6 +50,7 @@ import { huispad } from "@/lib/bouw/paden";
 
 import { bewaarDelenActie, bewaarMateriaalActie } from "./acties";
 import { kleefmarge, snijVlak, Voorbeeld } from "./deeltekening";
+import { Materiaalimport } from "./materiaalimport";
 import { richtStraal, useTik, zichtbareRaak, type Kern } from "./kern";
 import type { Opgebouwd, Sleutel } from "./scene";
 import { zetMateriaal, type Texturen } from "./texturen";
@@ -862,7 +863,7 @@ export function useMateriaalproef(
   };
 }
 
-function Staalknop({ naam, materiaal, actief, kies }: { naam: string; materiaal: Materiaal; actief: boolean; kies: () => void }) {
+export function Staalknop({ naam, materiaal, actief, kies }: { naam: string; materiaal: Materiaal; actief: boolean; kies: () => void }) {
   return (
     <button type="button" className="staal" aria-pressed={actief} title={naam} onClick={kies}>
       <Staalbeeld materiaal={materiaal} className="staal-beeld" />
@@ -1101,6 +1102,8 @@ export function Materiaalkaart({
   const samenMet = p.ruimtes.filter((id) => id !== plek.ruimteId).flatMap((id) => vloerruimtes.find((r) => r.id === id)?.naam ?? []);
   const standaard = keuze?.opties.find((o) => o.id === keuze.standaard)?.naam ?? "de standaard";
   const alleDelen = verdiepingen.flatMap((v) => (p.delen.get(v.id) ?? []).map((deel) => ({ verdieping: v.naam, deel })));
+  // Een materiaal voor een vloer hoort bij een ruimte: die van de vloer, of die onder het deel.
+  const importruimte = plek.ruimteId ?? keuze?.ruimteIds[0] ?? null;
   const meerdereVerdiepingen = new Set(alleDelen.map((d) => d.verdieping)).size > 1;
 
   return (
@@ -1231,6 +1234,18 @@ export function Materiaalkaart({
           </div>
         ) : null}
       </div>
+      {metKeuzes && (plek.slot !== "vloer" || importruimte !== null) ? (
+        <details className="palet importpalet">
+          <summary className="palet-kop">Van een site of foto</summary>
+          <Materiaalimport
+            huisId={huisId}
+            slot={plek.slot}
+            ruimteId={plek.slot === "vloer" ? importruimte : null}
+            keuzeId={keuze?.keuzeId ?? null}
+            klaar={(uit) => p.probeer(uit.naam, uit.materiaal, uit.optieId)}
+          />
+        </details>
+      ) : null}
       {p.bewaard ? <p className="melding goed">{p.bewaard} Kiezen doe je bij de keuze.</p> : null}
       {kanBewaren(p, metKeuzes) ? (
         <div className="materiaal-bewaren">

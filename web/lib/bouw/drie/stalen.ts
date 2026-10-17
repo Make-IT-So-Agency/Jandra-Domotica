@@ -20,6 +20,17 @@ const staal = (naam: string, kleur: string, patroon: Patroon | null = null, voeg
 });
 
 export const STALEN: Record<Slot, readonly Staal[]> = {
+  // Meubels en kasten: fineer, lak en een werkblad.
+  meubel: [
+    staal("Lichte eik", "#c9b08c", "planken"),
+    staal("Gerookte eik", "#7a5c43", "planken"),
+    staal("Notelaar", "#5c4033", "planken"),
+    staal("Wit gelakt", "#f2f0eb"),
+    staal("Zachtgrijs gelakt", "#c9c7c1"),
+    staal("Antraciet gelakt", "#3a3b3d"),
+    staal("Zwart mat", "#1f1f21"),
+    staal("Betonlook", "#a7a49f", "beton"),
+  ],
   gevel: [
     staal("Rode baksteen", "#9b4a33", "baksteen", "#c9c2b8"),
     staal("Roodbruine baksteen", "#7a4535", "baksteen", "#8f877d"),

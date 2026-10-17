@@ -899,6 +899,7 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
     bewaard: gegevens.stukken,
     lagen,
     grond: Math.min(0, ...model.verdiepingen.map((v) => v.z0)) - 0.24,
+    materialen: gegevens.materialen,
     meld: setMelding,
   });
   const inrichtingRef = useRef(inrichting);
@@ -1719,6 +1720,9 @@ export default function Drie({ huisId, gegevens }: { huisId: number; gegevens: D
             wissel("inrichten");
           }}
           verdiepingen={model.verdiepingen.map((v) => ({ id: v.id, naam: v.naam }))}
+          materialen={gegevens.materialen}
+          huisId={huisId}
+          metKeuzes={gegevens.metKeuzes}
         />
 
         <Zonkaart kern={drie} klaar={klaar} noorden={noorden} terrein={terrein} metOmgeving={omgeving !== null && omgevingsplaats !== null} />

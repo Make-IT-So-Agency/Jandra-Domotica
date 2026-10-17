@@ -1,3 +1,5 @@
+import { deelmateriaal, type Deelmateriaal } from "./drie/delen";
+
 /**
  * Meubels en toestellen in het huis, voor het 3D-model: een bed, een zetel,
  * de keuken, een warmtepomp, een regenwaterput. De catalogus staat hier, in de
@@ -185,6 +187,8 @@ export interface Stuk {
   diepte: number;
   hoogte: number;
   label: string | null;
+  /** Een eigen materiaal, zoals een deel van een muur: een staal, een kleur of een optie van een keuze. Zonder: de kleur van zijn groep. */
+  materiaal?: Deelmateriaal | null;
 }
 
 /** Een stuk met de verdieping waar het staat. */
@@ -268,6 +272,8 @@ export function schoneStukken(ruw: unknown): Stuk[] {
       diepte: Math.max(0.01, cm(diepte)),
       hoogte: Math.max(0.01, cm(hoogte)),
       label: schoonLabel(item.label),
+      // Een materiaal dat niet klopt, valt weg; het stuk blijft.
+      materiaal: deelmateriaal(item.materiaal),
     });
   }
   return uit;

@@ -246,8 +246,8 @@ export async function verwijderOptieActie(huisId: unknown, formulier: FormData):
   if (!optieId || !optie) terug(lijst(huis.id), "fout", "Deze optie bestaat niet meer.");
   try {
     const keuze = await leesKeuze(huis.id, optie.keuze_id);
-    const foto = await verwijderOptie(huis.id, optieId);
-    if (foto) await ruimOngebruikteBestandenOp(huis.id, [foto]);
+    const fotos = await verwijderOptie(huis.id, optieId);
+    if (fotos.length > 0) await ruimOngebruikteBestandenOp(huis.id, fotos);
     if (keuze && keuze.gekozen_optie_id === optieId) {
       await voegBeslissingToe(huis.id, {
         datum: vandaag(),
