@@ -21,6 +21,7 @@ import {
   proefsleutel,
   schoneMateriaalvraag,
   vloertitel,
+  vrijeNaam,
   type Proef,
 } from "@/lib/bouw/drie/materialen";
 import { BAKSTEEN, PATROONMATEN, STALEN, eigenNaam, tint, willekeur } from "@/lib/bouw/drie/stalen";
@@ -56,6 +57,8 @@ const optie = (id: number, keuze_id: number, naam: string, velden: Partial<Optie
   voegkleur: null,
   url: null,
   foto_bestand_id: null,
+  referentie_bestand_id: null,
+  staal: null,
   opmerking: null,
   volgorde: 0,
   ...velden,
@@ -201,6 +204,8 @@ describe("een materiaal bewaren: wat de browser stuurt", () => {
       kleur: "#9b4a33",
       patroon: "baksteen",
       voegkleur: "#c9c2b8",
+      fotos: null,
+      url: null,
     });
     expect(schoneMateriaalvraag({ ...goed, slot: "vloer", ruimteId: 12, keuzeId: null, patroon: "parket" })).toMatchObject({
       ruimteId: 12,
@@ -208,6 +213,26 @@ describe("een materiaal bewaren: wat de browser stuurt", () => {
       voegkleur: null,
     });
     expect(schoneMateriaalvraag({ ...goed, patroon: null, voegkleur: null })).toMatchObject({ patroon: null, voegkleur: null });
+  });
+
+  it("neemt de foto's van een site of foto mee, met hoe 3D ze gebruikt", () => {
+    const staal = { bron: "staal", uitsnede: [0.2, 0.35, 0.8, 0.65], breedte: null };
+    const metFotos = schoneMateriaalvraag({ ...goed, fotos: { foto: 501, referentie: 502, staal }, url: "www.voorbeeld.be/steen" });
+    expect(metFotos).toMatchObject({ fotos: { foto: 501, referentie: 502, staal }, url: "https://www.voorbeeld.be/steen" });
+    // Enkel een referentie: de kleuren komen uit de foto, 3D tekent het patroon.
+    expect(schoneMateriaalvraag({ ...goed, fotos: { foto: null, referentie: 502, staal: null } })?.fotos).toEqual({ foto: null, referentie: 502, staal: null });
+    // Meubels en kasten hebben hun eigen keuze.
+    expect(schoneMateriaalvraag({ ...goed, slot: "meubel", keuzeId: null })?.slot).toBe("meubel");
+    for (const fout of [
+      { fotos: { foto: null, referentie: 502, staal } },
+      { fotos: { foto: -1, referentie: null, staal: null } },
+      { fotos: { foto: null, referentie: null, staal: null } },
+      { fotos: { foto: 501, referentie: null, staal: { bron: "vlak", uitsnede: [0, 0, 1, 1], breedte: null } } },
+      { fotos: "ja" },
+      { url: "javascript:alert(1)" },
+    ]) {
+      expect(schoneMateriaalvraag({ ...goed, ...fout }), JSON.stringify(fout)).toBeNull();
+    }
   });
 
   it("weigert wat niet klopt", () => {
@@ -263,6 +288,16 @@ describe("de stalen", () => {
     expect(willekeur("leien")()).not.toBe(reeks[0]);
     expect(tint("#804020", 1.5)).toBe("#c06030");
     expect(tint("#ffffff", 2)).toBe("#ffffff");
+  });
+});
+
+describe("een vrije naam bij de keuze", () => {
+  it("houdt de naam, of zet er (2), (3)… achter, binnen de 80 tekens", () => {
+    expect(vrijeNaam("Eik fineer", ["Notelaar"])).toBe("Eik fineer");
+    expect(vrijeNaam("Eik fineer", ["eik fineer "])).toBe("Eik fineer (2)");
+    expect(vrijeNaam("Eik fineer", ["Eik fineer", "Eik fineer (2)"])).toBe("Eik fineer (3)");
+    const lang = "x".repeat(80);
+    expect(vrijeNaam(lang, [lang])).toBe(`${"x".repeat(76)} (2)`);
   });
 });
 
@@ -331,6 +366,27 @@ describe("een materiaal uit 3D bewaren als optie", () => {
     // Een keuze die niet bij de plek past, telt niet: dan de keuze van de ruimte.
     const verkeerd = await bewaarMateriaalActie(1, vraag({ slot: "vloer", ruimteId: 11, keuzeId: 1, naam: "Beton", kleur: "#b1aea7", patroon: "beton", voegkleur: null }));
     expect(verkeerd).toMatchObject({ ok: true, data: { keuzeId: 2 } });
+  });
+
+  it("bewaart een materiaal van een foto bij Maatwerk en meubels, met een vrije naam", async () => {
+    nep.ik = ik;
+    const bestand = (id: number, doel: string) => ({ id, huis_id: 1, doel, status: "klaar", pad: `1/${id}.jpg`, mime_type: "image/jpeg", naam: `${id}.jpg`, grootte_bytes: 1000 });
+    db.tabellen.bouw_bestanden = [bestand(70, "foto"), bestand(71, "foto"), bestand(72, "plan")];
+    const staal = { bron: "vlak", uitsnede: [0.1, 0.15, 0.85, 0.8], breedte: 0.6 };
+    const eik = (foto: number) => vraag({ slot: "meubel", naam: "Eik fineer", kleur: "#b48759", patroon: null, voegkleur: null, fotos: { foto, referentie: null, staal }, url: "https://www.voorbeeld.be/eik" });
+    const eerste = await bewaarMateriaalActie(1, eik(70));
+    expect(eerste).toMatchObject({ ok: true, data: { titel: "Maatwerk en meubels", naam: "Eik fineer", nieuweKeuze: true, bestond: false } });
+    const meubels = (await lijstKeuzes(1)).find((k) => k.titel === "Maatwerk en meubels")!;
+    expect(meubels.categorie).toBe("binnenschrijnwerk");
+    // Met foto's altijd een nieuwe optie, met (2) achter dezelfde naam.
+    const tweede = await bewaarMateriaalActie(1, eik(71));
+    expect(tweede).toMatchObject({ ok: true, data: { keuzeId: meubels.id, naam: "Eik fineer (2)", bestond: false } });
+    expect(await lijstOpties(1, [meubels.id])).toEqual([
+      expect.objectContaining({ naam: "Eik fineer", foto_bestand_id: 70, referentie_bestand_id: null, staal, url: "https://www.voorbeeld.be/eik" }),
+      expect.objectContaining({ naam: "Eik fineer (2)", foto_bestand_id: 71 }),
+    ]);
+    // Een plan is geen foto.
+    expect(await bewaarMateriaalActie(1, eik(72))).toMatchObject({ ok: false, melding: expect.stringContaining("geen foto") });
   });
 
   it("weigert wie geen toegang heeft, een bestaand huis, en een onbekende ruimte", async () => {

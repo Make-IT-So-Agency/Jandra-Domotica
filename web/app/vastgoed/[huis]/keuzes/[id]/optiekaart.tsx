@@ -31,6 +31,7 @@ export function Optiekaart({
   prijs,
   fans,
   foto,
+  referentie,
   mijnVoorkeur,
   leverancier,
   heeftBasis,
@@ -44,6 +45,8 @@ export function Optiekaart({
   fans: Voorkeur[];
   /** Een ondertekende URL, of null. */
   foto: string | null;
+  /** De foto in het echt, zoals een huis met deze steen: een ondertekende URL, of null. */
+  referentie: string | null;
   mijnVoorkeur: number | null;
   leverancier: string | null;
   heeftBasis: boolean;
@@ -62,6 +65,12 @@ export function Optiekaart({
           materiaal={{ kleur: optie.kleur ?? "#cccccc", foto: null, patroon: optie.patroon, voegkleur: optie.voegkleur }}
           className="optie-foto kleurstaal"
         />
+      ) : null}
+      {referentie ? (
+        <a href={referentie} target="_blank" rel="noreferrer" className="optie-referentie">
+          <img src={referentie} alt={`${optie.naam} in het echt`} loading="lazy" />
+          <span>In het echt</span>
+        </a>
       ) : null}
       <h3>
         {optie.naam}{" "}

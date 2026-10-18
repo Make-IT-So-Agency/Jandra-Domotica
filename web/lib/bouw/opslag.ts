@@ -9,6 +9,8 @@ import type { Gekendeluifel } from "./drie/luifels";
 import type { Georef } from "./drie/omgeving";
 import type { Inplanting, Plaatsing } from "./drie/plaatsing";
 import { schoneCorrecties, type Correctie } from "./drie/correcties";
+import { deelmateriaal, schoneDelen, type Deel } from "./drie/delen";
+import { schoneIndeling } from "./drie/maatwerk";
 import { schoneTrapstanden } from "./drie/trappen";
 import { schoneStukken, type GeplaatstStuk, type Stuk } from "./inrichting";
 import { isLigging, type Leiding, type Nieuweleiding } from "./leidingen";
@@ -237,6 +239,7 @@ function alsVerdieping(rij: Record<string, unknown>): Verdieping {
     plafondhoogte_m: getal(rij.plafondhoogte_m),
     trapstanden: schoneTrapstanden(rij.trappen),
     correcties: schoneCorrecties(rij.correcties),
+    delen: schoneDelen(rij.delen),
   };
 }
 
@@ -249,6 +252,20 @@ export async function bewaarTrapstanden(huisId: number, verdiepingId: number, st
       "Trappen bewaren",
     ),
   );
+}
+
+/**
+ * De delen van de muren, vloeren en platte daken van een verdieping met een
+ * eigen materiaal, allemaal samen, zoals het 3D-scherm ze doorstuurt. De
+ * muren van een ruimte enkel met een ruimte van deze verdieping. Geeft terug
+ * wat bewaard is.
+ */
+export async function bewaarDelen(huisId: number, verdiepingId: number, delen: Deel[]): Promise<Deel[]> {
+  if (!(await leesVerdieping(huisId, verdiepingId))) throw new Bouwfout("Deze verdieping bestaat niet meer.");
+  const ruimtes = new Set((await lijstRuimtes(huisId, verdiepingId)).map((ruimte) => ruimte.id));
+  const schoon = schoneDelen(delen).filter((deel) => deel.vorm.soort !== "wanden" || ruimtes.has(deel.vorm.ruimteId));
+  geraakt(check(await db().from("bouw_verdiepingen").update({ delen: schoon }).eq("id", verdiepingId).select("id"), "Delen bewaren"));
+  return schoon;
 }
 
 /** Wat op het plan verbeterd werd aan de muren, ramen en deuren van een verdieping. */
@@ -769,6 +786,8 @@ function alsStuk(rij: Record<string, unknown>): GeplaatstStuk {
     diepte: Number(rij.diepte_m),
     hoogte: Number(rij.hoogte_m),
     label: (rij.label as string | null) ?? null,
+    materiaal: deelmateriaal(rij.materiaal),
+    indeling: schoneIndeling(rij.indeling),
   };
 }
 
@@ -783,6 +802,8 @@ const stukrij = (stuk: Stuk) => ({
   diepte_m: stuk.diepte,
   hoogte_m: stuk.hoogte,
   label: stuk.label,
+  materiaal: stuk.materiaal ?? null,
+  indeling: stuk.indeling ?? null,
 });
 
 /** De meubels en toestellen van het huis, op alle verdiepingen. */
@@ -958,19 +979,21 @@ export async function markeerKlaar(id: number, grootte: number): Promise<void> {
 
 /**
  * Gebruikt nog iets dit bestand: een planversie, een optie van een keuze (als
- * foto), een offerte, een factuur, of een inzending die nog niet ingelezen of
- * genegeerd is?
+ * foto), een offerte, een factuur, een beeld van het huis, of een inzending
+ * die nog niet ingelezen of genegeerd is?
  */
 export async function wordtGebruikt(bestandId: number): Promise<boolean> {
   const antwoorden = await Promise.all([
     db().from("bouw_planversies").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_opties").select("id").eq("foto_bestand_id", bestandId).limit(1),
+    db().from("bouw_opties").select("id").eq("referentie_bestand_id", bestandId).limit(1),
     db().from("bouw_offertes").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_facturen").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_inzendingen").select("id").eq("bestand_id", bestandId).eq("status", "nieuw").limit(1),
     db().from("bouw_werffotos").select("id").eq("bestand_id", bestandId).limit(1),
     db().from("bouw_werffotos").select("id").eq("duim_bestand_id", bestandId).limit(1),
     db().from("bouw_documenten").select("id").eq("bestand_id", bestandId).limit(1),
+    db().from("bouw_beelden").select("id").eq("bestand_id", bestandId).limit(1),
   ]);
   return antwoorden.some((antwoord) => (check(antwoord, "Gebruik van een bestand nakijken") as unknown[]).length > 0);
 }

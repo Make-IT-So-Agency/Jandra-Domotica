@@ -55,6 +55,10 @@ bouw_* tabellen      de PDF's zelf; de browser praat er rechtstreeks mee
   netwerk, sensoren en zo verder op het plan, en daaruit de **wensenlijst**
   voor de elektricien, als PDF en Excel; zie
   [Punten en de wensenlijst](#punten-en-de-wensenlijst).
+- **Technieken** (`/vastgoed/1/technieken`): uit de punten en de toestellen een
+  voorstel voor de elektriciteit: de kringen, de verdeelkast, de domoticakast,
+  de netwerkkast, het eendraadschema en het situatieschema, ook als PDF; zie
+  [Technieken](#technieken).
 - **3D** (`/vastgoed/1/3d`): het huis in 3D, uit de omgezette grondplannen, met de
   materialen uit de keuzes. Rondkijken, een verdieping of het dak weglaten,
   een doorsnede, en rondwandelen; zie [Het huis in 3D](#het-huis-in-3d).
@@ -254,6 +258,151 @@ data en vloerverwarming, op het omgezette grondplan, met de punten erbij.
   Bij **Lagen** zet je een soort aan of uit, net als in 3D. Op een gsm kan je
   enkel kijken, in 3D.
 
+## Technieken
+
+Een voorstel voor de elektriciteit (`/vastgoed/1/technieken`), uit wat er al
+in de app staat: de punten op het plan, de ruimtes, en de toestellen bij
+Inrichten in 3D. Om met de elektricien te bespreken: hij tekent het
+definitieve schema, en een erkend organisme keurt de installatie. Wat je bij
+Punten of Inrichten verandert, staat er meteen. De regels staan in
+`lib/bouw/technieken/voorstel.ts`, puur en met tests.
+
+**Uitgangspunten.**
+- **de aansluiting:** één fase van 230 V of drie fasen van 3N400 V, met de
+  stroom van de hoofdschakelaar;
+- **de domotica:** geen, KNX met Home Assistant, of een ander systeem (dan
+  schat de app los van het merk);
+- **de laadpaal:** geen, 7,4 kW (één fase van 32 A), 11 kW (drie fasen van
+  16 A) of 22 kW (drie fasen van 32 A). Op één fase laadt hij hoogstens
+  7,4 kW;
+- **de zonnepanelen**, in kWp;
+- **de thuisbatterij:** geen, hybride (aan de omvormer van de panelen, dan
+  geen eigen kring) of met een eigen omvormer.
+
+Wat op het plan of in 3D staat, telt altijd mee. Staat een laadpaal,
+omvormer of batterij hier maar nog niet op het plan, dan krijgt ze een kring
+zonder kabellengte. Zolang niets bewaard is, kiest de app zelf:
+- drie fasen van 25 A met een laadpaal of een warmtepomp, anders één fase
+  van 40 A;
+- KNX als er drukknoppen op het plan staan;
+- de laadpaal, de zonnepanelen en de batterij zoals op het plan en in 3D.
+
+**Bewaren** legt het vast, per huis (`bouw_huizen.technieken`).
+
+**De kringen**, met de vuistregels van het AREI:
+- **verlichting** per verdieping, hoogstens 10 lichtpunten per kring, in
+  1,5 mm² op 16 A. Spots in één ruimte gaan samen aan: ze tellen als één
+  lichtpunt;
+- **stopcontacten** per verdieping, hoogstens 8 contactdozen per kring, in
+  2,5 mm² op 20 A. Een dubbele in één doos telt als één. De stopcontacten
+  boven het aanrecht hebben een eigen kring;
+- **de badkamer** apart: licht en stopcontacten samen, elk lichtpunt telt als
+  een contactdoos, op 16 A;
+- **buiten** apart, met de kabel in de grond in EXVB;
+- **rolluiken en screens** per verdieping, hoogstens 10 motoren per kring;
+- **een eigen kring** voor elk groot toestel: kookplaat, oven, vaatwasser,
+  wasmachine, droogkast, koelkast of diepvries, warmtepomp, boiler,
+  ventilatie, omvormer, thuisbatterij en laadpaal. Ze komen van de punten
+  *Vast toestel* (het label zegt welk: "Kookplaat", "Oven"...), van het
+  laadpunt op het plan, en van de toestellen bij Inrichten, ook die in het
+  maatwerk: de ovens of de koelkast in een kolomkast, de kookplaat en de
+  vaatwasser in de onderkasten of het eiland. Een punt gaat voor: staat er
+  een punt "Oven" op het plan, dan telt dat, niet de ovens in de kast. Met drie fasen
+  gaan de kookplaat, de warmtepomp, de omvormer en de thuisbatterij op alle
+  drie;
+- **de laadpaal** volgens zijn vermogen: 1P+N 32 A in XVB 3G6, of 3P+N 16 A
+  of 32 A in XVB 5G6 (zo kan later ook 22 kW);
+- **de domoticakast en de netwerkkast** elk een eigen kring, als ze er
+  zijn.
+
+**De differentiëlen.**
+- een algemene van 300 mA type A;
+- 30 mA type A voor de badkamer, buiten, de vaatwasser, de wasmachine en de
+  droogkast, hoogstens vijf kringen per differentieel;
+- de laadpaal een eigen van 30 mA: type A als de laadpaal zelf 6 mA
+  gelijkstroom ziet, anders type B;
+- de koelkast of diepvries blijft achter de 300 mA: valt een 30 mA uit, dan
+  blijft de diepvries draaien.
+
+**De aansluiting en de laadpaal.** Vraagt de laadpaal evenveel stroom als de
+aansluiting, dan zegt de app: een grotere aansluiting, of trager laden. Neemt
+hij meer dan 60% ervan, dan: laat hem sturen op wat de digitale meter meet.
+Met een laadpaal komt er ook een woord over het capaciteitstarief: Home
+Assistant (of de laadpaal zelf) stuurt het laden op de P1-poort van de
+digitale meter.
+
+**Waar de kasten komen.**
+- **de verdeelkast:** waar de verdeelkast of de meterkast bij Inrichten
+  staat. Anders in de technische ruimte, de berging, de wasplaats of de
+  garage van het hoofdgebouw, eerst op het gelijkvloers, en anders in het
+  midden;
+- **de domoticakast en de netwerkkast:** naast de verdeelkast, tenzij ze
+  bij Inrichten staan;
+- de kabels rekenen vanaf daar.
+
+**De verdeelkast** telt de modules: de hoofdschakelaar met de
+differentieel, de differentiëlen, de automaten en de
+overspanningsbeveiliging, met 20% vrij voor later (minstens 4), in rijen van
+13 modules.
+
+**De domotica.**
+- **uitgangen:** elke lichtgroep een relais, of een dimmer als er een dimmer
+  in de ruimte staat. Een ledstrip krijgt een ledsturing, elk rolluik een
+  motoruitgang. Elke lichtgroep en elk rolluik krijgt een eigen kabel naar
+  de domoticakast;
+- **ingangen:** elke drukknop, schakelaar en dimmer, en elke melder
+  (aanwezigheid, temperatuur, CO₂, waterlek, thermostaat, deurbel);
+- **KNX met Home Assistant:**
+  - de drukknoppen en de melders zitten op de groene buskabel (EIB-Y(St)Y
+    2×2×0,8), doorgelust van toestel tot toestel, zonder ring. Een
+    drukknop met meer knoppen is één toestel. Een waterlekmelder en de
+    deurbel komen op een binaire ingang;
+  - in de kast: een voeding van 640 mA en een IP-router per lijn,
+    schakelactoren van 12 kanalen, dimactoren van 4, jaloezieactoren van 8,
+    led-dimactoren met een voeding van 24 V, en binaire ingangen van 4. De
+    modules zijn die van gewone KNX-actoren; ze verschillen wat per merk;
+  - hoogstens 64 toestellen per lijn, met de IP-router. Zijn er meer, dan
+    rekent de app met meer lijnen en zegt ze het;
+  - Home Assistant draait op een mini-pc of een Home Assistant Green in de
+    netwerkkast, en praat via de IP-router met KNX;
+- **een ander systeem:** een ruwe schatting van de modules, los van het
+  merk, met een kabel per ingang.
+
+**Het netwerk.**
+- **de poorten:** een per netwerkaansluiting, tv-aansluiting,
+  wifi-toegangspunt, camera en deurbel, met PoE voor wifi, camera's en de
+  deurbel. Een poort per toestel dat op het netwerk gaat (laadpaal,
+  omvormer, batterij, warmtepomp, ventilatie), en een voor de domoticakast
+  als er domotica komt. Bij KNX een per IP-router en een voor Home
+  Assistant. Met KNX, een laadpaal of zonnepanelen ook een kabel van de
+  P1-poort van de digitale meter;
+- **de kast:** de patchpanelen van 24, de switch en de hoogte van de
+  wandkast;
+- een kabel langer dan 90 m meldt de app: daar haalt UTP de volle snelheid
+  niet.
+
+**De kabels** zijn geschat:
+- van de kast langs de muren (waterpas en haaks) naar elk punt, plus de
+  hoogte tussen de verdiepingen, telkens 1,5 m in de muur, en 10% speling;
+- een gewone kring loopt van punt tot punt. Met domotica gaat elke
+  lichtgroep apart naar de kast;
+- een ander gebouw telt niet mee: daar komt meestal een eigen verdeelbord.
+
+**De tekeningen** (`technieken/schema.ts`):
+- **het eendraadschema:** het net, de meter, de algemene differentieel en
+  de bus. Elke kring met haar automaat en kabel, en haar punten in de
+  volgorde van de kabel. De kringen achter een 30 mA hangen aan hun eigen
+  bus;
+- **het situatieschema:** per verdieping waar elk punt ligt, met zijn
+  nummer (A3) in de kleur van zijn kring, en de verdeelkast;
+- op de pagina als SVG. In de PDF op A3 liggend, over meer bladen als het
+  schema breed is.
+
+**De PDF** (`/api/bouw/technieken/pdf?huis=1`):
+- op A4 de uitgangspunten, de kringen, de kasten en de kabels;
+- daarna het eendraadschema, en per verdieping het situatieschema op A3;
+- een momentopname, met de datum erop.
+
 ## Het huis in 3D
 
 Niets van nul getekend: het 3D-model komt uit de omzetting van de
@@ -419,6 +568,111 @@ grondplannen.
     enkel uitproberen.
   - Een optie kan ook bij Keuzes een patroon en een voeg krijgen; het staal op
     de optie toont het zoals in 3D (`bouw_opties.patroon` en `voegkleur`).
+
+  **Van een site of foto** (`3d/materiaalimport.tsx`, `drie/fotostaal.ts`,
+  `materiaal-pagina.ts`). Onder de stalen staat **Van een site of foto**:
+  plak het adres van een productpagina of van een foto, of kies foto's van je
+  toestel. Van een pagina toont de app de foto's van het product: de foto die
+  de site zelf naar voren schuift, die in de gegevens van het product, en de
+  grote foto's op de pagina, zonder logo's, iconen en dubbels. Tik een foto
+  aan en zeg wat ze toont:
+  - **Staal:** één steen, tegel of plank, op een effen achtergrond. Trek een
+    kader rond het deel dat telt. In 3D krijgt elke steen, tegel of plank van
+    het patroon een ander stukje uit dat kader, op echte maat, soms
+    gespiegeld en een tikje lichter of donkerder: zo ziet een muur er niet
+    gestempeld uit. Zonder patroon met stukken ligt het kader als één foto op
+    het vlak, zo breed als je opgeeft;
+  - **Referentie:** het materiaal in het echt, zoals een huis met die steen.
+    De app neemt er de kleur en de voeg uit. Trek je er een kader op, rond
+    een recht stuk muur of vloer van voren gezien, dan ligt dat stuk als foto
+    op het vlak, zo breed als je opgeeft;
+  - **Niet gebruiken.**
+
+  De app stelt zelf voor wat elke foto is. Iets op een effen achtergrond dat
+  zijn kader vult, is een staal. Een foto die tot aan de rand doorloopt, zoals
+  een gevel of hout met nerven, is een referentie. Uit de vorm van het staal
+  komt het patroon: een lange steen op een gevel is baksteen, een lange plank
+  op een vloer parket. Uit de foto's komen de kleur en de voeg. Alles kan je
+  aanpassen.
+
+  **Toevoegen aan de bibliotheek** laadt de foto's verkleind op, zoals een
+  foto bij Keuzes. Het maakt een optie bij de keuze van het onderdeel, met de
+  foto's, de site en hoe 3D ze gebruikt (`bouw_opties.referentie_bestand_id`
+  en `staal`):
+  - heeft de keuze die naam al, dan komt er (2) achter;
+  - bij Keuzes staat de foto in het echt klein onder die van het staal;
+  - krijgt een optie bij Keuzes een andere foto, dan valt het kader weg, en
+    legt 3D de nieuwe foto elke meter.
+
+  **De site lezen** gebeurt op de server (`ophalen.ts`,
+  `/api/bouw/materiaal/zoek` en `/api/bouw/materiaal/foto`):
+  - enkel http en https, op de gewone poorten, zonder wachtwoord in het
+    adres;
+  - enkel adressen op het openbare internet: ook wat de naam opzoekt, en na
+    elke omleiding (hoogstens 4);
+  - een pagina tot 3 MB, een foto tot 15 MB;
+  - enkel JPEG, PNG, WebP of GIF, nagekeken aan de eerste bytes; nooit een
+    SVG.
+
+  De foto's van een site komen via de app naar de browser, zodat die hun
+  pixels mag lezen. De app bewaart er niets van tot je toevoegt.
+
+  **Een deel van een vlak** (`drie/delen.ts`, `3d/deeltekening.ts`). Een
+  materiaal hoeft niet op het hele onderdeel: een stuk gevel in hout, de
+  badkamer tot 1,20 m in tegels, tegels in een deel van de leefruimte, een
+  groendak op een deel van het platte dak. Tik een muur, vloer of plat dak
+  aan; onderaan staat dan wat het staal krijgt:
+  - **Heel de gevel** (of alle binnenmuren, de vloer van de ruimte, heel het
+    dak): zoals hierboven;
+  - **Dit muurvlak** (bij een binnenmuur **Deze muur**): de muur van hoek tot
+    hoek, op die verdieping. Een raam of deur onderbreekt het vlak niet, een
+    muur die er haaks op staat wel. Een gevel loopt tot de vloer van de
+    verdieping erboven, een binnenmuur tot het plafond;
+  - **Muren badkamer**: alle binnenmuren van de ruimte die je aantikte;
+  - **Deel tekenen**: op een muur tik je twee hoeken van een rechthoek, op
+    een vloer of plat dak de hoeken van een veelhoek (tik op het eerste punt
+    of **Klaar** om ze te sluiten). Een tik kleeft aan de hoeken van de
+    muren, en op een muur aan de randen van het vlak, aan de zijkanten, de
+    borstwering en de latei van de ramen, aan de vloer en de bovenkant;
+    anders op 5 cm. Esc breekt af.
+
+  Een deel begint met het materiaal dat er al lag; kies dan een staal, een
+  optie of een eigen kleur. In de kaart **Materialen** staan alle delen: daar
+  geef je een deel een naam, en een rechthoek op een muur of de muren van een
+  ruimte ook hun maten. Van en Tot meten langs het muurvlak, van links gezien
+  van voor de muur; de onderkant en de bovenkant boven de vloer van de
+  verdieping, met **Tot 1,2 m**, **Tot 2,1 m** en **Volle hoogte**. Een gevel
+  mag hoger dan de verdieping: dan loopt het deel door op de gevel erboven,
+  tot in de punt onder het dak. Een later deel ligt over een vroeger, en een
+  rechthoek op een muur over de muren van een ruimte.
+
+  Een deel heeft zijn eigen materiaal: het maakt geen keuze en geen optie.
+  **Delen bewaren** bewaart ze per verdieping, in meter in het assenstelsel
+  van het gebouw (`bouw_verdiepingen.delen`); zo blijven ze liggen bij een
+  nieuwe versie van het plan, zoals de punten. **Herbeginnen** gooit weg wat
+  niet bewaard is. In de scène knipt de bouwer elke wand, vloer, plat dak en
+  puntgevel waar een deel op ligt (`knipWand`, `knipVlak`, `knipGevel`); een
+  deel krijgt zijn eigen materiaal, `deel:<id>`. Een ander deel vervangt
+  enkel de vlakken: wat de lagen verbergen en de meubels blijven.
+- **Beelden** (`3d/beelden.tsx`, `drie/beelden.ts`). Renders van de
+  keukenbouwer of de schrijnwerker, of andere beelden van het huis: bij
+  **Beelden toevoegen** laad je er meerdere tegelijk op, verkleind zoals een
+  foto (`bouw_beelden`). Tik een beeld aan en het ligt over het 3D-model,
+  met een schuif tussen **3D** en **Beeld**:
+  - **het standpunt:** de camera gaat naar waar ze voor dit beeld stond.
+    Zonder standpunt begint ze in een hoek van de ruimte die het beeld
+    toont, of van de grootste ruimte van het gelijkvloers;
+  - **zoeken:** slepen kijkt rond, W A S D schuift, Q en E zakken en
+    stijgen, de pijltjes draaien fijn, Shift gaat sneller. Het muiswiel, +
+    en − of de schuif veranderen de kijkhoek, tot het beeld en het huis
+    samenvallen. **Standpunt bewaren** legt het vast, in het assenstelsel
+    van het gebouw: verschuift het gebouw op het terrein, dan gaat het mee;
+  - **de titel en de ruimte** die het beeld toont, wijzig je in de kaart.
+    Bij **Ruimtes** staan de beelden onder hun verdieping; een tik opent
+    het beeld in 3D, vanuit zijn standpunt (`?beeld=`);
+  - **een materiaal** uit een beeld: bij **Van een site of foto** staan de
+    beelden van het huis. Duid er een recht stuk fineer of werkblad op aan,
+    van voren gezien, zo breed als in het echt.
 - **Bekijken.** Het beeld neemt de hele breedte; met **Paneel verbergen**
   krijgt het nog meer plaats, en **Volledig scherm** vult het hele venster
   (Esc sluit). Rondkijken met de muis of twee vingers; zoomen met **+** en
@@ -479,7 +733,7 @@ grondplannen.
   - **de catalogus:** bedden, kasten, zetels, tafels, de keuken, de badkamer,
     de wasmachine, en de toestellen: de warmtepomp (binnen en buiten), de
     ventilatie, de boiler, het buffervat, de meterkast, de verdeelkast, de
-    thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
+    domoticakast, de netwerkkast, de thuisbatterij, de omvormer, een laadpunt, een laadpaal en de
     regenwaterput; en zonnepanelen. Elk stuk is een eenvoudig blok met een
     herkenbare vorm, in een zachte kleur per groep. Een stuk achter een muur
     of onder het dak tik je niet aan;
@@ -494,9 +748,38 @@ grondplannen.
     **Tegen de muur** zet het er opnieuw tegen, en **Weg** haalt het weg. Met
     de toetsen: de pijltjes verschuiven 5 cm (met Shift 50 cm), R draait 15°,
     Delete haalt weg;
+  - **maatwerk** (`drie/maatwerk.ts`, `3d/indeling.tsx`): zoals de
+    schrijnwerker of de keukenbouwer het tekent. Onder **Indeling**:
+    - **een kast** (bij Maatwerk en kasten ook de **kastenwand op maat**,
+      tot het plafond): het aantal fronten, een open vak links of rechts
+      met legplanken, een plint, en een nis over een paar fronten, zoals
+      een koffiehoek, met een legger en licht;
+    - **de onderkasten en het eiland:** deuren of rijen lades, de
+      kookplaat, de spoelbak met de kraan en de vaatwasser (links, in het
+      midden of rechts), de dikte van het werkblad, en tegen de muur een
+      spatwand. Bij een eiland steekt het werkblad aan een kant uit voor de
+      barkrukken, zonder kasten eronder, en kan het aan de uiteinden
+      doorlopen tot op de vloer (wangen);
+    - **de kolomkast:** een oven, een compacte oven, twee compacte ovens of
+      de koelkast, met de fronten erboven en eronder;
+    - **de zwevende legger:** een plank aan de muur.
+
+    Het eigen materiaal ligt op de fronten en het corpus; **Werkblad en
+    nis** geeft het werkblad, de spatwand, de wangen en de achterkant van
+    een nis een tweede materiaal. De indeling wordt bewaard met **Meubels
+    bewaren** (`bouw_objecten.indeling`);
+  - **het materiaal:** onder **Materiaal** krijgt een meubel of kast een
+    eigen materiaal. Eerst de opties van de keuze Maatwerk en meubels, dan de
+    andere opties met een foto of patroon, de stalen (eik, notelaar, gelakt,
+    betonlook) en een eigen kleur. **Van een site of foto** werkt zoals bij de
+    materialen, en zet de optie bij Maatwerk en meubels: zo komt een foto van
+    de schrijnwerker of de leverancier op het meubel, of een stuk van een
+    render bij **Beelden**. Het materiaal ligt op echte maat op de
+    hoofddelen van het stuk; zonder materiaal blijft de kleur van de groep;
   - **bewaren:** **Meubels bewaren** bewaart elke verdieping die veranderde in
-    één keer (`bouw_objecten`), in meter in het assenstelsel van het gebouw,
-    zoals de punten. **Herbeginnen** gooit weg wat niet bewaard is;
+    één keer (`bouw_objecten`, met het materiaal), in meter in het
+    assenstelsel van het gebouw, zoals de punten. **Herbeginnen** gooit weg
+    wat niet bewaard is;
   - wat hoger komt dan 30 cm houdt je tegen bij het rondwandelen; wat aan de
     muur hangt boven 1 m niet;
   - **zonnepanelen** (`drie/zonnepanelen.ts`): kies Zonnepanelen bij **Op het
@@ -947,6 +1230,12 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/app/vastgoed/[huis]/plannen/omzetten/` | Alle grondplannen in één keer omzetten |
 | `web/app/vastgoed/[huis]/punten/` | Punten zetten, en de wensenlijst |
 | `web/app/api/bouw/wensenlijst/` | De wensenlijst als PDF en als Excel |
+| `web/lib/bouw/technieken/voorstel.ts` | Het voorstel voor de elektriciteit: de kringen, de differentiëlen, de kasten, de domotica, het netwerk en de kabels; puur, met tests |
+| `web/lib/bouw/technieken/schema.ts`, `weergave.ts` | Het eendraadschema en het situatieschema als tekening, en het voorstel in woorden; puur, met tests |
+| `web/lib/bouw/technieken/laden.ts`, `pdf.tsx` | Alles laden voor de pagina, en de PDF |
+| `web/app/vastgoed/[huis]/technieken/`, `web/app/api/bouw/technieken/pdf/` | De pagina Technieken met de uitgangspunten, en de PDF |
+| `web/components/bouw/tekening.tsx` | Een tekening van de technieken als SVG |
+| `supabase/migrations/20261017110000_bouw_technieken.sql` | De uitgangspunten van de technieken, per huis |
 | `web/app/vastgoed/[huis]/keuzes/`, `planning/`, `beslissingen/` | Keuzes met opties en foto's, de tijdlijn, het beslissingslog |
 | `web/lib/bouw/omzetting/` | Van PDF naar plan: lezen (het enige bestand met pdf.js), schaal, ruimtes, openingen, uitlijnen, dossier |
 | `web/lib/bouw/dossier-inlezen.ts`, `dossierregels.ts` | Een dossier wegschrijven, en de regels ervoor |
@@ -986,8 +1275,20 @@ Storage-API: Supabase blokkeert DELETE op `storage.objects` vanuit SQL.
 | `web/lib/bouw/drie/trappen.ts`, `wandelen.ts` | De trap in 3D met het gat en de leuning erboven, de trap op het plan van Ruimtes, en de trap op en af wandelen |
 | `web/lib/bouw/drie/zones.ts`, `traphal.ts` | Kleine zones zonder ruimte (een traphal, een kast) en de openingen ernaartoe, en een traphal die boven open is aanvullen van de verdieping eronder; puur, met tests |
 | `web/lib/bouw/drie/materialen.ts`, `stalen.ts` | Welke keuze welk materiaal bepaalt, wat er uitgeprobeerd wordt, de stalen en hun maten, en een materiaal bewaren nakijken; puur, met tests |
-| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, en het patroon als textuur |
-| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes |
+| `web/app/vastgoed/[huis]/3d/materiaalproef.tsx`, `texturen.ts` | Materialen uitproberen in 3D: aantikken, de stalen, bewaren als optie, een deel maken, en het patroon als textuur |
+| `web/lib/bouw/drie/delen.ts` | Een deel van een vlak met een eigen materiaal: nakijken, het muurvlak onder een tik, wanden, vloeren en puntgevels knippen, kleven en namen; puur, met tests |
+| `web/app/vastgoed/[huis]/3d/deeltekening.ts` | Een deel tekenen in 3D: een tik op het vlak, en het voorbeeld in het oranje |
+| `supabase/migrations/20261017100000_bouw_delen.sql` | De delen van de vlakken, per verdieping |
+| `web/components/bouw/staal.tsx` | Een patroon tekenen op echte schaal, en een staal tonen, in 3D en bij Keuzes, ook met een stukje foto per steen |
+| `web/app/vastgoed/[huis]/3d/materiaalimport.tsx` | Een materiaal van een site of foto: de foto's kiezen, staal of referentie, het kader, en toevoegen aan de bibliotheek |
+| `web/lib/bouw/drie/fotostaal.ts` | Hoe 3D een foto gebruikt: een staal of een vlak herkennen, de kleuren en de voeg, het patroon uit de vorm, en een stukje per steen; puur, met tests |
+| `web/lib/bouw/materiaal-pagina.ts`, `web/lib/bouw/ophalen.ts`, `web/app/api/bouw/materiaal/` | De foto's van een productpagina, ophalen enkel van het openbare internet, en de routes om een site te lezen en een foto door te geven |
+| `supabase/migrations/20261018100000_bouw_materiaalfotos.sql` | De foto in het echt en het staal van een optie, en het materiaal van een meubel |
+| `web/lib/bouw/drie/beelden.ts`, `web/lib/bouw/beelden-opslag.ts` | Beelden van het huis: een standpunt nakijken, van het gebouw naar de wereld en terug, de kijkhoek van de camera (puur, met tests), en de opslag |
+| `web/app/vastgoed/[huis]/3d/beelden.tsx` | Een beeld over het 3D-model: de kaart, de schuif, kijken vanuit het beeld en het standpunt bewaren |
+| `supabase/migrations/20261018110000_bouw_beelden.sql` | De beelden van een huis, met hun ruimte en het standpunt van de camera |
+| `web/lib/bouw/drie/maatwerk.ts`, `web/app/vastgoed/[huis]/3d/indeling.tsx` | Maatwerk: de indeling van een kast, de keuken, een eiland en een kolomkast in delen, en de toestellen erin; puur, met tests, en het paneel |
+| `supabase/migrations/20261018120000_bouw_maatwerk.sql` | De indeling van een meubel of toestel |
 | `supabase/migrations/20261005100000_bouw_patroon.sql` | Het patroon en de voegkleur van een optie |
 | `web/lib/bouw/drie/noordpijl.ts` | De noordpijl op het inplantingsplan: waar het noorden ligt volgens de letters van de windroos; puur, met tests |
 | `web/lib/bouw/drie/plaatsing.ts` | Waar elk gebouw op het terrein staat, en een inplanting nakijken |
@@ -1144,6 +1445,7 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
    - het gelijkvloers en de verdieping omzetten en nakijken, op een laptop
      of iPad, en het huis bekijken bij 3D (het dak instellen);
    - een paar punten zetten en de wensenlijst als PDF en Excel downloaden;
+   - bij Technieken het voorstel nakijken en de PDF downloaden;
    - de gewone keuzes en een voorbeeldplanning aanmaken, en een foto bij een
      optie zetten met de gsm;
    - bij Geld de gewone posten aanmaken, het krediet invullen, een offerte
@@ -1178,6 +1480,9 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **2** Punten op het plan (licht, bediening, stopcontacten, netwerk,
       sensoren, klimaat, zonwering) en de wensenlijst voor de elektricien, als
       PDF en Excel
+- [x] **2b** Technieken: uit de punten en de toestellen een voorstel voor
+      de kringen, de verdeelkast, de domoticakast en de netwerkkast, met een
+      eendraadschema en een situatieschema, ook als PDF
 - [x] **3** Keuzes met deadline, de planning als tijdlijn, een eigen
       Telegram-bot voor Bouw, en een link voor de architect
 - [x] **4** Geld: posten, offertes, meer- en minwerken, facturen met
@@ -1201,6 +1506,12 @@ nieuwe versie is een nieuw bestand), dus wat bewaard is, veroudert niet.
 - [x] **5j** Zonnepanelen op het dak
 - [x] **5k** Opnieuw omzetten met de nieuwste regels; de ramen met hun maat
       en borstwering, de deuren met hun blad, en de luifels, ook zelf gezet
+- [x] **5l** Materialen uitproberen in 3D en bewaren als optie, ook op een
+      deel van een muur, vloer of plat dak
+- [x] **5m** Materialen van een site of foto, met een staal en een foto in
+      het echt, op muren, vloeren, delen en meubels
+- [x] **5n** Het schrijnwerk: beelden over het 3D-model vanuit hun
+      standpunt, kasten op maat, de keuken met het eiland en de toestellen
 - [x] **6** De werf: foto's per dag en per ruimte, geprikt op de tekening,
       het werfdagboek, actiepunten, opleverpunten per aannemer (met PDF en
       via zijn link), en de checklist per ruimte vóór alles dichtgaat

@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/lib/supabase";
 
 import { binnenHuis, check, geraakt, huisVanRij, zelfdeHuis } from "./databank";
+import { schoneFotostaal, type Fotostaal } from "./drie/fotostaal";
 import { isPatroon, type CategorieKeuze, type Eenheid, type Keuze, type Optie, type Voorkeur } from "./keuzes";
 import type { Planningsitem, SoortPlanning, StatusPlanning, Voorbeelditem } from "./planning";
 
@@ -207,7 +208,7 @@ export async function zetKeuzeRuimtes(huisId: number, keuzeId: number, ruimteIds
 /** Geeft de foto's van de opties terug, zodat die ook uit Storage kunnen. */
 export async function verwijderKeuze(huisId: number, id: number): Promise<number[]> {
   await zelfdeHuis(huisId, ["bouw_keuzes", id]);
-  const fotos = (await lijstOpties(huisId, [id])).flatMap((optie) => (optie.foto_bestand_id ? [optie.foto_bestand_id] : []));
+  const fotos = (await lijstOpties(huisId, [id])).flatMap(fotosVanOptie);
   // Eerst de verwijzing naar de gekozen optie los, dan alles in één keer.
   check(
     await db().from("bouw_keuzes").update({ gekozen_optie_id: null }).eq("id", id).eq("huis_id", huisId),
@@ -241,7 +242,12 @@ export async function beslisKeuze(huisId: number, id: number, optieId: number | 
 // Opties
 // ---------------------------------------------------------------------------
 
-export type NieuweOptie = Omit<Optie, "id" | "foto_bestand_id" | "basis">;
+/** De foto's en hoe 3D ze gebruikt komen er apart bij: een gewijzigde naam of prijs raakt ze niet. */
+export type NieuweOptie = Omit<Optie, "id" | "foto_bestand_id" | "referentie_bestand_id" | "staal" | "basis">;
+
+/** De foto's van een optie, als ze er zijn. */
+export const fotosVanOptie = (optie: Pick<Optie, "foto_bestand_id" | "referentie_bestand_id">): number[] =>
+  [optie.foto_bestand_id, optie.referentie_bestand_id].filter((id): id is number => id !== null);
 
 function alsOptie(rij: Record<string, unknown>): Optie {
   return {
@@ -256,6 +262,8 @@ function alsOptie(rij: Record<string, unknown>): Optie {
     voegkleur: tekstOfNull(rij.voegkleur),
     url: tekstOfNull(rij.url),
     foto_bestand_id: getalOfNull(rij.foto_bestand_id),
+    referentie_bestand_id: getalOfNull(rij.referentie_bestand_id),
+    staal: schoneFotostaal(rij.staal),
     opmerking: tekstOfNull(rij.opmerking),
     volgorde: Number(rij.volgorde ?? 0),
   };
@@ -281,10 +289,25 @@ export async function leesOptie(huisId: number, id: number): Promise<Optie | nul
   return alsOptie(rij);
 }
 
-export async function voegOptieToe(huisId: number, optie: NieuweOptie): Promise<number> {
-  await zelfdeHuis(huisId, ["bouw_keuzes", optie.keuze_id], ["bouw_partijen", optie.leverancier_id]);
+/** Een nieuwe optie, eventueel met haar foto's en hoe 3D ze gebruikt (een materiaal van een site of foto). */
+export async function voegOptieToe(
+  huisId: number,
+  optie: NieuweOptie,
+  fotos: { foto_bestand_id: number | null; referentie_bestand_id: number | null; staal: Fotostaal | null } = {
+    foto_bestand_id: null,
+    referentie_bestand_id: null,
+    staal: null,
+  },
+): Promise<number> {
+  await zelfdeHuis(
+    huisId,
+    ["bouw_keuzes", optie.keuze_id],
+    ["bouw_partijen", optie.leverancier_id],
+    ["bouw_bestanden", fotos.foto_bestand_id],
+    ["bouw_bestanden", fotos.referentie_bestand_id],
+  );
   const rij = check(
-    await db().from("bouw_opties").insert(optie).select("id").single(),
+    await db().from("bouw_opties").insert({ ...optie, ...fotos }).select("id").single(),
     "Optie toevoegen",
     { inGebruik: "De keuze of de leverancier bestaat niet meer." },
   ) as { id: number };
@@ -298,10 +321,10 @@ export async function wijzigOptie(huisId: number, id: number, optie: Omit<Nieuwe
   });
 }
 
-/** Geeft de foto terug, zodat die ook uit Storage kan. Een gekozen optie maakt de keuze terug open. */
-export async function verwijderOptie(huisId: number, id: number): Promise<number | null> {
+/** Geeft de foto's terug, zodat die ook uit Storage kunnen. Een gekozen optie maakt de keuze terug open. */
+export async function verwijderOptie(huisId: number, id: number): Promise<number[]> {
   const optie = await leesOptie(huisId, id);
-  if (!optie) return null;
+  if (!optie) return [];
   check(
     await db()
       .from("bouw_keuzes")
@@ -311,7 +334,7 @@ export async function verwijderOptie(huisId: number, id: number): Promise<number
     "Optie verwijderen",
   );
   check(await db().from("bouw_opties").delete().eq("id", id), "Optie verwijderen");
-  return optie.foto_bestand_id;
+  return fotosVanOptie(optie);
 }
 
 /** Hoogstens één basis per keuze: eerst alle andere uit, dan deze aan. */
@@ -328,12 +351,16 @@ export async function zetBasis(huisId: number, keuzeId: number, optieId: number 
   );
 }
 
-/** Zet een nieuwe foto en geeft de vorige terug, zodat die uit Storage kan. */
+/**
+ * Zet een nieuwe foto en geeft de vorige terug, zodat die uit Storage kan.
+ * Het staal hoort bij de vorige foto (een kader op die foto): het valt weg,
+ * en 3D legt de nieuwe foto elke meter.
+ */
 export async function zetFoto(huisId: number, optieId: number, bestandId: number | null): Promise<number | null> {
   const optie = await leesOptie(huisId, optieId);
   if (!optie) throw new Error("Deze optie bestaat niet meer.");
   await zelfdeHuis(huisId, ["bouw_bestanden", bestandId]);
-  check(await db().from("bouw_opties").update({ foto_bestand_id: bestandId }).eq("id", optieId), "Foto bewaren");
+  check(await db().from("bouw_opties").update({ foto_bestand_id: bestandId, staal: null }).eq("id", optieId), "Foto bewaren");
   return optie.foto_bestand_id;
 }
 

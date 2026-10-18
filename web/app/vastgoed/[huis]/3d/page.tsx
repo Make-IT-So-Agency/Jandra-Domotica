@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GeenToegang } from "@/components/geen-toegang";
 import { laadDrie, type Driegegevens } from "@/lib/bouw/drie/laden";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
+import { id } from "@/lib/bouw/invoer";
 import { heeftOnderdeel } from "@/lib/bouw/onderdelen";
 import { huispad } from "@/lib/bouw/paden";
 import { magBouwZien } from "@/lib/rollen";
@@ -12,11 +13,13 @@ import { DrieLader } from "./drie-lader";
 
 export const dynamic = "force-dynamic";
 
-export default async function Driepagina({ params }: { params: Promise<{ huis: string }> }) {
+export default async function Driepagina({ params, searchParams }: { params: Promise<{ huis: string }>; searchParams: Promise<{ beeld?: string }> }) {
   const ik = await vereistGebruiker();
   if (!magBouwZien(ik)) return <GeenToegang wat="Het bouwproject" />;
 
   const huis = await vereistHuis(params);
+  // Vanuit Ruimtes: een beeld dat meteen open moet.
+  const beeldId = id((await searchParams).beeld ?? "");
   let gegevens: Driegegevens;
   try {
     gegevens = await laadDrie(huis.id, ik.email, {
@@ -70,7 +73,7 @@ export default async function Driepagina({ params }: { params: Promise<{ huis: s
               opnieuw om en bevestig.
             </div>
           ) : null}
-          <DrieLader huisId={huis.id} gegevens={gegevens} />
+          <DrieLader huisId={huis.id} gegevens={gegevens} beeldId={beeldId} />
         </>
       )}
     </div>

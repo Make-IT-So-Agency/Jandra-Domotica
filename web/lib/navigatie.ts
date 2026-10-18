@@ -36,6 +36,7 @@ export const HUISPAGINAS: { deel: string; naam: string }[] = [
   { deel: "/plannen", naam: "Plannen" },
   { deel: "/ruimtes", naam: "Ruimtes" },
   { deel: "/punten", naam: "Punten" },
+  { deel: "/technieken", naam: "Technieken" },
   { deel: "/3d", naam: "3D" },
   { deel: "/keuzes", naam: "Keuzes" },
   { deel: "/planning", naam: "Planning" },

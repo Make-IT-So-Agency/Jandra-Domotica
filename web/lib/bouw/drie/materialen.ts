@@ -1,4 +1,6 @@
 import { MET_VOEG, STANDAARDKEUZES, isPatroon, type CategorieKeuze, type Keuze, type Optie, type Patroon, type Voorkeur } from "../keuzes";
+import { schoonAdres } from "../materiaal-pagina";
+import { schoneFotostaal, type Fotostaal } from "./fotostaal";
 
 /**
  * Welke keuze bepaalt welk materiaal in 3D: de gevelsteen de gevel, de
@@ -6,12 +8,17 @@ import { MET_VOEG, STANDAARDKEUZES, isPatroon, type CategorieKeuze, type Keuze, 
  * en een vloer of tegels de vloer van de ruimtes die eraan gekoppeld zijn.
  * Elke optie met een kleur, een foto of een patroon kan je in 3D uitproberen,
  * net als de stalen (zie stalen.ts) en een eigen kleur. Uitproberen bewaart
- * niets; bewaren maakt er een optie van bij de keuze. Puur.
+ * niets; bewaren maakt er een optie van bij de keuze. De meubels en kasten
+ * van Inrichten volgen de keuze Maatwerk en meubels. Puur.
  */
 
-export type Slot = "gevel" | "dak" | "schrijnwerk" | "binnenmuur" | "vloer";
+export type Slot = "gevel" | "dak" | "schrijnwerk" | "binnenmuur" | "vloer" | "meubel";
 
+/** De onderdelen van het huis zelf: die tik je aan in 3D. */
 export const SLOTS: readonly Slot[] = ["gevel", "dak", "schrijnwerk", "binnenmuur", "vloer"];
+
+/** Met de meubels en kasten van Inrichten erbij. */
+export const ALLE_SLOTS: readonly Slot[] = [...SLOTS, "meubel"];
 
 export const SLOTNAMEN: Record<Slot, string> = {
   gevel: "Gevel",
@@ -19,10 +26,11 @@ export const SLOTNAMEN: Record<Slot, string> = {
   schrijnwerk: "Ramen en deuren",
   binnenmuur: "Binnenmuren",
   vloer: "Vloer",
+  meubel: "Meubels en kasten",
 };
 
 export function isSlot(waarde: unknown): waarde is Slot {
-  return (SLOTS as readonly unknown[]).includes(waarde);
+  return (ALLE_SLOTS as readonly unknown[]).includes(waarde);
 }
 
 /** Wat er staat zolang er niets gekozen is. */
@@ -46,6 +54,8 @@ export const STANDAARDKLEUREN: Record<
   deurboog: "#7a7f86",
   // Zichtbeton.
   luifel: "#c7c5c0",
+  // Lichte eik.
+  meubel: "#c9b08c",
 };
 
 export const SLOT_VAN: Partial<Record<CategorieKeuze, Slot>> = {
@@ -55,6 +65,8 @@ export const SLOT_VAN: Partial<Record<CategorieKeuze, Slot>> = {
   wanden: "binnenmuur",
   vloeren: "vloer",
   sanitair: "vloer",
+  binnenschrijnwerk: "meubel",
+  keuken: "meubel",
 };
 
 /**
@@ -67,6 +79,7 @@ export const KEUZE_VAN_SLOT: Record<Slot, { titel: string; categorie: CategorieK
   schrijnwerk: { titel: "Ramen en buitendeuren", categorie: "buitenschrijnwerk" },
   binnenmuur: { titel: "Binnenmuren", categorie: "wanden" },
   vloer: { titel: "Vloer", categorie: "vloeren" },
+  meubel: { titel: "Maatwerk en meubels", categorie: "binnenschrijnwerk" },
 };
 
 /** De titel van een nieuwe vloerkeuze voor één ruimte: "Vloer badkamer", ook voor BADKAMER of Badkamer. */
@@ -120,10 +133,16 @@ export interface Materiaal {
   kleur: string;
   /** Een foto als textuur: een ondertekende URL. */
   foto: string | null;
-  /** Een patroon op echte schaal (zie stalen.ts); gaat voor de foto. */
+  /** Een patroon op echte schaal (zie stalen.ts). Zonder staal gaat het voor de foto. */
   patroon: Patroon | null;
   /** De kleur van de voeg, bij baksteen en tegels. */
   voegkleur: string | null;
+  /**
+   * Hoe de foto gebruikt wordt (zie fotostaal.ts): een staal vult elke steen,
+   * tegel of plank van het patroon; een vlak ligt op echte breedte. Zonder:
+   * de foto elke meter.
+   */
+  staal?: Fotostaal | null;
 }
 
 export interface Proefoptie {
@@ -134,6 +153,8 @@ export interface Proefoptie {
   foto: string | null;
   patroon: Patroon | null;
   voegkleur: string | null;
+  /** Hoe 3D de foto gebruikt, of null. */
+  staal: Fotostaal | null;
 }
 
 export interface Materiaalkeuze {
@@ -178,12 +199,13 @@ export function materiaalkeuzes(
       foto: optie.foto_bestand_id ? (fotos.get(optie.foto_bestand_id) ?? null) : null,
       patroon: optie.patroon,
       voegkleur: optie.voegkleur,
+      staal: optie.staal,
     });
     bruikbaar.set(optie.keuze_id, lijst);
   }
   const metOpties = (keuzeId: number) => (bruikbaar.get(keuzeId)?.length ?? 0) > 0;
   const gekozen = new Set<number>();
-  for (const slot of SLOTS) {
+  for (const slot of ALLE_SLOTS) {
     if (slot === "vloer") continue;
     const keuze = keuzeVoorPlek(slot, null, keuzes, metOpties);
     if (keuze) gekozen.add(keuze.id);
@@ -231,12 +253,19 @@ export function alsMateriaal(optie: Omit<Proefoptie, "id" | "naam">, slot: Slot)
     foto: optie.foto,
     patroon: optie.patroon,
     voegkleur: optie.patroon && MET_VOEG.includes(optie.patroon) ? optie.voegkleur : null,
+    staal: optie.foto ? optie.staal : null,
   };
 }
 
 /** Zien twee materialen er in 3D hetzelfde uit? */
 export function zelfdeMateriaal(a: Materiaal, b: Materiaal): boolean {
-  return a.kleur === b.kleur && a.foto === b.foto && a.patroon === b.patroon && (a.voegkleur ?? null) === (b.voegkleur ?? null);
+  return (
+    a.kleur === b.kleur &&
+    a.foto === b.foto &&
+    a.patroon === b.patroon &&
+    (a.voegkleur ?? null) === (b.voegkleur ?? null) &&
+    JSON.stringify(a.staal ?? null) === JSON.stringify(b.staal ?? null)
+  );
 }
 
 export interface Getoond {
@@ -245,7 +274,8 @@ export interface Getoond {
   naam: string | null;
   /** De optie die getoond wordt, of null. */
   optieId: number | null;
-  bron: "proef" | "keuze" | "standaard";
+  /** Uitgeprobeerd, van de keuze, de standaardkleur, of het eigen materiaal van een deel (zie delen.ts). */
+  bron: "proef" | "keuze" | "standaard" | "deel";
 }
 
 /**
@@ -277,6 +307,10 @@ export interface Materiaalvraag {
   kleur: string;
   patroon: Patroon | null;
   voegkleur: string | null;
+  /** Een materiaal van een site of foto: de opgeladen foto's, en hoe 3D ze gebruikt. Null: enkel een kleur of patroon. */
+  fotos: { foto: number | null; referentie: number | null; staal: Fotostaal | null } | null;
+  /** De site van het product, of null. */
+  url: string | null;
 }
 
 const KLEUR = /^#[0-9a-f]{6}$/;
@@ -298,6 +332,22 @@ export function schoneMateriaalvraag(vraag: unknown): Materiaalvraag | null {
   const patroon = isPatroon(v.patroon) ? v.patroon : null;
   const voeg = typeof v.voegkleur === "string" ? v.voegkleur.toLowerCase() : null;
   if (voeg !== null && !KLEUR.test(voeg)) return null;
+  let fotos: Materiaalvraag["fotos"] = null;
+  if (v.fotos !== null && v.fotos !== undefined) {
+    if (typeof v.fotos !== "object") return null;
+    const f = v.fotos as Record<string, unknown>;
+    const foto = f.foto === null || f.foto === undefined ? null : positief(f.foto);
+    const referentie = f.referentie === null || f.referentie === undefined ? null : positief(f.referentie);
+    if ((f.foto ?? null) !== null && foto === null) return null;
+    if ((f.referentie ?? null) !== null && referentie === null) return null;
+    const staal = f.staal === null || f.staal === undefined ? null : schoneFotostaal(f.staal);
+    // Een staal hoort bij een foto, en er is minstens één foto.
+    if ((f.staal ?? null) !== null && (staal === null || foto === null)) return null;
+    if (foto === null && referentie === null) return null;
+    fotos = { foto, referentie, staal };
+  }
+  const url = v.url === null || v.url === undefined || v.url === "" ? null : schoonAdres(v.url)?.toString();
+  if (url === undefined) return null;
   return {
     slot: v.slot,
     ruimteId: v.slot === "vloer" ? ruimteId : null,
@@ -306,5 +356,18 @@ export function schoneMateriaalvraag(vraag: unknown): Materiaalvraag | null {
     kleur,
     patroon,
     voegkleur: patroon && MET_VOEG.includes(patroon) ? voeg : null,
+    fotos,
+    url,
   };
+}
+
+/** Een naam die bij de keuze nog niet bestaat: anders komt er (2), (3)… achter, binnen de 80 tekens. */
+export function vrijeNaam(naam: string, bestaande: readonly string[]): string {
+  const bezet = new Set(bestaande.map((n) => n.trim().toLowerCase()));
+  if (!bezet.has(naam.toLowerCase())) return naam;
+  for (let i = 2; ; i++) {
+    const achter = ` (${i})`;
+    const kandidaat = `${naam.slice(0, 80 - achter.length).trimEnd()}${achter}`;
+    if (!bezet.has(kandidaat.toLowerCase())) return kandidaat;
+  }
 }

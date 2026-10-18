@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { GeenToegang } from "@/components/geen-toegang";
+import { lijstBeelden } from "@/lib/bouw/beelden-opslag";
 import { trappenOpPlan } from "@/lib/bouw/drie/trappen";
 import { vereistHuis } from "@/lib/bouw/huistoegang";
 import { kaderVan } from "@/lib/bouw/omzetting/geometrie";
@@ -8,6 +9,7 @@ import { omzetstand, teDoen } from "@/lib/bouw/omzetting/reeks";
 import { bevestigdGrondplan } from "@/lib/bouw/omzetting/referentie";
 import type { Trapvoorstel } from "@/lib/bouw/omzetting/types";
 import {
+  leesBestanden,
   leesMurenEnOpeningen,
   lijstGebouwen,
   lijstOmzettingen,
@@ -16,6 +18,7 @@ import {
   lijstRuimtes,
   lijstVerdiepingen,
 } from "@/lib/bouw/opslag";
+import { tijdelijkeUrls } from "@/lib/bouw/opslagruimte";
 import { huispad } from "@/lib/bouw/paden";
 import { CATEGORIEKLEUREN, ruimteVan, soortVan, type Punt } from "@/lib/bouw/punten";
 import { RUIMTENAMEN, type Gebouw, type Ruimte, type Verdieping } from "@/lib/bouw/types";
@@ -52,6 +55,8 @@ export default async function Ruimtespagina({
   let nogOmTeZetten: number;
   let verouderd: number;
   let trappenPer: Map<number, Trapvoorstel[]>;
+  // De beelden die een ruimte tonen, zoals renders: een tik opent ze in 3D.
+  let beelden: { id: number; titel: string; ruimteId: number; url: string | null }[];
   try {
     const [g, v, r, p, pt] = await Promise.all([
       lijstGebouwen(huis.id),
@@ -75,6 +80,12 @@ export default async function Ruimtespagina({
     });
     const bewaard = await leesMurenEnOpeningen(versies.map(([, versieId]) => versieId));
     trappenPer = new Map(versies.map(([verdiepingId, versieId]) => [verdiepingId, bewaard.get(versieId)?.trappen ?? []]));
+    const metRuimte = (await lijstBeelden(huis.id)).flatMap((b) => (b.ruimte_id === null ? [] : [{ ...b, ruimte_id: b.ruimte_id }]));
+    const bestanden = await leesBestanden(huis.id, metRuimte.map((b) => b.bestand_id));
+    // Zonder URL's blijft de pagina staan, met de titels.
+    const urls = await tijdelijkeUrls(bestanden.map((b) => b.pad), 3600).catch(() => new Map<string, string>());
+    const padVan = new Map(bestanden.map((b) => [b.id, b.pad]));
+    beelden = metRuimte.map((b) => ({ id: b.id, titel: b.titel, ruimteId: b.ruimte_id, url: urls.get(padVan.get(b.bestand_id) ?? "") ?? null }));
   } catch (fout) {
     return (
       <>
@@ -119,6 +130,7 @@ export default async function Ruimtespagina({
               const totaal = lijst.reduce((som, r) => som + r.oppervlakte_m2, 0);
               const grondplan = grondplannen.find((plan) => plan.verdieping_id === verdieping.id);
               const eigenPunten = punten.filter((p) => p.verdieping_id === verdieping.id);
+              const beeldenHier = beelden.filter((b) => lijst.some((r) => r.id === b.ruimteId));
               const puntenPerRuimte = new Map<number | null, number>();
               for (const punt of eigenPunten) {
                 const ruimte = ruimteVan(punt, lijst);
@@ -211,6 +223,21 @@ export default async function Ruimtespagina({
                           </tfoot>
                         </table>
                       </div>
+                      {beeldenHier.length > 0 ? (
+                        <div className="ruimtebeelden" aria-label="Beelden">
+                          {beeldenHier.map((b) => (
+                            <Link key={b.id} href={huispad(huis.id, `/3d?beeld=${b.id}`)} className="ruimtebeeld" title="In 3D, vanuit zijn standpunt">
+                              {b.url ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- een foto uit Storage
+                                <img src={b.url} alt="" loading="lazy" />
+                              ) : null}
+                              <span>
+                                {lijst.find((r) => r.id === b.ruimteId)?.naam} · {b.titel}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : null}
                       <p className="hulp" style={{ marginTop: 8 }}>
                         <Link href={huispad(huis.id, `/punten?verdieping=${verdieping.id}`)}>Punten zetten</Link>
                         {grondplan ? (

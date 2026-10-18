@@ -1,3 +1,4 @@
+import type { Fotostaal } from "./drie/fotostaal";
 import { dagenTussen, korteDatum, plusDagen } from "./kalender";
 import type { SoortRuimte } from "./types";
 
@@ -127,6 +128,10 @@ export interface Optie {
   voegkleur: string | null;
   url: string | null;
   foto_bestand_id: number | null;
+  /** Een tweede foto: een huis of een ruimte met dit materiaal. */
+  referentie_bestand_id: number | null;
+  /** Hoe 3D de foto gebruikt; null: de foto elke meter, zoals een gewone foto. */
+  staal: Fotostaal | null;
   opmerking: string | null;
   volgorde: number;
 }
