@@ -113,6 +113,14 @@ export async function openKalender(pagina: Page, leerlingId: string, maand: stri
 
   // Na het kiezen van kind of groep tekent FullCalendar zich opnieuw; de titel
   // meteen lezen gaf soms niets ("De kalender toont geen maand", 6 oktober 2026).
+  // Sinds eind oktober 2026 opent i-Active de kalender per week ("18 – 24 jan
+  // 2027", zonder dagcellen td[data-date]). Wij lezen per maand: de knop Maand.
+  const maandKnop = pagina.locator("button.fc-dayGridMonth-button").or(pagina.getByRole("button", { name: "Maand", exact: true })).first();
+  if ((await maandKnop.count()) && !/fc-button-active/.test((await maandKnop.getAttribute("class").catch(() => "")) ?? "")) {
+    await maandKnop.click();
+    await wachtOpRust(pagina);
+  }
+
   // Wachten tot de titel een maand toont, niet enkel tot ze zichtbaar is.
   const leesTitel = async (): Promise<{ titel: string; huidig: string | null }> => {
     let titel = "";
