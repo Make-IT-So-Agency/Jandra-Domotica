@@ -113,11 +113,20 @@ export async function openKalender(pagina: Page, leerlingId: string, maand: stri
 
   // Na het kiezen van kind of groep tekent FullCalendar zich opnieuw; de titel
   // meteen lezen gaf soms niets ("De kalender toont geen maand", 6 oktober 2026).
-  await pagina.locator(".fc-toolbar-title").first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+  // Wachten tot de titel een maand toont, niet enkel tot ze zichtbaar is.
+  const leesTitel = async (): Promise<{ titel: string; huidig: string | null }> => {
+    let titel = "";
+    for (const einde = Date.now() + 20_000; Date.now() < einde; await pagina.waitForTimeout(500)) {
+      titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "");
+      const huidig = maandVanTitel(titel);
+      if (huidig) return { titel, huidig };
+    }
+    return { titel, huidig: null };
+  };
   for (let stap = 0; stap < 24; stap++) {
-    const titel = await pagina.locator(".fc-toolbar-title").first().innerText().catch(() => "");
-    const huidig = maandVanTitel(titel);
-    if (!huidig) throw new Error("De kalender toont geen maand.");
+    const { titel, huidig } = await leesTitel();
+    // De titel is enkel een maand en een jaar: veilig voor het publieke logboek.
+    if (!huidig) throw new Error(`De kalender toont geen maand (titel: "${titel.replace(/\s+/g, " ").trim().slice(0, 60)}").`);
     if (huidig === maand) break;
     const knop = huidig < maand ? ">" : "<";
     await pagina.getByRole("button", { name: knop, exact: true }).first().click();
