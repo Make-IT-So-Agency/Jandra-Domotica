@@ -50,7 +50,7 @@ permissions:
 jobs:
   inschrijven:
     name: Inschrijven
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright ondersteunt ubuntu-latest (26.04) nog niet
     environment: productie
     # GitHub stopt een job na 6 uur. Een estafettebeurt wacht hoogstens 5 uur;
     # de run die inschrijft, wacht hoogstens 2 uur en werkt daarna.

@@ -34,7 +34,7 @@ jobs:
   loginpagina:
     name: Loginpagina
     if: ${{ !inputs.inloggen }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright ondersteunt ubuntu-latest (26.04) nog niet
     timeout-minutes: 10
     defaults:
       run:
@@ -53,7 +53,7 @@ jobs:
   met-login:
     name: Met login
     if: ${{ inputs.inloggen }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright ondersteunt ubuntu-latest (26.04) nog niet
     environment: productie
     timeout-minutes: 15
     defaults:
