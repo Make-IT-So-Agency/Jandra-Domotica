@@ -111,6 +111,28 @@ async function herstel(pagina: Page): Promise<void> {
   }
 }
 
+/**
+ * Een nieuwe sessie in i-Active: uitloggen door de cookies te wissen, opnieuw
+ * inloggen, en de kalender van deze maand openen.
+ *
+ * Op 3 november 2026 verdwenen na acht inschrijvingen de tegels vanaf 15
+ * januari uit de kalender, ook na herladen in dezelfde sessie. Een nieuwe
+ * sessie toonde ze wel allemaal.
+ */
+async function verseSessie(pagina: Page, leerlingId: string, maand: string): Promise<void> {
+  console.log("Nieuwe sessie in i-Active.");
+  await pagina.context().clearCookies();
+  await aanmelden(pagina);
+  await openKalender(pagina, leerlingId, maand);
+}
+
+/** Wat de kalender nu toont, enkel aantallen en data: voor het logboek. */
+async function logZichtbaar(pagina: Page, maand: string, wanneer: string): Promise<void> {
+  const tegels = await leesTegels(pagina, maand).catch(() => []);
+  const dagen = [...new Set(tegels.map((t) => t.datum))].sort();
+  console.log(`Zichtbaar ${wanneer}: ${tegels.length} tegels op ${dagen.length} dagen${dagen.length ? `, ${dagen[0]} tot ${dagen.at(-1)}` : ""}.`);
+}
+
 /** Een stap, en bij een fout nog één keer na herstel. */
 async function metHerkansing<T>(pagina: Page, stap: () => Promise<T>): Promise<T> {
   try {
@@ -227,6 +249,11 @@ async function stopGevraagd(id: number): Promise<boolean> {
  */
 async function verwerkSlot(pagina: Page, k: Keuze): Promise<Uitslag | null> {
   let { staat } = await staatNu(pagina, k);
+  if (staat === "weg") {
+    await logZichtbaar(pagina, k.datum.slice(0, 7), `toen ${k.datum} ontbrak`);
+    await verseSessie(pagina, k.leerlingId, k.datum.slice(0, 7));
+    ({ staat } = await staatNu(pagina, k));
+  }
   const al = uitkomstVan(staat);
   if (al === "reservelijst") return { uitkomst: "reservelijst", melding: "Stond al op de reservelijst." };
   if (al) return { uitkomst: "al_ingeschreven" };
@@ -308,6 +335,7 @@ async function verwerk(pagina: Page, r: Ronde, keuzes: Keuze[]): Promise<Map<num
         huidig = "";
         await herstel(pagina).catch((f) => console.log(`Herstellen mislukt: ${kort(f)}`));
       }
+      await logZichtbaar(pagina, k.datum.slice(0, 7), `na ${k.datum}`);
       if (!uitslag) continue;
       klaar.set(k.slotId, uitslag);
       await bewaarResultaat(r.id, k.slotId, uitslag.uitkomst, uitslag.melding);
@@ -339,6 +367,11 @@ async function eindcontrole(pagina: Page, r: Ronde, keuzes: Keuze[], klaar: Map<
       tegels = await metHerkansing(pagina, async () => {
         if (eerste) await herlaad(pagina, leerling, maand);
         else await openKalender(pagina, leerling, maand);
+        const gelezen = await leesTegels(pagina, maand);
+        // Ontbreekt er een gekozen tegel, dan eerst een nieuwe sessie: zie verseSessie.
+        if (!lijst.some((k) => !zoekTegel(gelezen, k))) return gelezen;
+        await logZichtbaar(pagina, maand, "bij de eindcontrole");
+        await verseSessie(pagina, leerling, maand);
         return leesTegels(pagina, maand);
       });
     } catch (fout) {
@@ -412,7 +445,11 @@ async function losseRun(): Promise<void> {
       gekozen = tegels.filter((t) => t.datum === datum && soortVan(t.moment) === soort);
       if (gekozen.length !== 1) throw new Error(`Voor ${test} ${gekozen.length} tegels gevonden in plaats van één.`);
     } else {
-      gekozen = [tegels.find((t) => t.staat === "vrij"), tegels.find((t) => t.staat === "volzet")].filter((t): t is Tegel => !!t);
+      // Verspreid over de hele maand, tot de laatste open tegel: zo komen ook
+      // de late weken aan bod, waar het op 3 november 2026 misliep.
+      const open = tegels.filter((t) => t.staat === "vrij" || t.staat === "volzet").sort((a, b) => a.datum.localeCompare(b.datum));
+      const n = Math.min(8, open.length);
+      gekozen = [...new Set(Array.from({ length: n }, (_, i) => open[Math.round((i * (open.length - 1)) / Math.max(1, n - 1))]))];
     }
     const keuzes: Keuze[] = gekozen.map((t, i) => ({ slotId: -1 - i, kindId: kind.id, leerlingId: kind.leerling_id, kind: kind.naam, datum: t.datum, moment: t.moment, locatie: t.locatie }));
     await meld(test ? `🧪 ECHTE TEST: ik schrijf ${kind.naam} in voor ${keuzes.map(label).join(", ")} en controleer het.` : `Proef op ${keuzes.length} open tegels van ${maand}.`);
