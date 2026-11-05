@@ -15,7 +15,7 @@ export async function bewaarInstellingenActie(formulier: FormData): Promise<void
   const bronUrl = tekst("tarief_bron_url") || huidig.tarief_bron_url;
   if (!/^https?:\/\//i.test(bronUrl)) {
     redirect(
-      "/instellingen?soort=fout&melding=" +
+      "/laadpalen/instellingen?soort=fout&melding=" +
         encodeURIComponent("De bron-URL moet met http:// of https:// beginnen."),
     );
   }
@@ -32,7 +32,7 @@ export async function bewaarInstellingenActie(formulier: FormData): Promise<void
     tarief_bron_url: bronUrl,
   });
 
-  revalidatePath("/instellingen");
-  revalidatePath("/");
-  redirect("/instellingen?soort=goed&melding=Instellingen+bewaard.");
+  revalidatePath("/laadpalen/instellingen");
+  revalidatePath("/laadpalen");
+  redirect("/laadpalen/instellingen?soort=goed&melding=Instellingen+bewaard.");
 }

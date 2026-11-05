@@ -32,6 +32,6 @@ export async function bewaarKoppelingen(formulier: FormData): Promise<void> {
     if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
   }
 
+  revalidatePath("/laadpalen/laadpunten");
   revalidatePath("/laadpalen");
-  revalidatePath("/");
 }

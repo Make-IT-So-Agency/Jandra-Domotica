@@ -132,7 +132,7 @@ export default async function Rapportenpagina({
       {magMaken && vennootschappen.length === 0 ? (
         <div className="melding let-op">
           Voeg eerst een vennootschap toe bij{" "}
-          <Link href="/vennootschappen">Vennootschappen</Link>.
+          <Link href="/laadpalen/vennootschappen">Vennootschappen</Link>.
         </div>
       ) : null}
 

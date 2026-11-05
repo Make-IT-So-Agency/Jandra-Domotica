@@ -48,6 +48,8 @@ export interface Menumodule {
   /** Onder het icoon in de balk; hoogstens een tiental tekens. */
   kort: string;
   icoon: Icoon;
+  /** Eén zin over wat de module doet, op de startpagina. */
+  uitleg: string;
   /** Waar het icoon in de balk naartoe gaat. */
   start: string;
   /** Enkel Vastgoed: een keuze van het huis, met zijn pagina's boven de secties. */
@@ -75,6 +77,9 @@ export const HUISPAGINAS: { deel: string; naam: string; sectie: string | null }[
   { deel: "/partijen", naam: "Partijen", sectie: "Administratie" },
   { deel: "/toegang", naam: "Toegang", sectie: "Administratie" },
 ];
+
+/** Het basispad van Laadpalen; de startpagina van de app (/) is van alle modules samen. */
+export const LAADPALEN = "/laadpalen";
 
 /** Onder Vastgoed, los van de huizen: de huizen zelf, en de bot voor alle huizen. */
 export const VASTGOEDPAGINAS: Paginalink[] = [
@@ -111,21 +116,29 @@ export function huismenu(huis: Menuhuis): Huismenu {
 /** Het menu dat deze gebruiker te zien krijgt: de modules in volgorde, met Beheer onderaan. */
 export function menuVoor(gebruiker: Gebruiker, huizen: Menuhuis[] = []): Menumodule[] {
   const laden: Paginalink[] = [
-    { pad: "/", naam: "Overzicht" },
-    { pad: "/rapporten", naam: "Rapporten" },
+    { pad: LAADPALEN, naam: "Overzicht" },
+    { pad: `${LAADPALEN}/rapporten`, naam: "Rapporten" },
   ];
   if (magInstellingenBeheren(gebruiker)) {
     laden.push(
       // De pagina heet zo, zodat ze niet dezelfde naam heeft als de module.
-      { pad: "/laadpalen", naam: "Laadpunten" },
-      { pad: "/vennootschappen", naam: "Vennootschappen" },
-      { pad: "/tarieven", naam: "Tarieven" },
-      { pad: "/instellingen", naam: "Instellingen" },
+      { pad: `${LAADPALEN}/laadpunten`, naam: "Laadpunten" },
+      { pad: `${LAADPALEN}/vennootschappen`, naam: "Vennootschappen" },
+      { pad: `${LAADPALEN}/tarieven`, naam: "Tarieven" },
+      { pad: `${LAADPALEN}/instellingen`, naam: "Instellingen" },
     );
   }
 
   const menu: Menumodule[] = [
-    { id: "laadpalen", naam: "Laadpalen", kort: "Laden", icoon: "stekker", start: "/", secties: [{ naam: null, paginas: laden }] },
+    {
+      id: "laadpalen",
+      naam: "Laadpalen",
+      kort: "Laden",
+      icoon: "stekker",
+      uitleg: "De laadsessies thuis, doorgerekend en per vennootschap gerapporteerd.",
+      start: LAADPALEN,
+      secties: [{ naam: null, paginas: laden }],
+    },
   ];
   if (magBouwZien(gebruiker)) {
     const huismenus = huizen.map(huismenu);
@@ -134,6 +147,7 @@ export function menuVoor(gebruiker: Gebruiker, huizen: Menuhuis[] = []): Menumod
       naam: "Vastgoed",
       kort: "Vastgoed",
       icoon: "huis",
+      uitleg: "Onze huizen: van de plannen van de architect tot het woningdossier.",
       start: huismenus[0] ? huispad(huismenus[0].id) : VASTGOED,
       huizen: huismenus,
       secties: [{ naam: "Alle huizen", paginas: VASTGOEDPAGINAS }],
@@ -145,6 +159,7 @@ export function menuVoor(gebruiker: Gebruiker, huizen: Menuhuis[] = []): Menumod
       naam: "Beheer",
       kort: "Beheer",
       icoon: "mensen",
+      uitleg: "Wie de app mag gebruiken, en met welke rol.",
       start: "/gebruikers",
       secties: [{ naam: null, paginas: [{ pad: "/gebruikers", naam: "Gebruikers" }] }],
       onderaan: true,
@@ -164,12 +179,13 @@ export function allePaden(menu: Menumodule[]): string[] {
 }
 
 /**
- * De module waarin je zit: die met de link die oplicht. Op een pagina die
- * niet in het menu staat, de eerste module, zodat het paneel nooit leeg is.
+ * De module waarin je zit: die met de link die oplicht. Null op een pagina
+ * die van geen module is, zoals de startpagina: het paneel toont dan de
+ * modules zelf.
  */
 export function actieveModule(huidig: string, menu: Menumodule[]): Menumodule | null {
   const actief = actievePagina(huidig, allePaden(menu));
-  return menu.find((module) => paginasVan(module).some((pagina) => pagina.pad === actief)) ?? menu[0] ?? null;
+  return menu.find((module) => paginasVan(module).some((pagina) => pagina.pad === actief)) ?? null;
 }
 
 /** Het huis van deze pagina; anders het eerste, of geen als er geen huizen zijn. */

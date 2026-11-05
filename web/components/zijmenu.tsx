@@ -19,7 +19,8 @@ import { ModuleIcoon } from "./module-icoon";
 
 /**
  * Het menu links, per module. Een smalle balk met een icoon per module, en
- * ernaast een paneel met de pagina's van de module waarin je zit. Heeft
+ * ernaast een paneel met de pagina's van de module waarin je zit; op de
+ * startpagina (/) toont het paneel de modules zelf. Heeft
  * iemand maar één module, dan is er geen balk: enkel het paneel.
  *
  * Op een smal scherm wordt de balk een tabbalk onderaan, en schuift het
@@ -59,7 +60,8 @@ export function Zijmenu({
 
   if (pad.startsWith("/extern/")) return <main className="omhulsel">{children}</main>;
 
-  const actief = actievePagina(pad, allePaden(menu));
+  // "/" is de startpagina van alle modules samen en staat zelf niet in een module.
+  const actief = pad === "/" ? "/" : actievePagina(pad, allePaden(menu));
   const module = actieveModule(pad, menu);
   const metBalk = menu.length > 1;
 
@@ -112,7 +114,7 @@ export function Zijmenu({
 
       {metBalk ? (
         <nav className="modulebalk" aria-label="Modules">
-          <Link className="merkteken" href="/" title="Jandra">
+          <Link className="merkteken" href="/" title="Start" aria-current={pad === "/" ? "page" : undefined}>
             J
           </Link>
           <ul className="modules">{menu.filter((item) => !item.onderaan).map(modulelink)}</ul>
@@ -122,7 +124,7 @@ export function Zijmenu({
 
       <aside id="zijmenu" className="zijmenu" data-open={open ? "" : undefined}>
         {metBalk ? (
-          <div className="paneelkop">{module?.naam}</div>
+          <div className="paneelkop">{module?.naam ?? "Start"}</div>
         ) : (
           <Link className="merk" href="/">
             Jandra
@@ -152,6 +154,17 @@ export function Zijmenu({
             </>
           ) : null}
           {module?.secties.map((deel, index) => sectie(deel, `sectie-${index}`))}
+          {module === null ? (
+            // Op de startpagina: de modules zelf, met hun eerste pagina.
+            <ul className="menulijst">
+              {link({ pad: "/", naam: "Start" })}
+              {menu.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.start}>{item.naam}</Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </nav>
         <div className="zijmenu-voet">
           <span className="wie">

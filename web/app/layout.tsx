@@ -41,7 +41,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             wie={gebruiker.email}
             rol={ROLNAMEN[gebruiker.rol]}
             afmelden={
+              // Een element van de server in een clientcomponent: zonder key klaagt React in ontwikkeling.
               <form
+                key="afmelden"
                 action={async () => {
                   "use server";
                   await signOut({ redirectTo: "/login" });

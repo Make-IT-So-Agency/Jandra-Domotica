@@ -8,9 +8,9 @@ import { leesInstellingen } from "@/lib/settings";
 import { bevestigTarief, bewaarTarief, probeerAutomatischTarief } from "@/lib/tariffs";
 
 function terug(soort: "goed" | "fout" | "info", melding: string): never {
-  revalidatePath("/tarieven");
-  revalidatePath("/");
-  redirect(`/tarieven?soort=${soort}&melding=${encodeURIComponent(melding)}`);
+  revalidatePath("/laadpalen/tarieven");
+  revalidatePath("/laadpalen");
+  redirect(`/laadpalen/tarieven?soort=${soort}&melding=${encodeURIComponent(melding)}`);
 }
 
 export async function haalTariefAutomatischOp(formulier: FormData): Promise<void> {

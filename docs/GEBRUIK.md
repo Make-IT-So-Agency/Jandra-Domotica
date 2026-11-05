@@ -6,10 +6,12 @@ kennis nodig.
 ## Een rapport maken
 
 1. Ga naar je app en log in met Google.
-2. Kijk of het beginscherm groen meldt dat alles klaarstaat. Zo niet, staat er
+2. Kies **Laadpalen**: op de startpagina, of met het stekkericoon in de balk
+   links (op een gsm onderaan). Heb je enkel Laadpalen, dan kom je er meteen.
+   Kijk of het overzicht groen meldt dat alles klaarstaat. Zo niet, staat er
    letterlijk bij wat er nog moet gebeuren en een knop die je erheen brengt.
-3. Klik in het menu links, onder **Laadpalen**, op **Rapporten**. Op een gsm
-   staat het menu achter de knop **Menu** bovenaan.
+3. Klik in het menu links op **Rapporten**. Op een gsm staat dat menu achter
+   de knop **Menu** bovenaan.
 4. Kies de vennootschap en daarna de periode uit de lijst. Die staat vol met
    kant-en-klare keuzes — *Vorig kwartaal*, *Q1 2026*, *juni 2026* — met het
    vorige kwartaal al voorgeselecteerd. Heb je iets nodig dat er niet bij staat,

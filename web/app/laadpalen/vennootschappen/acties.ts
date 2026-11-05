@@ -31,8 +31,8 @@ export async function voegVennootschapToe(formulier: FormData): Promise<void> {
     );
   }
 
-  revalidatePath("/vennootschappen");
-  revalidatePath("/");
+  revalidatePath("/laadpalen/vennootschappen");
+  revalidatePath("/laadpalen");
 }
 
 export async function bewerkVennootschap(formulier: FormData): Promise<void> {
@@ -54,8 +54,8 @@ export async function bewerkVennootschap(formulier: FormData): Promise<void> {
 
   if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
 
-  revalidatePath("/vennootschappen");
-  revalidatePath("/");
+  revalidatePath("/laadpalen/vennootschappen");
+  revalidatePath("/laadpalen");
 }
 
 export async function verwijderVennootschap(formulier: FormData): Promise<void> {
@@ -81,6 +81,6 @@ export async function verwijderVennootschap(formulier: FormData): Promise<void> 
   const { error } = await db().from("companies").delete().eq("id", id);
   if (error) throw new Error(`Verwijderen mislukt: ${error.message}`);
 
-  revalidatePath("/vennootschappen");
-  revalidatePath("/");
+  revalidatePath("/laadpalen/vennootschappen");
+  revalidatePath("/laadpalen");
 }
