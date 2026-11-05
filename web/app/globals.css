@@ -65,13 +65,87 @@ a {
 }
 
 /* --- Het menu links ------------------------------------------------------
-   Op een breed scherm staat het menu vast links en de pagina ernaast. Op een
-   smal scherm (gsm, iPad staand) is er bovenaan een balk met de knop Menu, en
-   schuift het menu over de pagina. */
+   Op een breed scherm staat links een smalle balk met een icoon per module,
+   en ernaast het paneel met de pagina's van de module waarin je zit. Heeft
+   iemand maar één module, dan is er enkel het paneel.
+
+   Op een smal scherm (gsm, iPad staand) is er bovenaan een balk met de knop
+   Menu, en schuift het paneel over de pagina. De modulebalk wordt dan een
+   tabbalk onderaan. */
+:root {
+  --modulebalk: 64px;
+  --paneel: 200px;
+}
+
 .merk {
   font-weight: 700;
   text-decoration: none;
   color: var(--tekst);
+}
+
+.modulebalk {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 41;
+  width: var(--modulebalk);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0 16px;
+  padding-left: env(safe-area-inset-left);
+  box-sizing: content-box;
+  background: var(--vlak);
+  border-right: 1px solid var(--lijn);
+}
+
+.merkteken {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--tekst);
+  color: var(--achtergrond);
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+}
+
+.modules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.modules.onderaan {
+  margin-top: auto;
+}
+
+.modulelink {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  width: 56px;
+  padding: 7px 0 5px;
+  border-radius: 10px;
+  color: var(--zacht);
+  text-decoration: none;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.modulelink:hover {
+  background: var(--accent-zacht);
+  color: var(--tekst);
+}
+
+.modulelink[aria-current] {
+  background: var(--accent-zacht);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .zijmenu {
@@ -86,14 +160,19 @@ a {
   padding-left: max(12px, env(safe-area-inset-left));
   background: var(--vlak);
   border-right: 1px solid var(--lijn);
-  /* Het merk staat bovenaan en wie er aangemeld is onderaan; de lijst
+  /* De kop staat bovenaan en wie er aangemeld is onderaan; de lijst
      ertussen scrolt als ze niet past. */
   overflow: hidden;
 }
 
-.zijmenu > .merk {
+.zijmenu > .merk,
+.paneelkop {
   font-size: 17px;
   padding: 0 10px;
+}
+
+.paneelkop {
+  font-weight: 700;
 }
 
 .zijmenu nav {
@@ -101,48 +180,24 @@ a {
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.menugroep summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  list-style: none;
-  font-size: 12px;
+.menukop {
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--zacht);
 }
 
-.menugroep summary::-webkit-details-marker {
-  display: none;
-}
-
-.menugroep summary::after {
-  content: "▸";
-  font-size: 11px;
-  transition: transform 0.15s;
-}
-
-.menugroep[open] summary::after {
-  transform: rotate(90deg);
-}
-
-.menugroep summary:hover {
-  background: var(--accent-zacht);
-  color: var(--tekst);
-}
-
 .menulijst {
   list-style: none;
-  margin: 2px 0 6px;
+  margin: 2px 0;
   padding: 0;
   display: grid;
   gap: 1px;
@@ -165,12 +220,6 @@ a {
   background: var(--accent-zacht);
   color: var(--accent);
   font-weight: 600;
-}
-
-/* Onder de pagina's van het huis: Huizen en Telegram, voor alle huizen samen. */
-.menugroep .menulijst.los {
-  border-top: 1px solid var(--lijn);
-  padding-top: 6px;
 }
 
 /* Welk huis: de actieve huizen onder Vastgoed. */
@@ -208,6 +257,16 @@ a {
     padding-left: 232px;
   }
 
+  .app[data-balk] {
+    padding-left: calc(var(--modulebalk) + var(--paneel));
+  }
+
+  .app[data-balk] .zijmenu {
+    left: calc(var(--modulebalk) + 1px + env(safe-area-inset-left));
+    width: var(--paneel);
+    padding-left: 12px;
+  }
+
   .app > .omhulsel {
     padding-top: 28px;
   }
@@ -226,7 +285,6 @@ a {
     z-index: 30;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
     margin-bottom: 22px;
     padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
@@ -234,8 +292,46 @@ a {
     border-bottom: 1px solid var(--lijn);
   }
 
+  .topbalk-module {
+    color: var(--zacht);
+  }
+
   .menuknop {
+    margin-left: auto;
     padding: 7px 16px;
+  }
+
+  /* De modules als tabbalk onderaan, met de duim te bereiken. */
+  .modulebalk {
+    inset: auto 0 0 0;
+    z-index: 30;
+    width: auto;
+    flex-direction: row;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    box-sizing: border-box;
+    border-right: 0;
+    border-top: 1px solid var(--lijn);
+  }
+
+  .merkteken {
+    display: none;
+  }
+
+  .modules,
+  .modules.onderaan {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+  }
+
+  .modulelink {
+    width: 72px;
+  }
+
+  .app[data-balk] > .omhulsel {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 
   .zijmenu {
@@ -1009,8 +1105,8 @@ td.smal {
 }
 
 /* Een omzetting nakijken: het plan links, de stappen rechts. Op een tablet
-   komen de stappen onder het plan. Het menu links neemt 232 px van het
-   venster: twee kolommen dus pas vanaf 1240 px. */
+   komen de stappen onder het plan. Het menu links neemt tot 264 px van
+   het venster: twee kolommen dus pas vanaf 1240 px. */
 .omzetten {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
