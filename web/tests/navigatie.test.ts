@@ -7,6 +7,7 @@ import { deelVan, huisUitPad, huispad } from "@/lib/bouw/paden";
 import {
   HUISPAGINAS,
   VASTGOEDPAGINAS,
+  actieveModule,
   actievePagina,
   allePaden,
   huisVan,
@@ -27,11 +28,9 @@ const HUIZEN: Menuhuis[] = [
   { id: 12, naam: "Testhuis", soort: "verbouwing" },
 ];
 
-/** Het menu als tekst: groepen met hun pagina's, om in één oogopslag te vergelijken. */
+/** Het menu als tekst: modules met hun pagina's, om in één oogopslag te vergelijken. */
 const alsTekst = (gebruiker: Gebruiker, huizen = HUIZEN) =>
-  menuVoor(gebruiker, huizen).map((onderdeel) =>
-    onderdeel.soort === "pagina" ? onderdeel.pagina.naam : `${onderdeel.naam}: ${paginasVan(onderdeel).map((p) => p.naam).join(", ")}`,
-  );
+  menuVoor(gebruiker, huizen).map((module) => `${module.naam}: ${paginasVan(module).map((p) => p.naam).join(", ")}`);
 
 describe("de adressen van Vastgoed", () => {
   it("zet een huis onder zijn nummer", () => {
@@ -57,12 +56,12 @@ describe("de adressen van Vastgoed", () => {
 });
 
 describe("het menu per rol", () => {
-  it("toont de hoofdbeheerder alles: Laadpalen, Vastgoed met elk huis, en Gebruikers", () => {
+  it("toont de hoofdbeheerder alles: Laadpalen, Vastgoed met elk huis, en Beheer", () => {
     const paginas = HUISPAGINAS.map((p) => p.naam).join(", ");
     expect(alsTekst(HOOFD)).toEqual([
       "Laadpalen: Overzicht, Rapporten, Laadpunten, Vennootschappen, Tarieven, Instellingen",
       `Vastgoed: ${paginas}, ${paginas}, Huizen, Telegram`,
-      "Gebruikers",
+      "Beheer: Gebruikers",
     ]);
   });
 
@@ -71,7 +70,7 @@ describe("het menu per rol", () => {
   });
 
   it("toont een beheerder van een vennootschap enkel het laden en de gebruikers", () => {
-    expect(alsTekst(BEHEERDER)).toEqual(["Laadpalen: Overzicht, Rapporten", "Gebruikers"]);
+    expect(alsTekst(BEHEERDER)).toEqual(["Laadpalen: Overzicht, Rapporten", "Beheer: Gebruikers"]);
   });
 
   it("toont een kijker enkel het overzicht en de rapporten, en geen vastgoed", () => {
@@ -80,14 +79,77 @@ describe("het menu per rol", () => {
   });
 
   it("zet de huizen onder Vastgoed, elk met zijn eigen adressen", () => {
-    const vastgoed = menuVoor(HOOFD, HUIZEN).find((onderdeel) => onderdeel.soort === "vastgoed");
-    if (!vastgoed || vastgoed.soort !== "vastgoed") throw new Error("geen Vastgoed");
+    const vastgoed = menuVoor(HOOFD, HUIZEN).find((module) => module.id === "vastgoed");
+    if (!vastgoed?.huizen) throw new Error("geen Vastgoed");
     expect(vastgoed.huizen.map((huis) => huis.naam)).toEqual(["Nieuwbouw", "Testhuis"]);
     expect(vastgoed.huizen[1].paginas.slice(0, 2)).toEqual([
       { pad: "/vastgoed/12", naam: "Overzicht" },
       { pad: "/vastgoed/12/plannen", naam: "Plannen" },
     ]);
-    expect(vastgoed.los).toEqual(VASTGOEDPAGINAS);
+    expect(vastgoed.secties).toEqual([{ naam: "Alle huizen", paginas: VASTGOEDPAGINAS }]);
+  });
+});
+
+describe("de modulebalk", () => {
+  it("zet Beheer onderaan, apart van de modules", () => {
+    const menu = menuVoor(HOOFD, HUIZEN);
+    expect(menu.filter((module) => !module.onderaan).map((module) => module.id)).toEqual(["laadpalen", "vastgoed"]);
+    expect(menu.filter((module) => module.onderaan).map((module) => module.id)).toEqual(["beheer"]);
+  });
+
+  it("geeft elke module een kort label dat in de balk past", () => {
+    for (const module of menuVoor(HOOFD, HUIZEN)) expect(module.kort.length).toBeLessThanOrEqual(10);
+  });
+
+  it("stuurt Vastgoed naar het eerste huis, of naar Huizen als er geen is", () => {
+    const start = (huizen: Menuhuis[]) => menuVoor(HOOFD, huizen).find((module) => module.id === "vastgoed")?.start;
+    expect(start(HUIZEN)).toBe("/vastgoed/1");
+    expect(start([])).toBe("/vastgoed");
+  });
+
+  it("stuurt elke module naar een pagina van zichzelf", () => {
+    for (const module of menuVoor(HOOFD, HUIZEN)) {
+      expect(paginasVan(module).map((pagina) => pagina.pad)).toContain(module.start);
+    }
+  });
+
+  it("kiest de module van de pagina, en geen op de startpagina", () => {
+    const menu = menuVoor(HOOFD, HUIZEN);
+    const van = (pad: string) => actieveModule(pad, menu)?.id;
+    expect(van("/laadpalen")).toBe("laadpalen");
+    expect(van("/laadpalen/tarieven")).toBe("laadpalen");
+    expect(van("/laadpalen/rapporten")).toBe("laadpalen");
+    expect(van("/vastgoed")).toBe("vastgoed");
+    expect(van("/vastgoed/telegram")).toBe("vastgoed");
+    expect(van("/vastgoed/12/geld/facturen")).toBe("vastgoed");
+    expect(van("/gebruikers")).toBe("beheer");
+    expect(actieveModule("/", menu)).toBeNull();
+    expect(actieveModule("/onbekend", menu)).toBeNull();
+    expect(actieveModule("/", [])).toBeNull();
+  });
+});
+
+describe("de secties van een huis", () => {
+  it("deelt de pagina's van een huis in, met het overzicht bovenaan zonder kopje", () => {
+    const secties = huismenu(HUIZEN[0]).secties.map((sectie) => `${sectie.naam ?? "-"}: ${sectie.paginas.map((p) => p.naam).join(", ")}`);
+    expect(secties).toEqual([
+      "-: Overzicht",
+      "Ontwerp: Plannen, Verdiepingen, Ruimtes, Punten, Technieken, 3D",
+      "Uitvoering: Keuzes, Beslissingen, Planning, Werf",
+      "Administratie: Geld, Dossier, Partijen, Toegang",
+    ]);
+  });
+
+  it("heeft in de secties precies de pagina's van het huis, in dezelfde volgorde", () => {
+    for (const soort of ["nieuwbouw", "bestaand"] as const) {
+      const huis = huismenu({ id: 3, naam: "Huis", soort });
+      expect(huis.secties.flatMap((sectie) => sectie.paginas)).toEqual(huis.paginas);
+    }
+  });
+
+  it("laat bij een bestaand huis Uitvoering staan met enkel Beslissingen", () => {
+    const uitvoering = huismenu({ id: 3, naam: "Huidig huis", soort: "bestaand" }).secties.find((sectie) => sectie.naam === "Uitvoering");
+    expect(uitvoering?.paginas.map((p) => p.naam)).toEqual(["Beslissingen"]);
   });
 });
 
@@ -119,10 +181,15 @@ describe("het menu volgens het soort huis", () => {
 describe("welke link oplicht", () => {
   const paden = allePaden(menuVoor(HOOFD, HUIZEN));
 
-  it("licht Overzicht enkel op de startpagina op", () => {
-    expect(actievePagina("/", paden)).toBe("/");
-    expect(actievePagina("/rapporten", paden)).toBe("/rapporten");
+  it("licht het overzicht van Laadpalen enkel op zijn eigen pagina op, niet op die eronder", () => {
     expect(actievePagina("/laadpalen", paden)).toBe("/laadpalen");
+    expect(actievePagina("/laadpalen/rapporten", paden)).toBe("/laadpalen/rapporten");
+    expect(actievePagina("/laadpalen/laadpunten", paden)).toBe("/laadpalen/laadpunten");
+  });
+
+  it("zet de startpagina in geen enkele module", () => {
+    expect(paden).not.toContain("/");
+    expect(actievePagina("/", paden)).toBeNull();
   });
 
   it("kiest de langste link die past, ook diep in een huis", () => {
@@ -191,10 +258,13 @@ describe("geen pagina raakt zoek", () => {
 
   it("zet elke pagina van het eerste niveau, van Vastgoed en van een huis in het menu van de hoofdbeheerder", () => {
     const paden = allePaden(menuVoor(HOOFD, [{ id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" }]));
-    const eersteNiveau = paginamappen(app, "", 1);
+    // De startpagina (/) staat bewust niet in een module: ze toont de modules zelf.
+    const eersteNiveau = paginamappen(app, "", 1).filter((pad) => pad !== "/");
+    const laadpalen = paginamappen(path.join(app, "laadpalen"), "/laadpalen", 1);
     const vastgoed = paginamappen(path.join(app, "vastgoed"), "/vastgoed", 1);
     const huis = paginamappen(path.join(app, "vastgoed", "[huis]"), "/vastgoed/1", 1);
     expect(eersteNiveau.filter((pad) => !paden.includes(pad))).toEqual([]);
+    expect(laadpalen.filter((pad) => !paden.includes(pad))).toEqual([]);
     expect(vastgoed.filter((pad) => !paden.includes(pad))).toEqual([]);
     expect(huis.filter((pad) => !paden.includes(pad))).toEqual([]);
   });

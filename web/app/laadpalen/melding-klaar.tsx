@@ -50,7 +50,7 @@ export function MeldingAllesKlaar() {
     <div className="melding goed met-kruisje">
       <span>
         Alles staat klaar. Je kan meteen een rapport maken bij{" "}
-        <Link href="/rapporten">Rapporten</Link>.
+        <Link href="/laadpalen/rapporten">Rapporten</Link>.
       </span>
       <button type="button" className="kruisje" onClick={wegdoen} aria-label="Melding sluiten">
         ×

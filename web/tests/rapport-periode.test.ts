@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { periodeUitFormulier } from "@/app/rapporten/periode";
+import { periodeUitFormulier } from "@/app/laadpalen/rapporten/periode";
 
 const LEEG = { van: "", tot: "" };
 

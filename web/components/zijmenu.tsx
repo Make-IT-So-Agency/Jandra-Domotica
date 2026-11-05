@@ -5,19 +5,27 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import {
+  actieveModule,
   actievePagina,
   allePaden,
   huisVan,
-  paginasVan,
   wisselPad,
-  type Menuonderdeel,
+  type Menumodule,
+  type Menusectie,
   type Paginalink,
 } from "@/lib/navigatie";
 
+import { ModuleIcoon } from "./module-icoon";
+
 /**
- * Het menu links, met de pagina's in groepen. Op een smal scherm schuift het
- * over de pagina, met de knop Menu in de balk bovenaan. Een link volgen,
- * Escape of een tik naast het menu sluit het weer.
+ * Het menu links, per module. Een smalle balk met een icoon per module, en
+ * ernaast een paneel met de pagina's van de module waarin je zit; op de
+ * startpagina (/) toont het paneel de modules zelf. Heeft
+ * iemand maar één module, dan is er geen balk: enkel het paneel.
+ *
+ * Op een smal scherm wordt de balk een tabbalk onderaan, en schuift het
+ * paneel over de pagina met de knop Menu in de balk bovenaan. Een link volgen,
+ * Escape of een tik naast het paneel sluit het weer.
  *
  * De pagina's van een link voor de architect of een aannemer (/extern) zijn
  * niet van de app: daar komt geen menu, ook niet voor wie aangemeld is.
@@ -29,7 +37,7 @@ export function Zijmenu({
   afmelden,
   children,
 }: {
-  menu: Menuonderdeel[];
+  menu: Menumodule[];
   wie: string;
   rol: string;
   afmelden: ReactNode;
@@ -52,7 +60,11 @@ export function Zijmenu({
 
   if (pad.startsWith("/extern/")) return <main className="omhulsel">{children}</main>;
 
-  const actief = actievePagina(pad, allePaden(menu));
+  // "/" is de startpagina van alle modules samen en staat zelf niet in een module.
+  const actief = pad === "/" ? "/" : actievePagina(pad, allePaden(menu));
+  const module = actieveModule(pad, menu);
+  const metBalk = menu.length > 1;
+
   const link = (pagina: Paginalink) => (
     <li key={pagina.pad}>
       <Link href={pagina.pad} aria-current={actief === pagina.pad ? "page" : undefined}>
@@ -60,13 +72,35 @@ export function Zijmenu({
       </Link>
     </li>
   );
+  const sectie = (deel: Menusectie, sleutel: string) => (
+    <div key={sleutel} className="menusectie">
+      {deel.naam ? <h2 className="menukop">{deel.naam}</h2> : null}
+      <ul className="menulijst">{deel.paginas.map(link)}</ul>
+    </div>
+  );
+  const modulelink = (item: Menumodule) => (
+    <li key={item.id}>
+      <Link
+        href={item.start}
+        className="modulelink"
+        aria-current={item.id === module?.id ? "true" : undefined}
+        title={item.naam}
+      >
+        <ModuleIcoon icoon={item.icoon} />
+        <span>{item.kort}</span>
+      </Link>
+    </li>
+  );
+
+  const huis = module?.huizen ? huisVan(pad, module.huizen) : null;
 
   return (
-    <div className="app">
+    <div className="app" data-balk={metBalk ? "" : undefined}>
       <header className="topbalk">
         <Link className="merk" href="/">
           Jandra
         </Link>
+        {metBalk && module ? <span className="topbalk-module">{module.naam}</span> : null}
         <button
           type="button"
           className="stil menuknop"
@@ -78,59 +112,59 @@ export function Zijmenu({
         </button>
       </header>
 
+      {metBalk ? (
+        <nav className="modulebalk" aria-label="Modules">
+          <Link className="merkteken" href="/" title="Start" aria-current={pad === "/" ? "page" : undefined}>
+            J
+          </Link>
+          <ul className="modules">{menu.filter((item) => !item.onderaan).map(modulelink)}</ul>
+          <ul className="modules onderaan">{menu.filter((item) => item.onderaan).map(modulelink)}</ul>
+        </nav>
+      ) : null}
+
       <aside id="zijmenu" className="zijmenu" data-open={open ? "" : undefined}>
-        <Link className="merk" href="/">
-          Jandra
-        </Link>
-        <nav aria-label="Hoofdmenu">
-          {menu.map((onderdeel) => {
-            if (onderdeel.soort === "pagina") {
-              return (
-                <ul key={onderdeel.pagina.pad} className="menulijst los">
-                  {link(onderdeel.pagina)}
-                </ul>
-              );
-            }
-            // De groep waarin je zit, staat open; de andere klap je open met een tik.
-            const bevat = paginasVan(onderdeel).some((pagina) => pagina.pad === actief);
-            if (onderdeel.soort === "groep") {
-              return (
-                <details key={onderdeel.naam} className="menugroep" open={bevat}>
-                  <summary>{onderdeel.naam}</summary>
-                  <ul className="menulijst">{onderdeel.paginas.map(link)}</ul>
-                </details>
-              );
-            }
-            const huis = huisVan(pad, onderdeel.huizen);
-            return (
-              <details key={onderdeel.naam} className="menugroep" open={bevat}>
-                <summary>{onderdeel.naam}</summary>
-                {huis ? (
-                  <>
-                    <label className="huiskeuze">
-                      <span>Huis</span>
-                      <select
-                        value={huis.id}
-                        onChange={(gebeurtenis) => {
-                          // Naar hetzelfde onderdeel van het gekozen huis, of zijn overzicht.
-                          const gekozen = onderdeel.huizen.find((ander) => String(ander.id) === gebeurtenis.target.value);
-                          if (gekozen) router.push(wisselPad(pad, huis, gekozen));
-                        }}
-                      >
-                        {onderdeel.huizen.map((ander) => (
-                          <option key={ander.id} value={ander.id}>
-                            {ander.naam}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <ul className="menulijst">{huis.paginas.map(link)}</ul>
-                  </>
-                ) : null}
-                <ul className="menulijst los">{onderdeel.los.map(link)}</ul>
-              </details>
-            );
-          })}
+        {metBalk ? (
+          <div className="paneelkop">{module?.naam ?? "Start"}</div>
+        ) : (
+          <Link className="merk" href="/">
+            Jandra
+          </Link>
+        )}
+        <nav aria-label={module?.naam ?? "Menu"}>
+          {module?.huizen && huis ? (
+            <>
+              <label className="huiskeuze">
+                <span>Huis</span>
+                <select
+                  value={huis.id}
+                  onChange={(gebeurtenis) => {
+                    // Naar hetzelfde onderdeel van het gekozen huis, of zijn overzicht.
+                    const gekozen = module.huizen?.find((ander) => String(ander.id) === gebeurtenis.target.value);
+                    if (gekozen) router.push(wisselPad(pad, huis, gekozen));
+                  }}
+                >
+                  {module.huizen.map((ander) => (
+                    <option key={ander.id} value={ander.id}>
+                      {ander.naam}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {huis.secties.map((deel, index) => sectie(deel, `huis-${index}`))}
+            </>
+          ) : null}
+          {module?.secties.map((deel, index) => sectie(deel, `sectie-${index}`))}
+          {module === null ? (
+            // Op de startpagina: de modules zelf, met hun eerste pagina.
+            <ul className="menulijst">
+              {link({ pad: "/", naam: "Start" })}
+              {menu.map((item) => (
+                <li key={item.id}>
+                  <Link href={item.start}>{item.naam}</Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </nav>
         <div className="zijmenu-voet">
           <span className="wie">

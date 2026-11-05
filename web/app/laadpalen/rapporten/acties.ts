@@ -19,11 +19,11 @@ export async function maakRapport(formulier: FormData): Promise<void> {
 
   const vennootschapId = String(formulier.get("vennootschap") ?? "");
   if (!vennootschapId) {
-    redirect("/rapporten?soort=fout&melding=Kies+eerst+een+vennootschap.");
+    redirect("/laadpalen/rapporten?soort=fout&melding=Kies+eerst+een+vennootschap.");
   }
   if (!magVennootschapZien(ik, vennootschapId)) {
     redirect(
-      "/rapporten?soort=fout&melding=" +
+      "/laadpalen/rapporten?soort=fout&melding=" +
         encodeURIComponent("Je hebt geen toegang tot deze vennootschap."),
     );
   }
@@ -45,12 +45,12 @@ export async function maakRapport(formulier: FormData): Promise<void> {
     referentie = bewaard.reference;
   } catch (fout) {
     const boodschap = fout instanceof Error ? fout.message : "Rapport maken mislukt.";
-    redirect(`/rapporten?soort=fout&melding=${encodeURIComponent(boodschap)}`);
+    redirect(`/laadpalen/rapporten?soort=fout&melding=${encodeURIComponent(boodschap)}`);
   }
 
-  revalidatePath("/rapporten");
+  revalidatePath("/laadpalen/rapporten");
   redirect(
-    `/rapporten?soort=goed&melding=${encodeURIComponent(
+    `/laadpalen/rapporten?soort=goed&melding=${encodeURIComponent(
       `Rapport ${referentie} is bewaard. Je kan het hieronder downloaden.`,
     )}`,
   );
@@ -64,11 +64,11 @@ export async function verwijderRapport(formulier: FormData): Promise<void> {
 
   const { error } = await db().from("reports").delete().eq("id", id);
   if (error) {
-    redirect(`/rapporten?soort=fout&melding=${encodeURIComponent(error.message)}`);
+    redirect(`/laadpalen/rapporten?soort=fout&melding=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/rapporten");
-  redirect("/rapporten?soort=goed&melding=Rapport+verwijderd.");
+  revalidatePath("/laadpalen/rapporten");
+  redirect("/laadpalen/rapporten?soort=goed&melding=Rapport+verwijderd.");
 }
 
 /**
@@ -128,9 +128,9 @@ export async function verstuurRapportNu(formulier: FormData): Promise<void> {
     melding = `${data.reference} is verstuurd naar ${resultaat.adres}.`;
   } catch (fout) {
     const boodschap = fout instanceof Error ? fout.message : "Versturen mislukt.";
-    redirect(`/rapporten?soort=fout&melding=${encodeURIComponent(boodschap)}`);
+    redirect(`/laadpalen/rapporten?soort=fout&melding=${encodeURIComponent(boodschap)}`);
   }
 
-  revalidatePath("/rapporten");
-  redirect(`/rapporten?soort=goed&melding=${encodeURIComponent(melding)}`);
+  revalidatePath("/laadpalen/rapporten");
+  redirect(`/laadpalen/rapporten?soort=goed&melding=${encodeURIComponent(melding)}`);
 }

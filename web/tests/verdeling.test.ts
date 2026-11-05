@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { verdeelPerLaadpaal } from "@/app/verdeling-laadpalen";
+import { verdeelPerLaadpaal } from "@/app/laadpalen/verdeling-laadpalen";
 import type { Laadsessie } from "@/lib/types";
 
 function sessie(overschrijf: Partial<Laadsessie>): Laadsessie {
