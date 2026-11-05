@@ -36,11 +36,12 @@ Waar je iets niet weet of waar we niets over beslist hebben: zet het onder
   met de service-sleutel; bestanden in een privé-bucket per module in Supabase
   Storage. Aanmelden met Google (NextAuth). Lang werk of werk met een browser
   draait als workflow in GitHub Actions. Tests met Vitest.
-- **Opmaak**: de app krijgt een nieuwe look, en het prototype is daarvoor
-  het vertrekpunt. Vandaag is het eigen CSS met een handvol kleurtokens voor
-  licht en donker; de app stapt over op Tailwind CSS met shadcn/ui. Zeg welke
-  bibliotheken het prototype gebruikt en beschrijf de look volledig (zie
-  **Look en feel**), zodat ze niet verloren gaat.
+- **Opmaak**: eigen CSS met tokens voor licht en donker, zonder
+  CSS-framework, in de stijl van `docs/STIJLGIDS.md` (uit het prototype van
+  Huishouden): Bricolage Grotesque en Atkinson Hyperlegible, een diep groen
+  accent, drie vlakniveaus in plaats van schaduwen. Wijkt het prototype
+  daarvan af, beschrijf dan wat anders is (zie **Look en feel**), zodat het
+  niet verloren gaat.
 - **Taal**: alles in het Nederlands (Vlaams), ook de code: namen van
   bestanden, functies, tabellen en kolommen. Gewone woorden die een gezinslid
   begrijpt, geen jargon.
@@ -92,7 +93,10 @@ Voor elke pagina:
 Wat het prototype mooi maakt, zo precies dat iemand het kan nabouwen zonder
 het prototype te zien:
 - **Stack**: welke bibliotheken voor opmaak, onderdelen, iconen en animaties
-  (bv. Tailwind, shadcn/ui, Radix, lucide, Framer Motion), met hun versie.
+  het prototype gebruikt, met hun versie, als het er gebruikt.
+- **Verschil met de stijlgids**: wat het prototype anders doet dan
+  `docs/STIJLGIDS.md`. Is alles hetzelfde, zeg dat dan in één zin en sla de
+  rest van dit kopje over.
 - **Tokens**: alle kleuren voor licht en donker (achtergrond, vlakken, tekst,
   gedempte tekst, lijnen, accent, goed, let op, fout), lettertypes met
   gewichten en groottes, afstanden, hoeken en schaduwen. Plak de

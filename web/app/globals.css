@@ -1,36 +1,90 @@
 :root {
-  --tekst: #111827;
-  --zacht: #6b7280;
-  --lijn: #e5e7eb;
-  --vlak: #f9fafb;
-  --achtergrond: #ffffff;
-  --accent: #1d4ed8;
-  --accent-zacht: #eff6ff;
-  --goed: #047857;
-  --goed-zacht: #ecfdf5;
-  --let-op: #b45309;
-  --let-op-zacht: #fffbeb;
-  --fout: #b91c1c;
-  --fout-zacht: #fef2f2;
+  /* De stijl van Jandra, uit het prototype van Huishouden (docs/STIJLGIDS.md).
+     Drie vlakniveaus geven diepte in plaats van schaduwen: de pagina
+     (grijsgroen), een kaart (gebroken wit) en een vlak (wit). De neutrale
+     kleuren hebben een groene zweem. Eén accentkleur voor actie, selectie,
+     focus en wat goed is; rood enkel voor verwijderen en fouten; amber voor
+     let op. Jan en Sandra hebben een eigen kleur, enkel om hen aan te duiden. */
+  --pagina: #eef1ee;
+  --vlak: #ffffff;
+  --kaart: #fbfcfa;
+  --tekst: #1f2a26;
+  --zacht: #5d6b65;
+  --lijn: #d6ddd9;
+  --accent: #2f6b57;
+  --accent-zacht: #dcebe4;
+  --let-op: #8a5c0c;
+  --let-op-zacht: #f6ecd6;
+  --fout: #b3261e;
+  --fout-zacht: #f8e3e1;
+  --op-fout: #ffffff;
+  --jan: #2f5d8a;
+  --jan-zacht: #dde7f2;
+  --sandra: #a24a6b;
+  --sandra-zacht: #f3e0e8;
+
+  /* Wat goed is, gebruikt het accent: er is geen aparte groene kleur. */
+  --goed: var(--accent);
+  --goed-zacht: var(--accent-zacht);
+  /* Tekst op een gekleurde vulling: wit in licht, bijna zwart in donker. */
+  --op-kleur: var(--vlak);
+  /* Oude naam, uit de tijd dat de pagina wit was: een vak met inhoud. */
+  --achtergrond: var(--kaart);
+
+  --letter-titel: var(--font-bricolage), "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --letter-tekst: var(--font-atkinson), "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+
+  /* Hoeken: 8 voor velden en kleine knoppen, 10 voor knoppen en meldingen,
+     12 voor panelen en lijsten, 14 voor kaarten, 18 voor een dialoog. */
   --radius: 8px;
+  --radius-knop: 10px;
+  --radius-paneel: 12px;
+  --radius-kaart: 14px;
 }
 
+/* Donker volgt het toestel, tenzij data-theme op <html> iets anders zegt. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --tekst: #f3f4f6;
-    --zacht: #9ca3af;
-    --lijn: #374151;
-    --vlak: #1f2937;
-    --achtergrond: #111827;
-    --accent: #60a5fa;
-    --accent-zacht: #1e3a5f;
-    --goed: #6ee7b7;
-    --goed-zacht: #064e3b;
-    --let-op: #fcd34d;
-    --let-op-zacht: #4a3410;
-    --fout: #fca5a5;
-    --fout-zacht: #4c1d1d;
+  :root:not([data-theme="light"]) {
+    --pagina: #121816;
+    --vlak: #1a221f;
+    --kaart: #202a26;
+    --tekst: #e6ece9;
+    --zacht: #9aa8a2;
+    --lijn: #2e3935;
+    --accent: #7cc2a6;
+    --accent-zacht: #22362f;
+    --let-op: #e2b45c;
+    --let-op-zacht: #3a2f1a;
+    --fout: #e5554a;
+    --fout-zacht: #3a1f1d;
+    --op-fout: #ffffff;
+    --jan: #8ab4e0;
+    --jan-zacht: #1f2c3a;
+    --sandra: #e29ab6;
+    --sandra-zacht: #3a2430;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --pagina: #121816;
+  --vlak: #1a221f;
+  --kaart: #202a26;
+  --tekst: #e6ece9;
+  --zacht: #9aa8a2;
+  --lijn: #2e3935;
+  --accent: #7cc2a6;
+  --accent-zacht: #22362f;
+  --let-op: #e2b45c;
+  --let-op-zacht: #3a2f1a;
+  --fout: #e5554a;
+  --fout-zacht: #3a1f1d;
+  --op-fout: #ffffff;
+  --jan: #8ab4e0;
+  --jan-zacht: #1f2c3a;
+  --sandra: #e29ab6;
+  --sandra-zacht: #3a2430;
+  color-scheme: dark;
 }
 
 * {
@@ -39,12 +93,25 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.55;
+  /* Atkinson Hyperlegible voor alle tekst, op 16px: gekozen om leesbaarheid. */
+  font-family: var(--letter-tekst);
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--tekst);
-  background: var(--achtergrond);
+  background: var(--pagina);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Eén focusstijl voor alles wat je met het toetsenbord bereikt. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 a {
@@ -52,16 +119,16 @@ a {
 }
 
 .omhulsel {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   /* min-width: 0 hoort erbij zodra hier een brede tabel in staat: zonder dat
      neemt de container de min-content van die tabel over en scrolt de hele
      pagina zijwaarts in plaats van enkel de tabel. */
   min-width: 0;
-  padding: 0 20px 64px;
+  padding: 0 16px 80px;
   /* Ruimte vrijhouden voor de afgeronde hoeken van een telefoonscherm. */
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
 }
 
 /* --- Het menu links ------------------------------------------------------
@@ -78,6 +145,7 @@ a {
 }
 
 .merk {
+  font-family: var(--letter-titel);
   font-weight: 700;
   text-decoration: none;
   color: var(--tekst);
@@ -106,7 +174,8 @@ a {
   height: 34px;
   border-radius: 10px;
   background: var(--tekst);
-  color: var(--achtergrond);
+  color: var(--pagina);
+  font-family: var(--letter-titel);
   font-weight: 700;
   font-size: 17px;
   text-decoration: none;
@@ -130,22 +199,22 @@ a {
   gap: 3px;
   width: 56px;
   padding: 7px 0 5px;
-  border-radius: 10px;
+  border-radius: var(--radius-knop);
   color: var(--zacht);
   text-decoration: none;
   font-size: 11px;
+  font-weight: 700;
   line-height: 1.2;
 }
 
 .modulelink:hover {
-  background: var(--accent-zacht);
+  background: var(--pagina);
   color: var(--tekst);
 }
 
 .modulelink[aria-current] {
   background: var(--accent-zacht);
   color: var(--accent);
-  font-weight: 600;
 }
 
 .zijmenu {
@@ -167,11 +236,12 @@ a {
 
 .zijmenu > .merk,
 .paneelkop {
-  font-size: 17px;
+  font-size: 20px;
   padding: 0 10px;
 }
 
 .paneelkop {
+  font-family: var(--letter-titel);
   font-weight: 700;
 }
 
@@ -188,9 +258,10 @@ a {
 .menukop {
   margin: 8px 0 0;
   padding: 4px 10px;
+  font-family: var(--letter-tekst);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--zacht);
 }
@@ -209,17 +280,18 @@ a {
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--tekst);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .menulijst a:hover {
-  background: var(--accent-zacht);
+  background: var(--pagina);
 }
 
+/* De pagina waarin je zit: in omgekeerde kleuren, zoals de huidige stap. */
 .menulijst a[aria-current="page"] {
-  background: var(--accent-zacht);
-  color: var(--accent);
-  font-weight: 600;
+  background: var(--tekst);
+  color: var(--pagina);
+  font-weight: 700;
 }
 
 /* Welk huis: de actieve huizen onder Vastgoed. */
@@ -233,7 +305,7 @@ a {
 
 .huiskeuze select {
   padding: 6px 8px;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .zijmenu-voet {
@@ -373,10 +445,11 @@ a {
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 18px;
+  padding: 14px 16px;
   border: 1px solid var(--lijn);
-  border-radius: 12px;
-  background: var(--achtergrond);
+  border-radius: var(--radius-kaart);
+  background: var(--kaart);
+  box-shadow: 0 1px 0 var(--lijn);
 }
 
 .startmodule-kop {
@@ -389,7 +462,7 @@ a {
 
 .startmodule-kop h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .startmodule-kop:hover h2 {
@@ -421,15 +494,18 @@ a {
 
 .startlinks a {
   display: block;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border: 1px solid var(--lijn);
-  border-radius: 999px;
+  border-radius: var(--radius);
+  background: var(--vlak);
+  color: var(--tekst);
   font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .startlinks a:hover {
-  background: var(--accent-zacht);
+  border-color: var(--zacht);
 }
 
 .merkteken[aria-current] {
@@ -437,28 +513,58 @@ a {
 }
 
 /* --- Bouwstenen --------------------------------------------------------- */
+/* Bricolage Grotesque enkel voor titels, namen en grote getallen. */
+h1,
+h2,
+h3 {
+  font-family: var(--letter-titel);
+  text-wrap: balance;
+}
+
 h1 {
-  font-size: 26px;
-  margin: 0 0 4px;
+  font-weight: 700;
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.1;
+  margin: 0 0 8px;
 }
 
 h2 {
-  font-size: 18px;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.25;
   margin: 32px 0 12px;
 }
 
+h3 {
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+/* Uitleg onder een titel: gedempt en nooit breder dan 64 tekens. */
 .inleiding {
   color: var(--zacht);
-  margin: 0 0 28px;
-  max-width: 70ch;
+  margin: 0 0 24px;
+  max-width: 64ch;
+}
+
+/* Een klein bovenschrift in hoofdletters, boven een titel of een getal. */
+.bovenschrift {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zacht);
 }
 
 .kaart {
   border: 1px solid var(--lijn);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-kaart);
+  padding: 16px 18px;
   margin-bottom: 20px;
-  background: var(--achtergrond);
+  background: var(--kaart);
+  /* Een haarlijn onder de kaart, geen echte schaduw. */
+  box-shadow: 0 1px 0 var(--lijn);
 }
 
 .tegels {
@@ -470,22 +576,27 @@ h2 {
 
 .tegel {
   border: 1px solid var(--lijn);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  background: var(--vlak);
+  border-radius: var(--radius-kaart);
+  padding: 12px 14px;
+  background: var(--kaart);
+  box-shadow: 0 1px 0 var(--lijn);
 }
 
 .tegel .label {
   font-size: 11px;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--zacht);
 }
 
 .tegel .waarde {
-  font-size: 22px;
+  font-family: var(--letter-titel);
+  font-size: 24px;
   font-weight: 700;
-  margin-top: 4px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
 }
 
 .tegel .bij {
@@ -497,7 +608,8 @@ h2 {
 .tabel-omhulsel {
   overflow-x: auto;
   border: 1px solid var(--lijn);
-  border-radius: var(--radius);
+  border-radius: var(--radius-paneel);
+  background: var(--vlak);
 }
 
 table {
@@ -518,9 +630,9 @@ th {
   background: var(--vlak);
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.08em;
   color: var(--zacht);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 tbody tr:last-child td {
@@ -537,13 +649,14 @@ tfoot td {
   font-weight: 700;
   border-top: 2px solid var(--tekst);
   background: var(--vlak);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Formulieren -------------------------------------------------------- */
 label {
   display: block;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 4px;
 }
 
@@ -554,6 +667,8 @@ label {
   margin: 2px 0 0;
 }
 
+/* Een veld heeft de kleur van de pagina, zodat het opvalt in het witte vlak
+   eromheen. */
 input,
 select,
 textarea {
@@ -562,15 +677,17 @@ textarea {
   border: 1px solid var(--lijn);
   border-radius: var(--radius);
   font: inherit;
-  background: var(--achtergrond);
+  background: var(--pagina);
   color: var(--tekst);
 }
 
-input:focus,
-select:focus,
-textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
 }
 
 .veldenrij {
@@ -592,31 +709,70 @@ textarea:focus {
   width: auto;
 }
 
+/* Een knop zonder klasse is de hoofdactie: vol in de accentkleur. Een stille
+   knop is wit met een rand. Geen schaduwen. */
 button,
 .knop {
   display: inline-block;
-  padding: 8px 14px;
-  border-radius: var(--radius);
+  padding: 9px 16px;
+  border-radius: var(--radius-knop);
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--op-kleur);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.35;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
 }
 
-button:hover,
-.knop:hover {
-  filter: brightness(1.08);
+/* Een knop reageert als je erover gaat: iets donkerder, of bij een stille
+   knop een rand die meer opvalt. Enkel de gewone knoppen: de knoppen van de
+   plannen en het 3D-beeld hebben hun eigen kleuren. */
+button:not([class]):not(:disabled):hover,
+button.klein:not(.stil):not(.gevaar):not(:disabled):hover,
+.knop:not(.stil):not(.gevaar):hover {
+  background: color-mix(in srgb, var(--accent) 86%, var(--tekst));
+  border-color: color-mix(in srgb, var(--accent) 86%, var(--tekst));
 }
 
 button.stil,
 .knop.stil {
-  background: transparent;
+  background: var(--vlak);
   color: var(--tekst);
   border-color: var(--lijn);
+}
+
+button.stil:not(:disabled):hover,
+.knop.stil:hover {
+  background: var(--vlak);
+  border-color: var(--zacht);
+}
+
+/* Klein, voor knoppen in een tabel of op een kaart. */
+button.klein,
+.knop.klein {
+  padding: 5px 10px;
+  font-size: 13px;
+  border-radius: var(--radius);
+}
+
+/* Op een tablet tik je met je vinger: grotere tikvlakken. */
+@media (min-width: 700px) and (pointer: coarse) {
+  button:not([class]),
+  button.stil,
+  button.gevaar,
+  .knop {
+    min-height: 44px;
+  }
+
+  button.klein,
+  .knop.klein {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
 }
 
 /* Een knop die niets doet, moet er ook zo uitzien. Waaróm hij uitstaat, staat
@@ -626,14 +782,17 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:disabled:hover {
-  filter: none;
+/* Verwijderen is een volle rode knop. Rood komt verder enkel bij fouten voor. */
+button.gevaar,
+.knop.gevaar {
+  background: var(--fout);
+  border-color: var(--fout);
+  color: var(--op-fout);
 }
 
-button.gevaar {
-  background: transparent;
-  color: var(--fout);
-  border-color: var(--fout);
+button.gevaar:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fout) 86%, var(--tekst));
+  border-color: color-mix(in srgb, var(--fout) 86%, var(--tekst));
 }
 
 .knoppenrij {
@@ -653,12 +812,15 @@ button.gevaar {
 }
 
 /* --- Meldingen ---------------------------------------------------------- */
+/* Een melding is een zacht gekleurd vlak zonder rand; de tekst blijft in de
+   gewone tekstkleur, zodat ze in licht en donker even goed leesbaar is. */
 .melding {
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  border-radius: var(--radius-knop);
+  padding: 10px 14px;
   margin-bottom: 16px;
   font-size: 14px;
-  border: 1px solid;
+  border: 0;
+  color: var(--tekst);
 }
 
 .melding p {
@@ -699,49 +861,65 @@ button.gevaar {
 
 .kruisje:hover {
   opacity: 1;
-  filter: none;
+  background: none;
+  border: none;
 }
 
 .melding.goed {
   background: var(--goed-zacht);
-  border-color: var(--goed);
-  color: var(--goed);
 }
 
 .melding.let-op {
   background: var(--let-op-zacht);
-  border-color: var(--let-op);
-  color: var(--let-op);
 }
 
 .melding.fout {
   background: var(--fout-zacht);
-  border-color: var(--fout);
+}
+
+/* Een fout zegt het ook in de kleur van de eerste regel, niet enkel in het vlak. */
+.melding.fout > :first-child,
+.melding.fout:not(:has(> *)) {
   color: var(--fout);
+  font-weight: 700;
 }
 
 .melding.info {
-  background: var(--accent-zacht);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--vlak);
+  box-shadow: inset 0 0 0 1px var(--lijn);
 }
 
+/* Een label: een pil met een korte status. */
 .label-vlag {
   display: inline-block;
-  padding: 2px 8px;
+  align-self: center;
+  padding: 2px 9px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--pagina);
+  color: var(--zacht);
 }
 
 .label-vlag.goed {
   background: var(--goed-zacht);
-  color: var(--goed);
+  color: var(--tekst);
 }
 
 .label-vlag.let-op {
   background: var(--let-op-zacht);
   color: var(--let-op);
+}
+
+.label-vlag.jan {
+  background: var(--jan-zacht);
+  color: var(--jan);
+}
+
+.label-vlag.sandra {
+  background: var(--sandra-zacht);
+  color: var(--sandra);
 }
 
 /* Statusicoon: dezelfde kleuren als de labelvlag, maar het zegt hetzelfde in
@@ -1005,10 +1183,15 @@ td.smal {
   color: var(--zacht);
 }
 
+/* Nog niets: een vak met een gestippelde rand dat zegt wat er komt en wat je
+   kan doen. Gestippeld betekent altijd "nog leeg" of "aangepast", nooit
+   versiering. */
 .leeg {
   color: var(--zacht);
-  padding: 24px;
-  text-align: center;
+  padding: 18px;
+  background: var(--vlak);
+  border: 1px dashed var(--lijn);
+  border-radius: var(--radius-paneel);
 }
 
 .scheiding {
@@ -1611,20 +1794,25 @@ button.link {
   margin: 0 0 14px;
 }
 
+/* Zoals de stappenbalk van het prototype: gedempt op een wit vlak, en de
+   tab waarin je zit in omgekeerde kleuren. */
 .tabs a {
-  padding: 6px 12px;
-  border: 1px solid var(--lijn);
-  border-radius: var(--radius);
-  color: var(--tekst);
+  padding: 8px 14px;
+  border-radius: var(--radius-knop);
+  background: var(--vlak);
+  color: var(--zacht);
   text-decoration: none;
   font-size: 14px;
+  font-weight: 700;
+}
+
+.tabs a:hover {
+  color: var(--tekst);
 }
 
 .tabs a.actief {
-  border-color: var(--accent);
-  background: var(--accent-zacht);
-  color: var(--accent);
-  font-weight: 600;
+  background: var(--tekst);
+  color: var(--pagina);
 }
 
 /* Het palet met soorten punten. */
@@ -3361,10 +3549,6 @@ tr.deze-maand td {
     padding-bottom: 48px;
   }
 
-  h1 {
-    font-size: 22px;
-  }
-
   .viewer {
     height: 60vh;
     height: 60dvh;
@@ -3397,6 +3581,7 @@ tr.deze-maand td {
     border: none;
     border-radius: 0;
     overflow-x: visible;
+    background: none;
   }
 
   .tabel-omhulsel table,
@@ -3415,10 +3600,11 @@ tr.deze-maand td {
 
   .tabel-omhulsel tr {
     border: 1px solid var(--lijn);
-    border-radius: var(--radius);
-    padding: 12px 14px;
+    border-radius: var(--radius-paneel);
+    padding: 10px 12px;
     margin-bottom: 10px;
-    background: var(--achtergrond);
+    background: var(--kaart);
+    box-shadow: 0 1px 0 var(--lijn);
   }
 
   .tabel-omhulsel td {
@@ -3451,8 +3637,8 @@ tr.deze-maand td {
     flex: 0 0 auto;
     text-align: left;
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--zacht);
   }
@@ -3471,9 +3657,9 @@ tr.deze-maand td {
     text-align: right;
   }
 
+  /* Het totaal: een wit vlak met een donkerdere rand, en de getallen vet. */
   .tabel-omhulsel tfoot tr {
-    border-width: 2px;
-    border-color: var(--tekst);
+    border-color: var(--zacht);
     background: var(--vlak);
   }
 

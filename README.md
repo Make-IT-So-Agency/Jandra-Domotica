@@ -39,6 +39,10 @@ met haar eigen stukje in elk van die lagen en haar eigen tests.
   met haar pagina's in het paneel ernaast, eventueel in secties. Je voegt ze
   toe in `menuVoor` in `web/lib/navigatie.ts`, met een kort label, een icoon
   en wie ze mag zien. Ze krijgt één eigen basispad, bv. `/huishouden`.
+- **Eén stijl voor alle modules**, beschreven in
+  [docs/STIJLGIDS.md](docs/STIJLGIDS.md). Kleuren, lettertypes en hoeken
+  staan als tokens bovenaan `web/app/globals.css`; gebruik die in plaats van
+  vaste kleuren.
 - **Een overdracht vóór het bouwen.** Is de module eerst als prototype
   ontworpen, laat dat gesprek dan een overdracht schrijven met
   [docs/MODULE-BRIEFING.md](docs/MODULE-BRIEFING.md).
