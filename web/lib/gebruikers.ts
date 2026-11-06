@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isPersoon, type Persoon } from "./huishouden/balans";
 import { normaliseerEmail, type Gebruiker, type Rol } from "./rollen";
 import { db } from "./supabase";
 
@@ -25,6 +26,7 @@ interface GebruikerRij {
   invited_at: string;
   last_login_at: string | null;
   is_active: boolean;
+  huishouden_persoon?: string | null;
 }
 
 function naarGebruiker(rij: GebruikerRij, vast: boolean): Gebruiker {
@@ -36,6 +38,7 @@ function naarGebruiker(rij: GebruikerRij, vast: boolean): Gebruiker {
     rol: vast ? "hoofdbeheerder" : rij.role,
     vennootschap_id: vast ? null : rij.company_id,
     vasteBeheerder: vast,
+    huishouden: isPersoon(rij.huishouden_persoon) ? rij.huishouden_persoon : null,
   };
 }
 
@@ -70,6 +73,7 @@ export async function zoekGebruiker(email: string): Promise<Gebruiker | null> {
     rol: "hoofdbeheerder",
     vennootschap_id: null,
     vasteBeheerder: true,
+    huishouden: null,
   };
 }
 
@@ -236,6 +240,21 @@ export async function wijzigGebruiker(
     .eq("id", id);
 
   if (error) throw new Error(`Wijzigen mislukt: ${error.message}`);
+}
+
+/**
+ * Koppelt een gebruiker aan Jan of Sandra in Huishouden, of maakt de
+ * koppeling los. Elke persoon hoort bij hoogstens één gebruiker.
+ */
+export async function koppelHuishouden(id: string, persoon: Persoon | null): Promise<void> {
+  const { error } = await db().from("app_users").update({ huishouden_persoon: persoon }).eq("id", id);
+  if (error) {
+    throw new Error(
+      error.code === "23505"
+        ? "Die persoon is al aan iemand anders gekoppeld. Maak die koppeling eerst los."
+        : `Koppelen mislukt: ${error.message}`,
+    );
+  }
 }
 
 export async function verwijderGebruiker(id: string): Promise<void> {

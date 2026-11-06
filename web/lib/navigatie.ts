@@ -1,7 +1,7 @@
 import { heeftOnderdeel, onderdeelVan } from "./bouw/onderdelen";
 import { VASTGOED, deelVan, huisUitPad, huispad } from "./bouw/paden";
 import type { SoortHuis } from "./bouw/types";
-import { magBouwZien, magGebruikersBeheren, magInstellingenBeheren, type Gebruiker } from "./rollen";
+import { magBouwZien, magGebruikersBeheren, magHuishoudenZien, magInstellingenBeheren, type Gebruiker } from "./rollen";
 
 /**
  * Het menu van de app, per module. Links staat een smalle balk met een icoon
@@ -81,6 +81,11 @@ export const HUISPAGINAS: { deel: string; naam: string; sectie: string | null }[
 /** Het basispad van Laadpalen; de startpagina van de app (/) is van alle modules samen. */
 export const LAADPALEN = "/laadpalen";
 
+/** Het basispad van Huishouden, en zijn pagina's. /huishouden zelf stuurt door naar De balans. */
+export const HUISHOUDEN = "/huishouden";
+
+export const HUISHOUDENPAGINAS: Paginalink[] = [{ pad: `${HUISHOUDEN}/balans`, naam: "De balans" }];
+
 /** Onder Vastgoed, los van de huizen: de huizen zelf, en de bot voor alle huizen. */
 export const VASTGOEDPAGINAS: Paginalink[] = [
   { pad: VASTGOED, naam: "Huizen" },
@@ -151,6 +156,17 @@ export function menuVoor(gebruiker: Gebruiker, huizen: Menuhuis[] = []): Menumod
       start: huismenus[0] ? huispad(huismenus[0].id) : VASTGOED,
       huizen: huismenus,
       secties: [{ naam: "Alle huizen", paginas: VASTGOEDPAGINAS }],
+    });
+  }
+  if (magHuishoudenZien(gebruiker)) {
+    menu.push({
+      id: "huishouden",
+      naam: "Huishouden",
+      kort: "Huishouden",
+      icoon: "mand",
+      uitleg: "De werkstromen van het gezin, eerlijk verdeeld tussen Jan en Sandra.",
+      start: HUISHOUDENPAGINAS[0].pad,
+      secties: [{ naam: null, paginas: HUISHOUDENPAGINAS }],
     });
   }
   if (magGebruikersBeheren(gebruiker)) {

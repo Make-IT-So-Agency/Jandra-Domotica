@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { isPersoon, PERSOONSNAMEN } from "@/lib/huishouden/balans";
 import {
+  koppelHuishouden,
   telHoofdbeheerders,
   voegGebruikerToe,
   verwijderGebruiker,
@@ -14,6 +16,7 @@ import {
   isGeldigeRol,
   magGebruikersBeheren,
   magGebruikerVerwijderen,
+  magHuishoudenKoppelen,
   magGebruikerWijzigen,
   magUitnodigen,
   normaliseerEmail,
@@ -96,6 +99,33 @@ export async function wijzigGebruikerActie(formulier: FormData): Promise<void> {
   }
 
   terug("goed", `De rechten van ${doelwit.email} zijn aangepast.`);
+}
+
+/** Koppelt iemand aan Jan of Sandra in Huishouden, of maakt dat los. Enkel de hoofdbeheerder. */
+export async function koppelHuishoudenActie(formulier: FormData): Promise<void> {
+  const actor = await vereistGebruiker();
+  if (!magHuishoudenKoppelen(actor)) terug("fout", "Enkel de hoofdbeheerder koppelt iemand aan Huishouden.");
+
+  const id = String(formulier.get("id") ?? "");
+  const doelwit = id ? await zoekGebruikerOpId(id) : null;
+  if (!doelwit) terug("fout", "Deze gebruiker bestaat niet meer.");
+
+  const keuze = String(formulier.get("huishouden") ?? "");
+  const persoon = isPersoon(keuze) ? keuze : null;
+  if (keuze && !persoon) terug("fout", "Kies Jan, Sandra of niemand.");
+
+  try {
+    await koppelHuishouden(id, persoon);
+  } catch (fout) {
+    terug("fout", fout instanceof Error ? fout.message : "Koppelen mislukt.");
+  }
+
+  terug(
+    "goed",
+    persoon
+      ? `${doelwit.email} is in Huishouden nu ${PERSOONSNAMEN[persoon]}.`
+      : `${doelwit.email} ziet Huishouden niet meer.`,
+  );
 }
 
 export async function verwijderGebruikerActie(formulier: FormData): Promise<void> {

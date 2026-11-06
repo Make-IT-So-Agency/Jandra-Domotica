@@ -12,6 +12,8 @@
  * - kijker                  ziet enkel de eigen vennootschap, wijzigt niets
  */
 
+import type { Persoon } from "./huishouden/balans";
+
 export const ROLLEN = ["hoofdbeheerder", "vennootschapsbeheerder", "kijker"] as const;
 
 export type Rol = (typeof ROLLEN)[number];
@@ -41,6 +43,11 @@ export interface Gebruiker {
    * hoofdbeheerder. Zo kan je jezelf nooit buitensluiten via de app.
    */
   vasteBeheerder: boolean;
+  /**
+   * Wie deze gebruiker is in Huishouden: Jan, Sandra, of niemand. Los van de
+   * rol: wie hier niets heeft, ziet de module niet.
+   */
+  huishouden: Persoon | null;
 }
 
 export interface Beslissing {
@@ -102,6 +109,16 @@ export function magRapportenMaken(gebruiker: Gebruiker): boolean {
  * voortaan ook het huis.
  */
 export function magBouwZien(gebruiker: Gebruiker): boolean {
+  return isHoofdbeheerder(gebruiker);
+}
+
+/** Huishouden is voor Jan en Sandra: wie aan een van hen gekoppeld is. */
+export function magHuishoudenZien(gebruiker: Gebruiker): boolean {
+  return gebruiker.huishouden !== null;
+}
+
+/** Wie aan Jan of Sandra gekoppeld is, kiest enkel de hoofdbeheerder. */
+export function magHuishoudenKoppelen(gebruiker: Gebruiker): boolean {
   return isHoofdbeheerder(gebruiker);
 }
 

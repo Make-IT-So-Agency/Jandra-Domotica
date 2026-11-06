@@ -15,6 +15,7 @@ met haar eigen stukje in elk van die lagen en haar eigen tests.
 | **Laadkosten** | Laadsessies uit evcc doorrekenen en per vennootschap rapporteren | Home Assistant, Vercel, Supabase | `custom_components/laadkosten/`, `web/`, `supabase/` |
 | **Opvang** | Buitenschoolse opvang aanduiden in Telegram en automatisch reserveren in i-Active | Vercel, Supabase, GitHub Actions | [`opvang/`](opvang/LEESMIJ.md), `web/lib/opvang/` |
 | **Bouw** | Ons vastgoed, per huis: de plannen van de architect met hun versies, omgezet naar ruimtes per verdieping, de punten voor de elektricien met hun wensenlijst, de keuzes en de planning, het huis in 3D, het geld, de werf, het woningdossier met garanties en onderhoud, een eigen Telegram-bot voor alle huizen, en een persoonlijke link voor de architect en de aannemers | Vercel, Supabase met Storage | [`bouw/`](bouw/LEESMIJ.md), `web/lib/bouw/`, `web/app/vastgoed/` |
+| **Huishouden** | De werkstromen van het gezin eerlijk verdelen tussen Jan en Sandra: De balans | Vercel, Supabase | [`huishouden/`](huishouden/LEESMIJ.md), `web/lib/huishouden/`, `web/app/huishouden/` |
 
 ### Afspraken voor een nieuwe module
 
