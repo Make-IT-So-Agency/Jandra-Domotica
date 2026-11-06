@@ -172,7 +172,7 @@ export const STAPPEN: { fase: Fase; naam: string; ondertitel: string }[] = [
  * De stappen die al gebouwd zijn. De module komt er stap voor stap bij (zie
  * huishouden/LEESMIJ.md); zolang een stap er niet is, kan je er ook niet heen.
  */
-export const GEBOUWDE_FASES: readonly Fase[] = ["lijst", "inschatten", "voorstel", "vastgelegd"];
+export const GEBOUWDE_FASES: readonly Fase[] = ["lijst", "inschatten", "bieden", "voorstel", "vastgelegd"];
 
 export function isGebouwd(fase: Fase): boolean {
   return GEBOUWDE_FASES.includes(fase);

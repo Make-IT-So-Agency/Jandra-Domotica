@@ -4776,3 +4776,54 @@ details.palet:not([open]) {
 .meter .over {
   background: var(--let-op);
 }
+
+/* --- Stap 3: bieden -------------------------------------------------------------- */
+.budgetvak {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--vlak);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius-paneel);
+}
+
+.budget-getallen {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.budgetvak .meter {
+  margin-top: 0;
+}
+
+.meter .accent {
+  background: var(--accent);
+}
+
+/* De schuifbalk met het bod in een groot getal ernaast. */
+.bod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bod input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.bod output {
+  min-width: 44px;
+  font-family: var(--letter-titel);
+  font-weight: 700;
+  font-size: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

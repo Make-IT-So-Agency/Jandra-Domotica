@@ -10,14 +10,16 @@ import {
   voortgang,
   type Stap2Gegevens,
 } from "@/lib/huishouden/balans";
+import { biedingenVoorVoorstel, botsendeKaarten, type Stap3Gegevens } from "@/lib/huishouden/bieden";
 import {
   leesAkkoorden,
   leesBalans,
+  leesBiedingen,
   leesInschattingen,
   leesVerdeling,
   leesVerschuivingen,
 } from "@/lib/huishouden/opslag";
-import { berekenVoorstel, voeltGoed, type Voorstelgegevens } from "@/lib/huishouden/voorstel";
+import { berekenVoorstel, mentaalVan, urenVan, voeltGoed, type Voorstelgegevens } from "@/lib/huishouden/voorstel";
 import { vereistGebruiker } from "@/lib/toegang";
 
 import { Balans } from "./balans";
@@ -34,9 +36,24 @@ export default async function Balanspagina() {
   const { ronde, kaarten, lijstakkoorden } = await leesBalans();
 
   let stap2: Stap2Gegevens | null = null;
+  let stap3: Stap3Gegevens | null = null;
   let voorstel: Voorstelgegevens | null = null;
   if (magInschatten(ronde)) {
     const { invoer, beschikbareTijd } = await leesInschattingen(ronde);
+    const botsend = botsendeKaarten(kaarten, invoer);
+    const biedingen =
+      ronde.fase === "inschatten" ? { jan: new Map<number, number>(), sandra: new Map<number, number>() } : await leesBiedingen(ronde);
+
+    // Stap 3: enkel je eigen biedingen; die van de ander zie je pas in het
+    // voorstel, als reden bij een kaart ("60 tegen 40").
+    if (ronde.fase !== "inschatten") {
+      const klaar = await leesAkkoorden(ronde, "bieden");
+      stap3 = {
+        kaarten: botsend.map((kaart) => ({ kaart, uren: urenVan(kaart, invoer), mentaal: mentaalVan(kaart, invoer) })),
+        mijn: Object.fromEntries(biedingen[ik.huishouden]),
+        klaar: { jan: klaar.some((a) => a.persoon === "jan"), sandra: klaar.some((a) => a.persoon === "sandra") },
+      };
+    }
 
     // Vanaf het voorstel zijn de keuzes van allebei zichtbaar, als reden bij
     // een kaart. In stap 5 telt de vastgelegde verdeling in plaats van de
@@ -47,7 +64,13 @@ export default async function Balanspagina() {
         leesAkkoorden(ronde, "voorstel"),
       ]);
       voorstel = {
-        voorstel: berekenVoorstel({ kaarten, invoer, beschikbareTijd, verschuivingen }),
+        voorstel: berekenVoorstel({
+          kaarten,
+          invoer,
+          beschikbareTijd,
+          verschuivingen,
+          biedingen: biedingenVoorVoorstel(biedingen, new Set(botsend.map((kaart) => kaart.id))),
+        }),
         voeltGoed: voeltGoed(ronde, akkoorden),
       };
     }
@@ -77,6 +100,7 @@ export default async function Balanspagina() {
       akkoord={akkoordMetLijst(ronde, lijstakkoorden)}
       domeinen={domeinen(kaarten)}
       stap2={stap2}
+      stap3={stap3}
       voorstel={voorstel}
     />
   );

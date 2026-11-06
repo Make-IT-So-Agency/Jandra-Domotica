@@ -283,6 +283,7 @@ export async function zetBeschikbareTijd(persoon: Persoon, uren: number | null):
 export async function allesResetten(ronde: Ronde): Promise<void> {
   const stappen = [
     db().from("huishouden_verdeling").delete().eq("ronde_id", ronde.id),
+    db().from("huishouden_biedingen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_verschuivingen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_claims").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_akkoorden").delete().eq("ronde_id", ronde.id),
@@ -403,4 +404,45 @@ export async function legVast(ronde: Ronde, verdeling: { kaartId: number; eigena
     if (fout) throw new Error(`Vastleggen mislukt: ${fout.message}`);
   }
   return true;
+}
+
+// --- Stap 3 -------------------------------------------------------------------
+
+/** De biedingen van allebei in deze ronde. Wat de ander bood, gaat nooit zomaar naar de browser. */
+export async function leesBiedingen(ronde: Ronde): Promise<Record<Persoon, Map<number, number>>> {
+  const { data, error } = await db().from("huishouden_biedingen").select("persoon, kaart_id, punten").eq("ronde_id", ronde.id);
+  if (error) throw new Error(`De biedingen lezen mislukt: ${error.message}`);
+  const biedingen: Record<Persoon, Map<number, number>> = { jan: new Map(), sandra: new Map() };
+  for (const rij of data ?? []) {
+    if (isPersoon(rij.persoon)) biedingen[rij.persoon].set(Number(rij.kaart_id), Number(rij.punten));
+  }
+  return biedingen;
+}
+
+export async function zetBod(ronde: Ronde, persoon: Persoon, kaartId: number, punten: number): Promise<void> {
+  const { error } = await db()
+    .from("huishouden_biedingen")
+    .upsert(
+      { ronde_id: ronde.id, persoon, kaart_id: kaartId, punten, gewijzigd_op: new Date().toISOString() },
+      { onConflict: "ronde_id,persoon,kaart_id" },
+    );
+  if (error) throw new Error(`Je bod bewaren mislukt: ${error.message}`);
+}
+
+/** "Ik ben klaar" met bieden, of "Toch nog aanpassen". Enkel je eigen rij. */
+export async function zetKlaarMetBieden(ronde: Ronde, persoon: Persoon, klaar: boolean): Promise<void> {
+  const tabel = db().from("huishouden_akkoorden");
+  const { error } = klaar
+    ? await tabel.upsert(
+        { ronde_id: ronde.id, persoon, soort: "bieden", versie: null, gegeven_op: new Date().toISOString() },
+        { onConflict: "ronde_id,persoon,soort" },
+      )
+    : await tabel.delete().eq("ronde_id", ronde.id).eq("persoon", persoon).eq("soort", "bieden");
+  if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
+}
+
+/** "Klaar met bieden" van allebei weg: na een gewijzigde claim kan er een nieuwe botsing zijn. */
+export async function wisKlaarMetBieden(ronde: Ronde): Promise<void> {
+  const { error } = await db().from("huishouden_akkoorden").delete().eq("ronde_id", ronde.id).eq("soort", "bieden");
+  if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
 }
