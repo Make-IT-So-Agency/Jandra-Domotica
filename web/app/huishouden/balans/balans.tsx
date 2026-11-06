@@ -13,9 +13,14 @@ import {
   type Stap2Gegevens,
 } from "@/lib/huishouden/balans";
 
+import type { Voorstelgegevens } from "@/lib/huishouden/voorstel";
+
 import { allesResettenActie, type Resultaat } from "./acties";
 import { StapInschatten } from "./stap-inschatten";
 import { StapLijst } from "./stap-lijst";
+import { StapVerdeling } from "./stap-verdeling";
+import { StapVoorstel } from "./stap-voorstel";
+import { Weegschaal } from "./weegschaal";
 
 /** Voert een actie uit, met "Bewaren…" en daarna haar melding onderaan het scherm. */
 export type Voer = (actie: () => Promise<Resultaat>) => Promise<Resultaat>;
@@ -50,6 +55,7 @@ export function Balans({
   akkoord,
   domeinen,
   stap2,
+  voorstel,
 }: {
   ik: Persoon;
   ronde: Ronde;
@@ -57,6 +63,7 @@ export function Balans({
   akkoord: Record<Persoon, boolean>;
   domeinen: string[];
   stap2: Stap2Gegevens | null;
+  voorstel: Voorstelgegevens | null;
 }) {
   useLiveVerversen();
   const router = useRouter();
@@ -109,10 +116,12 @@ export function Balans({
           {bekeken === 2 && stap2 ? (
             <StapInschatten ik={ik} ronde={ronde} kaarten={kaarten} gegevens={stap2} voer={voer} />
           ) : null}
+          {bekeken === 4 && voorstel ? <StapVoorstel ik={ik} ronde={ronde} gegevens={voorstel} voer={voer} /> : null}
+          {bekeken === 5 && voorstel ? <StapVerdeling gegevens={voorstel} /> : null}
           <AllesResetten voer={voer} />
         </section>
 
-        {metZijpaneel ? <Weegschaal /> : null}
+        {metZijpaneel ? <Weegschaal totaal={bekeken >= 4 && voorstel ? voorstel.voorstel.totaal : null} /> : null}
       </div>
 
       <p className="bewaarmelding" role="status" aria-live="polite">
@@ -134,7 +143,8 @@ function Stappenbalk({ huidig, bekeken, kies }: { huidig: number; bekeken: numbe
         {STAPPEN.map((stap, index) => {
           const nummer = index + 1;
           const bereikbaar = nummer <= huidig && isGebouwd(stap.fase);
-          const klasse = nummer === bekeken ? "huidig" : nummer <= huidig ? "af" : "later";
+          // Een stap die er nog niet is (zoals bieden), ziet eruit als een latere stap.
+          const klasse = nummer === bekeken ? "huidig" : nummer <= huidig && isGebouwd(stap.fase) ? "af" : "later";
           return (
             <li key={stap.fase}>
               <button
@@ -156,18 +166,6 @@ function Stappenbalk({ huidig, bekeken, kies }: { huidig: number; bekeken: numbe
         })}
       </ol>
     </nav>
-  );
-}
-
-/** Het zijpaneel. In stap 2 en 3 blijft het bewust leeg: anders kan je afleiden wat de ander koos. */
-function Weegschaal() {
-  return (
-    <aside className="zijpaneel" aria-labelledby="weegschaal">
-      <h2 id="weegschaal" className="bovenschrift">
-        Weegschaal
-      </h2>
-      <p>De weegschaal verschijnt in het voorstel. Zo vul je alles in zonder te zien wat de ander koos.</p>
-    </aside>
   );
 }
 

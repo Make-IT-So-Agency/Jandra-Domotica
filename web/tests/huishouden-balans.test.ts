@@ -39,7 +39,7 @@ const GELDIG = {
 };
 
 const VERSIE = "2026-11-06T10:00:00.000Z";
-const RONDE: Ronde = { id: 1, fase: "lijst", lijstVersie: VERSIE };
+const RONDE: Ronde = { id: 1, fase: "lijst", lijstVersie: VERSIE, voorstelVersie: VERSIE };
 
 describe("een kaart lezen uit de dialoog", () => {
   it("neemt een geldige kaart over, met lege velden als null", () => {
@@ -292,8 +292,11 @@ describe("stap 2: verder en blind", () => {
   it("gaat enkel naar een stap die al gebouwd is", () => {
     expect(isGebouwd("lijst")).toBe(true);
     expect(isGebouwd("inschatten")).toBe(true);
+    expect(isGebouwd("bieden")).toBe(false);
     expect(volgendeFase("lijst")).toBe("inschatten");
-    // Stap 3 en 4 zijn er nog niet: na stap 2 is er nog niets.
-    expect(volgendeFase("inschatten")).toBeNull();
+    // Stap 3 (bieden) is er nog niet: na stap 2 gaat het meteen naar het voorstel.
+    expect(volgendeFase("inschatten")).toBe("voorstel");
+    expect(volgendeFase("voorstel")).toBe("vastgelegd");
+    expect(volgendeFase("vastgelegd")).toBeNull();
   });
 });

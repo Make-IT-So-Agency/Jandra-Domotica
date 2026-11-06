@@ -27,14 +27,15 @@ De module komt er stap voor stap bij, in de volgorde van de overdracht (§9).
 | --- | --- | --- |
 | 1 | De gedeelde lijst (stap 1): kaarten toevoegen, aanpassen, schrappen en verwijderen, en het akkoord van allebei | **klaar** |
 | 2 | Inschatten en claimen (stap 2), met de beschikbare tijd, en "Alles resetten" | **klaar** |
-| 3 | Voorstel en vastleggen (stap 4 en 5), zonder bieden | nog niet |
+| 3 | Voorstel en vastleggen (stap 4 en 5), zonder bieden | **klaar** |
 | 4 | Bieden (stap 3) | nog niet |
 | 5 | Uitlenen, doorgeven, nieuwe ronde en alles resetten | nog niet |
 
 Welke stappen er al zijn, staat in `GEBOUWDE_FASES` in
 `web/lib/huishouden/balans.ts`. Je kan nooit naar een stap die er nog niet
-is: zijn jullie allebei klaar met stap 2, dan zegt de pagina dat het voorstel
-er binnenkort bijkomt. Ligt de lijst vast en wil je ze toch nog aanpassen,
+is. Zolang bieden (stap 3) er niet is, gaat het na stap 2 meteen naar het
+voorstel, en gaan kaarten die jullie allebei met "Wil ik" claimen naar het
+evenwicht (R2b). Ligt de lijst vast en wil je ze toch nog aanpassen,
 dan brengt **Alles resetten** onderaan elke stap jullie terug naar stap 1
 (de kaarten blijven). "Nieuwe ronde starten" komt met bouwstap 5.
 
@@ -42,10 +43,11 @@ dan brengt **Alles resetten** onderaan elke stap jullie terug naar stap 1
 
 | Wat | Waar |
 | --- | --- |
-| De tabellen | `supabase/migrations/20261106100000_huishouden.sql`: `huishouden_kaarten`, `huishouden_rondes`, `huishouden_akkoorden`, en `app_users.huishouden_persoon`. `20261106120000_huishouden_inschatten.sql`: `huishouden_inschattingen` (tijd en last, over rondes heen), `huishouden_claims` (per ronde) en `huishouden_tijd` |
+| De tabellen | `supabase/migrations/20261106100000_huishouden.sql`: `huishouden_kaarten`, `huishouden_rondes`, `huishouden_akkoorden`, en `app_users.huishouden_persoon`. `20261106120000_huishouden_inschatten.sql`: `huishouden_inschattingen` (tijd en last, over rondes heen), `huishouden_claims` (per ronde) en `huishouden_tijd`. `20261106140000_huishouden_voorstel.sql`: `huishouden_verschuivingen`, `huishouden_verdeling` (de vastgelegde eigenaars) en `voorstel_versie` op de ronde |
 | De regels, zonder databank | `web/lib/huishouden/balans.ts`, getest in `web/tests/huishouden-balans.test.ts` |
+| Het voorstel en de weegschaal (R1 tot R16) | `web/lib/huishouden/voorstel.ts`, getest in `web/tests/huishouden-voorstel.test.ts`, met het volledige voorbeeld uit de overdracht |
 | Lezen en bewaren | `web/lib/huishouden/opslag.ts` |
-| De pagina | `web/app/huishouden/balans/`: `page.tsx` leest, `balans.tsx` toont de stappen, `stap-lijst.tsx` en `stap-inschatten.tsx` elk één stap, `acties.ts` bewaart |
+| De pagina | `web/app/huishouden/balans/`: `page.tsx` leest en rekent het voorstel uit, `balans.tsx` toont de stappen, `stap-lijst.tsx`, `stap-inschatten.tsx`, `stap-voorstel.tsx` en `stap-verdeling.tsx` elk één stap, `weegschaal.tsx` het zijpaneel, `acties.ts` bewaart |
 | De opmaak | onderaan `web/app/globals.css`, onder "Huishouden: De balans" |
 
 ## Hoe het samenwerkt
@@ -65,6 +67,16 @@ dan brengt **Alles resetten** onderaan elke stap jullie terug naar stap 1
   de voortgang van allebei ("Sandra 5/12"). De scores van de ander komen pas
   mee als jullie verder zijn dan stap 2; de claims van de ander nooit, die
   verschijnen pas in het voorstel als reden bij een kaart.
+- **Het voorstel wordt niet bewaard.** Het wordt telkens uitgerekend uit de
+  kaarten, inschattingen, claims, beschikbare tijd en verschuivingen. Pas
+  bij "Verdeling vastleggen" komen de eigenaars van de kaarten via het spel
+  in `huishouden_verdeling`. In stap 5 rekenen de uren en de mentale last mee
+  met de inschattingen van nu, maar de eigenaars veranderen niet meer.
+- **"Dit voelt goed voor mij"** slaat, net als het akkoord met de lijst, op de
+  versie van het voorstel die je zag (`voorstel_versie`). Een verschuiving,
+  of een gewijzigde claim, inschatting of beschikbare tijd terwijl jullie in
+  het voorstel zitten, zet een nieuwe versie en wist zo "voelt goed" van
+  allebei (R15, OV11).
 - **Geen tik verloren.** Elke tik in stap 2 wordt apart bewaard, in de
   volgorde waarin je tikte, en tijd en last apart, zodat ze elkaar niet
   overschrijven. Tot de server een tik bevestigt, toont de kaart je laatste
@@ -109,5 +121,12 @@ Uit de overdracht, §12, beantwoord door Jan op 5 en 6 november 2026.
   uren) staan niet in stap 2.
 - **Op de gsm** staan de kaarten in stap 2 onder elkaar in plaats van in twee
   kolommen: vijf bolletjes passen niet in een halve gsm-breedte.
+- **Een gelijke stand in het evenwicht** gaat om beurten naar Jan en
+  Sandra, te beginnen bij Jan (OV16), binnen één berekening van het voorstel.
+- **Uitbesteden** kan enkel bij kaarten die niemand graag doet (die ×1,5
+  tellen), zoals in de overdracht.
+- **Stap 5** toont de verdeling, de uren, de mentale last en "goed genoeg".
+  Uitlenen, doorgeven en "Nieuwe ronde starten" komen met bouwstap 5; tot
+  dan brengt Alles resetten jullie terug naar stap 1.
 - **Mentale last 2 tot 4** hebben geen omschrijving: de overdracht geeft er
   enkel voor 1 (nauwelijks) en 5 (zit er constant).
