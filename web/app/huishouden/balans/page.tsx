@@ -15,6 +15,7 @@ import {
   leesAkkoorden,
   leesBalans,
   leesBiedingen,
+  leesUitleningen,
   leesInschattingen,
   leesVerdeling,
   leesVerschuivingen,
@@ -59,9 +60,10 @@ export default async function Balanspagina() {
     // een kaart. In stap 5 telt de vastgelegde verdeling in plaats van de
     // verschuivingen.
     if (ronde.fase === "voorstel" || ronde.fase === "vastgelegd") {
-      const [verschuivingen, akkoorden] = await Promise.all([
+      const [verschuivingen, akkoorden, uitleningen] = await Promise.all([
         ronde.fase === "voorstel" ? leesVerschuivingen(ronde) : leesVerdeling(ronde),
         leesAkkoorden(ronde, "voorstel"),
+        ronde.fase === "vastgelegd" ? leesUitleningen(ronde) : Promise.resolve(new Map()),
       ]);
       voorstel = {
         voorstel: berekenVoorstel({
@@ -72,6 +74,7 @@ export default async function Balanspagina() {
           biedingen: biedingenVoorVoorstel(biedingen, new Set(botsend.map((kaart) => kaart.id))),
         }),
         voeltGoed: voeltGoed(ronde, akkoorden),
+        uitleningen: Object.fromEntries(uitleningen),
       };
     }
 

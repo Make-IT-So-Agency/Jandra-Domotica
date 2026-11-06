@@ -362,4 +362,6 @@ export function teVerdelen(voorstel: Voorstel): { kaartId: number; eigenaar: Ver
 export interface Voorstelgegevens {
   voorstel: Voorstel;
   voeltGoed: Record<Persoon, boolean>;
+  /** In stap 5: welke kaarten tijdelijk bij de ander liggen. */
+  uitleningen: Record<number, Persoon>;
 }

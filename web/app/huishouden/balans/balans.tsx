@@ -122,7 +122,7 @@ export function Balans({
           ) : null}
           {bekeken === 3 && stap3 ? <StapBieden ik={ik} ronde={ronde} gegevens={stap3} voer={voer} /> : null}
           {bekeken === 4 && voorstel ? <StapVoorstel ik={ik} ronde={ronde} gegevens={voorstel} voer={voer} /> : null}
-          {bekeken === 5 && voorstel ? <StapVerdeling gegevens={voorstel} /> : null}
+          {bekeken === 5 && voorstel ? <StapVerdeling ik={ik} ronde={ronde} gegevens={voorstel} voer={voer} /> : null}
           <AllesResetten voer={voer} />
         </section>
 

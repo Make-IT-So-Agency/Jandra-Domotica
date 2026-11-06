@@ -17,11 +17,13 @@ import {
   vragenVoor,
   voortgang,
   volgendeFase,
+  PERSOONSNAMEN,
   type Persoon,
   type Ronde,
 } from "@/lib/huishouden/balans";
 import { begrens, biedenAf, biedingenVoorVoorstel, botsendeKaarten, verdeeld } from "@/lib/huishouden/bieden";
 import * as opslag from "@/lib/huishouden/opslag";
+import { magDoorgeven, magNieuweRonde, magUitlenen, naarDeAnder } from "@/lib/huishouden/verdeling";
 import {
   berekenVoorstel,
   isVerschuiving,
@@ -386,5 +388,57 @@ export async function naarVoorstelActie(): Promise<Resultaat> {
     if (!biedenAf(toestand.botsend.size, toestand.klaar)) throw new Fout("Jullie moeten allebei klaar zijn met bieden.");
     await opslag.naarFase(ronde, "bieden", "voorstel");
     return "Bewaard";
+  });
+}
+
+// --- Stap 5: uitlenen, doorgeven, nieuwe ronde -----------------------------------
+
+/** De vastgelegde verdeling zoals ze nu telt, en de kaart die je aanwijst. */
+async function vastgelegdeKaart(ronde: Ronde, kaartId: unknown) {
+  const id = leesId(kaartId);
+  const [{ kaarten }, inschattingen, verdeling] = await Promise.all([
+    opslag.leesBalans(),
+    opslag.leesInschattingen(ronde),
+    opslag.leesVerdeling(ronde),
+  ]);
+  const voorstel = berekenVoorstel({ kaarten, ...inschattingen, verschuivingen: verdeling });
+  const item = voorstel.kaarten.find((kandidaat) => kandidaat.kaart.id === id);
+  if (!item) throw new Fout("Deze kaart bestaat niet meer.");
+  return item;
+}
+
+/** Een eigen kaart tijdelijk uitlenen aan de ander, of terugnemen. Ze blijft meetellen bij jou (OV12). */
+export async function uitleenActie(kaartId: unknown, uitlenen: boolean): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    const item = await vastgelegdeKaart(ronde, kaartId);
+    const beslissing = magUitlenen(ronde, item, persoon);
+    if (!beslissing.ok) throw new Fout(beslissing.reden);
+    await opslag.zetUitlening(ronde, item.kaart.id, uitlenen === true ? naarDeAnder(persoon) : null);
+    return "Bewaard";
+  });
+}
+
+/** Een vaste kaart voor altijd doorgeven aan de ander, bv. het Bouwproject van de ontwerp- naar de bouwfase. */
+export async function doorgevenActie(kaartId: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    const item = await vastgelegdeKaart(ronde, kaartId);
+    const beslissing = magDoorgeven(ronde, item, persoon);
+    if (!beslissing.ok) throw new Fout(beslissing.reden);
+    const naar = naarDeAnder(persoon);
+    await opslag.geefDoor(ronde, item.kaart.id, persoon, naar);
+    return `Doorgegeven aan ${PERSOONSNAMEN[naar]}`;
+  });
+}
+
+/** Een nieuwe ronde, terug naar stap 1. De vorige ronde blijft bewaard. */
+export async function nieuweRondeActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    const beslissing = magNieuweRonde(ronde);
+    if (!beslissing.ok) throw new Fout(beslissing.reden);
+    await opslag.startNieuweRonde(ronde);
+    return "Nieuwe ronde gestart. Bekijk eerst samen de lijst.";
   });
 }
