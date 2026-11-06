@@ -6,6 +6,8 @@ import {
   magGebruikerBeheren,
   magGebruikerVerwijderen,
   magGebruikerWijzigen,
+  magHuishoudenKoppelen,
+  magHuishoudenZien,
   magGebruikersBeheren,
   magInstellingenBeheren,
   magRapportenMaken,
@@ -28,6 +30,7 @@ function gebruiker(overschrijf: Partial<Gebruiker> = {}): Gebruiker {
     rol: "kijker",
     vennootschap_id: VENN_A,
     vasteBeheerder: false,
+    huishouden: null,
     ...overschrijf,
   };
 }
@@ -268,5 +271,19 @@ describe("het bouwproject", () => {
 
   it("geldt ook voor het vaste beheerdersadres", () => {
     expect(magBouwZien({ ...HOOFD, vasteBeheerder: true })).toBe(true);
+  });
+});
+
+describe("Huishouden", () => {
+  it("is zichtbaar voor wie gekoppeld is aan Jan of Sandra, los van de rol", () => {
+    expect(magHuishoudenZien(gebruiker({ huishouden: "sandra" }))).toBe(true);
+    expect(magHuishoudenZien(gebruiker({ rol: "hoofdbeheerder", vennootschap_id: null }))).toBe(false);
+    expect(magHuishoudenZien(gebruiker())).toBe(false);
+  });
+
+  it("laat enkel de hoofdbeheerder kiezen wie Jan en wie Sandra is", () => {
+    expect(magHuishoudenKoppelen(gebruiker({ rol: "hoofdbeheerder", vennootschap_id: null }))).toBe(true);
+    expect(magHuishoudenKoppelen(gebruiker({ rol: "vennootschapsbeheerder" }))).toBe(false);
+    expect(magHuishoudenKoppelen(gebruiker({ huishouden: "jan" }))).toBe(false);
   });
 });

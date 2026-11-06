@@ -1,10 +1,12 @@
 import { datumTijd } from "@/lib/format";
 import { lijstGebruikers } from "@/lib/gebruikers";
+import { PERSONEN, PERSOONSNAMEN } from "@/lib/huishouden/balans";
 import {
   ROLNAMEN,
   ROLUITLEG,
   isHoofdbeheerder,
   magGebruikerBeheren,
+  magHuishoudenKoppelen,
   toewijsbareRollen,
   zichtbareVennootschappen,
 } from "@/lib/rollen";
@@ -12,7 +14,7 @@ import { db } from "@/lib/supabase";
 import { vereistGebruiker } from "@/lib/toegang";
 import type { Vennootschap } from "@/lib/types";
 
-import { nodigGebruikerUit, verwijderGebruikerActie, wijzigGebruikerActie } from "./acties";
+import { koppelHuishoudenActie, nodigGebruikerUit, verwijderGebruikerActie, wijzigGebruikerActie } from "./acties";
 
 export const dynamic = "force-dynamic";
 
@@ -49,13 +51,14 @@ export default async function Gebruikerspagina({
     : alleVennootschappen.filter((vennootschap) => vennootschap.id === ik.vennootschap_id);
 
   const rollen = toewijsbareRollen(ik);
+  const huishoudenKoppelen = magHuishoudenKoppelen(ik);
 
   return (
     <>
       <h1>Gebruikers</h1>
       <p className="inleiding">
         {isHoofdbeheerder(ik)
-          ? "Wie toegang heeft tot de app, en tot wat. Iemand toevoegen volstaat: die persoon meldt zich aan met Google op hetzelfde e-mailadres."
+          ? "Wie toegang heeft tot de app, en tot wat. Iemand toevoegen volstaat: die persoon meldt zich aan met Google op hetzelfde e-mailadres. Bij Huishouden kies je wie Jan en wie Sandra is; enkel zij zien die module."
           : "Wie van jouw vennootschap toegang heeft tot de app. Iemand toevoegen volstaat: die persoon meldt zich aan met Google op hetzelfde e-mailadres."}
       </p>
 
@@ -76,6 +79,7 @@ export default async function Gebruikerspagina({
                 <th>Rol</th>
                 <th>Vennootschap</th>
                 <th>Laatst aangemeld</th>
+                {huishoudenKoppelen ? <th>Huishouden</th> : null}
                 <th>Wijzigen</th>
               </tr>
             </thead>
@@ -111,6 +115,33 @@ export default async function Gebruikerspagina({
                         ? datumTijd(gebruiker.laatste_aanmelding)
                         : "nog nooit"}
                     </td>
+                    {huishoudenKoppelen ? (
+                      <td data-label="Huishouden">
+                        {gebruiker.id.startsWith("vast:") ? (
+                          <span className="hulp">Eerst één keer aanmelden.</span>
+                        ) : (
+                          <form action={koppelHuishoudenActie} className="knoppenrij">
+                            <input type="hidden" name="id" value={gebruiker.id} />
+                            <select
+                              name="huishouden"
+                              defaultValue={gebruiker.huishouden ?? ""}
+                              aria-label={`Wie ${gebruiker.email} is in Huishouden`}
+                              style={{ width: "auto" }}
+                            >
+                              <option value="">—</option>
+                              {PERSONEN.map((persoon) => (
+                                <option key={persoon} value={persoon}>
+                                  {PERSOONSNAMEN[persoon]}
+                                </option>
+                              ))}
+                            </select>
+                            <button type="submit" className="stil klein">
+                              Bewaren
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    ) : null}
                     <td data-label="Wijzigen">
                       {!beheerbaar.toegestaan ? (
                         <span className="hulp">{beheerbaar.reden}</span>

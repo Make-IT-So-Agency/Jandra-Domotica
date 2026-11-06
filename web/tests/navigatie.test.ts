@@ -19,9 +19,11 @@ import {
 } from "@/lib/navigatie";
 import type { Gebruiker } from "@/lib/rollen";
 
-const HOOFD: Gebruiker = { id: "h", email: "jan@voorbeeld.be", naam: null, rol: "hoofdbeheerder", vennootschap_id: null, vasteBeheerder: false };
+const HOOFD: Gebruiker = { id: "h", email: "jan@voorbeeld.be", naam: null, rol: "hoofdbeheerder", vennootschap_id: null, vasteBeheerder: false, huishouden: null };
 const BEHEERDER: Gebruiker = { ...HOOFD, id: "b", rol: "vennootschapsbeheerder", vennootschap_id: "v1" };
 const KIJKER: Gebruiker = { ...HOOFD, id: "k", rol: "kijker", vennootschap_id: "v1" };
+const JAN: Gebruiker = { ...HOOFD, huishouden: "jan" };
+const SANDRA: Gebruiker = { ...KIJKER, id: "s", huishouden: "sandra" };
 
 const HUIZEN: Menuhuis[] = [
   { id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" },
@@ -63,6 +65,13 @@ describe("het menu per rol", () => {
       `Vastgoed: ${paginas}, ${paginas}, Huizen, Telegram`,
       "Beheer: Gebruikers",
     ]);
+  });
+
+  it("toont Huishouden enkel aan wie gekoppeld is aan Jan of Sandra, vóór Beheer", () => {
+    expect(alsTekst(JAN).map((regel) => regel.split(":")[0])).toEqual(["Laadpalen", "Vastgoed", "Huishouden", "Beheer"]);
+    expect(alsTekst(JAN)[2]).toBe("Huishouden: De balans");
+    expect(alsTekst(SANDRA)).toEqual(["Laadpalen: Overzicht, Rapporten", "Huishouden: De balans"]);
+    expect(alsTekst(HOOFD).some((regel) => regel.startsWith("Huishouden"))).toBe(false);
   });
 
   it("toont Huizen en Telegram ook zonder huizen", () => {
@@ -123,6 +132,7 @@ describe("de modulebalk", () => {
     expect(van("/vastgoed/telegram")).toBe("vastgoed");
     expect(van("/vastgoed/12/geld/facturen")).toBe("vastgoed");
     expect(van("/gebruikers")).toBe("beheer");
+    expect(actieveModule("/huishouden/balans", menuVoor(JAN, HUIZEN))?.id).toBe("huishouden");
     expect(actieveModule("/", menu)).toBeNull();
     expect(actieveModule("/onbekend", menu)).toBeNull();
     expect(actieveModule("/", [])).toBeNull();
@@ -257,20 +267,22 @@ describe("geen pagina raakt zoek", () => {
   }
 
   it("zet elke pagina van het eerste niveau, van Vastgoed en van een huis in het menu van de hoofdbeheerder", () => {
-    const paden = allePaden(menuVoor(HOOFD, [{ id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" }]));
+    const paden = allePaden(menuVoor(JAN, [{ id: 1, naam: "Nieuwbouw", soort: "nieuwbouw" }]));
     // De startpagina (/) staat bewust niet in een module: ze toont de modules zelf.
     const eersteNiveau = paginamappen(app, "", 1).filter((pad) => pad !== "/");
     const laadpalen = paginamappen(path.join(app, "laadpalen"), "/laadpalen", 1);
+    const huishouden = paginamappen(path.join(app, "huishouden"), "/huishouden", 1);
     const vastgoed = paginamappen(path.join(app, "vastgoed"), "/vastgoed", 1);
     const huis = paginamappen(path.join(app, "vastgoed", "[huis]"), "/vastgoed/1", 1);
     expect(eersteNiveau.filter((pad) => !paden.includes(pad))).toEqual([]);
     expect(laadpalen.filter((pad) => !paden.includes(pad))).toEqual([]);
+    expect(huishouden.filter((pad) => !paden.includes(pad))).toEqual([]);
     expect(vastgoed.filter((pad) => !paden.includes(pad))).toEqual([]);
     expect(huis.filter((pad) => !paden.includes(pad))).toEqual([]);
   });
 
   it("verwijst enkel naar pagina's die bestaan", () => {
     const naarMap = (pad: string) => pad.replace(/^\/vastgoed\/\d+/, "/vastgoed/[huis]");
-    expect(allePaden(menuVoor(HOOFD, HUIZEN)).filter((pad) => !heeftPagina(naarMap(pad)))).toEqual([]);
+    expect(allePaden(menuVoor(JAN, HUIZEN)).filter((pad) => !heeftPagina(naarMap(pad)))).toEqual([]);
   });
 });

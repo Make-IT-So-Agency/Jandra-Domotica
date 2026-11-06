@@ -11,7 +11,7 @@ vi.mock("@/lib/bouw/huizen", () => ({ oudsteHuisId: async () => nep.oudste }));
 
 import { GET } from "@/app/bouw/[[...pad]]/route";
 
-const HOOFD: Gebruiker = { id: "h", email: "jan@voorbeeld.be", naam: null, rol: "hoofdbeheerder", vennootschap_id: null, vasteBeheerder: false };
+const HOOFD: Gebruiker = { id: "h", email: "jan@voorbeeld.be", naam: null, rol: "hoofdbeheerder", vennootschap_id: null, vasteBeheerder: false, huishouden: null };
 
 async function naar(pad: string): Promise<string> {
   const antwoord = await GET(new Request(`https://jandra.voorbeeld.be${pad}`));
