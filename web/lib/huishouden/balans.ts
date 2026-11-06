@@ -172,7 +172,20 @@ export const STAPPEN: { fase: Fase; naam: string; ondertitel: string }[] = [
  * De stappen die al gebouwd zijn. De module komt er stap voor stap bij (zie
  * huishouden/LEESMIJ.md); zolang een stap er niet is, kan je er ook niet heen.
  */
-export const GEBOUWDE_STAPPEN = 1;
+export const GEBOUWDE_FASES: readonly Fase[] = ["lijst", "inschatten"];
+
+export function isGebouwd(fase: Fase): boolean {
+  return GEBOUWDE_FASES.includes(fase);
+}
+
+/** De fase na deze, als die al gebouwd is; stap 3 (bieden) mag ontbreken. */
+export function volgendeFase(fase: Fase): Fase | null {
+  const volgende = FASES[FASES.indexOf(fase) + 1];
+  if (!volgende) return null;
+  if (isGebouwd(volgende)) return volgende;
+  if (volgende === "bieden" && isGebouwd("voorstel")) return "voorstel";
+  return null;
+}
 
 export interface Ronde {
   id: number;
@@ -234,4 +247,156 @@ export function magAanDeSlag(ronde: Ronde, akkoorden: Lijstakkoord[], aantalActi
 /** Het nummer van de stap (1 tot 5) waarin het gezin nu staat. */
 export function stapVan(fase: Fase): number {
   return FASES.indexOf(fase) + 1;
+}
+
+// --- Stap 2: inschatten en claimen ------------------------------------------
+
+export const CLAIMS = ["wil", "mag", "liever_niet", "echt_niet"] as const;
+export type Claim = (typeof CLAIMS)[number];
+
+export const CLAIMNAMEN: Record<Claim, string> = {
+  wil: "Wil ik",
+  mag: "Mag",
+  liever_niet: "Liever niet",
+  echt_niet: "Echt niet",
+};
+
+export function isClaim(waarde: unknown): waarde is Claim {
+  return (CLAIMS as readonly unknown[]).includes(waarde);
+}
+
+export const SCORES = [1, 2, 3, 4, 5] as const;
+export type Score = (typeof SCORES)[number];
+
+export function isScore(waarde: unknown): waarde is Score {
+  return (SCORES as readonly unknown[]).includes(waarde);
+}
+
+/** Fysieke tijd, van score naar uren per week (overdracht, R7). */
+export const UREN_PER_SCORE: Record<Score, number> = { 1: 0.5, 2: 1, 3: 2.5, 4: 4, 5: 7 };
+
+/** Wat een score voor fysieke tijd betekent, als tooltip bij het bolletje. */
+export const TIJDSCORES: Record<Score, string> = {
+  1: "½ u per week",
+  2: "1 u per week",
+  3: "2 à 3 u per week",
+  4: "Een halve dag per week",
+  5: "7 u of meer per week",
+};
+
+/** Wat er per kaart in te vullen is. */
+export interface Vragen {
+  claim: boolean;
+  tijd: boolean;
+  last: boolean;
+}
+
+/**
+ * Per soort kaart enkel wat van toepassing is (overdracht, stap 2):
+ * via het spel alles; vast bij iemand tijd en last; elk voor zich zonder
+ * vaste uren enkel tijd; elk voor zich met vaste uren en samen niets.
+ */
+export function vragenVoor(kaart: Pick<Kaart, "verdeling" | "vasteUren">): Vragen {
+  switch (kaart.verdeling) {
+    case "spel":
+      return { claim: true, tijd: true, last: true };
+    case "jan":
+    case "sandra":
+      return { claim: false, tijd: true, last: true };
+    case "elk":
+      return { claim: false, tijd: kaart.vasteUren === null, last: false };
+    case "samen":
+      return { claim: false, tijd: false, last: false };
+  }
+}
+
+export function heeftVragen(vragen: Vragen): boolean {
+  return vragen.claim || vragen.tijd || vragen.last;
+}
+
+/** Wat één persoon voor één kaart invulde. */
+export interface Invoer {
+  claim: Claim | null;
+  tijd: Score | null;
+  last: Score | null;
+}
+
+export const LEGE_INVOER: Invoer = { claim: null, tijd: null, last: null };
+
+export function kaartIngevuld(vragen: Vragen, invoer: Invoer): boolean {
+  return (!vragen.claim || invoer.claim !== null) && (!vragen.tijd || invoer.tijd !== null) && (!vragen.last || invoer.last !== null);
+}
+
+/** De kaarten waarvoor in stap 2 iets in te vullen is: actief en met vragen. */
+export function kaartenOmInTeVullen<T extends Pick<Kaart, "geschrapt" | "verdeling" | "vasteUren">>(kaarten: T[]): T[] {
+  return actieveKaarten(kaarten).filter((kaart) => heeftVragen(vragenVoor(kaart)));
+}
+
+export interface Voortgang {
+  /** Volledig ingevulde kaarten. */
+  klaar: number;
+  totaal: number;
+  tijdIngevuld: boolean;
+  /** Alles ingevuld, ook de beschikbare tijd. */
+  af: boolean;
+}
+
+/** Hoe ver iemand staat met stap 2. */
+export function voortgang(
+  kaarten: Pick<Kaart, "id" | "geschrapt" | "verdeling" | "vasteUren">[],
+  invoer: ReadonlyMap<number, Invoer>,
+  beschikbareTijd: number | null,
+): Voortgang {
+  const inTeVullen = kaartenOmInTeVullen(kaarten);
+  const klaar = inTeVullen.filter((kaart) => kaartIngevuld(vragenVoor(kaart), invoer.get(kaart.id) ?? LEGE_INVOER)).length;
+  const tijdIngevuld = beschikbareTijd !== null;
+  return { klaar, totaal: inTeVullen.length, tijdIngevuld, af: tijdIngevuld && klaar === inTeVullen.length };
+}
+
+/** "Jan 7/13", met " · tijd?" zolang de beschikbare tijd ontbreekt. */
+export function voortgangstekst(persoon: Persoon, stand: Voortgang): string {
+  return `${PERSOONSNAMEN[persoon]} ${stand.klaar}/${stand.totaal}${stand.tijdIngevuld ? "" : " · tijd?"}`;
+}
+
+/**
+ * De beschikbare tijd uit het invoerveld: een geheel getal van 1 tot 80.
+ * Leeg of 0 is "nog niet ingevuld" (null); iets anders is een fout.
+ */
+export function leesBeschikbareTijd(invoer: unknown): { ok: true; uren: number | null } | { ok: false; fout: string } {
+  const tekst = String(invoer ?? "").trim().replace(",", ".");
+  if (tekst === "" || tekst === "0") return { ok: true, uren: null };
+  const getal = Number(tekst);
+  if (!Number.isFinite(getal) || getal < 1 || getal > 80) {
+    return { ok: false, fout: "Je beschikbare tijd is een getal van 1 tot 80 uur per week." };
+  }
+  return { ok: true, uren: Math.round(getal) };
+}
+
+/** Mag je in deze fase inschatten en claimen? Vanaf stap 2, ook later nog. */
+export function magInschatten(ronde: Pick<Ronde, "fase">): boolean {
+  return ronde.fase !== "lijst";
+}
+
+/** De scores van de ander zie je pas als het spel verder is dan stap 2. */
+export function toonScoresVanAnder(ronde: Pick<Ronde, "fase">): boolean {
+  return stapVan(ronde.fase) > 2;
+}
+
+/** Mag het spel verder dan stap 2? Als allebei alles ingevuld hebben. */
+export function magVerderNaInschatten(ronde: Pick<Ronde, "fase">, stand: Record<Persoon, Voortgang>): Beslissing {
+  if (ronde.fase !== "inschatten") return { ok: false, reden: "Jullie zijn al verder." };
+  if (!stand.jan.af || !stand.sandra.af) return { ok: false, reden: "Jullie moeten allebei alles ingevuld hebben." };
+  return { ok: true };
+}
+
+/**
+ * Wat de pagina in stap 2 meekrijgt: enkel je eigen keuzes, de voortgang van
+ * allebei, en de scores van de ander pas als het spel verder is dan stap 2.
+ * De claims van de ander gaan nooit mee.
+ */
+export interface Stap2Gegevens {
+  mijn: Record<number, Invoer>;
+  mijnTijd: number | null;
+  stand: Record<Persoon, Voortgang>;
+  ander: Record<number, Pick<Invoer, "tijd" | "last">> | null;
 }

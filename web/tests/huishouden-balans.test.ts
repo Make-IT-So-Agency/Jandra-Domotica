@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LEGE_INVOER,
+  isGebouwd,
+  kaartenOmInTeVullen,
+  leesBeschikbareTijd,
+  magInschatten,
+  magVerderNaInschatten,
+  toonScoresVanAnder,
+  volgendeFase,
+  voortgang,
+  voortgangstekst,
+  vragenVoor,
+  type Invoer,
+  type Kaart,
   akkoordMetLijst,
   ander,
   bovenschrift,
@@ -170,5 +183,117 @@ describe("rondes en personen", () => {
   it("kent de ander", () => {
     expect(ander("jan")).toBe("sandra");
     expect(ander("sandra")).toBe("jan");
+  });
+});
+
+const kaart = (id: number, verdeling: Kaart["verdeling"], extra: Partial<Kaart> = {}): Kaart => ({
+  id,
+  titel: `Kaart ${id}`,
+  domein: "Huishouden",
+  omschrijving: null,
+  goedGenoeg: null,
+  frequentie: "wekelijks",
+  verdeling,
+  vasteUren: null,
+  geschrapt: false,
+  volgorde: id,
+  ...extra,
+});
+
+describe("stap 2: wat er per kaart in te vullen is", () => {
+  it("vraagt per soort kaart enkel wat van toepassing is", () => {
+    expect(vragenVoor(kaart(1, "spel"))).toEqual({ claim: true, tijd: true, last: true });
+    expect(vragenVoor(kaart(2, "jan"))).toEqual({ claim: false, tijd: true, last: true });
+    expect(vragenVoor(kaart(3, "sandra"))).toEqual({ claim: false, tijd: true, last: true });
+    expect(vragenVoor(kaart(4, "elk", { vasteUren: 5 }))).toEqual({ claim: false, tijd: false, last: false });
+    expect(vragenVoor(kaart(5, "elk"))).toEqual({ claim: false, tijd: true, last: false });
+    expect(vragenVoor(kaart(6, "samen"))).toEqual({ claim: false, tijd: false, last: false });
+  });
+
+  it("toont enkel actieve kaarten met iets om in te vullen", () => {
+    const kaarten = [
+      kaart(1, "spel"),
+      kaart(2, "samen"),
+      kaart(3, "elk", { vasteUren: 5 }),
+      kaart(4, "jan", { geschrapt: true }),
+      kaart(5, "elk"),
+    ];
+    expect(kaartenOmInTeVullen(kaarten).map((k) => k.id)).toEqual([1, 5]);
+  });
+});
+
+describe("stap 2: de voortgang", () => {
+  const kaarten = [kaart(1, "spel"), kaart(2, "jan"), kaart(3, "samen"), kaart(4, "spel", { geschrapt: true })];
+  const vol = (invoer: Partial<Invoer>): Invoer => ({ ...LEGE_INVOER, ...invoer });
+
+  it("telt een kaart pas als alles van toepassing ingevuld is", () => {
+    const invoer = new Map([
+      [1, vol({ claim: "wil", tijd: 3 })],
+      [2, vol({ tijd: 2, last: 4 })],
+    ]);
+    expect(voortgang(kaarten, invoer, 34)).toEqual({ klaar: 1, totaal: 2, tijdIngevuld: true, af: false });
+  });
+
+  it("is af als elke kaart en de beschikbare tijd ingevuld zijn", () => {
+    const invoer = new Map([
+      [1, vol({ claim: "mag", tijd: 3, last: 2 })],
+      [2, vol({ tijd: 2, last: 4 })],
+    ]);
+    expect(voortgang(kaarten, invoer, 34).af).toBe(true);
+    expect(voortgang(kaarten, invoer, null)).toEqual({ klaar: 2, totaal: 2, tijdIngevuld: false, af: false });
+  });
+
+  it("begint leeg op 0/n met tijd?", () => {
+    const stand = voortgang(kaarten, new Map(), null);
+    expect(voortgangstekst("sandra", stand)).toBe("Sandra 0/2 · tijd?");
+    expect(voortgangstekst("jan", { ...stand, klaar: 2, tijdIngevuld: true })).toBe("Jan 2/2");
+  });
+
+  it("negeert wat bij een geschrapte kaart ingevuld werd", () => {
+    const invoer = new Map([[4, vol({ claim: "wil", tijd: 5, last: 5 })]]);
+    expect(voortgang(kaarten, invoer, 10).klaar).toBe(0);
+  });
+});
+
+describe("stap 2: de beschikbare tijd", () => {
+  it("leest een getal van 1 tot 80, leeg of 0 is nog niet ingevuld", () => {
+    expect(leesBeschikbareTijd("34")).toEqual({ ok: true, uren: 34 });
+    expect(leesBeschikbareTijd(" 1 ")).toEqual({ ok: true, uren: 1 });
+    expect(leesBeschikbareTijd("80")).toEqual({ ok: true, uren: 80 });
+    expect(leesBeschikbareTijd("")).toEqual({ ok: true, uren: null });
+    expect(leesBeschikbareTijd("0")).toEqual({ ok: true, uren: null });
+    expect(leesBeschikbareTijd(null)).toEqual({ ok: true, uren: null });
+    expect(leesBeschikbareTijd("81").ok).toBe(false);
+    expect(leesBeschikbareTijd("veel").ok).toBe(false);
+  });
+});
+
+describe("stap 2: verder en blind", () => {
+  const af = { klaar: 2, totaal: 2, tijdIngevuld: true, af: true };
+  const bezig = { klaar: 1, totaal: 2, tijdIngevuld: true, af: false };
+
+  it("laat inschatten vanaf stap 2, ook later nog", () => {
+    expect(magInschatten({ fase: "lijst" })).toBe(false);
+    expect(magInschatten({ fase: "inschatten" })).toBe(true);
+    expect(magInschatten({ fase: "voorstel" })).toBe(true);
+  });
+
+  it("toont de scores van de ander pas na stap 2", () => {
+    expect(toonScoresVanAnder({ fase: "inschatten" })).toBe(false);
+    expect(toonScoresVanAnder({ fase: "bieden" })).toBe(true);
+  });
+
+  it("gaat pas verder als allebei af zijn", () => {
+    expect(magVerderNaInschatten({ fase: "inschatten" }, { jan: af, sandra: af })).toEqual({ ok: true });
+    expect(magVerderNaInschatten({ fase: "inschatten" }, { jan: af, sandra: bezig }).ok).toBe(false);
+    expect(magVerderNaInschatten({ fase: "bieden" }, { jan: af, sandra: af }).ok).toBe(false);
+  });
+
+  it("gaat enkel naar een stap die al gebouwd is", () => {
+    expect(isGebouwd("lijst")).toBe(true);
+    expect(isGebouwd("inschatten")).toBe(true);
+    expect(volgendeFase("lijst")).toBe("inschatten");
+    // Stap 3 en 4 zijn er nog niet: na stap 2 is er nog niets.
+    expect(volgendeFase("inschatten")).toBeNull();
   });
 });

@@ -4331,3 +4331,244 @@ details.palet:not([open]) {
 .werkkaart .label-vlag {
   white-space: normal;
 }
+
+/* --- De balans: werkvlak en zijpaneel -------------------------------------- */
+/* Vanaf 900 px staat het zijpaneel rechts en plakt het bij scrollen; op een
+   smaller scherm staat het boven de inhoud. */
+.balans-werk {
+  display: grid;
+  gap: 20px;
+}
+
+.balans-werk > * {
+  min-width: 0;
+}
+
+.zijpaneel {
+  order: -1;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px 14px;
+  background: var(--vlak);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius-paneel);
+}
+
+.zijpaneel h2.bovenschrift {
+  margin: 0;
+  font-family: var(--letter-tekst);
+  font-size: 12px;
+}
+
+.zijpaneel p {
+  margin: 0;
+  color: var(--zacht);
+  font-size: 14px;
+}
+
+@media (min-width: 900px) {
+  .balans-werk.met-zijpaneel {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    gap: 24px;
+  }
+
+  .zijpaneel {
+    order: 0;
+    position: sticky;
+    top: calc(96px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Een zeldzame actie onderaan, gescheiden door een lijn. */
+.resetzone {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--lijn);
+}
+
+.resetbevestiging {
+  display: grid;
+  gap: 8px;
+}
+
+.resetbevestiging p {
+  margin: 0;
+}
+
+/* Een feestelijke melding: groter, in de titelletter. */
+.melding.cheer {
+  font-family: var(--letter-titel);
+  font-weight: 500;
+  font-size: 18px;
+}
+
+/* --- Stap 2 ------------------------------------------------------------------ */
+/* "Mijn beschikbare tijd voor gezin en hobby [__] u per week" leest als één
+   zin; op de gsm breekt ze tussen de woorden, niet midden in het veld. */
+.tijdvak {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--vlak);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius-paneel);
+}
+
+.tijdvak-zin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.tijdvak-veld {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.tijdvak-veld input {
+  width: 72px;
+}
+
+.vraag {
+  display: grid;
+  gap: 4px;
+}
+
+.vraag-kop {
+  font-size: 13px;
+  color: var(--zacht);
+}
+
+/* Hoe graag: vier knoppen in een raster van 2 op 2. De gekozen knop kleurt
+   naar wat hij betekent: groen voor graag, omgekeerd voor mag, zacht amber
+   voor liever niet, vol amber voor echt niet. Nooit rood. */
+.claimraster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius-knop);
+}
+
+.claimraster button {
+  min-height: 0;
+  padding: 9px 4px;
+  border: 0;
+  border-top: 1px solid var(--lijn);
+  border-left: 1px solid var(--lijn);
+  border-radius: 0;
+  background: var(--vlak);
+  color: var(--tekst);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.claimraster button:nth-child(-n + 2) {
+  border-top: 0;
+}
+
+.claimraster button:nth-child(odd) {
+  border-left: 0;
+}
+
+.claimraster button[aria-pressed="true"] {
+  font-weight: 700;
+}
+
+.claimraster button[aria-pressed="true"][data-v="wil"] {
+  background: var(--accent);
+  color: var(--op-kleur);
+}
+
+.claimraster button[aria-pressed="true"][data-v="mag"] {
+  background: var(--tekst);
+  color: var(--pagina);
+}
+
+.claimraster button[aria-pressed="true"][data-v="liever_niet"] {
+  background: var(--let-op-zacht);
+  color: var(--let-op);
+}
+
+.claimraster button[aria-pressed="true"][data-v="echt_niet"] {
+  background: var(--let-op);
+  color: var(--op-kleur);
+}
+
+/* Een schaal van 1 tot 5. */
+.bolletjes {
+  display: flex;
+  gap: 4px;
+}
+
+.bolletjes button {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--lijn);
+  border-radius: 50%;
+  background: var(--vlak);
+  color: var(--tekst);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.bolletjes button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--op-kleur);
+  font-weight: 700;
+}
+
+@media (min-width: 700px) and (pointer: coarse) {
+  .claimraster button {
+    padding: 12px 4px;
+  }
+
+  .bolletjes {
+    gap: 6px;
+  }
+
+  .bolletjes button {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 680px) {
+  /* Op de gsm wil de algemene regel elke knop 44 px hoog; de bolletjes en
+     het claimraster blijven zoals ze zijn, met genoeg tikvlak. */
+  .claimraster button {
+    min-height: 40px;
+  }
+
+  .bolletjes button {
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
+  }
+}
+
+/* In stap 2 vraagt elke kaart vijf bolletjes naast elkaar: op de gsm staan
+   de kaarten daarom onder elkaar in plaats van in twee smalle kolommen. */
+@media (max-width: 460px) {
+  .kaartenraster.invullen {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bolletjes {
+  flex-wrap: wrap;
+}

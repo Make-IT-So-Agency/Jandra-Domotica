@@ -3,11 +3,20 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  isClaim,
+  isGebouwd,
+  isScore,
+  kaartenOmInTeVullen,
+  leesBeschikbareTijd,
   leesKaart,
   lijstOpen,
   magAanDeSlag,
   magAkkoordGeven,
-  GEBOUWDE_STAPPEN,
+  magInschatten,
+  magVerderNaInschatten,
+  vragenVoor,
+  voortgang,
+  volgendeFase,
   type Persoon,
   type Ronde,
 } from "@/lib/huishouden/balans";
@@ -116,11 +125,11 @@ export async function lijstakkoordActie(akkoord: boolean, gezieneVersie: unknown
   });
 }
 
-/** Naar stap 2, voor allebei. Kan pas als stap 2 gebouwd is. */
+/** Naar stap 2, voor allebei. */
 export async function aanDeSlagActie(): Promise<Resultaat> {
   return voer(async () => {
     const { ronde } = await bereidVoor();
-    if (GEBOUWDE_STAPPEN < 2) throw new Fout("Stap 2 is er nog niet.");
+    if (!isGebouwd("inschatten")) throw new Fout("Stap 2 is er nog niet.");
     const balans = await opslag.leesBalans();
     const beslissing = magAanDeSlag(
       ronde,
@@ -130,5 +139,83 @@ export async function aanDeSlagActie(): Promise<Resultaat> {
     if (!beslissing.ok) throw new Fout(beslissing.reden);
     await opslag.naarFase(ronde, "lijst", "inschatten");
     return "Bewaard";
+  });
+}
+
+// --- Stap 2 -----------------------------------------------------------------
+
+/** De kaart, als er voor die kaart iets in te vullen is. */
+async function kaartOmInTeVullen(id: unknown) {
+  const kaart = await opslag.leesKaart(leesId(id));
+  if (!kaart || kaartenOmInTeVullen([kaart]).length === 0) throw new Fout("Deze kaart bestaat niet meer.");
+  return kaart;
+}
+
+async function inschattenMoetKunnen(ronde: Ronde) {
+  if (!magInschatten(ronde)) throw new Fout("Jullie zijn nog bij stap 1: eerst moet de lijst vastliggen.");
+}
+
+/** Eén score: fysieke tijd of mentale last, van 1 tot 5. Enkel je eigen. */
+export async function scoreActie(kaartId: unknown, veld: unknown, score: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    await inschattenMoetKunnen(ronde);
+    if ((veld !== "tijd" && veld !== "last") || !isScore(score)) throw new Fout("Kies een score van 1 tot 5.");
+    const kaart = await kaartOmInTeVullen(kaartId);
+    if (!vragenVoor(kaart)[veld]) throw new Fout("Voor deze kaart vul je dat niet in.");
+    await opslag.zetScore(persoon, kaart.id, veld, score);
+    return "Bewaard";
+  });
+}
+
+/** Hoe graag je een kaart doet. Enkel bij kaarten via het spel, en enkel je eigen. */
+export async function claimActie(kaartId: unknown, claim: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    await inschattenMoetKunnen(ronde);
+    if (!isClaim(claim)) throw new Fout("Kies hoe graag je dit doet.");
+    const kaart = await kaartOmInTeVullen(kaartId);
+    if (!vragenVoor(kaart).claim) throw new Fout("Voor deze kaart vul je dat niet in.");
+    await opslag.zetClaim(ronde, persoon, kaart.id, claim);
+    return "Bewaard";
+  });
+}
+
+/** Je beschikbare tijd voor gezin en hobby. Leeg wist ze. */
+export async function beschikbareTijdActie(uren: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    await inschattenMoetKunnen(ronde);
+    const gelezen = leesBeschikbareTijd(uren);
+    if (!gelezen.ok) throw new Fout(gelezen.fout);
+    await opslag.zetBeschikbareTijd(persoon, gelezen.uren);
+    return "Bewaard";
+  });
+}
+
+/** Verder na stap 2, voor allebei, als allebei alles ingevuld hebben en de volgende stap er al is. */
+export async function verderNaInschattenActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    const naar = volgendeFase("inschatten");
+    if (!naar) throw new Fout("De volgende stap is er nog niet.");
+    const [{ kaarten }, inschattingen] = await Promise.all([opslag.leesBalans(), opslag.leesInschattingen(ronde)]);
+    const stand = {
+      jan: voortgang(kaarten, inschattingen.invoer.jan, inschattingen.beschikbareTijd.jan),
+      sandra: voortgang(kaarten, inschattingen.invoer.sandra, inschattingen.beschikbareTijd.sandra),
+    };
+    const beslissing = magVerderNaInschatten(ronde, stand);
+    if (!beslissing.ok) throw new Fout(beslissing.reden);
+    await opslag.naarFase(ronde, "inschatten", naar);
+    return "Bewaard";
+  });
+}
+
+/** Alles resetten, voor allebei. De kaarten blijven staan. */
+export async function allesResettenActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    await opslag.allesResetten(ronde);
+    return "Alles gereset.";
   });
 }

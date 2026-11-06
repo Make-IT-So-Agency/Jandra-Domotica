@@ -5,8 +5,14 @@ import { db } from "@/lib/supabase";
 import {
   FASES,
   FREQUENTIES,
+  LEGE_INVOER,
+  PERSONEN,
   VERDELINGEN,
+  isClaim,
   isPersoon,
+  isScore,
+  type Claim,
+  type Invoer,
   type Fase,
   type Kaart,
   type Kaartinvoer,
@@ -178,4 +184,109 @@ export async function zetLijstakkoord(ronde: Ronde, persoon: Persoon, akkoord: b
 export async function naarFase(ronde: Ronde, van: Fase, naar: Fase): Promise<void> {
   const { error } = await db().from("huishouden_rondes").update({ fase: naar }).eq("id", ronde.id).eq("fase", van);
   if (error) throw new Error(`Verder gaan mislukt: ${error.message}`);
+}
+
+// --- Stap 2 -----------------------------------------------------------------
+
+export interface Inschattingen {
+  /** Per persoon: per kaart wat die invulde (claims van deze ronde, tijd en last over rondes heen). */
+  invoer: Record<Persoon, Map<number, Invoer>>;
+  beschikbareTijd: Record<Persoon, number | null>;
+}
+
+/** Alles van stap 2, van allebei. Wat de ander koos, gaat nooit zomaar naar de browser: zie de pagina. */
+export async function leesInschattingen(ronde: Ronde): Promise<Inschattingen> {
+  const [scores, claims, tijd] = await Promise.all([
+    db().from("huishouden_inschattingen").select("persoon, kaart_id, tijd, last"),
+    db().from("huishouden_claims").select("persoon, kaart_id, claim").eq("ronde_id", ronde.id),
+    db().from("huishouden_tijd").select("persoon, uren"),
+  ]);
+  for (const resultaat of [scores, claims, tijd]) {
+    if (resultaat.error) throw new Error(`De inschattingen lezen mislukt: ${resultaat.error.message}`);
+  }
+
+  const invoer: Record<Persoon, Map<number, Invoer>> = { jan: new Map(), sandra: new Map() };
+  const vanKaart = (persoon: Persoon, kaartId: number) => {
+    const bestaand = invoer[persoon].get(kaartId);
+    if (bestaand) return bestaand;
+    const nieuw = { ...LEGE_INVOER };
+    invoer[persoon].set(kaartId, nieuw);
+    return nieuw;
+  };
+
+  for (const rij of scores.data ?? []) {
+    if (!isPersoon(rij.persoon)) continue;
+    const kaart = vanKaart(rij.persoon, Number(rij.kaart_id));
+    kaart.tijd = isScore(rij.tijd) ? rij.tijd : null;
+    kaart.last = isScore(rij.last) ? rij.last : null;
+  }
+  for (const rij of claims.data ?? []) {
+    if (!isPersoon(rij.persoon)) continue;
+    vanKaart(rij.persoon, Number(rij.kaart_id)).claim = isClaim(rij.claim) ? rij.claim : null;
+  }
+
+  const beschikbareTijd: Record<Persoon, number | null> = { jan: null, sandra: null };
+  for (const rij of tijd.data ?? []) {
+    if (isPersoon(rij.persoon)) beschikbareTijd[rij.persoon] = Number(rij.uren);
+  }
+  return { invoer, beschikbareTijd };
+}
+
+export async function leesKaart(id: number): Promise<Kaart | null> {
+  const { data, error } = await db().from("huishouden_kaarten").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(`De kaart lezen mislukt: ${error.message}`);
+  return data ? naarKaart(data as KaartRij) : null;
+}
+
+/** Eén score bewaren. Enkel die ene kolom, zodat een tik op tijd en een op last elkaar niet overschrijven. */
+export async function zetScore(persoon: Persoon, kaartId: number, veld: "tijd" | "last", score: number): Promise<void> {
+  const { error } = await db()
+    .from("huishouden_inschattingen")
+    .upsert(
+      { persoon, kaart_id: kaartId, [veld]: score, gewijzigd_op: new Date().toISOString() },
+      { onConflict: "persoon,kaart_id" },
+    );
+  if (error) throw new Error(`Je inschatting bewaren mislukt: ${error.message}`);
+}
+
+export async function zetClaim(ronde: Ronde, persoon: Persoon, kaartId: number, claim: Claim): Promise<void> {
+  const { error } = await db()
+    .from("huishouden_claims")
+    .upsert(
+      { ronde_id: ronde.id, persoon, kaart_id: kaartId, claim, gewijzigd_op: new Date().toISOString() },
+      { onConflict: "ronde_id,persoon,kaart_id" },
+    );
+  if (error) throw new Error(`Je claim bewaren mislukt: ${error.message}`);
+}
+
+/** De beschikbare tijd; null wist ze ("nog niet ingevuld"). */
+export async function zetBeschikbareTijd(persoon: Persoon, uren: number | null): Promise<void> {
+  const tabel = db().from("huishouden_tijd");
+  const { error } =
+    uren === null
+      ? await tabel.delete().eq("persoon", persoon)
+      : await tabel.upsert({ persoon, uren, gewijzigd_op: new Date().toISOString() }, { onConflict: "persoon" });
+  if (error) throw new Error(`Je beschikbare tijd bewaren mislukt: ${error.message}`);
+}
+
+/**
+ * Alles resetten: de inschattingen, de beschikbare tijd en alles van de
+ * ronde (claims, akkoorden) weg, en terug naar stap 1. De kaarten blijven.
+ */
+export async function allesResetten(ronde: Ronde): Promise<void> {
+  const stappen = [
+    db().from("huishouden_claims").delete().eq("ronde_id", ronde.id),
+    db().from("huishouden_akkoorden").delete().eq("ronde_id", ronde.id),
+    db().from("huishouden_inschattingen").delete().in("persoon", [...PERSONEN]),
+    db().from("huishouden_tijd").delete().in("persoon", [...PERSONEN]),
+  ];
+  for (const stap of stappen) {
+    const { error } = await stap;
+    if (error) throw new Error(`Resetten mislukt: ${error.message}`);
+  }
+  const { error } = await db()
+    .from("huishouden_rondes")
+    .update({ fase: "lijst", lijst_versie: new Date().toISOString(), vastgelegd_op: null })
+    .eq("id", ronde.id);
+  if (error) throw new Error(`Resetten mislukt: ${error.message}`);
 }
