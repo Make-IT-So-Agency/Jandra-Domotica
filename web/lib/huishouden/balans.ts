@@ -172,7 +172,7 @@ export const STAPPEN: { fase: Fase; naam: string; ondertitel: string }[] = [
  * De stappen die al gebouwd zijn. De module komt er stap voor stap bij (zie
  * huishouden/LEESMIJ.md); zolang een stap er niet is, kan je er ook niet heen.
  */
-export const GEBOUWDE_FASES: readonly Fase[] = ["lijst", "inschatten"];
+export const GEBOUWDE_FASES: readonly Fase[] = ["lijst", "inschatten", "voorstel", "vastgelegd"];
 
 export function isGebouwd(fase: Fase): boolean {
   return GEBOUWDE_FASES.includes(fase);
@@ -192,6 +192,8 @@ export interface Ronde {
   fase: Fase;
   /** Het moment van de laatste wijziging aan de lijst, als ISO-tekst. */
   lijstVersie: string;
+  /** Het moment van de laatste wijziging aan het voorstel (stap 4). */
+  voorstelVersie: string;
 }
 
 export interface Lijstakkoord {

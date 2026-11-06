@@ -21,6 +21,14 @@ import {
   type Ronde,
 } from "@/lib/huishouden/balans";
 import * as opslag from "@/lib/huishouden/opslag";
+import {
+  berekenVoorstel,
+  isVerschuiving,
+  magUitbesteden,
+  magVastleggen,
+  magVoeltGoedGeven,
+  teVerdelen,
+} from "@/lib/huishouden/voorstel";
 import { magHuishoudenZien } from "@/lib/rollen";
 import { vereistGebruiker } from "@/lib/toegang";
 
@@ -144,6 +152,15 @@ export async function aanDeSlagActie(): Promise<Resultaat> {
 
 // --- Stap 2 -----------------------------------------------------------------
 
+/**
+ * Wijzigt er na stap 2 iets aan een claim, een inschatting of de beschikbare
+ * tijd terwijl jullie in het voorstel zitten, dan rekent het voorstel opnieuw
+ * en telt "voelt goed" van allebei niet meer (OV11).
+ */
+async function voorstelVerandert(ronde: Ronde) {
+  if (ronde.fase === "voorstel") await opslag.voorstelGewijzigd(ronde);
+}
+
 /** De kaart, als er voor die kaart iets in te vullen is. */
 async function kaartOmInTeVullen(id: unknown) {
   const kaart = await opslag.leesKaart(leesId(id));
@@ -164,6 +181,7 @@ export async function scoreActie(kaartId: unknown, veld: unknown, score: unknown
     const kaart = await kaartOmInTeVullen(kaartId);
     if (!vragenVoor(kaart)[veld]) throw new Fout("Voor deze kaart vul je dat niet in.");
     await opslag.zetScore(persoon, kaart.id, veld, score);
+    await voorstelVerandert(ronde);
     return "Bewaard";
   });
 }
@@ -177,6 +195,7 @@ export async function claimActie(kaartId: unknown, claim: unknown): Promise<Resu
     const kaart = await kaartOmInTeVullen(kaartId);
     if (!vragenVoor(kaart).claim) throw new Fout("Voor deze kaart vul je dat niet in.");
     await opslag.zetClaim(ronde, persoon, kaart.id, claim);
+    await voorstelVerandert(ronde);
     return "Bewaard";
   });
 }
@@ -189,6 +208,7 @@ export async function beschikbareTijdActie(uren: unknown): Promise<Resultaat> {
     const gelezen = leesBeschikbareTijd(uren);
     if (!gelezen.ok) throw new Fout(gelezen.fout);
     await opslag.zetBeschikbareTijd(persoon, gelezen.uren);
+    await voorstelVerandert(ronde);
     return "Bewaard";
   });
 }
@@ -217,5 +237,85 @@ export async function allesResettenActie(): Promise<Resultaat> {
     const { ronde } = await bereidVoor();
     await opslag.allesResetten(ronde);
     return "Alles gereset.";
+  });
+}
+
+// --- Stap 4: het voorstel ----------------------------------------------------
+
+async function voorstelMoetOpen(ronde: Ronde) {
+  if (ronde.fase !== "voorstel") throw new Fout("Het voorstel ligt al vast.");
+}
+
+/** Het voorstel zoals het nu is, met de verschuivingen. */
+async function huidigVoorstel(ronde: Ronde) {
+  const [{ kaarten }, inschattingen, verschuivingen] = await Promise.all([
+    opslag.leesBalans(),
+    opslag.leesInschattingen(ronde),
+    opslag.leesVerschuivingen(ronde),
+  ]);
+  return berekenVoorstel({ kaarten, ...inschattingen, verschuivingen });
+}
+
+/**
+ * Een kaart verschuiven: naar Jan, naar Sandra, uitbesteden, of "terug" naar
+ * waar het voorstel ze zette. Terug naar het voorstel is geen verschuiving
+ * meer (R16). Elke verschuiving wist "voelt goed" van allebei (R15).
+ */
+export async function verschuifActie(kaartId: unknown, naar: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    await voorstelMoetOpen(ronde);
+    const id = leesId(kaartId);
+    const voorstel = await huidigVoorstel(ronde);
+    const item = voorstel.kaarten.find((kandidaat) => kandidaat.kaart.id === id);
+    if (!item || item.kaart.verdeling !== "spel") throw new Fout("Deze kaart kan je niet verschuiven.");
+
+    if (naar === "terug" || naar === item.voorgesteld) {
+      await opslag.zetVerschuiving(ronde, id, null);
+      return "Bewaard";
+    }
+    if (!isVerschuiving(naar)) throw new Fout("Kies waar de kaart naartoe gaat.");
+    if (naar === "uitbesteed" && !magUitbesteden(item)) {
+      throw new Fout("Uitbesteden kan enkel bij een kaart die niemand graag doet.");
+    }
+    await opslag.zetVerschuiving(ronde, id, naar);
+    return "Bewaard";
+  });
+}
+
+/** Alle verschuivingen weg: terug naar het voorstel zoals het berekend werd. */
+export async function terugNaarVoorstelActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    await voorstelMoetOpen(ronde);
+    await opslag.wisVerschuivingen(ronde);
+    return "Bewaard";
+  });
+}
+
+/** "Dit voelt goed voor mij", of "Toch nog niet". Enkel je eigen, voor de versie die je zag. */
+export async function voeltGoedActie(akkoord: boolean, gezieneVersie: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    if (akkoord === true) {
+      const beslissing = magVoeltGoedGeven(ronde, String(gezieneVersie ?? ""));
+      if (!beslissing.ok) throw new Fout(beslissing.reden);
+    } else {
+      await voorstelMoetOpen(ronde);
+    }
+    await opslag.zetVoeltGoed(ronde, persoon, akkoord === true);
+    return "Bewaard";
+  });
+}
+
+/** De verdeling vastleggen, als jullie je er allebei goed bij voelen. Daarna stap 5. */
+export async function vastleggenActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { ronde } = await bereidVoor();
+    const beslissing = magVastleggen(ronde, await opslag.leesAkkoorden(ronde, "voorstel"));
+    if (!beslissing.ok) throw new Fout(beslissing.reden);
+    const vastgelegd = await opslag.legVast(ronde, teVerdelen(await huidigVoorstel(ronde)));
+    if (!vastgelegd) throw new Fout("Het voorstel ligt al vast.");
+    return "Bewaard";
   });
 }

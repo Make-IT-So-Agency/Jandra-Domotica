@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/supabase";
 
+import { isVerschuiving, type Verschuiving } from "./voorstel";
 import {
   FASES,
   FREQUENTIES,
@@ -70,14 +71,19 @@ function naarRij(kaart: Kaartinvoer) {
 export async function huidigeRonde(): Promise<Ronde> {
   const { data, error } = await db()
     .from("huishouden_rondes")
-    .select("id, fase, lijst_versie")
+    .select("id, fase, lijst_versie, voorstel_versie")
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`De ronde lezen mislukt: ${error.message}`);
   if (!data) throw new Error("Er is nog geen ronde. Draai de databankmigraties.");
   const fase = (FASES as readonly string[]).includes(data.fase) ? (data.fase as Fase) : "lijst";
-  return { id: Number(data.id), fase, lijstVersie: String(data.lijst_versie) };
+  return {
+    id: Number(data.id),
+    fase,
+    lijstVersie: String(data.lijst_versie),
+    voorstelVersie: String(data.voorstel_versie),
+  };
 }
 
 export interface Balans {
@@ -271,10 +277,13 @@ export async function zetBeschikbareTijd(persoon: Persoon, uren: number | null):
 
 /**
  * Alles resetten: de inschattingen, de beschikbare tijd en alles van de
- * ronde (claims, akkoorden) weg, en terug naar stap 1. De kaarten blijven.
+ * ronde (claims, akkoorden, verschuivingen, de vastgelegde verdeling) weg, en
+ * terug naar stap 1. De kaarten blijven.
  */
 export async function allesResetten(ronde: Ronde): Promise<void> {
   const stappen = [
+    db().from("huishouden_verdeling").delete().eq("ronde_id", ronde.id),
+    db().from("huishouden_verschuivingen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_claims").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_akkoorden").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_inschattingen").delete().in("persoon", [...PERSONEN]),
@@ -286,7 +295,112 @@ export async function allesResetten(ronde: Ronde): Promise<void> {
   }
   const { error } = await db()
     .from("huishouden_rondes")
-    .update({ fase: "lijst", lijst_versie: new Date().toISOString(), vastgelegd_op: null })
+    .update({
+      fase: "lijst",
+      lijst_versie: new Date().toISOString(),
+      voorstel_versie: new Date().toISOString(),
+      vastgelegd_op: null,
+    })
     .eq("id", ronde.id);
   if (error) throw new Error(`Resetten mislukt: ${error.message}`);
+}
+
+// --- Stap 4 en 5 -------------------------------------------------------------
+
+/** De akkoorden van één soort in deze ronde, per persoon met hun versie. */
+export async function leesAkkoorden(ronde: Ronde, soort: "lijst" | "bieden" | "voorstel"): Promise<Lijstakkoord[]> {
+  const { data, error } = await db()
+    .from("huishouden_akkoorden")
+    .select("persoon, versie")
+    .eq("ronde_id", ronde.id)
+    .eq("soort", soort);
+  if (error) throw new Error(`De akkoorden lezen mislukt: ${error.message}`);
+  return (data ?? [])
+    .filter((rij) => isPersoon(rij.persoon))
+    .map((rij) => ({ persoon: rij.persoon as Persoon, versie: rij.versie === null ? null : String(rij.versie) }));
+}
+
+export async function leesVerschuivingen(ronde: Ronde): Promise<Map<number, Verschuiving>> {
+  const { data, error } = await db().from("huishouden_verschuivingen").select("kaart_id, naar").eq("ronde_id", ronde.id);
+  if (error) throw new Error(`De verschuivingen lezen mislukt: ${error.message}`);
+  return new Map((data ?? []).filter((rij) => isVerschuiving(rij.naar)).map((rij) => [Number(rij.kaart_id), rij.naar as Verschuiving]));
+}
+
+/** De vastgelegde verdeling van deze ronde: per kaart via het spel de eigenaar. */
+export async function leesVerdeling(ronde: Ronde): Promise<Map<number, Verschuiving>> {
+  const { data, error } = await db().from("huishouden_verdeling").select("kaart_id, eigenaar").eq("ronde_id", ronde.id);
+  if (error) throw new Error(`De verdeling lezen mislukt: ${error.message}`);
+  return new Map(
+    (data ?? []).filter((rij) => isVerschuiving(rij.eigenaar)).map((rij) => [Number(rij.kaart_id), rij.eigenaar as Verschuiving]),
+  );
+}
+
+/**
+ * Een nieuwe versie van het voorstel: na een verschuiving, of een gewijzigde
+ * claim of inschatting. Daarmee telt "voelt goed" van allebei niet meer.
+ */
+export async function voorstelGewijzigd(ronde: Ronde): Promise<void> {
+  const { error } = await db()
+    .from("huishouden_rondes")
+    .update({ voorstel_versie: new Date().toISOString() })
+    .eq("id", ronde.id);
+  if (error) throw new Error(`Het voorstel bijwerken mislukt: ${error.message}`);
+}
+
+/** Een kaart verschuiven; null haalt de verschuiving weg (terug naar het voorstel). */
+export async function zetVerschuiving(ronde: Ronde, kaartId: number, naar: Verschuiving | null): Promise<void> {
+  const tabel = db().from("huishouden_verschuivingen");
+  const { error } =
+    naar === null
+      ? await tabel.delete().eq("ronde_id", ronde.id).eq("kaart_id", kaartId)
+      : await tabel.upsert(
+          { ronde_id: ronde.id, kaart_id: kaartId, naar, gewijzigd_op: new Date().toISOString() },
+          { onConflict: "ronde_id,kaart_id" },
+        );
+  if (error) throw new Error(`Verschuiven mislukt: ${error.message}`);
+  await voorstelGewijzigd(ronde);
+}
+
+export async function wisVerschuivingen(ronde: Ronde): Promise<void> {
+  const { error } = await db().from("huishouden_verschuivingen").delete().eq("ronde_id", ronde.id);
+  if (error) throw new Error(`Terugzetten mislukt: ${error.message}`);
+  await voorstelGewijzigd(ronde);
+}
+
+/** "Dit voelt goed voor mij", voor de versie van het voorstel die je zag. Enkel je eigen rij. */
+export async function zetVoeltGoed(ronde: Ronde, persoon: Persoon, akkoord: boolean): Promise<void> {
+  const tabel = db().from("huishouden_akkoorden");
+  const { error } = akkoord
+    ? await tabel.upsert(
+        { ronde_id: ronde.id, persoon, soort: "voorstel", versie: ronde.voorstelVersie, gegeven_op: new Date().toISOString() },
+        { onConflict: "ronde_id,persoon,soort" },
+      )
+    : await tabel.delete().eq("ronde_id", ronde.id).eq("persoon", persoon).eq("soort", "voorstel");
+  if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
+}
+
+/**
+ * De verdeling vastleggen en naar stap 5. Eerst de fase, enkel als die nog
+ * "voorstel" is: zo legt een dubbele tik niets twee keer vast.
+ */
+export async function legVast(ronde: Ronde, verdeling: { kaartId: number; eigenaar: Verschuiving }[]): Promise<boolean> {
+  const nu = new Date().toISOString();
+  const { data, error } = await db()
+    .from("huishouden_rondes")
+    .update({ fase: "vastgelegd", vastgelegd_op: nu })
+    .eq("id", ronde.id)
+    .eq("fase", "voorstel")
+    .select("id");
+  if (error) throw new Error(`Vastleggen mislukt: ${error.message}`);
+  if (!data || data.length === 0) return false;
+
+  const verwijderd = await db().from("huishouden_verdeling").delete().eq("ronde_id", ronde.id);
+  if (verwijderd.error) throw new Error(`Vastleggen mislukt: ${verwijderd.error.message}`);
+  if (verdeling.length > 0) {
+    const { error: fout } = await db()
+      .from("huishouden_verdeling")
+      .insert(verdeling.map(({ kaartId, eigenaar }) => ({ ronde_id: ronde.id, kaart_id: kaartId, eigenaar, vastgelegd_op: nu })));
+    if (fout) throw new Error(`Vastleggen mislukt: ${fout.message}`);
+  }
+  return true;
 }

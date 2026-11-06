@@ -4572,3 +4572,207 @@ details.palet:not([open]) {
 .bolletjes {
   flex-wrap: wrap;
 }
+
+/* --- Stap 4 en 5: twee kolommen met kleine kaarten ---------------------------- */
+.kolommen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 620px) {
+  .kolommen {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kolom {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.kolom > h3 {
+  margin: 0;
+}
+
+/* De naam en het totaal in de kleur van de persoon. */
+.kolomkop {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kolomkop.jan {
+  color: var(--jan);
+}
+
+.kolomkop.sandra {
+  color: var(--sandra);
+}
+
+/* Een kleine kaart. Een rand in de kleur van een persoon: vast bij die
+   persoon. Een gestippelde rand: samen verschoven of uitbesteed. */
+.mini {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--kaart);
+  border: 1px solid var(--lijn);
+  border-radius: var(--radius-paneel);
+}
+
+.mini.jan {
+  border-color: var(--jan);
+}
+
+.mini.sandra {
+  border-color: var(--sandra);
+}
+
+.mini.verschoven {
+  border-style: dashed;
+}
+
+.mini-rij {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: start;
+  gap: 6px 8px;
+}
+
+.mini-rij.rechts {
+  justify-content: flex-end;
+}
+
+.mini-rij > span:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mini-titel {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.mini-cijfers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini .label-vlag {
+  white-space: normal;
+}
+
+.mini-knoppen {
+  margin-left: auto;
+  gap: 6px;
+}
+
+/* --- De weegschaal ------------------------------------------------------------ */
+.weegschaal-last,
+.weegschaal-uren {
+  display: grid;
+  gap: 6px;
+}
+
+.weegschaal-uren {
+  padding-top: 12px;
+  border-top: 1px solid var(--lijn);
+}
+
+.weegschaal-getallen {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.weegschaal-kolommen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+
+.weegschaal-persoon {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 0;
+}
+
+.wie {
+  font-family: var(--letter-titel);
+  font-weight: 700;
+}
+
+.wie.jan {
+  color: var(--jan);
+}
+
+.wie.sandra {
+  color: var(--sandra);
+}
+
+.groot-getal {
+  font-family: var(--letter-titel);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Een overschrijding is amber, nooit rood. */
+.weegschaal-persoon.over .groot-getal {
+  color: var(--let-op);
+}
+
+/* De verdeling van de mentale last: één balk, gevuld in de twee kleuren. */
+.schaalbalk {
+  display: flex;
+  gap: 4px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--lijn);
+}
+
+.schaalbalk i {
+  display: block;
+}
+
+.schaalbalk .jan,
+.meter .jan {
+  background: var(--jan);
+}
+
+.schaalbalk .sandra,
+.meter .sandra {
+  background: var(--sandra);
+}
+
+.meter {
+  height: 10px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--lijn);
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+}
+
+.meter .over {
+  background: var(--let-op);
+}

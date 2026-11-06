@@ -10,7 +10,14 @@ import {
   voortgang,
   type Stap2Gegevens,
 } from "@/lib/huishouden/balans";
-import { leesBalans, leesInschattingen } from "@/lib/huishouden/opslag";
+import {
+  leesAkkoorden,
+  leesBalans,
+  leesInschattingen,
+  leesVerdeling,
+  leesVerschuivingen,
+} from "@/lib/huishouden/opslag";
+import { berekenVoorstel, voeltGoed, type Voorstelgegevens } from "@/lib/huishouden/voorstel";
 import { vereistGebruiker } from "@/lib/toegang";
 
 import { Balans } from "./balans";
@@ -27,8 +34,24 @@ export default async function Balanspagina() {
   const { ronde, kaarten, lijstakkoorden } = await leesBalans();
 
   let stap2: Stap2Gegevens | null = null;
+  let voorstel: Voorstelgegevens | null = null;
   if (magInschatten(ronde)) {
     const { invoer, beschikbareTijd } = await leesInschattingen(ronde);
+
+    // Vanaf het voorstel zijn de keuzes van allebei zichtbaar, als reden bij
+    // een kaart. In stap 5 telt de vastgelegde verdeling in plaats van de
+    // verschuivingen.
+    if (ronde.fase === "voorstel" || ronde.fase === "vastgelegd") {
+      const [verschuivingen, akkoorden] = await Promise.all([
+        ronde.fase === "voorstel" ? leesVerschuivingen(ronde) : leesVerdeling(ronde),
+        leesAkkoorden(ronde, "voorstel"),
+      ]);
+      voorstel = {
+        voorstel: berekenVoorstel({ kaarten, invoer, beschikbareTijd, verschuivingen }),
+        voeltGoed: voeltGoed(ronde, akkoorden),
+      };
+    }
+
     const stand = {
       jan: voortgang(kaarten, invoer.jan, beschikbareTijd.jan),
       sandra: voortgang(kaarten, invoer.sandra, beschikbareTijd.sandra),
@@ -54,6 +77,7 @@ export default async function Balanspagina() {
       akkoord={akkoordMetLijst(ronde, lijstakkoorden)}
       domeinen={domeinen(kaarten)}
       stap2={stap2}
+      voorstel={voorstel}
     />
   );
 }
