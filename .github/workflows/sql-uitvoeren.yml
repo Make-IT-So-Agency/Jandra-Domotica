@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: productie
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Controleer de instellingen van deze omgeving
         env:
