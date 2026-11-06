@@ -20,6 +20,7 @@ import {
   type Persoon,
   type Ronde,
 } from "@/lib/huishouden/balans";
+import { begrens, biedenAf, biedingenVoorVoorstel, botsendeKaarten, verdeeld } from "@/lib/huishouden/bieden";
 import * as opslag from "@/lib/huishouden/opslag";
 import {
   berekenVoorstel,
@@ -195,6 +196,8 @@ export async function claimActie(kaartId: unknown, claim: unknown): Promise<Resu
     const kaart = await kaartOmInTeVullen(kaartId);
     if (!vragenVoor(kaart).claim) throw new Fout("Voor deze kaart vul je dat niet in.");
     await opslag.zetClaim(ronde, persoon, kaart.id, claim);
+    // Een andere claim kan een nieuwe botsing maken: dan moet ieder opnieuw zeggen dat hij klaar is.
+    if (ronde.fase === "bieden") await opslag.wisKlaarMetBieden(ronde);
     await voorstelVerandert(ronde);
     return "Bewaard";
   });
@@ -246,14 +249,21 @@ async function voorstelMoetOpen(ronde: Ronde) {
   if (ronde.fase !== "voorstel") throw new Fout("Het voorstel ligt al vast.");
 }
 
-/** Het voorstel zoals het nu is, met de verschuivingen. */
+/** Het voorstel zoals het nu is, met de biedingen en de verschuivingen. */
 async function huidigVoorstel(ronde: Ronde) {
-  const [{ kaarten }, inschattingen, verschuivingen] = await Promise.all([
+  const [{ kaarten }, inschattingen, verschuivingen, biedingen] = await Promise.all([
     opslag.leesBalans(),
     opslag.leesInschattingen(ronde),
     opslag.leesVerschuivingen(ronde),
+    opslag.leesBiedingen(ronde),
   ]);
-  return berekenVoorstel({ kaarten, ...inschattingen, verschuivingen });
+  const botsend = new Set(botsendeKaarten(kaarten, inschattingen.invoer).map((kaart) => kaart.id));
+  return berekenVoorstel({
+    kaarten,
+    ...inschattingen,
+    verschuivingen,
+    biedingen: biedingenVoorVoorstel(biedingen, botsend),
+  });
 }
 
 /**
@@ -316,6 +326,65 @@ export async function vastleggenActie(): Promise<Resultaat> {
     if (!beslissing.ok) throw new Fout(beslissing.reden);
     const vastgelegd = await opslag.legVast(ronde, teVerdelen(await huidigVoorstel(ronde)));
     if (!vastgelegd) throw new Fout("Het voorstel ligt al vast.");
+    return "Bewaard";
+  });
+}
+
+// --- Stap 3: bieden ------------------------------------------------------------
+
+/** Wat er nodig is om te bieden: de kaarten die nu botsen, je eigen biedingen, en wie klaar is. */
+async function biedtoestand(ronde: Ronde, persoon: Persoon) {
+  const [{ kaarten }, inschattingen, biedingen, klaar] = await Promise.all([
+    opslag.leesBalans(),
+    opslag.leesInschattingen(ronde),
+    opslag.leesBiedingen(ronde),
+    opslag.leesAkkoorden(ronde, "bieden"),
+  ]);
+  const botsend = new Set(botsendeKaarten(kaarten, inschattingen.invoer).map((kaart) => kaart.id));
+  return {
+    botsend,
+    mijn: biedingen[persoon],
+    klaar: { jan: klaar.some((a) => a.persoon === "jan"), sandra: klaar.some((a) => a.persoon === "sandra") },
+  };
+}
+
+/**
+ * Je bod op een kaart die jullie allebei willen. Het blijft binnen je budget
+ * van 100: wie meer vraagt dan er over is, stopt op wat er over is (R18).
+ */
+export async function bodActie(kaartId: unknown, punten: unknown): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    if (ronde.fase !== "bieden") throw new Fout("Bieden kan enkel in stap 3.");
+    const id = leesId(kaartId);
+    const toestand = await biedtoestand(ronde, persoon);
+    if (toestand.klaar[persoon]) throw new Fout("Je bent klaar met bieden. Tik eerst op Toch nog aanpassen.");
+    if (!toestand.botsend.has(id)) throw new Fout("Op deze kaart hoef je niet te bieden.");
+    const gevraagd = Number(punten);
+    const bod = begrens(gevraagd, verdeeld(toestand.mijn, toestand.botsend, id));
+    await opslag.zetBod(ronde, persoon, id, bod);
+    return bod < Math.round(gevraagd / 5) * 5 ? `Je budget is op: dit bod stopt op ${bod}.` : "Bewaard";
+  });
+}
+
+/** "Ik ben klaar" vergrendelt je biedingen; "Toch nog aanpassen" maakt ze weer vrij. */
+export async function klaarMetBiedenActie(klaar: boolean): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    if (ronde.fase !== "bieden") throw new Fout("Bieden kan enkel in stap 3.");
+    await opslag.zetKlaarMetBieden(ronde, persoon, klaar === true);
+    return "Bewaard";
+  });
+}
+
+/** Naar het voorstel: zonder botsende kaarten meteen, anders als jullie allebei klaar zijn (R22). */
+export async function naarVoorstelActie(): Promise<Resultaat> {
+  return voer(async () => {
+    const { persoon, ronde } = await bereidVoor();
+    if (ronde.fase !== "bieden") throw new Fout("Jullie zijn al verder.");
+    const toestand = await biedtoestand(ronde, persoon);
+    if (!biedenAf(toestand.botsend.size, toestand.klaar)) throw new Fout("Jullie moeten allebei klaar zijn met bieden.");
+    await opslag.naarFase(ronde, "bieden", "voorstel");
     return "Bewaard";
   });
 }

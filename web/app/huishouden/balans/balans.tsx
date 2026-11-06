@@ -13,9 +13,11 @@ import {
   type Stap2Gegevens,
 } from "@/lib/huishouden/balans";
 
+import type { Stap3Gegevens } from "@/lib/huishouden/bieden";
 import type { Voorstelgegevens } from "@/lib/huishouden/voorstel";
 
 import { allesResettenActie, type Resultaat } from "./acties";
+import { StapBieden } from "./stap-bieden";
 import { StapInschatten } from "./stap-inschatten";
 import { StapLijst } from "./stap-lijst";
 import { StapVerdeling } from "./stap-verdeling";
@@ -55,6 +57,7 @@ export function Balans({
   akkoord,
   domeinen,
   stap2,
+  stap3,
   voorstel,
 }: {
   ik: Persoon;
@@ -63,6 +66,7 @@ export function Balans({
   akkoord: Record<Persoon, boolean>;
   domeinen: string[];
   stap2: Stap2Gegevens | null;
+  stap3: Stap3Gegevens | null;
   voorstel: Voorstelgegevens | null;
 }) {
   useLiveVerversen();
@@ -116,6 +120,7 @@ export function Balans({
           {bekeken === 2 && stap2 ? (
             <StapInschatten ik={ik} ronde={ronde} kaarten={kaarten} gegevens={stap2} voer={voer} />
           ) : null}
+          {bekeken === 3 && stap3 ? <StapBieden ik={ik} ronde={ronde} gegevens={stap3} voer={voer} /> : null}
           {bekeken === 4 && voorstel ? <StapVoorstel ik={ik} ronde={ronde} gegevens={voorstel} voer={voer} /> : null}
           {bekeken === 5 && voorstel ? <StapVerdeling gegevens={voorstel} /> : null}
           <AllesResetten voer={voer} />

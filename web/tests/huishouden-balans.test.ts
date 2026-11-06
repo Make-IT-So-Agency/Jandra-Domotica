@@ -292,10 +292,10 @@ describe("stap 2: verder en blind", () => {
   it("gaat enkel naar een stap die al gebouwd is", () => {
     expect(isGebouwd("lijst")).toBe(true);
     expect(isGebouwd("inschatten")).toBe(true);
-    expect(isGebouwd("bieden")).toBe(false);
+    expect(isGebouwd("bieden")).toBe(true);
     expect(volgendeFase("lijst")).toBe("inschatten");
-    // Stap 3 (bieden) is er nog niet: na stap 2 gaat het meteen naar het voorstel.
-    expect(volgendeFase("inschatten")).toBe("voorstel");
+    expect(volgendeFase("inschatten")).toBe("bieden");
+    expect(volgendeFase("bieden")).toBe("voorstel");
     expect(volgendeFase("voorstel")).toBe("vastgelegd");
     expect(volgendeFase("vastgelegd")).toBeNull();
   });
