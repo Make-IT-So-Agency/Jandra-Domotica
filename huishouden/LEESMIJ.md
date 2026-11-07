@@ -29,20 +29,20 @@ De module komt er stap voor stap bij, in de volgorde van de overdracht (§9).
 | 2 | Inschatten en claimen (stap 2), met de beschikbare tijd, en "Alles resetten" | **klaar** |
 | 3 | Voorstel en vastleggen (stap 4 en 5), zonder bieden | **klaar** |
 | 4 | Bieden (stap 3) | **klaar** |
-| 5 | Uitlenen, doorgeven, nieuwe ronde en alles resetten | nog niet |
+| 5 | Uitlenen, doorgeven, nieuwe ronde en alles resetten | **klaar** |
 
 Welke stappen er al zijn, staat in `GEBOUWDE_FASES` in
 `web/lib/huishouden/balans.ts`. Je kan nooit naar een stap die er nog niet
-is. Ligt de lijst vast en wil je ze toch nog aanpassen,
-dan brengt **Alles resetten** onderaan elke stap jullie terug naar stap 1
-(de kaarten blijven). "Nieuwe ronde starten" komt met bouwstap 5.
+is. De lijst aanpassen nadat ze vastligt, doe je met **Nieuwe ronde
+starten** in stap 5, of met **Alles resetten** onderaan elke stap.
 
 ## Waar alles staat
 
 | Wat | Waar |
 | --- | --- |
-| De tabellen | `supabase/migrations/20261106100000_huishouden.sql`: `huishouden_kaarten`, `huishouden_rondes`, `huishouden_akkoorden`, en `app_users.huishouden_persoon`. `20261106120000_huishouden_inschatten.sql`: `huishouden_inschattingen` (tijd en last, over rondes heen), `huishouden_claims` (per ronde) en `huishouden_tijd`. `20261106140000_huishouden_voorstel.sql`: `huishouden_verschuivingen`, `huishouden_verdeling` (de vastgelegde eigenaars) en `voorstel_versie` op de ronde. `20261106160000_huishouden_bieden.sql`: `huishouden_biedingen` |
+| De tabellen | `supabase/migrations/20261106100000_huishouden.sql`: `huishouden_kaarten`, `huishouden_rondes`, `huishouden_akkoorden`, en `app_users.huishouden_persoon`. `20261106120000_huishouden_inschatten.sql`: `huishouden_inschattingen` (tijd en last, over rondes heen), `huishouden_claims` (per ronde) en `huishouden_tijd`. `20261106140000_huishouden_voorstel.sql`: `huishouden_verschuivingen`, `huishouden_verdeling` (de vastgelegde eigenaars) en `voorstel_versie` op de ronde. `20261106160000_huishouden_bieden.sql`: `huishouden_biedingen`. `20261106180000_huishouden_rondes.sql`: `huishouden_uitleningen` en `vorige_ronde_id` op de ronde |
 | De regels, zonder databank | `web/lib/huishouden/balans.ts`, getest in `web/tests/huishouden-balans.test.ts` |
+| Uitlenen, doorgeven en een nieuwe ronde | `web/lib/huishouden/verdeling.ts`, getest in `web/tests/huishouden-verdeling.test.ts` |
 | Bieden (R18 tot R22) | `web/lib/huishouden/bieden.ts`, getest in `web/tests/huishouden-bieden.test.ts` |
 | Het voorstel en de weegschaal (R1 tot R16) | `web/lib/huishouden/voorstel.ts`, getest in `web/tests/huishouden-voorstel.test.ts`, met het volledige voorbeeld uit de overdracht |
 | Lezen en bewaren | `web/lib/huishouden/opslag.ts` |
@@ -137,8 +137,19 @@ Uit de overdracht, §12, beantwoord door Jan op 5 en 6 november 2026.
   Sandra, te beginnen bij Jan (OV16), binnen één berekening van het voorstel.
 - **Uitbesteden** kan enkel bij kaarten die niemand graag doet (die ×1,5
   tellen), zoals in de overdracht.
-- **Stap 5** toont de verdeling, de uren, de mentale last en "goed genoeg".
-  Uitlenen, doorgeven en "Nieuwe ronde starten" komen met bouwstap 5; tot
-  dan brengt Alles resetten jullie terug naar stap 1.
+- **Uitlenen** kan bij je eigen kaarten via het spel en je eigen vaste
+  kaarten, niet bij hobbytijd. De kaart blijft in jouw kolom en jouw uren
+  (OV12). Ze staat per ronde in `huishouden_uitleningen`, dus een nieuwe
+  ronde begint zonder uitleningen.
+- **Doorgeven** kan enkel bij een vaste kaart en is voor altijd: de
+  verdeling op de kaart zelf wijzigt. Er komt eerst een korte bevestiging
+  op de kaart ("Voor altijd vast bij Sandra?").
+- **Nieuwe ronde starten** vraagt eerst een korte bevestiging en maakt een
+  nieuwe ronde in plaats van de oude te wissen: de vorige ronde, met haar
+  vastgelegde verdeling, blijft bewaard (OV14). Kaarten, inschattingen,
+  beschikbare tijd en vaste kaarten blijven; claims, biedingen, akkoorden,
+  verschuivingen en uitleningen beginnen leeg. Een tweede, gelijktijdige
+  tik maakt geen tweede ronde (`vorige_ronde_id` is uniek). Een scherm om
+  vorige rondes te bekijken is er nog niet.
 - **Mentale last 2 tot 4** hebben geen omschrijving: de overdracht geeft er
   enkel voor 1 (nauwelijks) en 5 (zit er constant).

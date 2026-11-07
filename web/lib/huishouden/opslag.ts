@@ -283,6 +283,7 @@ export async function zetBeschikbareTijd(persoon: Persoon, uren: number | null):
 export async function allesResetten(ronde: Ronde): Promise<void> {
   const stappen = [
     db().from("huishouden_verdeling").delete().eq("ronde_id", ronde.id),
+    db().from("huishouden_uitleningen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_biedingen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_verschuivingen").delete().eq("ronde_id", ronde.id),
     db().from("huishouden_claims").delete().eq("ronde_id", ronde.id),
@@ -445,4 +446,56 @@ export async function zetKlaarMetBieden(ronde: Ronde, persoon: Persoon, klaar: b
 export async function wisKlaarMetBieden(ronde: Ronde): Promise<void> {
   const { error } = await db().from("huishouden_akkoorden").delete().eq("ronde_id", ronde.id).eq("soort", "bieden");
   if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
+}
+
+// --- Stap 5: uitlenen, doorgeven, nieuwe ronde -----------------------------------
+
+/** Welke kaarten in deze ronde tijdelijk bij de ander liggen. */
+export async function leesUitleningen(ronde: Ronde): Promise<Map<number, Persoon>> {
+  const { data, error } = await db().from("huishouden_uitleningen").select("kaart_id, aan").eq("ronde_id", ronde.id);
+  if (error) throw new Error(`De uitleningen lezen mislukt: ${error.message}`);
+  return new Map((data ?? []).filter((rij) => isPersoon(rij.aan)).map((rij) => [Number(rij.kaart_id), rij.aan as Persoon]));
+}
+
+/** Een kaart tijdelijk uitlenen, of terugnemen (null). */
+export async function zetUitlening(ronde: Ronde, kaartId: number, aan: Persoon | null): Promise<void> {
+  const tabel = db().from("huishouden_uitleningen");
+  const { error } =
+    aan === null
+      ? await tabel.delete().eq("ronde_id", ronde.id).eq("kaart_id", kaartId)
+      : await tabel.upsert(
+          { ronde_id: ronde.id, kaart_id: kaartId, aan, sinds: new Date().toISOString() },
+          { onConflict: "ronde_id,kaart_id" },
+        );
+  if (error) throw new Error(`Bewaren mislukt: ${error.message}`);
+}
+
+/**
+ * Een vaste kaart voor altijd doorgeven aan de ander: de verdeling op de
+ * kaart zelf wijzigt. Lag ze tijdelijk bij de ander, dan vervalt dat.
+ */
+export async function geefDoor(ronde: Ronde, kaartId: number, van: Persoon, naar: Persoon): Promise<void> {
+  const { data, error } = await db()
+    .from("huishouden_kaarten")
+    .update({ verdeling: naar, updated_at: new Date().toISOString() })
+    .eq("id", kaartId)
+    .eq("verdeling", van)
+    .select("id");
+  if (error) throw new Error(`Doorgeven mislukt: ${error.message}`);
+  if (!data || data.length === 0) throw new Error("Deze kaart bestaat niet meer.");
+  await zetUitlening(ronde, kaartId, null);
+}
+
+/**
+ * Een nieuwe ronde: terug naar stap 1. Kaarten, inschattingen, beschikbare
+ * tijd en de verdeling van vaste kaarten blijven; claims, biedingen,
+ * akkoorden, verschuivingen, de verdeling en uitleningen horen bij de vorige
+ * ronde en beginnen dus leeg. Die vorige ronde blijft bewaard.
+ *
+ * Starten jullie tegelijk een nieuwe ronde, dan weigert de unieke index op
+ * vorige_ronde_id de tweede: er komt er maar één.
+ */
+export async function startNieuweRonde(ronde: Ronde): Promise<void> {
+  const { error } = await db().from("huishouden_rondes").insert({ fase: "lijst", vorige_ronde_id: ronde.id });
+  if (error && error.code !== "23505") throw new Error(`Een nieuwe ronde starten mislukt: ${error.message}`);
 }
